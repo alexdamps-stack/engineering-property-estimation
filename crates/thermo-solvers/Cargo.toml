@@ -1,0 +1,9 @@
+[package]
+name = "thermo-solvers"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Root finding, phase stability, and flash algorithms."
+
+[lints]
+workspace = true

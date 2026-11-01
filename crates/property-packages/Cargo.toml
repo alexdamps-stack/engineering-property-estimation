@@ -1,0 +1,9 @@
+[package]
+name = "property-packages"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Compatible combinations of thermodynamic models and data."
+
+[lints]
+workspace = true

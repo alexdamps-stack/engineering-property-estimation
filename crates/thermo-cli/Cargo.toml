@@ -1,0 +1,9 @@
+[package]
+name = "thermo-cli"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Command-line entry point for reproducible calculations."
+
+[lints]
+workspace = true

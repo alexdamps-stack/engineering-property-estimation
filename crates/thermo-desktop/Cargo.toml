@@ -1,0 +1,9 @@
+[package]
+name = "thermo-desktop"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Future native property and flowsheet interface."
+
+[lints]
+workspace = true

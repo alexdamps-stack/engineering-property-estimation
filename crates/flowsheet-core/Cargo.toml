@@ -1,0 +1,9 @@
+[package]
+name = "flowsheet-core"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Streams, unit operations, balances, and calculation order."
+
+[lints]
+workspace = true
