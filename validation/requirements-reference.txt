@@ -1,0 +1,5 @@
+# Only required to regenerate independent fixtures, not to run Rust tests.
+teqp==0.23.2
+CoolProp==8.0.0
+numpy==2.5.4
+scipy==1.18.1

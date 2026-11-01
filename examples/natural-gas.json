@@ -1,0 +1,16 @@
+{
+  "model": "PR-BM",
+  "temperature_k": 288.15,
+  "pressure_pa": 5000000.0,
+  "components": ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide"],
+  "fractions": [0.90, 0.05, 0.02, 0.02, 0.01],
+  "basis": "mole",
+  "binary_interactions": [
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0]
+  ],
+  "root": "largest"
+}

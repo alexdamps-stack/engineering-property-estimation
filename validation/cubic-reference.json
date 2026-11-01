@@ -1,0 +1,1448 @@
+{
+  "purpose": "implementation verification, homogeneous roots only; no stability or experimental accuracy claim",
+  "versions": {
+    "teqp": "0.23.2",
+    "CoolProp": "8.0.0",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "python": "3.14.4"
+  },
+  "data_version": "coolprop-8.0.0-initial-v1",
+  "gas_constant_j_mol_k": 8.31446261815324,
+  "source": "https://pages.nist.gov/teqp-docs/en/latest/models/cubics.html",
+  "generation": "python validation/generate_cubic_references.py --refresh-data",
+  "tolerances": {
+    "relative": 2e-08,
+    "z_absolute": 1e-10,
+    "density_absolute": 1e-07,
+    "ln_phi_absolute": 1e-09,
+    "enthalpy_absolute_j_mol": 1e-05,
+    "entropy_absolute_j_mol_k": 1e-07
+  },
+  "cases": [
+    {
+      "request": {
+        "model": "PR",
+        "components": [
+          "methane"
+        ],
+        "fractions": [
+          1.0
+        ],
+        "basis": "mole",
+        "temperature_k": 300.0,
+        "pressure_pa": 100000.0,
+        "binary_interactions": [
+          [
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564
+          ],
+          "pcrit / Pa": [
+            4599200
+          ],
+          "acentric": [
+            0.01142
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.392217407205312,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.997827915882691
+        ],
+        "z": 0.997827915882691,
+        "molar_density_mol_m3": 40.1780551296535,
+        "mass_density_kg_m3": 0.6445685028340051,
+        "ln_fugacity_coefficients": [
+          -0.0021737969901972094
+        ],
+        "residual_enthalpy_j_mol": -17.970359034684552,
+        "residual_entropy_j_mol_k": -0.041827242967882115
+      },
+      "id": "cubic-000"
+    },
+    {
+      "request": {
+        "model": "PR",
+        "components": [
+          "methane"
+        ],
+        "fractions": [
+          1.0
+        ],
+        "basis": "mole",
+        "temperature_k": 150.0,
+        "pressure_pa": 1000000.0,
+        "binary_interactions": [
+          [
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564
+          ],
+          "pcrit / Pa": [
+            4599200
+          ],
+          "acentric": [
+            0.01142
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.392217407205312,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.033115478011181046,
+          0.12035232817829415,
+          0.8250427593763926
+        ],
+        "z": 0.8250427593763926,
+        "molar_density_mol_m3": 971.8474481139518,
+        "mass_density_kg_m3": 15.591154240602506,
+        "ln_fugacity_coefficients": [
+          -0.16302147255901292
+        ],
+        "residual_enthalpy_j_mol": -562.0224488088681,
+        "residual_entropy_j_mol_k": -2.3913803858442333
+      },
+      "id": "cubic-001"
+    },
+    {
+      "request": {
+        "model": "PR",
+        "components": [
+          "methane"
+        ],
+        "fractions": [
+          1.0
+        ],
+        "basis": "mole",
+        "temperature_k": 150.0,
+        "pressure_pa": 1000000.0,
+        "binary_interactions": [
+          [
+            0.0
+          ]
+        ],
+        "root": "smallest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564
+          ],
+          "pcrit / Pa": [
+            4599200
+          ],
+          "acentric": [
+            0.01142
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.392217407205312,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.033115478011181046,
+          0.12035232817829415,
+          0.8250427593763926
+        ],
+        "z": 0.033115478011181046,
+        "molar_density_mol_m3": 24212.717086980196,
+        "mass_density_kg_m3": 388.43977768300584,
+        "ln_fugacity_coefficients": [
+          -0.12695799083976217
+        ],
+        "residual_enthalpy_j_mol": -7216.090344739416,
+        "residual_entropy_j_mol_k": -47.051681496016826
+      },
+      "id": "cubic-002"
+    },
+    {
+      "request": {
+        "model": "PR",
+        "components": [
+          "methane",
+          "ethane",
+          "propane",
+          "nitrogen",
+          "carbon-dioxide"
+        ],
+        "fractions": [
+          0.9,
+          0.05,
+          0.02,
+          0.02,
+          0.01
+        ],
+        "basis": "mole",
+        "temperature_k": 288.15,
+        "pressure_pa": 5000000.0,
+        "binary_interactions": [
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564,
+            305.322,
+            369.89,
+            126.192,
+            304.1282
+          ],
+          "pcrit / Pa": [
+            4599200,
+            4872200,
+            4251200,
+            3395800,
+            7377300
+          ],
+          "acentric": [
+            0.01142,
+            0.099,
+            0.1521,
+            0.0372,
+            0.22394
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.392217407205312,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.5246782540799999,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.6029733060528,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.43163854590719997,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.7064774529578879,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.8650733868392577
+        ],
+        "z": 0.8650733868392577,
+        "molar_density_mol_m3": 2412.482900554338,
+        "mass_density_kg_m3": 43.00070316517146,
+        "ln_fugacity_coefficients": [
+          -0.11839040686026125,
+          -0.3821239855197301,
+          -0.5995040927149131,
+          0.014230414808179525,
+          -0.2893065072361569
+        ],
+        "residual_enthalpy_j_mol": -1131.724863185642,
+        "residual_entropy_j_mol_k": -2.761400483684106
+      },
+      "id": "cubic-003"
+    },
+    {
+      "request": {
+        "model": "PR",
+        "components": [
+          "methane",
+          "ethane"
+        ],
+        "fractions": [
+          0.7,
+          0.3
+        ],
+        "basis": "mole",
+        "temperature_k": 250.0,
+        "pressure_pa": 3000000.0,
+        "binary_interactions": [
+          [
+            0.0,
+            0.02
+          ],
+          [
+            0.02,
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564,
+            305.322
+          ],
+          "pcrit / Pa": [
+            4599200,
+            4872200
+          ],
+          "acentric": [
+            0.01142,
+            0.099
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.392217407205312,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.5246782540799999,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0,
+              0.02
+            ],
+            [
+              0.02,
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.803785978300046
+        ],
+        "z": 0.803785978300046,
+        "molar_density_mol_m3": 1795.5877552941758,
+        "mass_density_kg_m3": 36.36185867967861,
+        "ln_fugacity_coefficients": [
+          -0.1022796077076005,
+          -0.39078975431659563
+        ],
+        "residual_enthalpy_j_mol": -1225.0729110785028,
+        "residual_entropy_j_mol_k": -3.3302496207483503
+      },
+      "id": "cubic-004"
+    },
+    {
+      "request": {
+        "model": "PR",
+        "components": [
+          "methane",
+          "ethane"
+        ],
+        "fractions": [
+          0.7,
+          0.3
+        ],
+        "basis": "mole",
+        "temperature_k": 500.0,
+        "pressure_pa": 10000000.0,
+        "binary_interactions": [
+          [
+            0.0,
+            0.02
+          ],
+          [
+            0.02,
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564,
+            305.322
+          ],
+          "pcrit / Pa": [
+            4599200,
+            4872200
+          ],
+          "acentric": [
+            0.01142,
+            0.099
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.392217407205312,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.5246782540799999,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0,
+              0.02
+            ],
+            [
+              0.02,
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.9723562127007059
+        ],
+        "z": 0.9723562127007059,
+        "molar_density_mol_m3": 2473.833220207875,
+        "mass_density_kg_m3": 50.096785125133444,
+        "ln_fugacity_coefficients": [
+          -0.006827370796867257,
+          -0.11125177694060033
+        ],
+        "residual_enthalpy_j_mol": -1007.1179635086772,
+        "residual_entropy_j_mol_k": -1.6970001613550514
+      },
+      "id": "cubic-005"
+    },
+    {
+      "request": {
+        "model": "PR",
+        "components": [
+          "propane"
+        ],
+        "fractions": [
+          1.0
+        ],
+        "basis": "mole",
+        "temperature_k": 300.0,
+        "pressure_pa": 1000000.0,
+        "binary_interactions": [
+          [
+            0.0
+          ]
+        ],
+        "root": "smallest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            369.89
+          ],
+          "pcrit / Pa": [
+            4251200
+          ],
+          "acentric": [
+            0.1521
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.6029733060528,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.03475402099704007,
+          0.12800062008045882,
+          0.8146823259151077
+        ],
+        "z": 0.03475402099704007,
+        "molar_density_mol_m3": 11535.581743953157,
+        "mass_density_kg_m3": 508.6686290602957,
+        "ln_fugacity_coefficients": [
+          -0.17379298175620847
+        ],
+        "residual_enthalpy_j_mol": -16046.551804985047,
+        "residual_entropy_j_mol_k": -52.043510766506564
+      },
+      "id": "cubic-006"
+    },
+    {
+      "request": {
+        "model": "PR",
+        "components": [
+          "nitrogen",
+          "methane"
+        ],
+        "fractions": [
+          0.5,
+          0.5
+        ],
+        "basis": "mole",
+        "temperature_k": 115.0,
+        "pressure_pa": 1000000.0,
+        "binary_interactions": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            126.192,
+            190.564
+          ],
+          "pcrit / Pa": [
+            3395800,
+            4599200
+          ],
+          "acentric": [
+            0.0372,
+            0.01142
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.43163854590719997,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.392217407205312,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.03793254760140592,
+          0.20304275720698947,
+          0.7324403014574089
+        ],
+        "z": 0.7324403014574089,
+        "molar_density_mol_m3": 1427.8932542459745,
+        "mass_density_kg_m3": 31.453832509585922,
+        "ln_fugacity_coefficients": [
+          -0.1358771666785206,
+          -0.33411986512404684
+        ],
+        "residual_enthalpy_j_mol": -658.0649729243228,
+        "residual_entropy_j_mol_k": -3.7684177366026974
+      },
+      "id": "cubic-007"
+    },
+    {
+      "request": {
+        "model": "PR-BM",
+        "components": [
+          "methane"
+        ],
+        "fractions": [
+          1.0
+        ],
+        "basis": "mole",
+        "temperature_k": 300.0,
+        "pressure_pa": 100000.0,
+        "binary_interactions": [
+          [
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564
+          ],
+          "pcrit / Pa": [
+            4599200
+          ],
+          "acentric": [
+            0.01142
+          ],
+          "alpha": [
+            {
+              "type": "Twu",
+              "c": [
+                0.32791117230730027,
+                1.0,
+                1.196108703602656
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.9979110667947155
+        ],
+        "z": 0.9979110667947155,
+        "molar_density_mol_m3": 40.17470729432171,
+        "mass_density_kg_m3": 0.6445147941813444,
+        "ln_fugacity_coefficients": [
+          -0.002090733723984744
+        ],
+        "residual_enthalpy_j_mol": -18.455158213697576,
+        "residual_entropy_j_mol_k": -0.04413386665311501
+      },
+      "id": "cubic-008"
+    },
+    {
+      "request": {
+        "model": "PR-BM",
+        "components": [
+          "methane"
+        ],
+        "fractions": [
+          1.0
+        ],
+        "basis": "mole",
+        "temperature_k": 150.0,
+        "pressure_pa": 1000000.0,
+        "binary_interactions": [
+          [
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564
+          ],
+          "pcrit / Pa": [
+            4599200
+          ],
+          "acentric": [
+            0.01142
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.392217407205312,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.033115478011181046,
+          0.12035232817829415,
+          0.8250427593763926
+        ],
+        "z": 0.8250427593763926,
+        "molar_density_mol_m3": 971.8474481139518,
+        "mass_density_kg_m3": 15.591154240602506,
+        "ln_fugacity_coefficients": [
+          -0.16302147255901292
+        ],
+        "residual_enthalpy_j_mol": -562.0224488088681,
+        "residual_entropy_j_mol_k": -2.3913803858442333
+      },
+      "id": "cubic-009"
+    },
+    {
+      "request": {
+        "model": "PR-BM",
+        "components": [
+          "methane"
+        ],
+        "fractions": [
+          1.0
+        ],
+        "basis": "mole",
+        "temperature_k": 150.0,
+        "pressure_pa": 1000000.0,
+        "binary_interactions": [
+          [
+            0.0
+          ]
+        ],
+        "root": "smallest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564
+          ],
+          "pcrit / Pa": [
+            4599200
+          ],
+          "acentric": [
+            0.01142
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.392217407205312,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.033115478011181046,
+          0.12035232817829415,
+          0.8250427593763926
+        ],
+        "z": 0.033115478011181046,
+        "molar_density_mol_m3": 24212.717086980196,
+        "mass_density_kg_m3": 388.43977768300584,
+        "ln_fugacity_coefficients": [
+          -0.12695799083976217
+        ],
+        "residual_enthalpy_j_mol": -7216.090344739416,
+        "residual_entropy_j_mol_k": -47.051681496016826
+      },
+      "id": "cubic-010"
+    },
+    {
+      "request": {
+        "model": "PR-BM",
+        "components": [
+          "methane",
+          "ethane",
+          "propane",
+          "nitrogen",
+          "carbon-dioxide"
+        ],
+        "fractions": [
+          0.9,
+          0.05,
+          0.02,
+          0.02,
+          0.01
+        ],
+        "basis": "mole",
+        "temperature_k": 288.15,
+        "pressure_pa": 5000000.0,
+        "binary_interactions": [
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564,
+            305.322,
+            369.89,
+            126.192,
+            304.1282
+          ],
+          "pcrit / Pa": [
+            4599200,
+            4872200,
+            4251200,
+            3395800,
+            7377300
+          ],
+          "acentric": [
+            0.01142,
+            0.099,
+            0.1521,
+            0.0372,
+            0.22394
+          ],
+          "alpha": [
+            {
+              "type": "Twu",
+              "c": [
+                0.32791117230730027,
+                1.0,
+                1.196108703602656
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.5246782540799999,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.6029733060528,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "type": "Twu",
+              "c": [
+                0.35501867383514707,
+                1.0,
+                1.2158192729536
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.7064774529578879,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.8695482306654438
+        ],
+        "z": 0.8695482306654438,
+        "molar_density_mol_m3": 2400.0678511843175,
+        "mass_density_kg_m3": 42.779414196607775,
+        "ln_fugacity_coefficients": [
+          -0.11442184198861764,
+          -0.3784147980918972,
+          -0.5924137837841751,
+          0.0270982582378482,
+          -0.28715940618765495
+        ],
+        "residual_enthalpy_j_mol": -1153.125374617338,
+        "residual_entropy_j_mol_k": -2.8704053104606544
+      },
+      "id": "cubic-011"
+    },
+    {
+      "request": {
+        "model": "PR-BM",
+        "components": [
+          "methane",
+          "ethane"
+        ],
+        "fractions": [
+          0.7,
+          0.3
+        ],
+        "basis": "mole",
+        "temperature_k": 250.0,
+        "pressure_pa": 3000000.0,
+        "binary_interactions": [
+          [
+            0.0,
+            0.02
+          ],
+          [
+            0.02,
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564,
+            305.322
+          ],
+          "pcrit / Pa": [
+            4599200,
+            4872200
+          ],
+          "acentric": [
+            0.01142,
+            0.099
+          ],
+          "alpha": [
+            {
+              "type": "Twu",
+              "c": [
+                0.32791117230730027,
+                1.0,
+                1.196108703602656
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.5246782540799999,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0,
+              0.02
+            ],
+            [
+              0.02,
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.80533022715246
+        ],
+        "z": 0.80533022715246,
+        "molar_density_mol_m3": 1792.1446530275116,
+        "mass_density_kg_m3": 36.29213354501394,
+        "ln_fugacity_coefficients": [
+          -0.10081274749213318,
+          -0.3899294168607142
+        ],
+        "residual_enthalpy_j_mol": -1237.4945917385396,
+        "residual_entropy_j_mol_k": -3.390619624572469
+      },
+      "id": "cubic-012"
+    },
+    {
+      "request": {
+        "model": "PR-BM",
+        "components": [
+          "methane",
+          "ethane"
+        ],
+        "fractions": [
+          0.7,
+          0.3
+        ],
+        "basis": "mole",
+        "temperature_k": 500.0,
+        "pressure_pa": 10000000.0,
+        "binary_interactions": [
+          [
+            0.0,
+            0.02
+          ],
+          [
+            0.02,
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            190.564,
+            305.322
+          ],
+          "pcrit / Pa": [
+            4599200,
+            4872200
+          ],
+          "acentric": [
+            0.01142,
+            0.099
+          ],
+          "alpha": [
+            {
+              "type": "Twu",
+              "c": [
+                0.32791117230730027,
+                1.0,
+                1.196108703602656
+              ]
+            },
+            {
+              "type": "Twu",
+              "c": [
+                0.41563969843055837,
+                1.0,
+                1.26233912704
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0,
+              0.02
+            ],
+            [
+              0.02,
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.9833803909647967
+        ],
+        "z": 0.9833803909647967,
+        "molar_density_mol_m3": 2446.100332033804,
+        "mass_density_kg_m3": 49.53517550310765,
+        "ln_fugacity_coefficients": [
+          0.004643784628222615,
+          -0.09884201833429308
+        ],
+        "residual_enthalpy_j_mol": -998.7566410563121,
+        "residual_entropy_j_mol_k": -1.777995203738312
+      },
+      "id": "cubic-013"
+    },
+    {
+      "request": {
+        "model": "PR-BM",
+        "components": [
+          "propane"
+        ],
+        "fractions": [
+          1.0
+        ],
+        "basis": "mole",
+        "temperature_k": 300.0,
+        "pressure_pa": 1000000.0,
+        "binary_interactions": [
+          [
+            0.0
+          ]
+        ],
+        "root": "smallest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            369.89
+          ],
+          "pcrit / Pa": [
+            4251200
+          ],
+          "acentric": [
+            0.1521
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.6029733060528,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.03475402099704007,
+          0.12800062008045882,
+          0.8146823259151077
+        ],
+        "z": 0.03475402099704007,
+        "molar_density_mol_m3": 11535.581743953157,
+        "mass_density_kg_m3": 508.6686290602957,
+        "ln_fugacity_coefficients": [
+          -0.17379298175620847
+        ],
+        "residual_enthalpy_j_mol": -16046.551804985047,
+        "residual_entropy_j_mol_k": -52.043510766506564
+      },
+      "id": "cubic-014"
+    },
+    {
+      "request": {
+        "model": "PR-BM",
+        "components": [
+          "nitrogen",
+          "methane"
+        ],
+        "fractions": [
+          0.5,
+          0.5
+        ],
+        "basis": "mole",
+        "temperature_k": 115.0,
+        "pressure_pa": 1000000.0,
+        "binary_interactions": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "root": "largest"
+      },
+      "teqp_model": {
+        "kind": "cubic",
+        "model": {
+          "type": "PR",
+          "Tcrit / K": [
+            126.192,
+            190.564
+          ],
+          "pcrit / Pa": [
+            3395800,
+            4599200
+          ],
+          "acentric": [
+            0.0372,
+            0.01142
+          ],
+          "alpha": [
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.43163854590719997,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "type": "Mathias-Copeman",
+              "c": [
+                0.392217407205312,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "kmat": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ]
+          ]
+        }
+      },
+      "expected": {
+        "roots_z": [
+          0.03793254760140592,
+          0.20304275720698947,
+          0.7324403014574089
+        ],
+        "z": 0.7324403014574089,
+        "molar_density_mol_m3": 1427.8932542459745,
+        "mass_density_kg_m3": 31.453832509585922,
+        "ln_fugacity_coefficients": [
+          -0.1358771666785206,
+          -0.33411986512404684
+        ],
+        "residual_enthalpy_j_mol": -658.0649729243228,
+        "residual_entropy_j_mol_k": -3.7684177366026974
+      },
+      "id": "cubic-015"
+    }
+  ]
+}

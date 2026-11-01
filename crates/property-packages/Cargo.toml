@@ -7,3 +7,12 @@ description = "Compatible combinations of thermodynamic models and data."
 
 [lints]
 workspace = true
+
+[dependencies]
+serde.workspace = true
+thermo-types.workspace = true
+thermo-data.workspace = true
+thermo-models.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -1,6 +1,6 @@
 # Architecture
 
-The repository starts with six library crates and two binary crates. Library crates contain module documentation only. Binary crates report that implementation is pending. There are no public calculation functions, cross-crate dependencies, external dependencies, or selected GUI framework yet.
+The repository has six library crates and two binary crates. The first implementation connects `thermo-cli` → `property-packages` → `thermo-models` / `thermo-data` → `thermo-types`. Shared serde dependencies provide JSON input/output; reference-generation Python packages are optional development tools, not Rust runtime dependencies. `thermo-solvers`, `flowsheet-core`, and `thermo-desktop` remain scaffolds. No GUI framework is selected.
 
 ## Intended boundaries
 
@@ -11,11 +11,11 @@ The repository starts with six library crates and two binary crates. Library cra
 - `flowsheet-core` consumes property capabilities and owns stream/unit-operation calculations.
 - `thermo-cli` and `thermo-desktop` consume the calculation layers. Calculation libraries must never depend on either application.
 
-These are intended responsibilities, not precommitted Rust trait signatures. Add dependencies only when real interfaces are introduced. The scope of this setup is infrastructure; the development plan explicitly schedules numerical API and GUI decisions later.
+The [calculation contract](calculation-contract.md) documents the implemented SI types, mixture validation, homogeneous PR/PR-BM evaluation, and JSON request/result boundary. Other responsibilities above remain development targets. The cubic-specific root bracketing is internal to `thermo-models`; future flash solvers can depend on models without introducing a model/flash-solver dependency cycle.
 
-## Calculation contracts to establish in A1
+## Calculation contracts
 
-SI units, absolute pressure, composition basis, reference states, model/data versions, validity domains, and distinct failure categories must be explicit. Unsupported capabilities and nonconvergence must not be reported as successful values. Input changes invalidate derived results.
+The current contract makes SI units, absolute pressure, composition basis, model/data versions, homogeneous-root semantics, numerical guardrails, and distinct failure categories explicit. It exposes residual h/s relative to an ideal gas at the same T/P/composition; total caloric reference states remain to be established. Unsupported capabilities and nonconvergence must not be reported as successful values. Future stateful flowsheet/GUI code must invalidate derived results when inputs change.
 
 ## Data and verification
 

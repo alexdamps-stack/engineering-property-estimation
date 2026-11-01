@@ -1,0 +1,89 @@
+{
+  "version": "coolprop-8.0.0-initial-v1",
+  "source": "CoolProp 8.0.0 bundled fluid JSON, first EOS reducing T/p, molar mass and acentric factor",
+  "source_url": "https://github.com/CoolProp/CoolProp/tree/v8.0.0/dev/fluids",
+  "usage_terms": "CoolProp MIT license; see data/NOTICE.md",
+  "limitations": "Selected constants for implementation checks, not experimentally qualified mixtures. No interaction parameters or ideal caloric model supplied.",
+  "components": [
+    {
+      "id": "methane",
+      "cas": "74-82-8",
+      "critical_temperature_k": 190.564,
+      "critical_pressure_pa": 4599200,
+      "molar_mass_kg_mol": 0.0160428,
+      "acentric_factor": 0.01142,
+      "source_fluid": "Methane",
+      "source_json_sha256": "fe58022f0c242b78b591013061705b6d842dfed45c5ac5bc8fca1c1cf0b4c69f"
+    },
+    {
+      "id": "ethane",
+      "cas": "74-84-0",
+      "critical_temperature_k": 305.322,
+      "critical_pressure_pa": 4872200,
+      "molar_mass_kg_mol": 0.03006904,
+      "acentric_factor": 0.099,
+      "source_fluid": "Ethane",
+      "source_json_sha256": "5da8d89565fb81182eb849cea6917dd5b287355a207b82f4bf033e32e17556e8"
+    },
+    {
+      "id": "propane",
+      "cas": "74-98-6",
+      "critical_temperature_k": 369.89,
+      "critical_pressure_pa": 4251200,
+      "molar_mass_kg_mol": 0.04409562,
+      "acentric_factor": 0.1521,
+      "source_fluid": "Propane",
+      "source_json_sha256": "1c483a7ffb34270c60365ba2036dbeea79ea85df18f1d31d4c5b3a22753e5e1d"
+    },
+    {
+      "id": "nitrogen",
+      "cas": "7727-37-9",
+      "critical_temperature_k": 126.192,
+      "critical_pressure_pa": 3395800,
+      "molar_mass_kg_mol": 0.02801348,
+      "acentric_factor": 0.0372,
+      "source_fluid": "Nitrogen",
+      "source_json_sha256": "6a3a39398c9b6d689d67288d024ff1584ebfbc810fc73aab1de803b9d949209f"
+    },
+    {
+      "id": "carbon-dioxide",
+      "cas": "124-38-9",
+      "critical_temperature_k": 304.1282,
+      "critical_pressure_pa": 7377300,
+      "molar_mass_kg_mol": 0.0440098,
+      "acentric_factor": 0.22394,
+      "source_fluid": "CarbonDioxide",
+      "source_json_sha256": "7b8f61985eadd7769d6c8a4d8c184424b477f9eabff65bef7bfa68de5ed6a911"
+    },
+    {
+      "id": "oxygen",
+      "cas": "7782-44-7",
+      "critical_temperature_k": 154.581,
+      "critical_pressure_pa": 5043000,
+      "molar_mass_kg_mol": 0.0319988,
+      "acentric_factor": 0.0222,
+      "source_fluid": "Oxygen",
+      "source_json_sha256": "d6459b1a18fd9be8b724c185c9c0fdb5f9a98a663f036479bb1742441cf2333d"
+    },
+    {
+      "id": "water",
+      "cas": "7732-18-5",
+      "critical_temperature_k": 647.096,
+      "critical_pressure_pa": 22064000,
+      "molar_mass_kg_mol": 0.018015268,
+      "acentric_factor": 0.3442920843,
+      "source_fluid": "Water",
+      "source_json_sha256": "a10a0da6c55e623cccc1f56a70cb348c772d8fc1710a6a142b459abb0dec4586"
+    },
+    {
+      "id": "methanol",
+      "cas": "67-56-1",
+      "critical_temperature_k": 513.38,
+      "critical_pressure_pa": 8215925.544252989,
+      "molar_mass_kg_mol": 0.03204216,
+      "acentric_factor": 0.5649374879079412,
+      "source_fluid": "Methanol",
+      "source_json_sha256": "151da5157bd4a9cab2d3c4dfb22e8a76c9c08567028a6ff7f72052f9a48e9b6a"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+name: Numerical robustness sweep
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  homogeneous-grid:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install pinned Rust toolchain
+        run: rustup show
+      - name: Run deterministic homogeneous grid
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test -p property-packages --test state_sweep --locked -- --ignored --nocapture 2>&1 | tee "$RUNNER_TEMP/homogeneous-sweep.log"
+      - name: Publish sweep report
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/homogeneous-sweep.log" ]; then
+            printf '### Homogeneous robustness sweep\n\n```text\n' >> "$GITHUB_STEP_SUMMARY"
+            cat "$RUNNER_TEMP/homogeneous-sweep.log" >> "$GITHUB_STEP_SUMMARY"
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          fi

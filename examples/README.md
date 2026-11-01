@@ -1,7 +1,12 @@
 # Reproducible examples
 
-Reserved for documented calculation inputs and, later, flowsheet projects. No numerical examples are implemented yet.
+Two JSON requests are runnable with the Rust CLI:
 
-Initial targets are one natural-gas case and one binary hydrocarbon case. Each must specify units, pressure basis, composition basis, model variant, parameter choices, and expected quantities. Add a mixed/cooled/expanded/separated gas process after TP/PH flash is qualified.
+```sh
+cargo run -p thermo-cli --locked -- calculate --input examples/natural-gas.json
+cargo run -p thermo-cli --locked -- calculate --input examples/binary-hydrocarbon.json
+```
 
-CLI input and project formats will be defined with their implementations; these notes are not executable fixtures.
+`natural-gas.json` uses 90/5/2/2/1 mol% methane/ethane/propane/nitrogen/CO₂ at 288.15 K and 5 MPa absolute, PR-BM, and explicitly zero kij. `binary-hydrocarbon.json` uses 70/30 mol% methane/ethane at 250 K and 3 MPa absolute with illustrative kij=0.02. Both select the largest homogeneous root. Their reference outputs are in the independent [fixture](../validation/cubic-reference.json).
+
+Neither request establishes equilibrium phase behavior. The [calculation contract](../docs/calculation-contract.md) defines input/output and numerical limitations. Add a mixed/cooled/expanded/separated gas process only after TP/PH flash is qualified; no flowsheet project format is defined yet.

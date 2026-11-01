@@ -1,6 +1,6 @@
 # Testing Strategy
 
-This is the testing guide for the thermodynamic engine and the connected flowsheet simulator. It defines requirements for future implementations, not results already achieved. The repository currently contains scaffolds and infrastructure checks only; no numerical test suite exists yet.
+This is the testing guide for the thermodynamic engine and the connected flowsheet simulator. It defines ongoing requirements; the [calculation contract](calculation-contract.md) and [reference evidence](../validation/README.md) describe the current homogeneous implementation and executed checks. Phase equilibrium and flowsheet test requirements below remain future work.
 
 ## 1. What each kind of evidence establishes
 
@@ -92,9 +92,9 @@ Generated cases must record a fixed random seed, generator version, domain, and 
 
 ## 6. CI and development gates
 
-The existing Windows/Linux workflow runs formatting, Clippy, workspace tests, and documentation builds. Numerical unit and integration tests will run through its existing `cargo test --workspace --locked` step as they are implemented. No workflow changes or numerical pass claims are needed for this documentation update.
+The existing Windows/Linux workflow runs formatting, Clippy, numerical unit/integration tests, and documentation builds. Its `cargo test --workspace --locked` step includes the small independent fixture comparisons as implementations are added. Passing it establishes only the evidence actually exercised by those tests, not general numerical or experimental accuracy.
 
-Once executable models exist, introduce a separate scheduled/manual validation workflow with reproducible state-space sweeps and reference reports. Keep a small representative subset in ordinary pull-request tests. Define the sweep workload and supported domains with the model implementation; do not schedule an empty validation job now.
+A separate scheduled/manual workflow now runs the implemented deterministic 200-case homogeneous robustness grid and reports failures explicitly. The workload is recorded in its test source and the calculation contract; it does not constitute an independent accuracy sweep. Keep independent reference comparisons in ordinary pull-request tests and add broader reference sweeps as formulations and supported domains expand.
 
 Keep performance runs separate from correctness gates. Record hardware/runner conditions, workloads, repetitions, toolchain, runtime distributions, and iteration counts; do not gate pull requests on noisy shared-runner timings. Numerical correctness remains a prerequisite for any speedup claim.
 

@@ -7,3 +7,8 @@ description = "Command-line entry point for reproducible calculations."
 
 [lints]
 workspace = true
+
+[dependencies]
+property-packages.workspace = true
+thermo-data.workspace = true
+serde_json.workspace = true

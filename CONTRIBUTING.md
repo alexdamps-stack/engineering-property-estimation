@@ -13,7 +13,7 @@ Commit the root `Cargo.lock`. Do not commit build output, credentials, local env
 
 ## Numerical development
 
-The current crates contain no numerical API. Define calculation contracts as part of work package A1 rather than assuming the scaffold is a functioning engine. Keep GUI dependencies out of the calculation crates.
+The initial homogeneous API is documented in the [calculation contract](docs/calculation-contract.md). Extend that contract with new capabilities rather than assuming homogeneous roots are phase-equilibrium results. Keep GUI dependencies out of the calculation crates.
 
 Follow the [testing strategy](docs/testing-strategy.md) for test layers, placement, independent reference cases, tolerances, CI, and completion criteria. Add tests with each implemented capability and regression cases with reproducible bug fixes. Review regeneration of expected values explicitly; do not replace them with our own engine's output to resolve failures. Generated tests must be reproducible using recorded seeds and inputs.
 

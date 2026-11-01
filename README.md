@@ -2,7 +2,7 @@
 
 A Rust workspace for a planned standalone thermodynamic property engine and steady-state flowsheet simulator.
 
-**Status: initial scaffold.** Thermodynamic models, flash calculations, component datasets, and the graphical interface are not implemented. The two executable entry points print scaffold notices only. Passing CI verifies the workspace structure, not numerical accuracy.
+**Status: first homogeneous engine slice.** PR and PR-BM now calculate explicitly selected roots, density, fugacity coefficients, and residual enthalpy/entropy through a JSON CLI. Eight component records are bundled with provenance. Sixteen independent teqp reference cases check this implementation. Phase stability, TP/PH flash, total caloric properties, GERG, NRTL, flowsheet solving, and the graphical interface remain planned. See the [calculation contract](docs/calculation-contract.md) for exact formulation and limits.
 
 ## Development plan
 
@@ -23,7 +23,7 @@ Initial numerical priorities are PR/PR-BM, validated component data, stability a
 | `thermo-cli` | Command-line entry point |
 | `thermo-desktop` | Future native graphical application |
 
-Additional directories: `data/` for qualified data, `examples/` for reproducible cases, `validation/` for independent reference comparisons, and `docs/` for planning and architecture. Each currently contains guidance rather than numerical content.
+Additional directories: `data/` for versioned constants and provenance, `examples/` for runnable JSON requests, `validation/` for independent reference fixtures and their generator, and `docs/` for planning, calculation contracts, architecture, and testing.
 
 ## Getting started
 
@@ -34,11 +34,12 @@ From the repository root:
 ```sh
 rustup show
 cargo build --workspace --locked
-cargo run -p thermo-cli --locked
-cargo run -p thermo-desktop --locked
+cargo run -p thermo-cli --locked -- components
+cargo run -p thermo-cli --locked -- calculate --input examples/natural-gas.json
+cargo run -p thermo-cli --locked -- calculate --input examples/binary-hydrocarbon.json
 ```
 
-The desktop command is a console placeholder; it does not open a GUI.
+The examples use explicit illustrative interaction parameters. Results are homogeneous roots with `phase_stability: "not_assessed"`; they are not equilibrium flashes. Residual h/s are not total enthalpy/entropy. `thermo-desktop` is still a console placeholder and does not open a GUI.
 
 ## Checks
 
@@ -47,9 +48,10 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo doc --workspace --no-deps --locked
+cargo test -p property-packages --test state_sweep --locked -- --ignored --nocapture
 ```
 
-No numerical tests or validation claims are present yet. Add meaningful reference-based tests as models are introduced, following the [testing strategy](docs/testing-strategy.md). See also [contributing](CONTRIBUTING.md), [architecture](docs/architecture.md), and the [artifact inventory](docs/artifact-inventory.md).
+The ordinary suite covers 15 tests, including 16 independent reference cases, derivatives, identities, composition invariance, critical-root rejection, input failures, and CLI behavior. The separately invoked 200-case grid checks robustness, not independent accuracy; a scheduled/manual workflow runs it after that workflow reaches the default branch. These checks do not establish experimental accuracy or a fully validated operating domain. Follow the [testing strategy](docs/testing-strategy.md) when extending the implementation. See [reference evidence](validation/README.md), [contributing](CONTRIBUTING.md), [architecture](docs/architecture.md), and the [artifact inventory](docs/artifact-inventory.md).
 
 ## Access and licensing
 

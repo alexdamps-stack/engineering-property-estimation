@@ -7,3 +7,6 @@ description = "Units, component identities, mixture composition bases, states, a
 
 [lints]
 workspace = true
+
+[dependencies]
+serde.workspace = true

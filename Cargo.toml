@@ -12,3 +12,11 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = "warn"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thermo-types = { path = "crates/thermo-types" }
+thermo-data = { path = "crates/thermo-data" }
+thermo-models = { path = "crates/thermo-models" }
+property-packages = { path = "crates/property-packages" }

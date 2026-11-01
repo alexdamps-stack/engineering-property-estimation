@@ -4,7 +4,15 @@ Date: November 1, 2026. Planning baseline derived from the accessible project co
 
 ## Repository setup note
 
-The initial repository now supplies the Rust workspace and documentation structure. All eight crates are scaffolds; no thermodynamic models, solvers, GUI, datasets, or numerical validation results are included. The historical inventory below describes the state before this repository was initialized. Creating the scaffold does not complete the numerical contracts, data work, or validation required by A1 and subsequent packages.
+The repository now contains its first homogeneous PR/PR-BM implementation, validated SI/composition inputs, eight component constant records, a JSON CLI, and 16 independent teqp reference cases. The [calculation contract](calculation-contract.md) specifies the exact formulation and limits. The historical inventory below describes the pre-repository state. The flash-solver, flowsheet, and GUI crates remain scaffolds; neither complete A3 nor phase equilibrium is claimed.
+
+### Current progress
+
+- A0: earlier artifacts remain unavailable locally; a documented fresh Rust implementation is underway.
+- A1: homogeneous input, error, model/data-version, and residual-property contracts are implemented. Total caloric conventions and future flash interfaces remain open work.
+- A2: selected component constants have provenance and independent fixtures; physical domain qualification and interaction/ideal caloric data remain incomplete.
+- A3: homogeneous PR/PR-BM roots, density, fugacities, and residual h/s pass 16 independent reference cases plus consistency and robustness checks. Total caloric properties, broader coverage, and experimental accuracy are not established.
+- A4–A12: not implemented. The next block defines ideal caloric contributions/reference states and expands A2–A3 evidence before stability-tested TP flash.
 
 ## 1. Goal and guiding decisions
 
@@ -59,7 +67,7 @@ Deferred: Excel, dynamics, reactions, electrolytes, distillation columns, full p
 
 ## 4. Proposed architecture
 
-The original plan proposed the following Rust crates. The repository now contains minimal scaffolds with these names; the responsibilities below remain development targets.
+The original plan proposed the following Rust crates. Types, data, models, property packages, and CLI now implement the initial homogeneous calculation path; the remaining responsibilities below are development targets.
 
 | Module | Responsibility |
 |---|---|
@@ -141,7 +149,7 @@ These are development targets, not achieved results or universal accuracy guaran
 
 Apply the [testing strategy](testing-strategy.md) to distinguish implementation verification, model comparisons, and experimental validation. It adds derivative and identity checks, component-order invariance, pure-fluid limits, solver robustness, and integration tests for the connected flowsheet simulator. Preserve independent reference values with reviewed regeneration, and record seeds and inputs for generated cases.
 
-The existing Windows/Linux CI will run ordinary numerical tests through its workspace test command as capabilities are implemented. Introduce broader scheduled/manual state-space sweeps only when executable models exist; keep performance measurements separate from correctness gates. Reports must expose failures and unsupported states and qualify each model/property/solver combination's supported domain.
+The existing Windows/Linux CI runs ordinary numerical tests through its workspace test command. A separate scheduled/manual workflow now runs a deterministic 200-case homogeneous robustness grid, with explicit failure reporting; it is not an independent accuracy sweep. Keep performance measurements separate from correctness gates. Reports must expose failures and unsupported states and qualify each model/property/solver combination's supported domain.
 
 ## 8. GERG, interface, and splines: decision gates
 
@@ -171,11 +179,11 @@ The first PR-BM application therefore represents roughly 11–21 development wee
 1. Preserve the earlier ThermoCore version and available solver reports; mark missing artifacts in the inventory.
 2. Specify one demonstration process with its components, state domain, and required output quantities.
 3. Document the PR-BM formulation, component data, interaction parameters, and caloric reference state.
-4. Establish the Rust workspace, data format, and CLI input format. The initial repository supplies the workspace scaffold only.
-5. Specify and implement one natural-gas case and one binary hydrocarbon case with independent references.
-6. Proceed to TP flash and stability analysis only after the single-phase comparisons pass.
+4. Extend the implemented [homogeneous calculation contract](calculation-contract.md) with ideal caloric data and absolute reference-state conventions. Workspace, initial constant format, and JSON CLI request/result formats now exist.
+5. Retain the implemented natural-gas and binary hydrocarbon examples and their independent references; expand single-phase/caloric coverage and qualify the intended operating domain.
+6. Proceed to TP flash and stability analysis only after the required single-phase/caloric comparisons pass. The initial homogeneous checks pass but do not complete A3.
 
-First numerical acceptance outcome: a reproducible Rust CLI calculates both cases, identifying the model, data version, units, and diagnostics, and passes the documented reference comparisons.
+Initial homogeneous acceptance outcome achieved: a reproducible Rust CLI calculates both cases, identifying the model, data version, units, and diagnostics, and passes the documented reference comparisons for roots, density, fugacity coefficients, and residual h/s. This is a partial A3 result; it does not establish total caloric properties or stable phase equilibrium.
 
 ## 11. Project sources
 
