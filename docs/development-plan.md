@@ -1,6 +1,6 @@
 # Development Plan — Engineering Tools / Property Estimation
 
-Date: November 1, 2026. Planning baseline derived from the accessible project conversations and the initial local inventory. This is the complete English translation of the German plan, with a separate repository setup note below.
+Date: November 1, 2026. Planning baseline derived from the accessible project conversations and the initial local inventory. This document started as the complete English translation of the German plan and is now the maintained English plan, extended with the repository setup note and testing requirements. The German original remains the historical baseline.
 
 ## Repository setup note
 
@@ -81,20 +81,24 @@ Calculation results must identify model and data versions, phases, units, validi
 | ID | Priority | Work package | Dependency | Complete when… |
 |---|---|---|---|---|
 | A0 | P0 | Recover and inventory earlier artifacts | None | Source, formulations, parameter sources, and tests are preserved or explicitly marked unavailable |
-| A1 | P0 | Rust infrastructure and calculation contract | A0 or documented fresh implementation | Workspace, formatting, linting, and CI exist; SI, composition-basis, and error conventions are defined |
-| A2 | P0 | Component data and reference cases | A1 | Initial components are unambiguous; data provenance, reference states, and valid domains are recorded |
-| A3 | P0 | PR and PR-BM | A2 | Roots, fugacities, and caloric properties pass independent comparisons; BM formulation and derivatives are documented |
-| A4 | P0 | Stability assessment and TP flash | A3 | Single/two-phase cases, boundary cases, and nonconvergence are handled correctly; balance and equilibrium tolerances are met |
-| A5 | P0 | PH flash and energy foundations | A4 | Enthalpy reference and ideal contributions are consistent; TP→PH round trips and valve cases pass |
-| A6 | P1 | Native GERG-2008 path | A2; integration after A4 | Components, parameters, and derivatives are checked against an independent reference; supported states are explicit |
-| A7 | P1 | NRTL and liquid properties | A2, A4, A5 | Directed parameters, temperature dependence, vapor model, and caloric coupling are verified; missing data are visibly rejected |
-| A8 | P1 | Steady-state flowsheet engine | A5 | The demonstration process runs without a GUI and closes material and energy balances |
-| A9 | P1 | Native interface and flowsheet editor | API prototype after A3; calculation acceptance after A8 | A user can create, calculate, modify, save, and reload the demonstration project |
+| A1 | P0 | Rust infrastructure and calculation contract | A0 or documented fresh implementation | Workspace, formatting, linting, and CI exist; SI, composition-basis, error, and testing conventions are defined before models are implemented |
+| A2 | P0 | Component data and reference cases | A1 | Initial components are unambiguous; data provenance, reference states, valid domains, independent reference inputs, and justified comparison tolerances are recorded |
+| A3 | P0 | PR and PR-BM | A2 | Roots, fugacities, and caloric properties pass matched independent comparisons; BM derivatives, thermodynamic identities, component-order invariance, and pure-fluid limits are checked |
+| A4 | P0 | Stability assessment and TP flash | A3 | Phase classification, stability assessment, component balances, and fugacity equality pass; boundary cases and nonconvergence are explicit |
+| A5 | P0 | PH flash and energy foundations | A4 | Enthalpy reference and ideal contributions are consistent; uniquely recoverable TP→PH round trips, failure paths, and isenthalpic valve cases pass |
+| A6 | P1 | Native GERG-2008 path | A2; integration after A4 | Components, parameters, properties, and derivatives pass formulation-matched independent references; supported model/property/solver domains are explicit |
+| A7 | P1 | NRTL and liquid properties | A2, A4, A5 | Directed parameters, temperature dependence, vapor model, and caloric coupling pass formulation-matched references and consistency checks; supported domains and missing-data failures are explicit |
+| A8 | P1 | Steady-state flowsheet engine | A5 | The headless demonstration and mixer/separator balances, heater energy balance, isenthalpic valve, and applicable flow-scaling tests pass through the qualified engine |
+| A9 | P1 | Native interface and flowsheet editor | API prototype after A3; calculation acceptance after A8 | A user can create, calculate, modify, save, and reload the demonstration; persistence/recalculation is consistent, input changes invalidate affected results, and failures remain visible |
 | A10 | P2 | Recycles and larger networks | A8, A9 | A defined recycle case converges reproducibly; cancellation and failure paths are checked |
 | A11 | P2 | Tables and splines | Stable direct models and profiling | Speedup and error are measured over an approved domain; outside it, evaluation uses the direct model or returns a clear error |
 | A12 | P2 | External integration | Stable API and clarified target scope | A concrete DWSIM or later Excel use case is demonstrated through a suitable interface |
 
 P0 is the critical path to a reliable technical version. P1 adds the usable application and intended fluid systems. P2 follows a functioning end-to-end process.
+
+### Definition of done
+
+Each implemented capability requires meaningful tests of its behavior and failure outcomes, applicable independent reference evidence, a documented supported domain and remaining limits, and regression cases for reproducible bug fixes. It must satisfy its milestone's numerical acceptance criteria as well as the ordinary workspace checks. The [testing strategy](testing-strategy.md) defines the test layers, placement, evidence requirements, and development gates. Infrastructure CI alone does not establish numerical verification; experimental accuracy claims require separate measurement-based evidence.
 
 ## 6. Solver strategy
 
@@ -134,6 +138,10 @@ Proposed initial numerical acceptance limits for regular, well-conditioned cases
 - Property comparisons: choose absolute and relative tolerances per quantity, before implementation, based on reference quality.
 
 These are development targets, not achieved results or universal accuracy guarantees. Trace components and critical states require separate criteria and diagnostic cases.
+
+Apply the [testing strategy](testing-strategy.md) to distinguish implementation verification, model comparisons, and experimental validation. It adds derivative and identity checks, component-order invariance, pure-fluid limits, solver robustness, and integration tests for the connected flowsheet simulator. Preserve independent reference values with reviewed regeneration, and record seeds and inputs for generated cases.
+
+The existing Windows/Linux CI will run ordinary numerical tests through its workspace test command as capabilities are implemented. Introduce broader scheduled/manual state-space sweeps only when executable models exist; keep performance measurements separate from correctness gates. Reports must expose failures and unsupported states and qualify each model/property/solver combination's supported domain.
 
 ## 8. GERG, interface, and splines: decision gates
 

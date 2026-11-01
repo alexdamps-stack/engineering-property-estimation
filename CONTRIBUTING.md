@@ -15,6 +15,8 @@ Commit the root `Cargo.lock`. Do not commit build output, credentials, local env
 
 The current crates contain no numerical API. Define calculation contracts as part of work package A1 rather than assuming the scaffold is a functioning engine. Keep GUI dependencies out of the calculation crates.
 
+Follow the [testing strategy](docs/testing-strategy.md) for test layers, placement, independent reference cases, tolerances, CI, and completion criteria. Add tests with each implemented capability and regression cases with reproducible bug fixes. Review regeneration of expected values explicitly; do not replace them with our own engine's output to resolve failures. Generated tests must be reproducible using recorded seeds and inputs.
+
 Every future reference case must record its composition basis, units, model variant, parameters, provenance, reference version, and tolerances. Distinguish implementation verification, model comparisons, and experimental validation. Do not copy historical pass counts into current test results.
 
 Qualify data provenance and usage terms before adding third-party parameters or code. Do not silently fill missing interaction parameters with zero. Document any deliberately selected zero-interaction approximation in the case that uses it.

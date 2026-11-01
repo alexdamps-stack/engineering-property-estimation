@@ -49,7 +49,7 @@ cargo test --workspace --locked
 cargo doc --workspace --no-deps --locked
 ```
 
-No numerical tests or validation claims are present yet. Add meaningful reference-based tests as models are introduced. See [contributing](CONTRIBUTING.md), [architecture](docs/architecture.md), and the [artifact inventory](docs/artifact-inventory.md).
+No numerical tests or validation claims are present yet. Add meaningful reference-based tests as models are introduced, following the [testing strategy](docs/testing-strategy.md). See also [contributing](CONTRIBUTING.md), [architecture](docs/architecture.md), and the [artifact inventory](docs/artifact-inventory.md).
 
 ## Access and licensing
 
