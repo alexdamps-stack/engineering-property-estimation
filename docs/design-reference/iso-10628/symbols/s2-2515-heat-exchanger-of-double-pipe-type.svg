@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="38.799779 277.8 53.65 34.9" width="240" height="240" role="img" aria-labelledby="asset-title">
+<title id="asset-title">2515 — Heat exchanger of double-pipe type</title>
+<desc>Adapted from Steven Baltakatei Sandoval's ISO 10628-2:2012 symbol sheets. CC BY-SA 4.0; https://creativecommons.org/licenses/by-sa/4.0/. Standalone vector extraction; geometry retained. Source sheet 2, group g17329.</desc>
+<defs xmlns="http://www.w3.org/2000/svg" id="defs7000">
+    <inkscape:path-effect xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" effect="spiro" id="path-effect2196" is_visible="true" lpeversion="0"/>
+    <marker xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" inkscape:stockid="Arrow1Mend" orient="auto" refY="0" refX="0" id="marker4500-6" style="overflow:visible" inkscape:isstock="true" inkscape:collect="always">
+      <path id="path4498-8" d="M 0,0 5,-5 -12.5,0 5,5 Z" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" transform="matrix(-0.4,0,0,-0.4,-4,0)"/>
+    </marker>
+    <inkscape:path-effect xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" effect="bspline" id="path-effect4496-8" is_visible="true" weight="33.333333" steps="2" helper_size="0" apply_no_weight="true" apply_with_weight="true" only_selected="false" lpeversion="0"/>
+    <marker xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" inkscape:isstock="true" style="overflow:visible" id="marker8372-4" refX="0" refY="0" orient="auto" inkscape:stockid="Arrow1Mend">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8370-31"/>
+    </marker>
+    <inkscape:path-effect xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" only_selected="false" apply_with_weight="true" apply_no_weight="true" helper_size="0" steps="2" weight="33.333333" is_visible="true" id="path-effect8362-4" effect="bspline" lpeversion="0"/>
+    <marker xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" inkscape:isstock="true" style="overflow:visible" id="marker8716-9" refX="0" refY="0" orient="auto" inkscape:stockid="Arrow1Mend">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8714-2"/>
+    </marker>
+    <inkscape:path-effect xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" effect="bspline" id="path-effect8706-0" is_visible="true" weight="33.333333" steps="2" helper_size="0" apply_no_weight="true" apply_with_weight="true" only_selected="false" lpeversion="0"/>
+  </defs>
+<g xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" inkscape:groupmode="layer" inkscape:label="Main_group_3"><g id="g17329" inkscape:label="REG#:2515_symbol" transform="translate(0,297)">
+      <path inkscape:connector-curvature="0" id="path1860" d="m 67.49978,-8 h -17.5 v 5 h 35 l -10e-7,-5 H 67.49978" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" sodipodi:nodetypes="cccccc"/>
+      <path xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" sodipodi:nodetypes="cccccc" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 67.49978,-0.5 h -17.5 v 5 h 35 l -10e-7,-5 H 67.49978" id="path1862" inkscape:connector-curvature="0"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" id="path1864" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" sodipodi:type="arc" sodipodi:cx="84.999779" sodipodi:cy="-1.75" sodipodi:rx="3.75" sodipodi:ry="3.75" sodipodi:start="4.712389" sodipodi:end="1.5707963" d="m 84.999779,-5.5 a 3.75,3.75 0 0 1 3.75,3.75 3.75,3.75 0 0 1 -3.75,3.75" sodipodi:open="true" sodipodi:arc-type="arc"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="M 49.999781,-5.4999993 H 84.999779" id="path1866" inkscape:connector-curvature="0"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="M 49.999781,1.9999856 H 84.999779" id="path1868" inkscape:connector-curvature="0"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 83.749779,-3.0000043 v 2.49999494" id="path1870" inkscape:connector-curvature="0"/>
+      <path inkscape:connector-curvature="0" id="path1872" d="m 52.49978,-10.5 v -5" style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+      <path style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="M 52.49978,12 V 7" id="path1874" inkscape:connector-curvature="0"/>
+      <path inkscape:connector-curvature="0" id="path1876" d="m 42.49978,-5.5 h 5" style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+      <path style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="m 42.49978,2 h 5" id="path1878" inkscape:connector-curvature="0"/>
+    </g></g>
+</svg>

@@ -4,6 +4,11 @@ Date: November 7, 2026. Status: **proposal for review.** This document suggests 
 
 ## 1. Target users and design principles
 
+The [process symbol reference](design-reference/iso-10628/README.md) supplies 296
+editable SVG equipment, valve, and piping drawings with a searchable catalog and
+AI reuse guidance. Use it when selecting canvas graphics; symbol availability
+does not imply an implemented unit-operation model.
+
 The users are **process engineers**. They know commercial and open simulators (Aspen HYSYS/Plus, DWSIM, UniSim) and expect a process flow diagram (PFD), forms for specifications, stream tables, and engineering units. Design principles that follow from this:
 
 - **Familiar conventions over novelty.** Canvas with unit symbols and streams, a properties panel, and a stream table, as in established simulators.
@@ -177,7 +182,7 @@ Evaluation criteria: canvas performance with about 100 units, table and form qua
 - The canvas: place, move, connect, pan, and zoom.
 - A technical-drawing look for the canvas:
   - Orthogonal stream routing with closed, filled ISO 128 arrowheads, and stream numbers in diamonds.
-  - Monochrome symbols redrawn from the ISO 10628-2:2012 symbol sheets (Wikimedia Commons, CC BY-SA 4.0; library in `docs/design-reference/iso-10628` on the reference branch): static mixer X2673, heat exchanger X8079 for heater and cooler, valve 2101, shell-and-tube exchanger 2511, pump 2301, compressor 2302, turbine 2571, and vessel with dished ends 2062. Proportions follow the reference. Additions: a medium arrow on heater and cooler, and project symbols for splitter and feed/product, which the sheets do not cover.
+  - Monochrome symbols redrawn from the ISO 10628-2:2012 symbol sheets (Wikimedia Commons, CC BY-SA 4.0; see the [process symbol reference](design-reference/iso-10628/README.md)): static mixer X2673, heat exchanger X8079 for heater and cooler, valve 2101, shell-and-tube exchanger 2511, pump 2301, compressor 2302, turbine 2571, and vessel with dished ends 2062. Proportions follow the reference. Additions: a medium arrow on heater and cooler, and project symbols for splitter and feed/product, which the sheets do not cover.
   - CAD lettering, a model-space grid with major lines, grips on the selection, and snap markers on free nozzles.
   - The dark scheme looks like CAD model space; the light scheme looks like a plotted sheet.
 - The properties form, with the section 2.3 specification sets and radio buttons.

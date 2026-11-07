@@ -1,7 +1,7 @@
 # Reproducible examples
 
-Reserved for documented calculation inputs and, later, flowsheet projects. No numerical examples are implemented yet.
+The [case inputs](cases.provisional.json) define a dry natural-gas mixture and a methane/propane binary. The [process proposal](process.provisional.json) defines two feeds, mixing, cooling, pressure reduction and separation, with explicit mole/flow bases, SI units and assumptions.
 
-Initial targets are one natural-gas case and one binary hydrocarbon case. Each must specify units, pressure basis, composition basis, model variant, parameter choices, and expected quantities. Add a mixed/cooled/expanded/separated gas process after TP/PH flash is qualified.
+These are engineering design inputs, with deliberately explicit zero-interaction approximations. No expected phases or independent thermodynamic outputs have been established; null expectations are intentional gaps. See [reference qualification](../docs/reference-qualification.md).
 
 CLI input and project formats will be defined with their implementations; these notes are not executable fixtures.

@@ -1,0 +1,4782 @@
+{
+  "formatVersion": 1,
+  "attribution": "Steven Baltakatei Sandoval (Baltakatei)",
+  "license": "CC-BY-SA-4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:ISO_10628-2_2012_Symbols.pdf",
+  "method": "Grouped source SVG geometry re-authored as standalone SVG with padded bounds; labels kept in metadata.",
+  "sheets": [
+    {
+      "sheet": 1,
+      "title": "ISO 10628-2:2012 Groups 1-2",
+      "count": 37
+    },
+    {
+      "sheet": 2,
+      "title": "ISO 10628-2:2012 Groups 3-5",
+      "count": 33
+    },
+    {
+      "sheet": 3,
+      "title": "ISO 10628-2:2012 Groups 6-9",
+      "count": 43
+    },
+    {
+      "sheet": 4,
+      "title": "ISO 10628-2:2012 Groups 10-17",
+      "count": 50
+    },
+    {
+      "sheet": 5,
+      "title": "ISO 10628-2:2012 Groups 18-20",
+      "count": 35
+    },
+    {
+      "sheet": 6,
+      "title": "ISO 10628-2:2012 Groups 21-25",
+      "count": 60
+    },
+    {
+      "sheet": 7,
+      "title": "ISO 10628-2:2012 Groups 26-29",
+      "count": 38
+    }
+  ],
+  "symbols": [
+    {
+      "id": "s1-x8100-column-general",
+      "sheet": 1,
+      "registration": "X8100",
+      "description": "Column (general)",
+      "sourceGroup": "g12475",
+      "sourceLabel": "text4354",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        446.399814,
+        307.900207,
+        42.200005,
+        52.200035
+      ],
+      "file": "symbols/s1-x8100-column-general.svg"
+    },
+    {
+      "id": "s1-x8101-tray-column-general",
+      "sheet": 1,
+      "registration": "X8101",
+      "description": "Tray column (general)",
+      "sourceGroup": "g12486",
+      "sourceLabel": "text4376",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        446.399815,
+        362.900197,
+        42.200004,
+        52.200027
+      ],
+      "file": "symbols/s1-x8101-tray-column-general.svg"
+    },
+    {
+      "id": "s1-x8014-column-with-fluidized-bed",
+      "sheet": 1,
+      "registration": "X8014",
+      "description": "Column with fluidized bed",
+      "sourceGroup": "g12497",
+      "sourceLabel": "text4400",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        446.399785,
+        417.900204,
+        42.200004,
+        52.200027
+      ],
+      "file": "symbols/s1-x8014-column-with-fluidized-bed.svg"
+    },
+    {
+      "id": "s1-x8015-column-with-fixed-bed",
+      "sheet": 1,
+      "registration": "X8015",
+      "description": "Column with fixed bed",
+      "sourceGroup": "g12509",
+      "sourceLabel": "text4846",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        446.399816,
+        472.900197,
+        42.200002,
+        52.200018
+      ],
+      "file": "symbols/s1-x8015-column-with-fixed-bed.svg"
+    },
+    {
+      "id": "s1-x8013-column-staggered-baffle-trays",
+      "sheet": 1,
+      "registration": "X8013",
+      "description": "Column staggered baffle trays",
+      "sourceGroup": "g12533",
+      "sourceLabel": "text4872",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        446.399814,
+        527.900211,
+        42.200005,
+        52.200035
+      ],
+      "file": "symbols/s1-x8013-column-staggered-baffle-trays.svg"
+    },
+    {
+      "id": "s1-x8012-column-with-valve-trays",
+      "sheet": 1,
+      "registration": "X8012",
+      "description": "Column with valve trays",
+      "sourceGroup": "g12593",
+      "sourceLabel": "text4977",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        646.399816,
+        82.899968,
+        42.200002,
+        52.200018
+      ],
+      "file": "symbols/s1-x8012-column-with-valve-trays.svg"
+    },
+    {
+      "id": "s1-x8016-column-with-two-fixed-bed-sections-and-intermediate-spray-nozzle",
+      "sheet": 1,
+      "registration": "X8016",
+      "description": "Column with two fixed bed sections and intermediate spray nozzle",
+      "sourceGroup": "g12615",
+      "sourceLabel": "text5019",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        646.399815,
+        137.899968,
+        42.200004,
+        52.200027
+      ],
+      "file": "symbols/s1-x8016-column-with-two-fixed-bed-sections-and-intermediate-spray-nozzle.svg"
+    },
+    {
+      "id": "s1-x8011-column-with-bubble-cap-trays",
+      "sheet": 1,
+      "registration": "X8011",
+      "description": "Column with bubble cap trays",
+      "sourceGroup": "g12569",
+      "sourceLabel": "text4907",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        645.819814,
+        19.815664,
+        43.360005,
+        60.610035
+      ],
+      "file": "symbols/s1-x8011-column-with-bubble-cap-trays.svg"
+    },
+    {
+      "id": "s1-2061-container-tank-cistern",
+      "sheet": 1,
+      "registration": "2061",
+      "description": "container, tank, cistern",
+      "sourceGroup": "g6614",
+      "sourceLabel": "text850-7-6-2-6-8-0-2-1-4",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        55.499779,
+        77,
+        24,
+        19
+      ],
+      "file": "symbols/s1-2061-container-tank-cistern.svg"
+    },
+    {
+      "id": "s1-x8201-vessel-with-two-different-diameters",
+      "sheet": 1,
+      "registration": "X8201",
+      "description": "Vessel with two different diameters",
+      "sourceGroup": "g6655",
+      "sourceLabel": "text850-7-6-2-6-8",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        51.59978,
+        265.600011,
+        31.799997,
+        49.299978
+      ],
+      "file": "symbols/s1-x8201-vessel-with-two-different-diameters.svg"
+    },
+    {
+      "id": "s1-2063-spherical-vessel",
+      "sheet": 1,
+      "registration": "2063",
+      "description": "Spherical vessel",
+      "sourceGroup": "g6668",
+      "sourceLabel": "text850-7-6-2-6-8-9",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        47.199778,
+        318.700018,
+        40.600001,
+        40.600009
+      ],
+      "file": "symbols/s1-2063-spherical-vessel.svg"
+    },
+    {
+      "id": "s1-2064-bunker-with-conical-bottom",
+      "sheet": 1,
+      "registration": "2064",
+      "description": "Bunker with conical bottom",
+      "sourceGroup": "g6677",
+      "sourceLabel": "text850-7-6-2-6-8-9-2",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        49.499781,
+        363.500025,
+        28.499995,
+        43.499965
+      ],
+      "file": "symbols/s1-2064-bunker-with-conical-bottom.svg"
+    },
+    {
+      "id": "s1-x8008-vessel-with-dished-roof-and-conical-bottom",
+      "sheet": 1,
+      "registration": "X8008",
+      "description": "Vessel with dished roof and conical bottom",
+      "sourceGroup": "g7654",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        49.899779,
+        466.399985,
+        27.7,
+        37.7
+      ],
+      "file": "symbols/s1-x8008-vessel-with-dished-roof-and-conical-bottom.svg"
+    },
+    {
+      "id": "s1-x2063-tank-with-conical-roof-and-flat-bottom",
+      "sheet": 1,
+      "registration": "X2063",
+      "description": "Tank with conical roof and flat bottom",
+      "sourceGroup": "g6619",
+      "sourceLabel": "text850-7-6-2-6-8-0-2-1",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        47.19978,
+        108.700016,
+        33.099998,
+        40.599982
+      ],
+      "file": "symbols/s1-x2063-tank-with-conical-roof-and-flat-bottom.svg"
+    },
+    {
+      "id": "s1-x8200-tank-with-dished-roof",
+      "sheet": 1,
+      "registration": "X8200",
+      "description": "Tank with dished roof",
+      "sourceGroup": "g6634",
+      "sourceLabel": "text850-7-6-2-6-8-0-2",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        47.199778,
+        168.699999,
+        33.100002,
+        40.600018
+      ],
+      "file": "symbols/s1-x8200-tank-with-dished-roof.svg"
+    },
+    {
+      "id": "s1-2062-tank-vessel-with-dished-ends",
+      "sheet": 1,
+      "registration": "2062",
+      "description": "Tank, vessel with dished ends",
+      "sourceGroup": "g6643",
+      "sourceLabel": "text850-7-6-2-6-8-0",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        46.999431,
+        220.995327,
+        33.500695,
+        43.50504
+      ],
+      "file": "symbols/s1-2062-tank-vessel-with-dished-ends.svg"
+    },
+    {
+      "id": "s1-x2062-closed-tank-with-conical-bottom",
+      "sheet": 1,
+      "registration": "X2062",
+      "description": "Closed tank with conical bottom",
+      "sourceGroup": "g7646",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        50.099778,
+        419.099999,
+        27.300002,
+        34.800018
+      ],
+      "file": "symbols/s1-x2062-closed-tank-with-conical-bottom.svg"
+    },
+    {
+      "id": "s1-c0001-container-for-solids-liquids-gases",
+      "sheet": 1,
+      "registration": "C0001",
+      "description": "Container for solids, liquids, gases",
+      "sourceGroup": "g7665",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        244.299573,
+        20.8,
+        46.4,
+        26.400015
+      ],
+      "file": "symbols/s1-c0001-container-for-solids-liquids-gases.svg"
+    },
+    {
+      "id": "s1-2067-barrel-drum",
+      "sheet": 1,
+      "registration": "2067",
+      "description": "Barrel, drum",
+      "sourceGroup": "g7673",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3-3",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        262.999573,
+        67.000183,
+        9,
+        14
+      ],
+      "file": "symbols/s1-2067-barrel-drum.svg"
+    },
+    {
+      "id": "s1-c0002-gas-cylinder",
+      "sheet": 1,
+      "registration": "C0002",
+      "description": "Gas cylinder",
+      "sourceGroup": "g8645",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3-3-2",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        262.999573,
+        87.000168,
+        9,
+        16.5
+      ],
+      "file": "symbols/s1-c0002-gas-cylinder.svg"
+    },
+    {
+      "id": "s1-2068-bag",
+      "sheet": 1,
+      "registration": "2068",
+      "description": "Bag",
+      "sourceGroup": "g8651",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3-3-2-7",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        261.749573,
+        109.500153,
+        11.5,
+        16.5
+      ],
+      "file": "symbols/s1-2068-bag.svg"
+    },
+    {
+      "id": "s1-x8002-vessel-with-dished-ends-and-support-legs",
+      "sheet": 1,
+      "registration": "X8002",
+      "description": "Vessel with dished ends and support legs",
+      "sourceGroup": "g8662",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3-3-2-7-9",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        246.989226,
+        138.360717,
+        33.520678,
+        43.649806
+      ],
+      "file": "symbols/s1-x8002-vessel-with-dished-ends-and-support-legs.svg"
+    },
+    {
+      "id": "s1-x8003-vessel-with-dished-ends-and-support-brackets",
+      "sheet": 1,
+      "registration": "X8003",
+      "description": "Vessel with dished ends and support brackets",
+      "sourceGroup": "g8673",
+      "sourceLabel": "text2146",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        246.999225,
+        193.370754,
+        38.500679,
+        43.504814
+      ],
+      "file": "symbols/s1-x8003-vessel-with-dished-ends-and-support-brackets.svg"
+    },
+    {
+      "id": "s1-x8004-vessel-with-dished-ends-and-support-skirt",
+      "sheet": 1,
+      "registration": "X8004",
+      "description": "Vessel with dished ends and support skirt",
+      "sourceGroup": "g8684",
+      "sourceLabel": "text2178",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        247.189227,
+        248.560756,
+        40.620676,
+        40.749792
+      ],
+      "file": "symbols/s1-x8004-vessel-with-dished-ends-and-support-skirt.svg"
+    },
+    {
+      "id": "s1-x8005-vessel-with-dished-ends-and-support-ring",
+      "sheet": 1,
+      "registration": "X8005",
+      "description": "Vessel with dished ends and support ring",
+      "sourceGroup": "g8695",
+      "sourceLabel": "text2219",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        246.999209,
+        308.495544,
+        36.000712,
+        43.505049
+      ],
+      "file": "symbols/s1-x8005-vessel-with-dished-ends-and-support-ring.svg"
+    },
+    {
+      "id": "s1-x2069-vessel-with-dished-ends-and-heating-cooling-jacket",
+      "sheet": 1,
+      "registration": "X2069",
+      "description": "Vessel with dished ends and heating/cooling jacket",
+      "sourceGroup": "g9680",
+      "sourceLabel": "text2260",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        243.899558,
+        355.400222,
+        47.200014,
+        52.199991
+      ],
+      "file": "symbols/s1-x2069-vessel-with-dished-ends-and-heating-cooling-jacket.svg"
+    },
+    {
+      "id": "s1-x2070-vessel-with-dished-ends-and-electrical-heating",
+      "sheet": 1,
+      "registration": "X2070",
+      "description": "Vessel with dished ends and electrical heating",
+      "sourceGroup": "g1284",
+      "sourceLabel": "text2316",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        253.899572,
+        410.400221,
+        30.950001,
+        52.200009
+      ],
+      "file": "symbols/s1-x2070-vessel-with-dished-ends-and-electrical-heating.svg"
+    },
+    {
+      "id": "s1-x8098-vessel-with-dished-ends-and-thermal-insulation",
+      "sheet": 1,
+      "registration": "X8098",
+      "description": "Vessel with dished ends and thermal insulation",
+      "sourceGroup": "g3246",
+      "sourceLabel": "text4073",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        251.399554,
+        465.40021,
+        32.200023,
+        52.200053
+      ],
+      "file": "symbols/s1-x8098-vessel-with-dished-ends-and-thermal-insulation.svg"
+    },
+    {
+      "id": "s1-x8007-vessel-with-dished-bottom-and-surface-indication",
+      "sheet": 1,
+      "registration": "X8007",
+      "description": "Vessel with dished bottom and surface indication",
+      "sourceGroup": "g4251",
+      "sourceLabel": "text4091",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        253.899573,
+        520.400214,
+        27.2,
+        52.2
+      ],
+      "file": "symbols/s1-x8007-vessel-with-dished-bottom-and-surface-indication.svg"
+    },
+    {
+      "id": "s1-x8010-spherical-vessel-on-legs",
+      "sheet": 1,
+      "registration": "X8010",
+      "description": "Spherical vessel on legs",
+      "sourceGroup": "g5238",
+      "sourceLabel": "text4107",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        454.699785,
+        13.699999,
+        25.600033,
+        40.600018
+      ],
+      "file": "symbols/s1-x8010-spherical-vessel-on-legs.svg"
+    },
+    {
+      "id": "s1-x8000-vessel-with-full-tube-heating-cooling-coil",
+      "sheet": 1,
+      "registration": "X8000",
+      "description": "Vessel with full-tube heating/cooling coil",
+      "sourceGroup": "g5250",
+      "sourceLabel": "text850-7-6-2-6-8-0-2-1-4-5",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        441.399753,
+        65.400211,
+        52.200035,
+        44.700005
+      ],
+      "file": "symbols/s1-x8000-vessel-with-full-tube-heating-cooling-coil.svg"
+    },
+    {
+      "id": "s1-301-tank-vessel",
+      "sheet": 1,
+      "registration": "301",
+      "description": "Tank, vessel",
+      "sourceGroup": "g6611",
+      "sourceLabel": "text4155",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        46.999779,
+        21,
+        33.5,
+        43.5
+      ],
+      "file": "symbols/s1-301-tank-vessel.svg"
+    },
+    {
+      "id": "s1-x8001-vessel-with-semi-tube-heating-cooling-coil",
+      "sheet": 1,
+      "registration": "X8001",
+      "description": "Vessel with semi-tube heating/cooling coil",
+      "sourceGroup": "g7222",
+      "sourceLabel": "text4167",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        441.399753,
+        112.900211,
+        52.200035,
+        52.200005
+      ],
+      "file": "symbols/s1-x8001-vessel-with-semi-tube-heating-cooling-coil.svg"
+    },
+    {
+      "id": "s1-x8006-jacketed-vessel-with-dished-ends-and-agitator-driven-by-electric-motor",
+      "sheet": 1,
+      "registration": "X8006",
+      "description": "Jacketed vessel with dished ends and agitator driven by electric motor",
+      "sourceGroup": "g8216",
+      "sourceLabel": "text4288",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        448.249817,
+        176.000214,
+        31,
+        43.5
+      ],
+      "file": "symbols/s1-x8006-jacketed-vessel-with-dished-ends-and-agitator-driven-by-electric-motor.svg"
+    },
+    {
+      "id": "s1-x8202-vessel-with-pit",
+      "sheet": 1,
+      "registration": "X8202",
+      "description": "Vessel with pit",
+      "sourceGroup": "g8226",
+      "sourceLabel": "text4320",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        440.599781,
+        232.100205,
+        63.800071,
+        38.80001
+      ],
+      "file": "symbols/s1-x8202-vessel-with-pit.svg"
+    },
+    {
+      "id": "s1-2065-open-bulk-storage",
+      "sheet": 1,
+      "registration": "2065",
+      "description": "Open bulk storage",
+      "sourceGroup": "g9218",
+      "sourceLabel": "text4344",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        452.999786,
+        282.000209,
+        29,
+        14.000001
+      ],
+      "file": "symbols/s1-2065-open-bulk-storage.svg"
+    },
+    {
+      "id": "s1-x8009-vessel-with-conical-roof-and-bottom",
+      "sheet": 1,
+      "registration": "X8009",
+      "description": "Vessel with conical roof and bottom",
+      "sourceGroup": "g7662",
+      "sourceLabel": "text9532",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        46.99979,
+        516,
+        33.499989,
+        43.5
+      ],
+      "file": "symbols/s1-x8009-vessel-with-conical-roof-and-bottom.svg"
+    },
+    {
+      "id": "s2-2521-cooling-tower-general",
+      "sheet": 2,
+      "registration": "2521",
+      "description": "Cooling tower (general)",
+      "sourceGroup": "g23222",
+      "sourceLabel": "text4073",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        247.199556,
+        476.199999,
+        40.600018,
+        30.599987
+      ],
+      "file": "symbols/s2-2521-cooling-tower-general.svg"
+    },
+    {
+      "id": "s2-x8109-cooling-tower-dry-with-natural-draught",
+      "sheet": 2,
+      "registration": "X8109",
+      "description": "Cooling tower, dry with natural draught",
+      "sourceGroup": "g23241",
+      "sourceLabel": "text4091",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        246.799554,
+        518.299981,
+        41.400023,
+        46.400053
+      ],
+      "file": "symbols/s2-x8109-cooling-tower-dry-with-natural-draught.svg"
+    },
+    {
+      "id": "s2-x8110-cooling-tower-dry-with-forced-draught",
+      "sheet": 2,
+      "registration": "X8110",
+      "description": "Cooling tower, dry with forced draught",
+      "sourceGroup": "g23264",
+      "sourceLabel": "text4107",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        446.799783,
+        13.299966,
+        41.400038,
+        46.400053
+      ],
+      "file": "symbols/s2-x8110-cooling-tower-dry-with-forced-draught.svg"
+    },
+    {
+      "id": "s2-x8111-cooling-tower-dry-with-induced-draught",
+      "sheet": 2,
+      "registration": "X8111",
+      "description": "Cooling tower, dry with induced draught",
+      "sourceGroup": "g23287",
+      "sourceLabel": "text850-7-6-2-6-8-0-2-1-4-5",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        446.799784,
+        63.299982,
+        41.400035,
+        46.400035
+      ],
+      "file": "symbols/s2-x8111-cooling-tower-dry-with-induced-draught.svg"
+    },
+    {
+      "id": "s2-x8112-cooling-tower-wet-with-natural-draught",
+      "sheet": 2,
+      "registration": "X8112",
+      "description": "Cooling tower, wet with natural draught",
+      "sourceGroup": "g23299",
+      "sourceLabel": "text4167",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        447.199784,
+        121.199998,
+        40.600035,
+        30.59999
+      ],
+      "file": "symbols/s2-x8112-cooling-tower-wet-with-natural-draught.svg"
+    },
+    {
+      "id": "s2-x8113-cooling-tower-wet-with-forced-draught",
+      "sheet": 2,
+      "registration": "X8113",
+      "description": "Cooling tower, wet with forced draught",
+      "sourceGroup": "g23315",
+      "sourceLabel": "text4288",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        447.199784,
+        171.199998,
+        40.600035,
+        30.599997
+      ],
+      "file": "symbols/s2-x8113-cooling-tower-wet-with-forced-draught.svg"
+    },
+    {
+      "id": "s2-x8114-cooling-tower-wet-with-induced-draught",
+      "sheet": 2,
+      "registration": "X8114",
+      "description": "Cooling tower, wet with induced draught",
+      "sourceGroup": "g23331",
+      "sourceLabel": "text2409",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        447.199784,
+        221.199998,
+        40.600035,
+        30.599993
+      ],
+      "file": "symbols/s2-x8114-cooling-tower-wet-with-induced-draught.svg"
+    },
+    {
+      "id": "s2-x8115-cooling-tower-wet-dry-with-natural-draught",
+      "sheet": 2,
+      "registration": "X8115",
+      "description": "Cooling tower, wet-dry with natural draught",
+      "sourceGroup": "g23348",
+      "sourceLabel": "text2437",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        447.199784,
+        271.199998,
+        40.600035,
+        30.599995
+      ],
+      "file": "symbols/s2-x8115-cooling-tower-wet-dry-with-natural-draught.svg"
+    },
+    {
+      "id": "s2-x2504-spray-cooler",
+      "sheet": 2,
+      "registration": "X2504",
+      "description": "Spray cooler",
+      "sourceGroup": "g23359",
+      "sourceLabel": "text2487",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        446.599788,
+        313.100011,
+        34.299997,
+        49.299978
+      ],
+      "file": "symbols/s2-x2504-spray-cooler.svg"
+    },
+    {
+      "id": "s2-2532-boiler-with-dome",
+      "sheet": 2,
+      "registration": "2532",
+      "description": "Boiler with dome",
+      "sourceGroup": "g20900",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3-3-2",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        247.399557,
+        83.9,
+        32.700015,
+        37.7
+      ],
+      "file": "symbols/s2-2532-boiler-with-dome.svg"
+    },
+    {
+      "id": "s2-x8103-steam-generator-with-hot-liquid-as-generating-media",
+      "sheet": 2,
+      "registration": "X8103",
+      "description": "Steam generator with hot liquid as generating media",
+      "sourceGroup": "g20924",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3-3-2-7-9",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        246.799557,
+        133.3,
+        41.400015,
+        46.4
+      ],
+      "file": "symbols/s2-x8103-steam-generator-with-hot-liquid-as-generating-media.svg"
+    },
+    {
+      "id": "s2-2533-furnace",
+      "sheet": 2,
+      "registration": "2533",
+      "description": "Furnace",
+      "sourceGroup": "g20932",
+      "sourceLabel": "text2146",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        255.299573,
+        184.3,
+        24.4,
+        31.9
+      ],
+      "file": "symbols/s2-2533-furnace.svg"
+    },
+    {
+      "id": "s2-x8107-firing-system-burner-general",
+      "sheet": 2,
+      "registration": "X8107",
+      "description": "Firing system, burner (general)",
+      "sourceGroup": "g20942",
+      "sourceLabel": "text2178",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        247.662645,
+        236.789857,
+        32.047071,
+        29.420289
+      ],
+      "file": "symbols/s2-x8107-firing-system-burner-general.svg"
+    },
+    {
+      "id": "s2-x8108-vessel-with-dome",
+      "sheet": 2,
+      "registration": "X8108",
+      "description": "Vessel with dome",
+      "sourceGroup": "g20963",
+      "sourceLabel": "text2162",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        240.599801,
+        314.600015,
+        63.799788,
+        38.799971
+      ],
+      "file": "symbols/s2-x8108-vessel-with-dome.svg"
+    },
+    {
+      "id": "s2-x8106-combustion-chamber",
+      "sheet": 2,
+      "registration": "X8106",
+      "description": "Combustion chamber",
+      "sourceGroup": "g20954",
+      "sourceLabel": "text2219",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        244.699557,
+        271.2,
+        38.100015,
+        40.6
+      ],
+      "file": "symbols/s2-x8106-combustion-chamber.svg"
+    },
+    {
+      "id": "s2-2041-stack-chimney",
+      "sheet": 2,
+      "registration": "2041",
+      "description": "Stack, chimney",
+      "sourceGroup": "g20971",
+      "sourceLabel": "text2316",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        252.999542,
+        372,
+        24.000031,
+        29
+      ],
+      "file": "symbols/s2-2041-stack-chimney.svg"
+    },
+    {
+      "id": "s2-2591-gas-flare",
+      "sheet": 2,
+      "registration": "2591",
+      "description": "Gas flare",
+      "sourceGroup": "g20980",
+      "sourceLabel": "text2216",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        255.099542,
+        421.600015,
+        22.300031,
+        34.8
+      ],
+      "file": "symbols/s2-2591-gas-flare.svg"
+    },
+    {
+      "id": "s2-x8079-heat-exchanger-general-condenser",
+      "sheet": 2,
+      "registration": "X8079",
+      "description": "Heat exchanger (general), condenser",
+      "sourceGroup": "g17228",
+      "sourceLabel": "text4155",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        47.2,
+        13.7,
+        40.6,
+        40.6
+      ],
+      "file": "symbols/s2-x8079-heat-exchanger-general-condenser.svg"
+    },
+    {
+      "id": "s2-x8017-heat-exchanger-m-shape",
+      "sheet": 2,
+      "registration": "X8017",
+      "description": "Heat exchanger (M-shape)",
+      "sourceGroup": "g17239",
+      "sourceLabel": "text850-7-6-2-6-8-0-2-1-4",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        54.699779,
+        58.7,
+        35.6,
+        40.6
+      ],
+      "file": "symbols/s2-x8017-heat-exchanger-m-shape.svg"
+    },
+    {
+      "id": "s2-2511-heat-exchanger-with-straight-tubes-fixed-tube-plates",
+      "sheet": 2,
+      "registration": "2511",
+      "description": "Heat exchanger with straight tubes (fixed-tube plates)",
+      "sourceGroup": "g17254",
+      "sourceLabel": "text850-7-6-2-6-8-0-2-1",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        47.199779,
+        103.7,
+        40.6,
+        30.6
+      ],
+      "file": "symbols/s2-2511-heat-exchanger-with-straight-tubes-fixed-tube-plates.svg"
+    },
+    {
+      "id": "s2-2512-heat-exchanger-of-floating-head-type",
+      "sheet": 2,
+      "registration": "2512",
+      "description": "Heat exchanger of floating head type",
+      "sourceGroup": "g17271",
+      "sourceLabel": "text850-7-6-2-6-8-0-2",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        47.199779,
+        138.7,
+        40.6,
+        30.6
+      ],
+      "file": "symbols/s2-2512-heat-exchanger-of-floating-head-type.svg"
+    },
+    {
+      "id": "s2-2513-heat-exchanger-with-u-shaped-tubes",
+      "sheet": 2,
+      "registration": "2513",
+      "description": "Heat exchanger with U-shaped tubes",
+      "sourceGroup": "g17286",
+      "sourceLabel": "text1881",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        47.199779,
+        173.7,
+        40.6,
+        30.6
+      ],
+      "file": "symbols/s2-2513-heat-exchanger-with-u-shaped-tubes.svg"
+    },
+    {
+      "id": "s2-2516-heat-exchanger-of-plate-type",
+      "sheet": 2,
+      "registration": "2516",
+      "description": "Heat exchanger of plate type",
+      "sourceGroup": "g17301",
+      "sourceLabel": "text850-7-6-2-6-8-0",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        47.199779,
+        208.7,
+        40.6,
+        30.6
+      ],
+      "file": "symbols/s2-2516-heat-exchanger-of-plate-type.svg"
+    },
+    {
+      "id": "s2-2514-heat-exchanger-with-coil-shaped-tubes",
+      "sheet": 2,
+      "registration": "2514",
+      "description": "Heat exchanger with coil shaped tubes",
+      "sourceGroup": "g17314",
+      "sourceLabel": "text850-7-6-2-6-8",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        47.199779,
+        243.7,
+        40.6,
+        30.6
+      ],
+      "file": "symbols/s2-2514-heat-exchanger-with-coil-shaped-tubes.svg"
+    },
+    {
+      "id": "s2-2515-heat-exchanger-of-double-pipe-type",
+      "sheet": 2,
+      "registration": "2515",
+      "description": "Heat exchanger of double-pipe type",
+      "sourceGroup": "g17329",
+      "sourceLabel": "text1884",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        38.799779,
+        277.8,
+        53.65,
+        34.9
+      ],
+      "file": "symbols/s2-2515-heat-exchanger-of-double-pipe-type.svg"
+    },
+    {
+      "id": "s2-x8018-heat-exchanger-with-finned-tube",
+      "sheet": 2,
+      "registration": "X8018",
+      "description": "Heat exchanger with finned tube",
+      "sourceGroup": "g17348",
+      "sourceLabel": "text850-7-6-2-6-8-9",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        41.4,
+        315.4,
+        52.2,
+        32.073219
+      ],
+      "file": "symbols/s2-x8018-heat-exchanger-with-finned-tube.svg"
+    },
+    {
+      "id": "s2-x2505-heat-exchanger-with-finned-tube-and-fan",
+      "sheet": 2,
+      "registration": "X2505",
+      "description": "Heat exchanger with finned tube and fan",
+      "sourceGroup": "g17365",
+      "sourceLabel": "text850-7-6-2-6-8-9-2",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        47.2,
+        358.699992,
+        40.6,
+        28.100008
+      ],
+      "file": "symbols/s2-x2505-heat-exchanger-with-finned-tube-and-fan.svg"
+    },
+    {
+      "id": "s2-2517-heat-exchanger-of-spiral-type",
+      "sheet": 2,
+      "registration": "2517",
+      "description": "Heat exchanger of spiral type",
+      "sourceGroup": "g17378",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        47.2,
+        398.7,
+        40.6,
+        40.6
+      ],
+      "file": "symbols/s2-2517-heat-exchanger-of-spiral-type.svg"
+    },
+    {
+      "id": "s2-x8131-evaporator-re-boiler",
+      "sheet": 2,
+      "registration": "X8131",
+      "description": "Evaporator, re-boiler",
+      "sourceGroup": "g17393",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        41.4,
+        450.4,
+        52.2,
+        22.2
+      ],
+      "file": "symbols/s2-x8131-evaporator-re-boiler.svg"
+    },
+    {
+      "id": "s2-x8132-electric-heater",
+      "sheet": 2,
+      "registration": "X8132",
+      "description": "Electric heater",
+      "sourceGroup": "g18486",
+      "sourceLabel": "text9532",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        42.599996,
+        491.599984,
+        34.800004,
+        24.800016
+      ],
+      "file": "symbols/s2-x8132-electric-heater.svg"
+    },
+    {
+      "id": "s2-x8133-thin-film-evaporator",
+      "sheet": 2,
+      "registration": "X8133",
+      "description": "Thin-film evaporator",
+      "sourceGroup": "g18499",
+      "sourceLabel": "text2065",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        58,
+        537.000015,
+        19,
+        28.999985
+      ],
+      "file": "symbols/s2-x8133-thin-film-evaporator.svg"
+    },
+    {
+      "id": "s2-x8136-tube-bundle-heat-exchanger-with-u-shaped-tubes",
+      "sheet": 2,
+      "registration": "X8136",
+      "description": "Tube bundle, heat exchanger with U-shaped tubes",
+      "sourceGroup": "g19580",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        252.999573,
+        22,
+        28.821808,
+        14
+      ],
+      "file": "symbols/s2-x8136-tube-bundle-heat-exchanger-with-u-shaped-tubes.svg"
+    },
+    {
+      "id": "s2-x8137-tube-bundle-heat-exchanger-of-floating-head-type",
+      "sheet": 2,
+      "registration": "X8137",
+      "description": "Tube bundle, heat exchanger of floating head type",
+      "sourceGroup": "g19592",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3-3",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        252.999573,
+        57,
+        29,
+        14
+      ],
+      "file": "symbols/s2-x8137-tube-bundle-heat-exchanger-of-floating-head-type.svg"
+    },
+    {
+      "id": "s3-x2614-centrifuge-with-perforated-shell",
+      "sheet": 3,
+      "registration": "X2614",
+      "description": "Centrifuge with perforated shell",
+      "sourceGroup": "g42460",
+      "sourceLabel": "text15498",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        655.099573,
+        161.6,
+        32.3,
+        34.8
+      ],
+      "file": "symbols/s3-x2614-centrifuge-with-perforated-shell.svg"
+    },
+    {
+      "id": "s3-x2619-high-speed-centrifuge",
+      "sheet": 3,
+      "registration": "X2619",
+      "description": "High speed centrifuge",
+      "sourceGroup": "g42449",
+      "sourceLabel": "text15522",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        655.099573,
+        114.1,
+        32.3,
+        34.8
+      ],
+      "file": "symbols/s3-x2619-high-speed-centrifuge.svg"
+    },
+    {
+      "id": "s3-x8035-centrifuge-with-solid-shell",
+      "sheet": 3,
+      "registration": "X8035",
+      "description": "Centrifuge with solid shell",
+      "sourceGroup": "g43834",
+      "sourceLabel": "text15546",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        655.099573,
+        209.1,
+        32.3,
+        34.8
+      ],
+      "file": "symbols/s3-x8035-centrifuge-with-solid-shell.svg"
+    },
+    {
+      "id": "s3-x8037-centrifuge-screw-type-with-perforated-shell",
+      "sheet": 3,
+      "registration": "X8037",
+      "description": "Centrifuge, screw-type, with perforated shell",
+      "sourceGroup": "g43868",
+      "sourceLabel": "text15625",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        652.599507,
+        311.599995,
+        34.800071,
+        32.30001
+      ],
+      "file": "symbols/s3-x8037-centrifuge-screw-type-with-perforated-shell.svg"
+    },
+    {
+      "id": "s3-x8082-decanter-centrifuge-screw-type-with-solid-shell",
+      "sheet": 3,
+      "registration": "X8082",
+      "description": "Decanter, centrifuge, screw-type with solid shell",
+      "sourceGroup": "g43882",
+      "sourceLabel": "text15683",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        652.199512,
+        348.7,
+        35.600061,
+        40.6
+      ],
+      "file": "symbols/s3-x8082-decanter-centrifuge-screw-type-with-solid-shell.svg"
+    },
+    {
+      "id": "s3-x8038-centrifuge-pusher-type",
+      "sheet": 3,
+      "registration": "X8038",
+      "description": "Centrifuge, pusher type",
+      "sourceGroup": "g43893",
+      "sourceLabel": "text15711",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        652.599507,
+        401.599995,
+        34.800071,
+        32.30001
+      ],
+      "file": "symbols/s3-x8038-centrifuge-pusher-type.svg"
+    },
+    {
+      "id": "s3-x8039-centrifuge-skimmer-type",
+      "sheet": 3,
+      "registration": "X8039",
+      "description": "Centrifuge, skimmer type",
+      "sourceGroup": "g43905",
+      "sourceLabel": "text15762",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        652.599573,
+        446.6,
+        34.8,
+        32.3
+      ],
+      "file": "symbols/s3-x8039-centrifuge-skimmer-type.svg"
+    },
+    {
+      "id": "s3-x8036-centrifuge-separator-disc-type",
+      "sheet": 3,
+      "registration": "X8036",
+      "description": "Centrifuge, separator, disc type",
+      "sourceGroup": "g43846",
+      "sourceLabel": "text15570",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        655.099573,
+        256.6,
+        32.3,
+        34.8
+      ],
+      "file": "symbols/s3-x8036-centrifuge-separator-disc-type.svg"
+    },
+    {
+      "id": "s3-x8081-separator-sifter-general",
+      "sheet": 3,
+      "registration": "X8081",
+      "description": "Separator, sifter (general)",
+      "sourceGroup": "g35361",
+      "sourceLabel": "text4107",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        450.1,
+        21.6,
+        34.8,
+        34.8
+      ],
+      "file": "symbols/s3-x8081-separator-sifter-general.svg"
+    },
+    {
+      "id": "s3-x2616-impact-separator",
+      "sheet": 3,
+      "registration": "X2616",
+      "description": "Impact separator",
+      "sourceGroup": "g35371",
+      "sourceLabel": "text850-7-6-2-6-8-0-2-1-4-5",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        450.1,
+        69.1,
+        34.8,
+        34.8
+      ],
+      "file": "symbols/s3-x2616-impact-separator.svg"
+    },
+    {
+      "id": "s3-x8031-gravity-separator-settling-chamber",
+      "sheet": 3,
+      "registration": "X8031",
+      "description": "Gravity separator, settling chamber",
+      "sourceGroup": "g35381",
+      "sourceLabel": "text4167",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        450.1,
+        116.6,
+        34.8,
+        34.8
+      ],
+      "file": "symbols/s3-x8031-gravity-separator-settling-chamber.svg"
+    },
+    {
+      "id": "s3-x2621-spray-scrubber",
+      "sheet": 3,
+      "registration": "X2621",
+      "description": "Spray scrubber",
+      "sourceGroup": "g35403",
+      "sourceLabel": "text2409",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        457,
+        203.5,
+        28.5,
+        43.5
+      ],
+      "file": "symbols/s3-x2621-spray-scrubber.svg"
+    },
+    {
+      "id": "s3-x8125-separator-precipitator-electrostatic-type",
+      "sheet": 3,
+      "registration": "X8125",
+      "description": "Separator, precipitator electrostatic type",
+      "sourceGroup": "g36769",
+      "sourceLabel": "text2437",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        450.1,
+        259.1,
+        34.8,
+        34.8
+      ],
+      "file": "symbols/s3-x8125-separator-precipitator-electrostatic-type.svg"
+    },
+    {
+      "id": "s3-x8033-precipitator-wet-electrostatic-type",
+      "sheet": 3,
+      "registration": "X8033",
+      "description": "Precipitator wet, electrostatic type",
+      "sourceGroup": "g38140",
+      "sourceLabel": "text2036",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        449.5,
+        298.5,
+        36,
+        43.5
+      ],
+      "file": "symbols/s3-x8033-precipitator-wet-electrostatic-type.svg"
+    },
+    {
+      "id": "s3-x8126-electromagnetic-separator",
+      "sheet": 3,
+      "registration": "X8126",
+      "description": "Electromagnetic separator",
+      "sourceGroup": "g38155",
+      "sourceLabel": "text2074",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        450.1,
+        354.1,
+        34.8,
+        34.8
+      ],
+      "file": "symbols/s3-x8126-electromagnetic-separator.svg"
+    },
+    {
+      "id": "s3-x8127-permanent-magnet-separator",
+      "sheet": 3,
+      "registration": "X8127",
+      "description": "Permanent magnet separator",
+      "sourceGroup": "g38162",
+      "sourceLabel": "text2103",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        450.1,
+        401.6,
+        34.8,
+        34.8
+      ],
+      "file": "symbols/s3-x8127-permanent-magnet-separator.svg"
+    },
+    {
+      "id": "s3-x2618-separator-cyclone-type",
+      "sheet": 3,
+      "registration": "X2618",
+      "description": "Separator, cyclone type",
+      "sourceGroup": "g38169",
+      "sourceLabel": "text15337",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        449.5,
+        441,
+        28.5,
+        43.5
+      ],
+      "file": "symbols/s3-x2618-separator-cyclone-type.svg"
+    },
+    {
+      "id": "s3-x8034-separator-scrubber-venturi-type",
+      "sheet": 3,
+      "registration": "X8034",
+      "description": "Separator, scrubber venturi type",
+      "sourceGroup": "g38181",
+      "sourceLabel": "text15404",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        449.5,
+        488.5,
+        36,
+        43.5
+      ],
+      "file": "symbols/s3-x8034-separator-scrubber-venturi-type.svg"
+    },
+    {
+      "id": "s3-x8128-solidifier-for-waste-water-treatment-plant-open-type",
+      "sheet": 3,
+      "registration": "X8128",
+      "description": "Solidifier for waste water treatment plant open type",
+      "sourceGroup": "g39549",
+      "sourceLabel": "text15448",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        656.999512,
+        16,
+        28.500061,
+        43.5
+      ],
+      "file": "symbols/s3-x8128-solidifier-for-waste-water-treatment-plant-open-type.svg"
+    },
+    {
+      "id": "s3-x8129-solidifier-closed-type",
+      "sheet": 3,
+      "registration": "X8129",
+      "description": "Solidifier closed type",
+      "sourceGroup": "g40919",
+      "sourceLabel": "text15468",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        656.999512,
+        66,
+        28.500061,
+        43.5
+      ],
+      "file": "symbols/s3-x8129-solidifier-closed-type.svg"
+    },
+    {
+      "id": "s3-x8124-separator-scrubber-wet-type",
+      "sheet": 3,
+      "registration": "X8124",
+      "description": "Separator, scrubber wet type",
+      "sourceGroup": "g35394",
+      "sourceLabel": "text4288",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        450.1,
+        164.1,
+        34.8,
+        34.8
+      ],
+      "file": "symbols/s3-x8124-separator-scrubber-wet-type.svg"
+    },
+    {
+      "id": "s3-x8123-screening-device-sieve-strainer-general",
+      "sheet": 3,
+      "registration": "X8123",
+      "description": "Screening device, sieve, strainer (general)",
+      "sourceGroup": "g32186",
+      "sourceLabel": "text2178",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        257,
+        213.5,
+        28.5,
+        43.5
+      ],
+      "file": "symbols/s3-x8123-screening-device-sieve-strainer-general.svg"
+    },
+    {
+      "id": "s3-x8027-screening-device-fine-rake-type",
+      "sheet": 3,
+      "registration": "X8027",
+      "description": "Screening device, fine rake type",
+      "sourceGroup": "g32218",
+      "sourceLabel": "text1984",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        257,
+        308.500004,
+        28.5,
+        43.5
+      ],
+      "file": "symbols/s3-x8027-screening-device-fine-rake-type.svg"
+    },
+    {
+      "id": "s3-x8028-screening-device-with-coarse-and-fine-screens",
+      "sheet": 3,
+      "registration": "X8028",
+      "description": "Screening device with coarse and fine screens",
+      "sourceGroup": "g32227",
+      "sourceLabel": "text2009",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        257.000001,
+        356.000001,
+        28.499999,
+        43.499991
+      ],
+      "file": "symbols/s3-x8028-screening-device-with-coarse-and-fine-screens.svg"
+    },
+    {
+      "id": "s3-x8026-screening-device-coarse-rake-type",
+      "sheet": 3,
+      "registration": "X8026",
+      "description": "Screening device, coarse rake type",
+      "sourceGroup": "g32202",
+      "sourceLabel": "text2015",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        257,
+        261.000004,
+        28.5,
+        43.5
+      ],
+      "file": "symbols/s3-x8026-screening-device-coarse-rake-type.svg"
+    },
+    {
+      "id": "s3-x2605-screening-device-sieve-strainer-vibrating-type",
+      "sheet": 3,
+      "registration": "X2605",
+      "description": "Screening device, sieve, strainer, vibrating type",
+      "sourceGroup": "g32388",
+      "sourceLabel": "text2043",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        257,
+        403.5,
+        28.5,
+        43.5
+      ],
+      "file": "symbols/s3-x2605-screening-device-sieve-strainer-vibrating-type.svg"
+    },
+    {
+      "id": "s3-x8029-screening-device-rotating-drum-type",
+      "sheet": 3,
+      "registration": "X8029",
+      "description": "Screening device, rotating drum type",
+      "sourceGroup": "g33740",
+      "sourceLabel": "text4073",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        257,
+        451,
+        28.5,
+        43.5
+      ],
+      "file": "symbols/s3-x8029-screening-device-rotating-drum-type.svg"
+    },
+    {
+      "id": "s3-x8030-screening-device-basket-reeltype",
+      "sheet": 3,
+      "registration": "X8030",
+      "description": "Screening device, basket reeltype",
+      "sourceGroup": "g33757",
+      "sourceLabel": "text4091",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        246.199999,
+        505.199984,
+        42.600002,
+        55.100018
+      ],
+      "file": "symbols/s3-x8030-screening-device-basket-reeltype.svg"
+    },
+    {
+      "id": "s3-x8116-liquid-filter-general",
+      "sheet": 3,
+      "registration": "X8116",
+      "description": "Liquid filter (general)",
+      "sourceGroup": "g19781",
+      "sourceLabel": "text4155",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        56.8,
+        13.3,
+        21.4,
+        46.4
+      ],
+      "file": "symbols/s3-x8116-liquid-filter-general.svg"
+    },
+    {
+      "id": "s3-x8117-liquid-filter-bag-candle-or-cartridge-type",
+      "sheet": 3,
+      "registration": "X8117",
+      "description": "Liquid filter, bag, candle or cartridge type",
+      "sourceGroup": "g19797",
+      "sourceLabel": "text850-7-6-2-6-8-0-2-1-4",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        49.3,
+        63.3,
+        36.4,
+        46.4
+      ],
+      "file": "symbols/s3-x8117-liquid-filter-bag-candle-or-cartridge-type.svg"
+    },
+    {
+      "id": "s3-x8118-liquid-bed-filter-fixed-type",
+      "sheet": 3,
+      "registration": "X8118",
+      "description": "Liquid bed filter fixed type",
+      "sourceGroup": "g19809",
+      "sourceLabel": "text850-7-6-2-6-8-0-2",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        56.8,
+        113.3,
+        21.4,
+        46.4
+      ],
+      "file": "symbols/s3-x8118-liquid-bed-filter-fixed-type.svg"
+    },
+    {
+      "id": "s3-8019-suction-filter",
+      "sheet": 3,
+      "registration": "8019",
+      "description": "Suction filter",
+      "sourceGroup": "g19818",
+      "sourceLabel": "text1907",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        56.8,
+        163.3,
+        21.4,
+        46.4
+      ],
+      "file": "symbols/s3-8019-suction-filter.svg"
+    },
+    {
+      "id": "s3-x8120-liquid-rotary-filter-drum-or-disc-type-with-scraper",
+      "sheet": 3,
+      "registration": "X8120",
+      "description": "Liquid rotary filter, drum or disc type with scraper",
+      "sourceGroup": "g19845",
+      "sourceLabel": "text1884",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        56.6,
+        260.6,
+        29.3,
+        49.3
+      ],
+      "file": "symbols/s3-x8120-liquid-rotary-filter-drum-or-disc-type-with-scraper.svg"
+    },
+    {
+      "id": "s3-x8121-liquid-filter-belt-or-roll-type",
+      "sheet": 3,
+      "registration": "X8121",
+      "description": "Liquid filter, belt or roll type",
+      "sourceGroup": "g19861",
+      "sourceLabel": "text850-7-6-2-6-8-9",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        56.8,
+        313.3,
+        28.9,
+        46.4
+      ],
+      "file": "symbols/s3-x8121-liquid-filter-belt-or-roll-type.svg"
+    },
+    {
+      "id": "s3-x2611-filter-press-press-filter",
+      "sheet": 3,
+      "registration": "X2611",
+      "description": "Filter press, press filter",
+      "sourceGroup": "g21210",
+      "sourceLabel": "text2069",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        44.3,
+        363.3,
+        46.4,
+        36.4
+      ],
+      "file": "symbols/s3-x2611-filter-press-press-filter.svg"
+    },
+    {
+      "id": "s3-x8020-liquid-bed-filter-ion-exchanger-type",
+      "sheet": 3,
+      "registration": "X8020",
+      "description": "Liquid bed filter, ion exchanger type",
+      "sourceGroup": "g22550",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        56.8,
+        403.3,
+        21.4,
+        46.4
+      ],
+      "file": "symbols/s3-x8020-liquid-bed-filter-ion-exchanger-type.svg"
+    },
+    {
+      "id": "s3-x8021-liquid-bed-filter-biological-type",
+      "sheet": 3,
+      "registration": "X8021",
+      "description": "Liquid bed filter, biological type",
+      "sourceGroup": "g23894",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        56.8,
+        453.3,
+        21.4,
+        46.4
+      ],
+      "file": "symbols/s3-x8021-liquid-bed-filter-biological-type.svg"
+    },
+    {
+      "id": "s3-x8122-gas-filter-general",
+      "sheet": 3,
+      "registration": "X8122",
+      "description": "Gas filter (general)",
+      "sourceGroup": "g25238",
+      "sourceLabel": "text2065",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        49.3,
+        503.3,
+        28.9,
+        46.4
+      ],
+      "file": "symbols/s3-x8122-gas-filter-general.svg"
+    },
+    {
+      "id": "s3-x8022-gas-filter-bag-candle-or-cartridge-type",
+      "sheet": 3,
+      "registration": "X8022",
+      "description": "Gas filter, bag, candle or cartridge type",
+      "sourceGroup": "g26587",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        249.3,
+        13.3,
+        36.4,
+        46.4
+      ],
+      "file": "symbols/s3-x8022-gas-filter-bag-candle-or-cartridge-type.svg"
+    },
+    {
+      "id": "s3-x8023-gas-bed-filter-fixed-type",
+      "sheet": 3,
+      "registration": "X8023",
+      "description": "Gas bed filter fixed type",
+      "sourceGroup": "g26602",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3-3-2",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        249.3,
+        63.3,
+        28.9,
+        46.4
+      ],
+      "file": "symbols/s3-x8023-gas-bed-filter-fixed-type.svg"
+    },
+    {
+      "id": "s3-x8024-gas-filter-high-efficiency-particulate-air-filter-hepa-type",
+      "sheet": 3,
+      "registration": "X8024",
+      "description": "Gas filter, high efficiency particulate air filter HEPA type",
+      "sourceGroup": "g27951",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3-3-2-7-9",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        249.3,
+        113.3,
+        28.9,
+        46.4
+      ],
+      "file": "symbols/s3-x8024-gas-filter-high-efficiency-particulate-air-filter-hepa-type.svg"
+    },
+    {
+      "id": "s3-x8025-gas-filter-belt-or-roll-type",
+      "sheet": 3,
+      "registration": "X8025",
+      "description": "Gas filter, belt or roll type",
+      "sourceGroup": "g29304",
+      "sourceLabel": "text2146",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        256.8,
+        163.3,
+        28.9,
+        46.4
+      ],
+      "file": "symbols/s3-x8025-gas-filter-belt-or-roll-type.svg"
+    },
+    {
+      "id": "s3-x8119-liquid-rotary-filter-drum-or-disc-type",
+      "sheet": 3,
+      "registration": "X8119",
+      "description": "Liquid rotary filter, drum or disc type",
+      "sourceGroup": "g19831",
+      "sourceLabel": "text850-7-6-2-6-8-0",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        56.8,
+        213.3,
+        28.9,
+        46.4
+      ],
+      "file": "symbols/s3-x8119-liquid-rotary-filter-drum-or-disc-type.svg"
+    },
+    {
+      "id": "s4-x8164-blower-fan-general",
+      "sheet": 4,
+      "registration": "X8164",
+      "description": "Blower, fan (general)",
+      "sourceGroup": "g16067",
+      "sourceLabel": "text33378",
+      "sourceLayer": "layer14",
+      "viewBox": [
+        650.110142,
+        451.816379,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-x8164-blower-fan-general.svg"
+    },
+    {
+      "id": "s4-2302-compressor-vacuum-pump-general",
+      "sheet": 4,
+      "registration": "2302",
+      "description": "Compressor, vacuum pump (general)",
+      "sourceGroup": "g35193",
+      "sourceLabel": "text4259",
+      "sourceLayer": "layer13",
+      "viewBox": [
+        650.110142,
+        212.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-2302-compressor-vacuum-pump-general.svg"
+    },
+    {
+      "id": "s4-x8179-compressor-centrifugal-type",
+      "sheet": 4,
+      "registration": "X8179",
+      "description": "Compressor, centrifugal type",
+      "sourceGroup": "g35204",
+      "sourceLabel": "text4685",
+      "sourceLayer": "layer13",
+      "viewBox": [
+        650.110142,
+        232.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-x8179-compressor-centrifugal-type.svg"
+    },
+    {
+      "id": "s4-x8163-compressor-ejector-type-vacuum-pump-jet-type",
+      "sheet": 4,
+      "registration": "X8163",
+      "description": "Compressor, ejector type, vacuum pump jet type",
+      "sourceGroup": "g35316",
+      "sourceLabel": "text4813",
+      "sourceLayer": "layer13",
+      "viewBox": [
+        650.110142,
+        392.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-x8163-compressor-ejector-type-vacuum-pump-jet-type.svg"
+    },
+    {
+      "id": "s4-x8097-compressor-vacuum-pump-reciprocating-piston-type",
+      "sheet": 4,
+      "registration": "X8097",
+      "description": "Compressor, vacuum pump, reciprocating piston type",
+      "sourceGroup": "g35214",
+      "sourceLabel": "text35220",
+      "sourceLayer": "layer13",
+      "viewBox": [
+        650.110142,
+        252.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-x8097-compressor-vacuum-pump-reciprocating-piston-type.svg"
+    },
+    {
+      "id": "s4-x8099-compressor-vacuum-pump-diaphragm-type",
+      "sheet": 4,
+      "registration": "X8099",
+      "description": "Compressor, vacuum pump diaphragm type",
+      "sourceGroup": "g35234",
+      "sourceLabel": "text4717",
+      "sourceLayer": "layer13",
+      "viewBox": [
+        650.110142,
+        272.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-x8099-compressor-vacuum-pump-diaphragm-type.svg"
+    },
+    {
+      "id": "s4-x8102-compressor-vacuum-pump-turbo-type",
+      "sheet": 4,
+      "registration": "X8102",
+      "description": "Compressor, vacuum pump, turbo type",
+      "sourceGroup": "g35245",
+      "sourceLabel": "text4733",
+      "sourceLayer": "layer13",
+      "viewBox": [
+        650.110142,
+        292.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-x8102-compressor-vacuum-pump-turbo-type.svg"
+    },
+    {
+      "id": "s4-x8104-compressor-vacuum-pump-roller-vane-type",
+      "sheet": 4,
+      "registration": "X8104",
+      "description": "Compressor, vacuum pump, roller vane type",
+      "sourceGroup": "g35258",
+      "sourceLabel": "text4749",
+      "sourceLayer": "layer13",
+      "viewBox": [
+        650.110142,
+        312.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-x8104-compressor-vacuum-pump-roller-vane-type.svg"
+    },
+    {
+      "id": "s4-x8105-compressor-rotary-type-vacuum-pump-rotary-piston-type",
+      "sheet": 4,
+      "registration": "X8105",
+      "description": "Compressor rotary type, vacuum pump, rotary piston type",
+      "sourceGroup": "g35271",
+      "sourceLabel": "text4765",
+      "sourceLayer": "layer13",
+      "viewBox": [
+        650.110142,
+        332.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-x8105-compressor-rotary-type-vacuum-pump-rotary-piston-type.svg"
+    },
+    {
+      "id": "s4-x8161-compressor-screw-type",
+      "sheet": 4,
+      "registration": "X8161",
+      "description": "Compressor, screw type",
+      "sourceGroup": "g35285",
+      "sourceLabel": "text4781",
+      "sourceLayer": "layer13",
+      "viewBox": [
+        650.110142,
+        352.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-x8161-compressor-screw-type.svg"
+    },
+    {
+      "id": "s4-x8162-compressor-vacuum-pump-liquid-ring-type",
+      "sheet": 4,
+      "registration": "X8162",
+      "description": "Compressor, vacuum pump liquid ring type",
+      "sourceGroup": "g35304",
+      "sourceLabel": "text4797",
+      "sourceLayer": "layer13",
+      "viewBox": [
+        650.110142,
+        372.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-x8162-compressor-vacuum-pump-liquid-ring-type.svg"
+    },
+    {
+      "id": "s4-2301-pump-liquid-type-general",
+      "sheet": 4,
+      "registration": "2301",
+      "description": "Pump, liquid type (general)",
+      "sourceGroup": "g31067",
+      "sourceLabel": "text4058",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        650.110142,
+        21.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-2301-pump-liquid-type-general.svg"
+    },
+    {
+      "id": "s4-2322-pump-centrifugal-type",
+      "sheet": 4,
+      "registration": "2322",
+      "description": "Pump, centrifugal type",
+      "sourceGroup": "g31074",
+      "sourceLabel": "text4122",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        650.110142,
+        41.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-2322-pump-centrifugal-type.svg"
+    },
+    {
+      "id": "s4-8091-pump-gear-type",
+      "sheet": 4,
+      "registration": "8091",
+      "description": "Pump, gear type",
+      "sourceGroup": "g31083",
+      "sourceLabel": "text4092",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        650.110142,
+        61.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-8091-pump-gear-type.svg"
+    },
+    {
+      "id": "s4-8092-pump-screw-type",
+      "sheet": 4,
+      "registration": "8092",
+      "description": "Pump, screw type",
+      "sourceGroup": "g32411",
+      "sourceLabel": "text4189",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        650.110142,
+        81.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-8092-pump-screw-type.svg"
+    },
+    {
+      "id": "s4-8093-pump-progressive-cavity-type",
+      "sheet": 4,
+      "registration": "8093",
+      "description": "Pump, progressive cavity type",
+      "sourceGroup": "g32424",
+      "sourceLabel": "text4203",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        650.110142,
+        101.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-8093-pump-progressive-cavity-type.svg"
+    },
+    {
+      "id": "s4-x8094-pump-reciprocating-piston-type",
+      "sheet": 4,
+      "registration": "X8094",
+      "description": "Pump, reciprocating piston type",
+      "sourceGroup": "g32436",
+      "sourceLabel": "text4217",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        650.110142,
+        121.610142,
+        34.652947,
+        19.779717
+      ],
+      "file": "symbols/s4-x8094-pump-reciprocating-piston-type.svg"
+    },
+    {
+      "id": "s4-x8095-pump-diaphragm-type",
+      "sheet": 4,
+      "registration": "X8095",
+      "description": "Pump, diaphragm type",
+      "sourceGroup": "g32446",
+      "sourceLabel": "text4231",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        650.110142,
+        141.609699,
+        34.652947,
+        19.780602
+      ],
+      "file": "symbols/s4-x8095-pump-diaphragm-type.svg"
+    },
+    {
+      "id": "s4-x8096-jet-pump-liquid-type-ejector-pump",
+      "sheet": 4,
+      "registration": "X8096",
+      "description": "Jet pump, liquid type ejector pump",
+      "sourceGroup": "g32457",
+      "sourceLabel": "text4245",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        650.110142,
+        161.610142,
+        34.652947,
+        19.779747
+      ],
+      "file": "symbols/s4-x8096-jet-pump-liquid-type-ejector-pump.svg"
+    },
+    {
+      "id": "s4-xc0053-shaping-machine-horizontal-type-general",
+      "sheet": 4,
+      "registration": "XC0053",
+      "description": "Shaping machine, horizontal type (general)",
+      "sourceGroup": "g29705",
+      "sourceLabel": "text4000",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        452.400033,
+        413.900002,
+        37.699965,
+        27.69998
+      ],
+      "file": "symbols/s4-xc0053-shaping-machine-horizontal-type-general.svg"
+    },
+    {
+      "id": "s4-x8058-extruder-screw-type",
+      "sheet": 4,
+      "registration": "X8058",
+      "description": "Extruder, screw type",
+      "sourceGroup": "g29712",
+      "sourceLabel": "text4012",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        449.7,
+        453.7,
+        40.6,
+        28.099985
+      ],
+      "file": "symbols/s4-x8058-extruder-screw-type.svg"
+    },
+    {
+      "id": "s4-x8059-extruder-piston-type",
+      "sheet": 4,
+      "registration": "X8059",
+      "description": "Extruder, piston type",
+      "sourceGroup": "g29720",
+      "sourceLabel": "text4036",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        449.7,
+        493.7,
+        40.6,
+        28.099985
+      ],
+      "file": "symbols/s4-x8059-extruder-piston-type.svg"
+    },
+    {
+      "id": "s4-c0052-shaping-machine-vertical-type-general",
+      "sheet": 4,
+      "registration": "C0052",
+      "description": "Shaping machine, vertical type (general)",
+      "sourceGroup": "g27005",
+      "sourceLabel": "text3852",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        452.600001,
+        214.100009,
+        29.799998,
+        34.799982
+      ],
+      "file": "symbols/s4-c0052-shaping-machine-vertical-type-general.svg"
+    },
+    {
+      "id": "s4-x8055-press-roller-type",
+      "sheet": 4,
+      "registration": "X8055",
+      "description": "Press, roller type",
+      "sourceGroup": "g27015",
+      "sourceLabel": "text3874",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        452.600002,
+        254.100017,
+        29.799997,
+        34.799976
+      ],
+      "file": "symbols/s4-x8055-press-roller-type.svg"
+    },
+    {
+      "id": "s4-x8056-press-piston-type",
+      "sheet": 4,
+      "registration": "X8056",
+      "description": "Press, piston type",
+      "sourceGroup": "g27026",
+      "sourceLabel": "text3912",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        452.600002,
+        294.100016,
+        29.799997,
+        34.799978
+      ],
+      "file": "symbols/s4-x8056-press-piston-type.svg"
+    },
+    {
+      "id": "s4-x8057-pelletizing-disc",
+      "sheet": 4,
+      "registration": "X8057",
+      "description": "Pelletizing disc",
+      "sourceGroup": "g27035",
+      "sourceLabel": "text3920",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        452.600001,
+        334.100016,
+        29.799998,
+        34.799982
+      ],
+      "file": "symbols/s4-x8057-pelletizing-disc.svg"
+    },
+    {
+      "id": "s4-x2672-in-line-rotary-mixer",
+      "sheet": 4,
+      "registration": "X2672",
+      "description": "In-line rotary mixer",
+      "sourceGroup": "g24327",
+      "sourceLabel": "text3540",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        447.4,
+        13.9,
+        37.7,
+        35.199985
+      ],
+      "file": "symbols/s4-x2672-in-line-rotary-mixer.svg"
+    },
+    {
+      "id": "s4-x2673-in-line-static-mixer",
+      "sheet": 4,
+      "registration": "X2673",
+      "description": "In-line static mixer",
+      "sourceGroup": "g24333",
+      "sourceLabel": "text3560",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        450.1,
+        61.6,
+        34.8,
+        19.799985
+      ],
+      "file": "symbols/s4-x2673-in-line-static-mixer.svg"
+    },
+    {
+      "id": "s4-x8184-mixing-path",
+      "sheet": 4,
+      "registration": "X8184",
+      "description": "Mixing path",
+      "sourceGroup": "g24342",
+      "sourceLabel": "text3580",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        438.1,
+        92.100015,
+        63.8,
+        31.299985
+      ],
+      "file": "symbols/s4-x8184-mixing-path.svg"
+    },
+    {
+      "id": "s4-x8134-kneader",
+      "sheet": 4,
+      "registration": "X8134",
+      "description": "Kneader",
+      "sourceGroup": "g24349",
+      "sourceLabel": "text3596",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        450.100002,
+        134.100018,
+        32.299995,
+        34.799965
+      ],
+      "file": "symbols/s4-x8134-kneader.svg"
+    },
+    {
+      "id": "s4-x8046-crusher-impact-type",
+      "sheet": 4,
+      "registration": "X8046",
+      "description": "Crusher, impact type",
+      "sourceGroup": "g21424",
+      "sourceLabel": "text850-7-6-2-6-8-9-2-8-2-3",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        252.600001,
+        134.100016,
+        29.799998,
+        34.799982
+      ],
+      "file": "symbols/s4-x8046-crusher-impact-type.svg"
+    },
+    {
+      "id": "s4-x8047-crusher-jaw-type",
+      "sheet": 4,
+      "registration": "X8047",
+      "description": "Crusher, jaw type",
+      "sourceGroup": "g21436",
+      "sourceLabel": "text2596",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        252.600001,
+        174.100008,
+        29.799999,
+        34.799991
+      ],
+      "file": "symbols/s4-x8047-crusher-jaw-type.svg"
+    },
+    {
+      "id": "s4-x8048-crusher-roller-type",
+      "sheet": 4,
+      "registration": "X8048",
+      "description": "Crusher, roller type",
+      "sourceGroup": "g21445",
+      "sourceLabel": "text2620",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        252.600001,
+        214.100008,
+        29.799999,
+        34.799991
+      ],
+      "file": "symbols/s4-x8048-crusher-roller-type.svg"
+    },
+    {
+      "id": "s4-x8049-crusher-cone-type",
+      "sheet": 4,
+      "registration": "X8049",
+      "description": "Crusher, cone type",
+      "sourceGroup": "g21453",
+      "sourceLabel": "text2640",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        252.600001,
+        254.100012,
+        29.799998,
+        34.799987
+      ],
+      "file": "symbols/s4-x8049-crusher-cone-type.svg"
+    },
+    {
+      "id": "s4-x8086-mill-pulverizer-general",
+      "sheet": 4,
+      "registration": "X8086",
+      "description": "Mill, pulverizer (general)",
+      "sourceGroup": "g21465",
+      "sourceLabel": "text2662",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        252.600001,
+        294.100011,
+        29.799998,
+        34.799989
+      ],
+      "file": "symbols/s4-x8086-mill-pulverizer-general.svg"
+    },
+    {
+      "id": "s4-x8053-mill-horizontal-rotation-roller-type",
+      "sheet": 4,
+      "registration": "X8053",
+      "description": "Mill, horizontal rotation roller type",
+      "sourceGroup": "g21524",
+      "sourceLabel": "text2883",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        252.600001,
+        414.100008,
+        29.799999,
+        34.799991
+      ],
+      "file": "symbols/s4-x8053-mill-horizontal-rotation-roller-type.svg"
+    },
+    {
+      "id": "s4-x8051-mill-impact-type",
+      "sheet": 4,
+      "registration": "X8051",
+      "description": "Mill, impact type",
+      "sourceGroup": "g21507",
+      "sourceLabel": "text2822",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        252.600001,
+        374.100008,
+        29.799999,
+        34.799991
+      ],
+      "file": "symbols/s4-x8051-mill-impact-type.svg"
+    },
+    {
+      "id": "s4-x8050-mill-pulverizer-hammer-type",
+      "sheet": 4,
+      "registration": "X8050",
+      "description": "Mill, pulverizer hammer type",
+      "sourceGroup": "g21486",
+      "sourceLabel": "text2798",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        252.600001,
+        334.100012,
+        29.799998,
+        34.799987
+      ],
+      "file": "symbols/s4-x8050-mill-pulverizer-hammer-type.svg"
+    },
+    {
+      "id": "s4-x8054-mill-vibration-type",
+      "sheet": 4,
+      "registration": "X8054",
+      "description": "Mill, vibration type",
+      "sourceGroup": "g21542",
+      "sourceLabel": "text2902",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        253,
+        454.500015,
+        29,
+        26.499969
+      ],
+      "file": "symbols/s4-x8054-mill-vibration-type.svg"
+    },
+    {
+      "id": "s4-x8084-crushing-grinding-machine-general",
+      "sheet": 4,
+      "registration": "X8084",
+      "description": "Crushing/grinding machine (general)",
+      "sourceGroup": "g21388",
+      "sourceLabel": "text2299",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        252.6,
+        14.1,
+        29.8,
+        34.8
+      ],
+      "file": "symbols/s4-x8084-crushing-grinding-machine-general.svg"
+    },
+    {
+      "id": "s4-x8085-crusher-general",
+      "sheet": 4,
+      "registration": "X8085",
+      "description": "Crusher (general)",
+      "sourceGroup": "g21395",
+      "sourceLabel": "text2324",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        252.600001,
+        54.100016,
+        29.799998,
+        34.799982
+      ],
+      "file": "symbols/s4-x8085-crusher-general.svg"
+    },
+    {
+      "id": "s4-x8045-crusher-hammer-type",
+      "sheet": 4,
+      "registration": "X8045",
+      "description": "Crusher, hammer type",
+      "sourceGroup": "g21411",
+      "sourceLabel": "text2340",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        252.600001,
+        94.100016,
+        29.799998,
+        34.799982
+      ],
+      "file": "symbols/s4-x8045-crusher-hammer-type.svg"
+    },
+    {
+      "id": "s4-c0046-drier-general",
+      "sheet": 4,
+      "registration": "C0046",
+      "description": "Drier (general)",
+      "sourceGroup": "g18629",
+      "sourceLabel": "text4155",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        47,
+        13.5,
+        41,
+        43.5
+      ],
+      "file": "symbols/s4-c0046-drier-general.svg"
+    },
+    {
+      "id": "s4-x8083-drying-oven-drying-chamber-shelf-drier",
+      "sheet": 4,
+      "registration": "X8083",
+      "description": "Drying oven, drying chamber, shelf drier",
+      "sourceGroup": "g18638",
+      "sourceLabel": "text850-7-6-2-6-8-0-2-1-4",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        47,
+        68.5,
+        41,
+        43.5
+      ],
+      "file": "symbols/s4-x8083-drying-oven-drying-chamber-shelf-drier.svg"
+    },
+    {
+      "id": "s4-x8040-turbo-drier-disc-drier-moving-shelf-drier",
+      "sheet": 4,
+      "registration": "X8040",
+      "description": "Turbo drier, disc drier, moving shelf drier",
+      "sourceGroup": "g18653",
+      "sourceLabel": "text850-7-6-2-6-8-0-2",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        47,
+        123.5,
+        41,
+        43.5
+      ],
+      "file": "symbols/s4-x8040-turbo-drier-disc-drier-moving-shelf-drier.svg"
+    },
+    {
+      "id": "s4-x8041-fluidized-bed-drier",
+      "sheet": 4,
+      "registration": "X8041",
+      "description": "Fluidized bed drier",
+      "sourceGroup": "g18674",
+      "sourceLabel": "text2381",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        46.4,
+        177.9,
+        42.2,
+        52.2
+      ],
+      "file": "symbols/s4-x8041-fluidized-bed-drier.svg"
+    },
+    {
+      "id": "s4-x8042-spray-drier",
+      "sheet": 4,
+      "registration": "X8042",
+      "description": "Spray drier",
+      "sourceGroup": "g18684",
+      "sourceLabel": "text2746",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        46.4,
+        232.9,
+        42.2,
+        52.2
+      ],
+      "file": "symbols/s4-x8042-spray-drier.svg"
+    },
+    {
+      "id": "s4-x8043-belt-drier-roller-conveyer-type-driver",
+      "sheet": 4,
+      "registration": "X8043",
+      "description": "Belt drier, roller-conveyer type driver",
+      "sourceGroup": "g18695",
+      "sourceLabel": "text2771",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        46.4,
+        287.9,
+        42.2,
+        52.2
+      ],
+      "file": "symbols/s4-x8043-belt-drier-roller-conveyer-type-driver.svg"
+    },
+    {
+      "id": "s4-x8044-rotary-drum-drier-rotary-drier-tumbling-drier",
+      "sheet": 4,
+      "registration": "X8044",
+      "description": "Rotary drum drier, rotary drier, tumbling drier",
+      "sourceGroup": "g18705",
+      "sourceLabel": "text2833",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        46.4,
+        342.9,
+        42.2,
+        52.2
+      ],
+      "file": "symbols/s4-x8044-rotary-drum-drier-rotary-drier-tumbling-drier.svg"
+    },
+    {
+      "id": "s4-c0016-heat-consumer",
+      "sheet": 4,
+      "registration": "C0016",
+      "description": "Heat consumer",
+      "sourceGroup": "g18710",
+      "sourceLabel": "text2903",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        58,
+        407,
+        26.5,
+        19
+      ],
+      "file": "symbols/s4-c0016-heat-consumer.svg"
+    },
+    {
+      "id": "s5-x8167-gear",
+      "sheet": 5,
+      "registration": "X8167",
+      "description": "Gear",
+      "sourceGroup": "g72725",
+      "sourceLabel": "text7374",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        653.102539,
+        54.499985,
+        29,
+        28.999985
+      ],
+      "file": "symbols/s5-x8167-gear.svg"
+    },
+    {
+      "id": "s5-c0079-generator-general",
+      "sheet": 5,
+      "registration": "C0079",
+      "description": "Generator (general)",
+      "sourceGroup": "g72734",
+      "sourceLabel": "text7394",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        653.102539,
+        89.499985,
+        29,
+        28.999985
+      ],
+      "file": "symbols/s5-c0079-generator-general.svg"
+    },
+    {
+      "id": "s5-x8154-generator-ac",
+      "sheet": 5,
+      "registration": "X8154",
+      "description": "Generator, AC",
+      "sourceGroup": "g72747",
+      "sourceLabel": "text7414",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        653.10257,
+        124.499985,
+        29,
+        28.999985
+      ],
+      "file": "symbols/s5-x8154-generator-ac.svg"
+    },
+    {
+      "id": "s5-x8155-generator-dc",
+      "sheet": 5,
+      "registration": "X8155",
+      "description": "Generator, DC",
+      "sourceGroup": "g72760",
+      "sourceLabel": "text7742",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        653.10257,
+        159.499985,
+        29,
+        29
+      ],
+      "file": "symbols/s5-x8155-generator-dc.svg"
+    },
+    {
+      "id": "s5-c0082-electric-motor-general",
+      "sheet": 5,
+      "registration": "C0082",
+      "description": "Electric motor (general)",
+      "sourceGroup": "g72769",
+      "sourceLabel": "text7736",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        653.102569,
+        194.499977,
+        29.000001,
+        29.000009
+      ],
+      "file": "symbols/s5-c0082-electric-motor-general.svg"
+    },
+    {
+      "id": "s5-x8157-electric-motor-ac",
+      "sheet": 5,
+      "registration": "X8157",
+      "description": "Electric motor, AC",
+      "sourceGroup": "g72782",
+      "sourceLabel": "text7782",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        653.10257,
+        229.499977,
+        29,
+        29
+      ],
+      "file": "symbols/s5-x8157-electric-motor-ac.svg"
+    },
+    {
+      "id": "s5-x8158-electric-motor-dc",
+      "sheet": 5,
+      "registration": "X8158",
+      "description": "Electric motor, DC",
+      "sourceGroup": "g72792",
+      "sourceLabel": "text7804",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        653.10257,
+        264.499987,
+        29,
+        29
+      ],
+      "file": "symbols/s5-x8158-electric-motor-dc.svg"
+    },
+    {
+      "id": "s5-2571-turbine-general",
+      "sheet": 5,
+      "registration": "2571",
+      "description": "Turbine (general)",
+      "sourceGroup": "g72716",
+      "sourceLabel": "text3540",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        660.602539,
+        19.5,
+        14,
+        28.999969
+      ],
+      "file": "symbols/s5-2571-turbine-general.svg"
+    },
+    {
+      "id": "s5-c2056-proportional-feeder-general",
+      "sheet": 5,
+      "registration": "C2056",
+      "description": "Proportional feeder (general)",
+      "sourceGroup": "g69524",
+      "sourceLabel": "text4445",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        468.088596,
+        76.679409,
+        14.027916,
+        29.202393
+      ],
+      "file": "symbols/s5-c2056-proportional-feeder-general.svg"
+    },
+    {
+      "id": "s5-x8067-proportional-feeder-rotary-valve-type",
+      "sheet": 5,
+      "registration": "X8067",
+      "description": "Proportional feeder, rotary valve type",
+      "sourceGroup": "g69540",
+      "sourceLabel": "text4583",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        468.088596,
+        111.679409,
+        14.027916,
+        29.202393
+      ],
+      "file": "symbols/s5-x8067-proportional-feeder-rotary-valve-type.svg"
+    },
+    {
+      "id": "s5-c0074-feeder-rotary-table-type",
+      "sheet": 5,
+      "registration": "C0074",
+      "description": "Feeder, rotary table type",
+      "sourceGroup": "g69547",
+      "sourceLabel": "text7268",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        468.102554,
+        146.79393,
+        14,
+        24
+      ],
+      "file": "symbols/s5-c0074-feeder-rotary-table-type.svg"
+    },
+    {
+      "id": "s5-c0035-proportional-feeder-metering-type",
+      "sheet": 5,
+      "registration": "C0035",
+      "description": "Proportional feeder, metering type",
+      "sourceGroup": "g70585",
+      "sourceLabel": "text7317",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        451.902554,
+        190.59393,
+        46.4,
+        11.399985
+      ],
+      "file": "symbols/s5-c0035-proportional-feeder-metering-type.svg"
+    },
+    {
+      "id": "s5-2037-spray-nozzle",
+      "sheet": 5,
+      "registration": "2037",
+      "description": "Spray nozzle",
+      "sourceGroup": "g70591",
+      "sourceLabel": "text7323",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        465.602554,
+        221.79393,
+        19,
+        8.999985
+      ],
+      "file": "symbols/s5-2037-spray-nozzle.svg"
+    },
+    {
+      "id": "s5-x8060-conveyer-general",
+      "sheet": 5,
+      "registration": "X8060",
+      "description": "Conveyer (general)",
+      "sourceGroup": "g57209",
+      "sourceLabel": "text4155",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        50.1,
+        14.1,
+        34.8,
+        29.8
+      ],
+      "file": "symbols/s5-x8060-conveyer-general.svg"
+    },
+    {
+      "id": "s5-3821-conveyer-belt-type",
+      "sheet": 5,
+      "registration": "3821",
+      "description": "Conveyer, belt type",
+      "sourceGroup": "g57220",
+      "sourceLabel": "text2980",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        52.4,
+        48.9,
+        37.7,
+        20.2
+      ],
+      "file": "symbols/s5-3821-conveyer-belt-type.svg"
+    },
+    {
+      "id": "s5-x8061-conveyer-belt-type-in-box",
+      "sheet": 5,
+      "registration": "X8061",
+      "description": "Conveyer, belt type in box",
+      "sourceGroup": "g58239",
+      "sourceLabel": "text3061",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        49.5,
+        78.5,
+        43.5,
+        23.5
+      ],
+      "file": "symbols/s5-x8061-conveyer-belt-type-in-box.svg"
+    },
+    {
+      "id": "s5-x8062-conveyer-chain-type-closed",
+      "sheet": 5,
+      "registration": "X8062",
+      "description": "Conveyer, chain type, closed",
+      "sourceGroup": "g58251",
+      "sourceLabel": "text3116",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        50.1,
+        113.973215,
+        34.8,
+        29.8
+      ],
+      "file": "symbols/s5-x8062-conveyer-chain-type-closed.svg"
+    },
+    {
+      "id": "s5-8063-conveyer-screw-type-closed",
+      "sheet": 5,
+      "registration": "8063",
+      "description": "Conveyer, screw type, closed",
+      "sourceGroup": "g58262",
+      "sourceLabel": "text3143",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        41.8,
+        148.3,
+        46.4,
+        36.4
+      ],
+      "file": "symbols/s5-8063-conveyer-screw-type-closed.svg"
+    },
+    {
+      "id": "s5-x8064-conveyor-vibrating-type-closed",
+      "sheet": 5,
+      "registration": "X8064",
+      "description": "Conveyor, vibrating type, closed",
+      "sourceGroup": "g58483",
+      "sourceLabel": "text3407",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        50.1,
+        189.1,
+        34.8,
+        29.8
+      ],
+      "file": "symbols/s5-x8064-conveyor-vibrating-type-closed.svg"
+    },
+    {
+      "id": "s5-x8065-elevator-bucket-type",
+      "sheet": 5,
+      "registration": "X8065",
+      "description": "Elevator, bucket type",
+      "sourceGroup": "g58497",
+      "sourceLabel": "text3165",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        55.099996,
+        231.599996,
+        24.800004,
+        34.800004
+      ],
+      "file": "symbols/s5-x8065-elevator-bucket-type.svg"
+    },
+    {
+      "id": "s5-x8066-elevator-bucket-type-z-form",
+      "sheet": 5,
+      "registration": "X8066",
+      "description": "Elevator, bucket type Z-form",
+      "sourceGroup": "g59527",
+      "sourceLabel": "text3459",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        38.5,
+        285.000014,
+        58,
+        37.999994
+      ],
+      "file": "symbols/s5-x8066-elevator-bucket-type-z-form.svg"
+    },
+    {
+      "id": "s5-x8175-conveyer-belt-type-reversible",
+      "sheet": 5,
+      "registration": "X8175",
+      "description": "Conveyer, belt type, reversible",
+      "sourceGroup": "g60761",
+      "sourceLabel": "text3537",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        41.4,
+        332.9,
+        52.2,
+        24.7
+      ],
+      "file": "symbols/s5-x8175-conveyer-belt-type-reversible.svg"
+    },
+    {
+      "id": "s5-3841-crane",
+      "sheet": 5,
+      "registration": "3841",
+      "description": "Crane",
+      "sourceGroup": "g60766",
+      "sourceLabel": "text3579",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        52.999999,
+        376.999984,
+        29.000001,
+        29.000009
+      ],
+      "file": "symbols/s5-3841-crane.svg"
+    },
+    {
+      "id": "s5-3842-lift",
+      "sheet": 5,
+      "registration": "3842",
+      "description": "Lift",
+      "sourceGroup": "g60775",
+      "sourceLabel": "text3885",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        52.999999,
+        426.999999,
+        29.000002,
+        29.000018
+      ],
+      "file": "symbols/s5-3842-lift.svg"
+    },
+    {
+      "id": "s5-c0094-forklift-manually-operated",
+      "sheet": 5,
+      "registration": "C0094",
+      "description": "Forklift, manually operated",
+      "sourceGroup": "g61801",
+      "sourceLabel": "text3893",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        49.9,
+        476.4,
+        37.7,
+        30.2
+      ],
+      "file": "symbols/s5-c0094-forklift-manually-operated.svg"
+    },
+    {
+      "id": "s5-3862-forklift-truck",
+      "sheet": 5,
+      "registration": "3862",
+      "description": "Forklift truck",
+      "sourceGroup": "g61811",
+      "sourceLabel": "text3923",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        49.9,
+        526.4,
+        37.7,
+        30.2
+      ],
+      "file": "symbols/s5-3862-forklift-truck.svg"
+    },
+    {
+      "id": "s5-3871-industrial-truck-general",
+      "sheet": 5,
+      "registration": "3871",
+      "description": "Industrial truck (general)",
+      "sourceGroup": "g63855",
+      "sourceLabel": "text2974",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        250.1,
+        21.6,
+        34.8,
+        9.8
+      ],
+      "file": "symbols/s5-3871-industrial-truck-general.svg"
+    },
+    {
+      "id": "s5-3874-tank-car-tank-wagon",
+      "sheet": 5,
+      "registration": "3874",
+      "description": "Tank car, tank wagon",
+      "sourceGroup": "g63865",
+      "sourceLabel": "text3972",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        250.099637,
+        46.599667,
+        34.805045,
+        29.800681
+      ],
+      "file": "symbols/s5-3874-tank-car-tank-wagon.svg"
+    },
+    {
+      "id": "s5-3872-box-truck",
+      "sheet": 5,
+      "registration": "3872",
+      "description": "Box truck",
+      "sourceGroup": "g64893",
+      "sourceLabel": "text3978",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        250.1,
+        91.6,
+        34.8,
+        24.8
+      ],
+      "file": "symbols/s5-3872-box-truck.svg"
+    },
+    {
+      "id": "s5-3881-ship",
+      "sheet": 5,
+      "registration": "3881",
+      "description": "Ship",
+      "sourceGroup": "g65921",
+      "sourceLabel": "text4006",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        253,
+        132,
+        29,
+        19
+      ],
+      "file": "symbols/s5-3881-ship.svg"
+    },
+    {
+      "id": "s5-x8142-roller-conveyer",
+      "sheet": 5,
+      "registration": "X8142",
+      "description": "Roller Conveyer",
+      "sourceGroup": "g66954",
+      "sourceLabel": "text4013",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        244.3,
+        165.8,
+        46.4,
+        11.4
+      ],
+      "file": "symbols/s5-x8142-roller-conveyer.svg"
+    },
+    {
+      "id": "s5-x8143-loading-arm",
+      "sheet": 5,
+      "registration": "X8143",
+      "description": "Loading arm",
+      "sourceGroup": "g66968",
+      "sourceLabel": "text4033",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        241.400016,
+        190.400001,
+        52.199982,
+        32.199998
+      ],
+      "file": "symbols/s5-x8143-loading-arm.svg"
+    },
+    {
+      "id": "s5-x8145-palletizer",
+      "sheet": 5,
+      "registration": "X8145",
+      "description": "Palletizer",
+      "sourceGroup": "g66990",
+      "sourceLabel": "text4078",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        258,
+        229.499996,
+        19,
+        21.500002
+      ],
+      "file": "symbols/s5-x8145-palletizer.svg"
+    },
+    {
+      "id": "s5-x8146-bag-filling-machine",
+      "sheet": 5,
+      "registration": "X8146",
+      "description": "Bag filling machine",
+      "sourceGroup": "g66996",
+      "sourceLabel": "text4407",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        258,
+        266.999998,
+        19,
+        21.5
+      ],
+      "file": "symbols/s5-x8146-bag-filling-machine.svg"
+    },
+    {
+      "id": "s5-x8144-protective-palette-covering",
+      "sheet": 5,
+      "registration": "X8144",
+      "description": "Protective palette covering",
+      "sourceGroup": "g67024",
+      "sourceLabel": "text4417",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        258,
+        304.5,
+        19,
+        21.5
+      ],
+      "file": "symbols/s5-x8144-protective-palette-covering.svg"
+    },
+    {
+      "id": "s6-241-flowmotion-in-direction-of-arrow",
+      "sheet": 6,
+      "registration": "241",
+      "description": "Flowmotion in direction of arrow",
+      "sourceGroup": "g26882",
+      "sourceLabel": "text5832",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        676.75,
+        84.499985,
+        10.25,
+        4.000015
+      ],
+      "file": "symbols/s6-241-flowmotion-in-direction-of-arrow.svg"
+    },
+    {
+      "id": "s6-3061-slope",
+      "sheet": 6,
+      "registration": "3061",
+      "description": "Slope",
+      "sourceGroup": "g26885",
+      "sourceLabel": "text5056",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        675.5,
+        109.5,
+        14,
+        6.5
+      ],
+      "file": "symbols/s6-3061-slope.svg"
+    },
+    {
+      "id": "s6-2038-siphon",
+      "sheet": 6,
+      "registration": "2038",
+      "description": "Siphon",
+      "sourceGroup": "g26890",
+      "sourceLabel": "text6400",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        670.5,
+        139.5,
+        26.5,
+        14
+      ],
+      "file": "symbols/s6-2038-siphon.svg"
+    },
+    {
+      "id": "s6-c0106-tracer-for-heating-or-cooling",
+      "sheet": 6,
+      "registration": "C0106",
+      "description": "Tracer for heating or cooling",
+      "sourceGroup": "g26899",
+      "sourceLabel": "text6394",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        653.7,
+        172.7,
+        55.1,
+        10.1
+      ],
+      "file": "symbols/s6-c0106-tracer-for-heating-or-cooling.svg"
+    },
+    {
+      "id": "s6-x322-pipeline-with-thermal-insulation",
+      "sheet": 6,
+      "registration": "X322",
+      "description": "Pipeline with thermal insulation",
+      "sourceGroup": "g26944",
+      "sourceLabel": "text6376",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        653.7,
+        262.7,
+        55.1,
+        12.6
+      ],
+      "file": "symbols/s6-x322-pipeline-with-thermal-insulation.svg"
+    },
+    {
+      "id": "s6-405-pipeline",
+      "sheet": 6,
+      "registration": "405",
+      "description": "Pipeline",
+      "sourceGroup": "g26865",
+      "sourceLabel": "text5068",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        653.7,
+        20.199786,
+        55.1,
+        7.6
+      ],
+      "file": "symbols/s6-405-pipeline.svg"
+    },
+    {
+      "id": "s6-x8174-piping-heated-or-cooled-and-insulated",
+      "sheet": 6,
+      "registration": "X8174",
+      "description": "Piping, heated or cooled and insulated",
+      "sourceGroup": "g26930",
+      "sourceLabel": "text6382",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        653.7,
+        230.198749,
+        55.1,
+        15.101251
+      ],
+      "file": "symbols/s6-x8174-piping-heated-or-cooled-and-insulated.svg"
+    },
+    {
+      "id": "s6-x409-jacked-pipeline",
+      "sheet": 6,
+      "registration": "X409",
+      "description": "Jacked pipeline",
+      "sourceGroup": "g26905",
+      "sourceLabel": "text6388",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        653.7,
+        202.7,
+        55.1,
+        12.6
+      ],
+      "file": "symbols/s6-x409-jacked-pipeline.svg"
+    },
+    {
+      "id": "s6-x8156-secondary-pipeline",
+      "sheet": 6,
+      "registration": "X8156",
+      "description": "Secondary pipeline",
+      "sourceGroup": "g26879",
+      "sourceLabel": "text5086",
+      "sourceLayer": "layer12",
+      "viewBox": [
+        653.7,
+        50.2,
+        55.1,
+        7.6
+      ],
+      "file": "symbols/s6-x8156-secondary-pipeline.svg"
+    },
+    {
+      "id": "s6-c0096-orifice-plate",
+      "sheet": 6,
+      "registration": "C0096",
+      "description": "Orifice plate",
+      "sourceGroup": "g18759",
+      "sourceLabel": "text3497",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        462.999969,
+        21.999908,
+        9,
+        19
+      ],
+      "file": "symbols/s6-c0096-orifice-plate.svg"
+    },
+    {
+      "id": "s6-2034-viewing-glass",
+      "sheet": 6,
+      "registration": "2034",
+      "description": "Viewing glass",
+      "sourceGroup": "g15688",
+      "sourceLabel": "text3528",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        253,
+        344.5,
+        29,
+        9.000011
+      ],
+      "file": "symbols/s6-2034-viewing-glass.svg"
+    },
+    {
+      "id": "s6-x8089-viewing-glass-with-lighting",
+      "sheet": 6,
+      "registration": "X8089",
+      "description": "Viewing glass with lighting",
+      "sourceGroup": "g15699",
+      "sourceLabel": "text3521",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        253,
+        374.5,
+        29,
+        14.000008
+      ],
+      "file": "symbols/s6-x8089-viewing-glass-with-lighting.svg"
+    },
+    {
+      "id": "s6-2033-silencer",
+      "sheet": 6,
+      "registration": "2033",
+      "description": "Silencer",
+      "sourceGroup": "g17365",
+      "sourceLabel": "text3515",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        250.1,
+        409.1,
+        34.8,
+        14.800008
+      ],
+      "file": "symbols/s6-2033-silencer.svg"
+    },
+    {
+      "id": "s6-c0093-mixing-nozzle-injector",
+      "sheet": 6,
+      "registration": "C0093",
+      "description": "Mixing nozzle, injector",
+      "sourceGroup": "g17373",
+      "sourceLabel": "text3641",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        253.126785,
+        444.5,
+        28.873215,
+        16.5
+      ],
+      "file": "symbols/s6-c0093-mixing-nozzle-injector.svg"
+    },
+    {
+      "id": "s6-533-compensator",
+      "sheet": 6,
+      "registration": "533",
+      "description": "Compensator",
+      "sourceGroup": "g17379",
+      "sourceLabel": "text3509",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        255.5,
+        474.499985,
+        24,
+        14.000229
+      ],
+      "file": "symbols/s6-533-compensator.svg"
+    },
+    {
+      "id": "s6-x8090-strainer",
+      "sheet": 6,
+      "registration": "X8090",
+      "description": "Strainer",
+      "sourceGroup": "g17385",
+      "sourceLabel": "text3503",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        255.5,
+        506.999985,
+        24,
+        14
+      ],
+      "file": "symbols/s6-x8090-strainer.svg"
+    },
+    {
+      "id": "s6-x8150-cone-type-strainer",
+      "sheet": 6,
+      "registration": "X8150",
+      "description": "Cone type strainer",
+      "sourceGroup": "g17391",
+      "sourceLabel": "text3383",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        255.5,
+        541.999969,
+        24,
+        14
+      ],
+      "file": "symbols/s6-x8150-cone-type-strainer.svg"
+    },
+    {
+      "id": "s6-2045-interchangeable-disc-open-disc-in-function",
+      "sheet": 6,
+      "registration": "2045",
+      "description": "Interchangeable disc (open disc in function)",
+      "sourceGroup": "g20755",
+      "sourceLabel": "text6194",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        462.999969,
+        167,
+        9,
+        24.000008
+      ],
+      "file": "symbols/s6-2045-interchangeable-disc-open-disc-in-function.svg"
+    },
+    {
+      "id": "s6-2044-interchangeable-disc-blind-disc",
+      "sheet": 6,
+      "registration": "2044",
+      "description": "Interchangeable disc (blind disc)",
+      "sourceGroup": "g19418",
+      "sourceLabel": "text6200",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        462.999969,
+        126.929764,
+        9,
+        24
+      ],
+      "file": "symbols/s6-2044-interchangeable-disc-blind-disc.svg"
+    },
+    {
+      "id": "s6-c0097-blind-disc",
+      "sheet": 6,
+      "registration": "C0097",
+      "description": "Blind disc",
+      "sourceGroup": "g18768",
+      "sourceLabel": "text6206",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        462.999969,
+        57,
+        9,
+        19
+      ],
+      "file": "symbols/s6-c0097-blind-disc.svg"
+    },
+    {
+      "id": "s6-c0098-open-disc",
+      "sheet": 6,
+      "registration": "C0098",
+      "description": "Open disc",
+      "sourceGroup": "g19401",
+      "sourceLabel": "text6224",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        462.999969,
+        92,
+        9,
+        19
+      ],
+      "file": "symbols/s6-c0098-open-disc.svg"
+    },
+    {
+      "id": "s6-2039-vent-outlet-to-atmosphere-for-steam-gas",
+      "sheet": 6,
+      "registration": "2039",
+      "description": "Vent (outlet to atmosphere for steam/gas)",
+      "sourceGroup": "g20759",
+      "sourceLabel": "text6188",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        460.5,
+        204.5,
+        14,
+        19
+      ],
+      "file": "symbols/s6-2039-vent-outlet-to-atmosphere-for-steam-gas.svg"
+    },
+    {
+      "id": "s6-2040-funnel",
+      "sheet": 6,
+      "registration": "2040",
+      "description": "Funnel",
+      "sourceGroup": "g20763",
+      "sourceLabel": "text6182",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        460.5,
+        239.5,
+        14,
+        18.998764
+      ],
+      "file": "symbols/s6-2040-funnel.svg"
+    },
+    {
+      "id": "s6-2181-self-operating-release-valve-steam-trap",
+      "sheet": 6,
+      "registration": "2181",
+      "description": "Self-operating release valve (steam trap)",
+      "sourceGroup": "g20769",
+      "sourceLabel": "text6176",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        453,
+        272.428883,
+        29,
+        18.142158
+      ],
+      "file": "symbols/s6-2181-self-operating-release-valve-steam-trap.svg"
+    },
+    {
+      "id": "s6-511-flanged-connection",
+      "sheet": 6,
+      "registration": "511",
+      "description": "Flanged connection",
+      "sourceGroup": "g20775",
+      "sourceLabel": "text6170",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        455.5,
+        304.5,
+        21.5,
+        8.99999
+      ],
+      "file": "symbols/s6-511-flanged-connection.svg"
+    },
+    {
+      "id": "s6-516-reducer",
+      "sheet": 6,
+      "registration": "516",
+      "description": "Reducer",
+      "sourceGroup": "g20780",
+      "sourceLabel": "text6164",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        453,
+        334.5,
+        29,
+        8.999992
+      ],
+      "file": "symbols/s6-516-reducer.svg"
+    },
+    {
+      "id": "s6-x411-hose",
+      "sheet": 6,
+      "registration": "X411",
+      "description": "Hose",
+      "sourceGroup": "g20790",
+      "sourceLabel": "text6329",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        441.4,
+        363.026801,
+        52.2,
+        12.2
+      ],
+      "file": "symbols/s6-x411-hose.svg"
+    },
+    {
+      "id": "s6-c0100-coupling",
+      "sheet": 6,
+      "registration": "C0100",
+      "description": "Coupling",
+      "sourceGroup": "g20796",
+      "sourceLabel": "text6343",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        455.5,
+        394.624992,
+        23.87323,
+        14.000008
+      ],
+      "file": "symbols/s6-c0100-coupling.svg"
+    },
+    {
+      "id": "s6-513-clamped-flange-coupling",
+      "sheet": 6,
+      "registration": "513",
+      "description": "Clamped flange coupling",
+      "sourceGroup": "g20804",
+      "sourceLabel": "text6323",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        456.75,
+        425.75,
+        21.5,
+        16.5
+      ],
+      "file": "symbols/s6-513-clamped-flange-coupling.svg"
+    },
+    {
+      "id": "s6-c0108-breakthrough",
+      "sheet": 6,
+      "registration": "C0108",
+      "description": "Breakthrough",
+      "sourceGroup": "g20816",
+      "sourceLabel": "text6317",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        458,
+        456.87323,
+        21.5,
+        14.126801
+      ],
+      "file": "symbols/s6-c0108-breakthrough.svg"
+    },
+    {
+      "id": "s6-517-flanged-dummy-cover",
+      "sheet": 6,
+      "registration": "517",
+      "description": "Flanged dummy cover",
+      "sourceGroup": "g21043",
+      "sourceLabel": "text6311",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        455.5,
+        489.5,
+        19,
+        9
+      ],
+      "file": "symbols/s6-517-flanged-dummy-cover.svg"
+    },
+    {
+      "id": "s6-x8152-single-flange",
+      "sheet": 6,
+      "registration": "X8152",
+      "description": "Single flange",
+      "sourceGroup": "g21048",
+      "sourceLabel": "text6305",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        458,
+        519.5,
+        19,
+        9
+      ],
+      "file": "symbols/s6-x8152-single-flange.svg"
+    },
+    {
+      "id": "s6-x8153-dummy-cover",
+      "sheet": 6,
+      "registration": "X8153",
+      "description": "Dummy cover",
+      "sourceGroup": "g21052",
+      "sourceLabel": "text6158",
+      "sourceLayer": "layer11",
+      "viewBox": [
+        458,
+        549.5,
+        11.5,
+        9
+      ],
+      "file": "symbols/s6-x8153-dummy-cover.svg"
+    },
+    {
+      "id": "s6-x2124-safety-valve-spring-loaded-globe-type",
+      "sheet": 6,
+      "registration": "X2124",
+      "description": "Safety valve, spring loaded, globe type",
+      "sourceGroup": "g14161",
+      "sourceLabel": "text3338",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        253.000015,
+        22,
+        28.999985,
+        18.99823
+      ],
+      "file": "symbols/s6-x2124-safety-valve-spring-loaded-globe-type.svg"
+    },
+    {
+      "id": "s6-x2125-safety-valve-spring-loaded-globe-angle-type",
+      "sheet": 6,
+      "registration": "X2125",
+      "description": "Safety valve, spring loaded, globe angle type",
+      "sourceGroup": "g14170",
+      "sourceLabel": "text3377",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        263,
+        62,
+        19,
+        27.749985
+      ],
+      "file": "symbols/s6-x2125-safety-valve-spring-loaded-globe-angle-type.svg"
+    },
+    {
+      "id": "s6-x8080-rupture-disc",
+      "sheet": 6,
+      "registration": "X8080",
+      "description": "Rupture disc",
+      "sourceGroup": "g14178",
+      "sourceLabel": "text3371",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        255.5,
+        104.5,
+        24,
+        14
+      ],
+      "file": "symbols/s6-x8080-rupture-disc.svg"
+    },
+    {
+      "id": "s6-2036-flame-arrestor",
+      "sheet": 6,
+      "registration": "2036",
+      "description": "Flame arrestor",
+      "sourceGroup": "g14187",
+      "sourceLabel": "text3365",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        255.5,
+        139.5,
+        24,
+        14
+      ],
+      "file": "symbols/s6-2036-flame-arrestor.svg"
+    },
+    {
+      "id": "s6-c0087-flame-arrestor-explosion-proof",
+      "sheet": 6,
+      "registration": "C0087",
+      "description": "Flame arrestor, explosion-proof",
+      "sourceGroup": "g14197",
+      "sourceLabel": "text2691-7",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        253.000015,
+        174.5,
+        28.999985,
+        14
+      ],
+      "file": "symbols/s6-c0087-flame-arrestor-explosion-proof.svg"
+    },
+    {
+      "id": "s6-c0088-flame-arrestor-detonation-proof",
+      "sheet": 6,
+      "registration": "C0088",
+      "description": "Flame arrestor detonation-proof",
+      "sourceGroup": "g14207",
+      "sourceLabel": "text3401",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        253.000015,
+        209.5,
+        28.999985,
+        14
+      ],
+      "file": "symbols/s6-c0088-flame-arrestor-detonation-proof.svg"
+    },
+    {
+      "id": "s6-c0091-flame-arrestor-fire-resistant",
+      "sheet": 6,
+      "registration": "C0091",
+      "description": "Flame arrestor fire-resistant",
+      "sourceGroup": "g15562",
+      "sourceLabel": "text3395",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        253.000015,
+        244.5,
+        28.999985,
+        14
+      ],
+      "file": "symbols/s6-c0091-flame-arrestor-fire-resistant.svg"
+    },
+    {
+      "id": "s6-c0089-fire-resistant-and-detonation-proof-flame-arrestor-out-to-the-atmosphere",
+      "sheet": 6,
+      "registration": "C0089",
+      "description": "Fire-resistant and detonation-proof flame arrestor out to the atmosphere",
+      "sourceGroup": "g15573",
+      "sourceLabel": "text3540",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        253.000015,
+        279.5,
+        28.999985,
+        14
+      ],
+      "file": "symbols/s6-c0089-fire-resistant-and-detonation-proof-flame-arrestor-out-to-the-atmosphere.svg"
+    },
+    {
+      "id": "s6-x8088-breather-valve",
+      "sheet": 6,
+      "registration": "X8088",
+      "description": "Breather valve",
+      "sourceGroup": "g15682",
+      "sourceLabel": "text3534",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        253.000015,
+        313.374969,
+        28.999985,
+        11.375031
+      ],
+      "file": "symbols/s6-x8088-breather-valve.svg"
+    },
+    {
+      "id": "s6-x2113-check-valve-globe-type",
+      "sheet": 6,
+      "registration": "X2113",
+      "description": "Check valve globe type",
+      "sourceGroup": "g11417",
+      "sourceLabel": "text2685",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        53.000069,
+        475.75,
+        28.999992,
+        10.25
+      ],
+      "file": "symbols/s6-x2113-check-valve-globe-type.svg"
+    },
+    {
+      "id": "s6-x8078-swing-check-valve-form-1",
+      "sheet": 6,
+      "registration": "X8078",
+      "description": "Swing check valve (Form 1)",
+      "sourceGroup": "g11428",
+      "sourceLabel": "text2697",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        53.000061,
+        505.75,
+        28.999985,
+        10.25
+      ],
+      "file": "symbols/s6-x8078-swing-check-valve-form-1.svg"
+    },
+    {
+      "id": "s6-x8165-swing-check-valve-form-2",
+      "sheet": 6,
+      "registration": "X8165",
+      "description": "Swing check valve (Form 2)",
+      "sourceGroup": "g11438",
+      "sourceLabel": "text2709",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        53.000031,
+        535.75,
+        28.999992,
+        10.250015
+      ],
+      "file": "symbols/s6-x8165-swing-check-valve-form-2.svg"
+    },
+    {
+      "id": "s6-x8077-check-valve-general",
+      "sheet": 6,
+      "registration": "X8077",
+      "description": "Check valve (general)",
+      "sourceGroup": "g11407",
+      "sourceLabel": "text2599",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        53.000069,
+        445.75,
+        28.999992,
+        10.250015
+      ],
+      "file": "symbols/s6-x8077-check-valve-general.svg"
+    },
+    {
+      "id": "s6-2101-valve-general",
+      "sheet": 6,
+      "registration": "2101",
+      "description": "Valve (general)",
+      "sourceGroup": "g1774",
+      "sourceLabel": "text7826",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.00005,
+        22,
+        28.999989,
+        9
+      ],
+      "file": "symbols/s6-2101-valve-general.svg"
+    },
+    {
+      "id": "s6-2102-valve-angle-type-general",
+      "sheet": 6,
+      "registration": "2102",
+      "description": "Valve, angle type (general)",
+      "sourceGroup": "g1834",
+      "sourceLabel": "text7838",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.000011,
+        49.5,
+        18.999989,
+        18.999985
+      ],
+      "file": "symbols/s6-2102-valve-angle-type-general.svg"
+    },
+    {
+      "id": "s6-2103-valve-three-way-type-general",
+      "sheet": 6,
+      "registration": "2103",
+      "description": "Valve, three way type (general)",
+      "sourceGroup": "g1842",
+      "sourceLabel": "text7852",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.000011,
+        79.5,
+        28.999989,
+        18.999985
+      ],
+      "file": "symbols/s6-2103-valve-three-way-type-general.svg"
+    },
+    {
+      "id": "s6-x8068-valve-globe-type",
+      "sheet": 6,
+      "registration": "X8068",
+      "description": "Valve, globe type",
+      "sourceGroup": "g1848",
+      "sourceLabel": "text7864",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.000019,
+        109.5,
+        28.999989,
+        8.999985
+      ],
+      "file": "symbols/s6-x8068-valve-globe-type.svg"
+    },
+    {
+      "id": "s6-x8069-valve-angle-globe-type",
+      "sheet": 6,
+      "registration": "X8069",
+      "description": "Valve, angle globe type",
+      "sourceGroup": "g1861",
+      "sourceLabel": "text7882",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.000011,
+        137,
+        18.999989,
+        18.999969
+      ],
+      "file": "symbols/s6-x8069-valve-angle-globe-type.svg"
+    },
+    {
+      "id": "s6-x8070-valve-three-way-globe-type",
+      "sheet": 6,
+      "registration": "X8070",
+      "description": "Valve, three way globe type",
+      "sourceGroup": "g1873",
+      "sourceLabel": "text7876",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.000011,
+        166.999985,
+        28.999989,
+        19.000008
+      ],
+      "file": "symbols/s6-x8070-valve-three-way-globe-type.svg"
+    },
+    {
+      "id": "s6-x8071-valve-ball-type",
+      "sheet": 6,
+      "registration": "X8071",
+      "description": "Valve, ball type",
+      "sourceGroup": "g1883",
+      "sourceLabel": "text7975",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.00005,
+        196.999985,
+        28.999989,
+        9.000015
+      ],
+      "file": "symbols/s6-x8071-valve-ball-type.svg"
+    },
+    {
+      "id": "s6-x8073-valve-three-way-ball-type",
+      "sheet": 6,
+      "registration": "X8073",
+      "description": "Valve, three way ball type",
+      "sourceGroup": "g1899",
+      "sourceLabel": "text7870",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        52.865033,
+        251.989983,
+        29.144965,
+        18.895005
+      ],
+      "file": "symbols/s6-x8073-valve-three-way-ball-type.svg"
+    },
+    {
+      "id": "s6-x8074-valve-gate-type",
+      "sheet": 6,
+      "registration": "X8074",
+      "description": "Valve, gate type",
+      "sourceGroup": "g1908",
+      "sourceLabel": "text2563",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.000061,
+        282,
+        28.999985,
+        9
+      ],
+      "file": "symbols/s6-x8074-valve-gate-type.svg"
+    },
+    {
+      "id": "s6-x8075-valve-butterfly-type-form-1",
+      "sheet": 6,
+      "registration": "X8075",
+      "description": "Valve, butterfly type (Form 1)",
+      "sourceGroup": "g1918",
+      "sourceLabel": "text2575",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.000061,
+        309.5,
+        28.999985,
+        9
+      ],
+      "file": "symbols/s6-x8075-valve-butterfly-type-form-1.svg"
+    },
+    {
+      "id": "s6-x8075-valve-butterfly-type-form-2",
+      "sheet": 6,
+      "registration": "X8075",
+      "description": "Valve, butterfly type (Form 2)",
+      "sourceGroup": "g1928",
+      "sourceLabel": "text2581",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.000061,
+        337,
+        28.999985,
+        9
+      ],
+      "file": "symbols/s6-x8075-valve-butterfly-type-form-2.svg"
+    },
+    {
+      "id": "s6-x8076-valve-needle-type",
+      "sheet": 6,
+      "registration": "X8076",
+      "description": "Valve, needle type",
+      "sourceGroup": "g1937",
+      "sourceLabel": "text2587",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.000061,
+        364.1875,
+        28.999985,
+        9.3125
+      ],
+      "file": "symbols/s6-x8076-valve-needle-type.svg"
+    },
+    {
+      "id": "s6-x8087-valve-control-type-continuously-operated",
+      "sheet": 6,
+      "registration": "X8087",
+      "description": "Valve, control type, continuously operated",
+      "sourceGroup": "g1946",
+      "sourceLabel": "text2593",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        53.000061,
+        392.527153,
+        28.999985,
+        13.472847
+      ],
+      "file": "symbols/s6-x8087-valve-control-type-continuously-operated.svg"
+    },
+    {
+      "id": "s6-x8072-valve-angle-ball-type",
+      "sheet": 6,
+      "registration": "X8072",
+      "description": "Valve, angle ball type",
+      "sourceGroup": "g1890",
+      "sourceLabel": "text2812",
+      "sourceLayer": "layer8",
+      "viewBox": [
+        52.875031,
+        224.625,
+        19.124977,
+        18.874989
+      ],
+      "file": "symbols/s6-x8072-valve-angle-ball-type.svg"
+    },
+    {
+      "id": "s7-c2030-electrostatic-type",
+      "sheet": 7,
+      "registration": "C2030",
+      "description": "Electrostatic type",
+      "sourceGroup": "g16912",
+      "sourceLabel": "text3150",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        460.5,
+        61.999985,
+        11.5,
+        9
+      ],
+      "file": "symbols/s7-c2030-electrostatic-type.svg"
+    },
+    {
+      "id": "s7-c2031-electromagnetic-type",
+      "sheet": 7,
+      "registration": "C2031",
+      "description": "Electromagnetic type",
+      "sourceGroup": "g2038-3-2",
+      "sourceLabel": "text3144",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        456.754532,
+        91.995492,
+        21.490965,
+        6.51828
+      ],
+      "file": "symbols/s7-c2031-electromagnetic-type.svg"
+    },
+    {
+      "id": "s7-c2033-disc-type",
+      "sheet": 7,
+      "registration": "C2033",
+      "description": "Disc type",
+      "sourceGroup": "g16933",
+      "sourceLabel": "text3138",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        455.5,
+        119.499985,
+        24,
+        16.5
+      ],
+      "file": "symbols/s7-c2033-disc-type.svg"
+    },
+    {
+      "id": "s7-c0240-crushing",
+      "sheet": 7,
+      "registration": "C0240",
+      "description": "Crushing",
+      "sourceGroup": "g16937",
+      "sourceLabel": "text3132",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        460.5,
+        156.999985,
+        14,
+        14
+      ],
+      "file": "symbols/s7-c0240-crushing.svg"
+    },
+    {
+      "id": "s7-c024-gear-type-gearwheels-type",
+      "sheet": 7,
+      "registration": "C024",
+      "description": "Gear type, gearwheels type",
+      "sourceGroup": "g4154-7-7",
+      "sourceLabel": "text3126",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        461.453349,
+        191.999954,
+        12.0561,
+        9.000262
+      ],
+      "file": "symbols/s7-c024-gear-type-gearwheels-type.svg"
+    },
+    {
+      "id": "s7-c2034-hammer-type",
+      "sheet": 7,
+      "registration": "C2034",
+      "description": "Hammer type",
+      "sourceGroup": "g2384-3-5",
+      "sourceLabel": "text3120",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        461.75,
+        223.249975,
+        11.5,
+        11.500031
+      ],
+      "file": "symbols/s7-c2034-hammer-type.svg"
+    },
+    {
+      "id": "s7-c2035-impact-type",
+      "sheet": 7,
+      "registration": "C2035",
+      "description": "Impact type",
+      "sourceGroup": "g2538-3-0",
+      "sourceLabel": "text3114",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        460.5,
+        257,
+        14,
+        14
+      ],
+      "file": "symbols/s7-c2035-impact-type.svg"
+    },
+    {
+      "id": "s7-c2036-jaw-type",
+      "sheet": 7,
+      "registration": "C2036",
+      "description": "Jaw type",
+      "sourceGroup": "g18041",
+      "sourceLabel": "text3108",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        457.999969,
+        291.999983,
+        16.500031,
+        9
+      ],
+      "file": "symbols/s7-c2036-jaw-type.svg"
+    },
+    {
+      "id": "s7-321-liquid-type-wet-type",
+      "sheet": 7,
+      "registration": "321",
+      "description": "Liquid type, wet type",
+      "sourceGroup": "g5876",
+      "sourceLabel": "text3102",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        460.801494,
+        322.429184,
+        13.396973,
+        5.644951
+      ],
+      "file": "symbols/s7-321-liquid-type-wet-type.svg"
+    },
+    {
+      "id": "s7-c2037-roller-type",
+      "sheet": 7,
+      "registration": "C2037",
+      "description": "Roller type",
+      "sourceGroup": "g18045",
+      "sourceLabel": "text3096",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        460.5,
+        349.499985,
+        14,
+        9
+      ],
+      "file": "symbols/s7-c2037-roller-type.svg"
+    },
+    {
+      "id": "s7-c2028-gravity-type-settling-type",
+      "sheet": 7,
+      "registration": "C2028",
+      "description": "Gravity type, settling type",
+      "sourceGroup": "g16906",
+      "sourceLabel": "text3156",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        465.5,
+        21.999969,
+        4,
+        17.75
+      ],
+      "file": "symbols/s7-c2028-gravity-type-settling-type.svg"
+    },
+    {
+      "id": "s7-c2038-cone-type",
+      "sheet": 7,
+      "registration": "C2038",
+      "description": "Cone type",
+      "sourceGroup": "g18048",
+      "sourceLabel": "text3090",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        460.500031,
+        379.499985,
+        14,
+        11.499992
+      ],
+      "file": "symbols/s7-c2038-cone-type.svg"
+    },
+    {
+      "id": "s7-x8176-jet-type",
+      "sheet": 7,
+      "registration": "X8176",
+      "description": "Jet type",
+      "sourceGroup": "g18054",
+      "sourceLabel": "text3084",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        458,
+        411.999977,
+        19,
+        18.999992
+      ],
+      "file": "symbols/s7-x8176-jet-type.svg"
+    },
+    {
+      "id": "s7-3831-vibration-type",
+      "sheet": 7,
+      "registration": "3831",
+      "description": "Vibration type",
+      "sourceGroup": "g18058",
+      "sourceLabel": "text3078",
+      "sourceLayer": "layer10",
+      "viewBox": [
+        460.5,
+        453.249985,
+        11.108643,
+        6.5
+      ],
+      "file": "symbols/s7-3831-vibration-type.svg"
+    },
+    {
+      "id": "s7-c2019-agitator-flat-blade-paddle-type",
+      "sheet": 7,
+      "registration": "C2019",
+      "description": "Agitator, flat blade paddle type",
+      "sourceGroup": "g13261",
+      "sourceLabel": "text3204",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        260.3,
+        54.3,
+        14.4,
+        31.9
+      ],
+      "file": "symbols/s7-c2019-agitator-flat-blade-paddle-type.svg"
+    },
+    {
+      "id": "s7-c2020-agitator-gat-paddle-type",
+      "sheet": 7,
+      "registration": "C2020",
+      "description": "Agitator, gat paddle type",
+      "sourceGroup": "g13271",
+      "sourceLabel": "text3198",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        260.5,
+        99.5,
+        14.000031,
+        26.5
+      ],
+      "file": "symbols/s7-c2020-agitator-gat-paddle-type.svg"
+    },
+    {
+      "id": "s7-c2021-agitator-cross-beam-type",
+      "sheet": 7,
+      "registration": "C2021",
+      "description": "Agitator, cross-beam type",
+      "sourceGroup": "g13277",
+      "sourceLabel": "text3192",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        260.5,
+        139.5,
+        14,
+        26.5
+      ],
+      "file": "symbols/s7-c2021-agitator-cross-beam-type.svg"
+    },
+    {
+      "id": "s7-2672-agitator-general-stirrer-general",
+      "sheet": 7,
+      "registration": "2672",
+      "description": "Agitator (general), stirrer (general)",
+      "sourceGroup": "g13257",
+      "sourceLabel": "text3210",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        260.5,
+        14.5,
+        14,
+        26.5
+      ],
+      "file": "symbols/s7-2672-agitator-general-stirrer-general.svg"
+    },
+    {
+      "id": "s7-c2022-agitator-anchor-type",
+      "sheet": 7,
+      "registration": "C2022",
+      "description": "Agitator, anchor type",
+      "sourceGroup": "g13284",
+      "sourceLabel": "text3186",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        260.499756,
+        179.5,
+        14.00058,
+        26.499992
+      ],
+      "file": "symbols/s7-c2022-agitator-anchor-type.svg"
+    },
+    {
+      "id": "s7-c2023-agitator-helical-type",
+      "sheet": 7,
+      "registration": "C2023",
+      "description": "Agitator, helical type",
+      "sourceGroup": "g13289",
+      "sourceLabel": "text3180",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        260.500031,
+        219.499985,
+        14,
+        28.999996
+      ],
+      "file": "symbols/s7-c2023-agitator-helical-type.svg"
+    },
+    {
+      "id": "s7-c2024-agitator-impeller-type",
+      "sheet": 7,
+      "registration": "C2024",
+      "description": "Agitator, impeller type",
+      "sourceGroup": "g13294",
+      "sourceLabel": "text3174",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        261.75,
+        261.999985,
+        11.494751,
+        23.76367
+      ],
+      "file": "symbols/s7-c2024-agitator-impeller-type.svg"
+    },
+    {
+      "id": "s7-c2025-agitator-propeller-type",
+      "sheet": 7,
+      "registration": "C2025",
+      "description": "Agitator, propeller type",
+      "sourceGroup": "g14388",
+      "sourceLabel": "text3168",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        260.499969,
+        299.499983,
+        13.993225,
+        24.00239
+      ],
+      "file": "symbols/s7-c2025-agitator-propeller-type.svg"
+    },
+    {
+      "id": "s7-c2026-agitator-disc-type",
+      "sheet": 7,
+      "registration": "C2026",
+      "description": "Agitator, disc type",
+      "sourceGroup": "g14395",
+      "sourceLabel": "text3162",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        260.499969,
+        336.999985,
+        14.000031,
+        26.499992
+      ],
+      "file": "symbols/s7-c2026-agitator-disc-type.svg"
+    },
+    {
+      "id": "s7-c2027-agitator-turbine-type",
+      "sheet": 7,
+      "registration": "C2027",
+      "description": "Agitator, turbine type",
+      "sourceGroup": "g14402",
+      "sourceLabel": "text5353",
+      "sourceLayer": "layer9",
+      "viewBox": [
+        260.499969,
+        376.999985,
+        14.000061,
+        26.500015
+      ],
+      "file": "symbols/s7-c2027-agitator-turbine-type.svg"
+    },
+    {
+      "id": "s7-c2044-tray-general",
+      "sheet": 7,
+      "registration": "C2044",
+      "description": "Tray (general)",
+      "sourceGroup": "g10902",
+      "sourceLabel": "text2883",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        55.499996,
+        224.5,
+        24.000004,
+        4
+      ],
+      "file": "symbols/s7-c2044-tray-general.svg"
+    },
+    {
+      "id": "s7-x8166-tray-with-baffle",
+      "sheet": 7,
+      "registration": "X8166",
+      "description": "Tray with baffle",
+      "sourceGroup": "g10906",
+      "sourceLabel": "text2877",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        53,
+        249.5,
+        29,
+        11.5
+      ],
+      "file": "symbols/s7-x8166-tray-with-baffle.svg"
+    },
+    {
+      "id": "s7-c2010-tray-bubble-cap-type",
+      "sheet": 7,
+      "registration": "C2010",
+      "description": "Tray, bubble-cap type",
+      "sourceGroup": "g10911",
+      "sourceLabel": "text3246",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        53,
+        282,
+        29,
+        6.5
+      ],
+      "file": "symbols/s7-c2010-tray-bubble-cap-type.svg"
+    },
+    {
+      "id": "s7-c2011-tray-valve-type",
+      "sheet": 7,
+      "registration": "C2011",
+      "description": "Tray, valve type",
+      "sourceGroup": "g10916",
+      "sourceLabel": "text3240",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        55.500011,
+        310.75,
+        23.999989,
+        5.25
+      ],
+      "file": "symbols/s7-c2011-tray-valve-type.svg"
+    },
+    {
+      "id": "s7-2602-sieve-tray-screen-or-sieve-element",
+      "sheet": 7,
+      "registration": "2602",
+      "description": "Sieve tray, screen or sieve element",
+      "sourceGroup": "g11997",
+      "sourceLabel": "text3234",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        50.299996,
+        336.799984,
+        31.900004,
+        4.400016
+      ],
+      "file": "symbols/s7-2602-sieve-tray-screen-or-sieve-element.svg"
+    },
+    {
+      "id": "s7-c2047-filter-insert-general",
+      "sheet": 7,
+      "registration": "C2047",
+      "description": "Filter insert (general)",
+      "sourceGroup": "g12005",
+      "sourceLabel": "text3228",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        47.2,
+        361.199985,
+        40.6,
+        5.600015
+      ],
+      "file": "symbols/s7-c2047-filter-insert-general.svg"
+    },
+    {
+      "id": "s7-2604-fluidized-bed",
+      "sheet": 7,
+      "registration": "2604",
+      "description": "Fluidized bed",
+      "sourceGroup": "g3458",
+      "sourceLabel": "text3222",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        50.1,
+        386.6,
+        34.8,
+        14.8
+      ],
+      "file": "symbols/s7-2604-fluidized-bed.svg"
+    },
+    {
+      "id": "s7-x8141-packing",
+      "sheet": 7,
+      "registration": "X8141",
+      "description": "packing",
+      "sourceGroup": "g12083",
+      "sourceLabel": "text3216",
+      "sourceLayer": "layer7",
+      "viewBox": [
+        55.499996,
+        422,
+        24.000004,
+        24
+      ],
+      "file": "symbols/s7-x8141-packing.svg"
+    },
+    {
+      "id": "s7-c2005-support-leg",
+      "sheet": 7,
+      "registration": "C2005",
+      "description": "Support leg",
+      "sourceGroup": "g4862",
+      "sourceLabel": "text2823",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        63,
+        22,
+        6.5,
+        14
+      ],
+      "file": "symbols/s7-c2005-support-leg.svg"
+    },
+    {
+      "id": "s7-c2006-support-bracket",
+      "sheet": 7,
+      "registration": "C2006",
+      "description": "Support bracket",
+      "sourceGroup": "g4865",
+      "sourceLabel": "text2907",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        60.5,
+        57,
+        14,
+        14
+      ],
+      "file": "symbols/s7-c2006-support-bracket.svg"
+    },
+    {
+      "id": "s7-c2007-support-skirt",
+      "sheet": 7,
+      "registration": "C2007",
+      "description": "Support skirt",
+      "sourceGroup": "g4869",
+      "sourceLabel": "text2901",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        55.499996,
+        91.999985,
+        24.000004,
+        14
+      ],
+      "file": "symbols/s7-c2007-support-skirt.svg"
+    },
+    {
+      "id": "s7-c2008-support-ring",
+      "sheet": 7,
+      "registration": "C2008",
+      "description": "Support ring",
+      "sourceGroup": "g4872",
+      "sourceLabel": "text2895",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        60.5,
+        126.999985,
+        14,
+        6.5
+      ],
+      "file": "symbols/s7-c2008-support-ring.svg"
+    },
+    {
+      "id": "s7-x8159-manhole",
+      "sheet": 7,
+      "registration": "X8159",
+      "description": "Manhole",
+      "sourceGroup": "g4877",
+      "sourceLabel": "text2929",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        58,
+        154.5,
+        16.5,
+        19
+      ],
+      "file": "symbols/s7-x8159-manhole.svg"
+    },
+    {
+      "id": "s7-x8160-socket-connection-nozzle",
+      "sheet": 7,
+      "registration": "X8160",
+      "description": "Socket, connection nozzle",
+      "sourceGroup": "g4882",
+      "sourceLabel": "text2889",
+      "sourceLayer": "layer5",
+      "viewBox": [
+        63,
+        194.5,
+        16.5,
+        9
+      ],
+      "file": "symbols/s7-x8160-socket-connection-nozzle.svg"
+    }
+  ]
+}

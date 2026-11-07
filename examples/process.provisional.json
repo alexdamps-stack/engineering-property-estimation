@@ -1,0 +1,27 @@
+{
+  "schema": "a2-process-design-provisional-v1",
+  "version": "2026-11-07.1",
+  "status": "design proposal; phase and PH domain qualification pending",
+  "composition_basis": "mole fraction",
+  "flow_basis": "mol/s; no standard-volume conversion",
+  "pressure_basis": "absolute",
+  "components": ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide"],
+  "model": "PR-BM-Clapeyron-0.6.30-provisional",
+  "mixing_and_parameters": "same explicit zero-kij approximation and unshifted cubic volume as cases.provisional.json",
+  "feeds": [
+    {"id": "A", "mole_fractions": [0.88, 0.06, 0.03, 0.02, 0.01], "flow_mol_per_s": 100.0, "temperature_K": 330.0, "pressure_Pa": 5000000.0},
+    {"id": "B", "mole_fractions": [0.70, 0.15, 0.13, 0.01, 0.01], "flow_mol_per_s": 20.0, "temperature_K": 350.0, "pressure_Pa": 5000000.0}
+  ],
+  "operations": [
+    {"id": "mix", "kind": "adiabatic mixer", "inlets": ["A", "B"], "outlet_pressure_Pa": 5000000.0, "heat_W": 0.0, "shaft_work_W": 0.0, "temperature": "solve from enthalpy balance"},
+    {"id": "cool", "kind": "cooler", "inlet": "mix", "outlet_temperature_K": 240.0, "outlet_pressure_Pa": 5000000.0, "duty_W": "solve from enthalpy change"},
+    {"id": "expand", "kind": "adiabatic valve", "inlet": "cool", "outlet_pressure_Pa": 1500000.0, "heat_W": 0.0, "shaft_work_W": 0.0, "temperature": "PH flash; conserve molar enthalpy"},
+    {"id": "separate", "kind": "equilibrium separator", "inlet": "expand", "pressure_drop_Pa": 0.0, "heat_W": 0.0, "shaft_work_W": 0.0, "outlets": "vapor and liquid only if independently established; absent phase has zero flow"}
+  ],
+  "proposed_search_envelope": {"temperature_K": [200.0, 400.0], "pressure_Pa": [1000000.0, 5000000.0], "handling": "stop with explicit diagnostic outside this envelope; do not clamp PH temperature"},
+  "expected_phase_by_stream": {"A": null, "B": null, "mix": null, "cool": null, "expand": null, "separator_vapor": null, "separator_liquid": null},
+  "phase_qualification": "No independent flash was run; cooling and expansion are intended to investigate condensation, not evidence of a two-phase outlet. Tune the reviewed setpoints if matched references do not yield the desired split.",
+  "excluded": ["water", "methanol", "solids", "multiple liquid phases", "reactions", "kinetic and potential energy changes"],
+  "required_outputs": ["all stream temperatures, absolute pressures, molar flows and compositions", "phase fractions and compositions", "molar h and s with named reference", "Z and phase densities", "cooler duty W", "component residuals mol/s and normalized", "unit energy residuals W and scaled", "valve enthalpy residual J/mol", "model/data version and convergence diagnostics"],
+  "independent_expected_outputs": null
+}
