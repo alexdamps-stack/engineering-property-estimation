@@ -3,7 +3,14 @@ name = "thermo-desktop"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
-description = "Future native property and flowsheet interface."
+description = "Native flowsheet editor and property interface (GUI prototype)."
 
 [lints]
 workspace = true
+
+[dependencies]
+eframe = "0.37.0"
+flowsheet-core = { path = "../flowsheet-core" }
+
+[dev-dependencies]
+egui_kittest = { version = "0.37.0", features = ["eframe", "snapshot", "wgpu"] }

@@ -8,3 +8,8 @@ Thumbs.db
 .env.*
 !.env.example
 *.log
+
+# egui_kittest snapshot artifacts (baselines are the plain .png files)
+**/tests/snapshots/**/*.new.png
+**/tests/snapshots/**/*.diff.png
+**/tests/snapshots/**/*.old.png

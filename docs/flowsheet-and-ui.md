@@ -172,6 +172,23 @@ The prototype in development plan section 8 compares at least two candidates on 
 
 Evaluation criteria: canvas performance with about 100 units, table and form quality, keyboard and clipboard support, high-DPI rendering, Windows packaging and installer size, accessibility, license, and project activity. Proposed starting point: prototype with `egui` first, compare with `Slint`.
 
+**Prototype status (November 7, 2026).** A first `egui` prototype is in `crates/thermo-desktop`. It edits the GUI-independent topology model in `flowsheet-core`. It covers:
+
+- The canvas: place, move, connect, pan, and zoom.
+- A technical-drawing look for the canvas:
+  - Orthogonal stream routing with closed, filled ISO 128 arrowheads, and stream numbers in diamonds.
+  - Monochrome symbols modelled on ISO 10628-2: static mixer, heat exchanger with heating or cooling medium, control valve with actuator, and a vertical vessel with dished heads, vapor leaving at the top and liquid at the bottom.
+  - CAD lettering, a model-space grid with major lines, grips on the selection, and snap markers on free nozzles.
+  - The dark scheme looks like CAD model space; the light scheme looks like a plotted sheet.
+- The properties form, with the section 2.3 specification sets and radio buttons.
+- The pre-solve statuses *Underspecified* and *Ready*.
+- The message list, a stream table without values, and the status bar.
+- The SI and Process metric unit sets.
+- Additional units beyond the demonstration: splitter (two outlets, one split fraction), two-stream shell-and-tube heat exchanger, centrifugal pump, compressor, and expander. Pumps, compressors, and expanders can be drawn and specified (pressure plus an editable 75 % default efficiency) but are marked as not yet calculable, because they need a PS flash (section 2.3).
+- Stream numbers placed beside their lines, avoiding equipment, status badges, other numbers, and all stream lines.
+
+It does not yet cover background solving with cancel, energy streams, splitters with more than two outlets, undo/redo, save/load, typed-unit input, Windows packaging, or the `Slint` comparison. The prototype has not been evaluated against the criteria above.
+
 ## 5. Open decisions
 
 | Decision | Proposal | Needed by |
