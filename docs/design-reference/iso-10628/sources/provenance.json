@@ -1,0 +1,48 @@
+{
+  "retrieved": "2026-11-07",
+  "author": "Steven Baltakatei Sandoval",
+  "license": "CC-BY-SA-4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:ISO_10628-2_2012_Symbols.pdf",
+  "files": [
+    {
+      "file": "original.pdf",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/f/f4/ISO_10628-2_2012_Symbols.pdf",
+      "sha256": "047d4f3561bedf3132ab311533edbbb44de9d2a713a0e4fa5c00685c07b67e7d"
+    },
+    {
+      "file": "sheet-1.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/80/ISO_10628-2_2012_Symbols_Sheet_1.svg",
+      "sha256": "b0fbbde870ffc72f6e83255a89f35bcae2b8a04b7d6017a3e730fafb666fdaa0"
+    },
+    {
+      "file": "sheet-2.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/2/2f/ISO_10628-2_2012_Symbols_Sheet_2.svg",
+      "sha256": "6b45e50237fbc91031889ff541b6cc78dabe0f4e676bc52aa8e4f31d07ff9d63"
+    },
+    {
+      "file": "sheet-3.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/b/b3/ISO_10628-2_2012_Symbols_Sheet_3.svg",
+      "sha256": "6ebb6d69078f0d2673182a05354c65af408de1d57af219a3d067338e6486a7ee"
+    },
+    {
+      "file": "sheet-4.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/e/e6/ISO_10628-2_2012_Symbols_Sheet_4.svg",
+      "sha256": "43474d6ecb760ea427572e5d4f64bb95c61728f78f01ea5bb017a2af2b445e6e"
+    },
+    {
+      "file": "sheet-5.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/80/ISO_10628-2_2012_Symbols_Sheet_5.svg",
+      "sha256": "420aca0b09b9dd3fe87ddb1fa7f9ae8e57e5059b901b9b780fd0dc7452b71744"
+    },
+    {
+      "file": "sheet-6.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/a/a6/ISO_10628-2_2012_Symbols_Sheet_6.svg",
+      "sha256": "89c08ba5e644e548a0b4889194849fe60bf3af49a2a702a2932a64b4fcd1fb3b"
+    },
+    {
+      "file": "sheet-7.svg",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/9/90/ISO_10628-2_2012_Symbols_Sheet_7.svg",
+      "sha256": "e36ebfeb57ae5205a4f161b7b30bb371451a944e648c075cb1be527664fae8a1"
+    }
+  ]
+}

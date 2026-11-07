@@ -8,6 +8,7 @@ Thumbs.db
 .env.*
 !.env.example
 *.log
+node_modules/
 
 # egui_kittest snapshot artifacts (baselines are the plain .png files)
 **/tests/snapshots/**/*.new.png

@@ -4,6 +4,11 @@ Date: November 7, 2026. Status: **proposal for review.** This document suggests 
 
 ## 1. Target users and design principles
 
+The [process symbol reference](design-reference/iso-10628/README.md) supplies 296
+editable SVG equipment, valve, and piping drawings with a searchable catalog and
+AI reuse guidance. Use it when selecting canvas graphics; symbol availability
+does not imply an implemented unit-operation model.
+
 The users are **process engineers**. They know commercial and open simulators (Aspen HYSYS/Plus, DWSIM, UniSim) and expect a process flow diagram (PFD), forms for specifications, stream tables, and engineering units. Design principles that follow from this:
 
 - **Familiar conventions over novelty.** Canvas with unit symbols and streams, a properties panel, and a stream table, as in established simulators.
@@ -177,14 +182,14 @@ Evaluation criteria: canvas performance with about 100 units, table and form qua
 - The canvas: place, move, connect, pan, and zoom.
 - A technical-drawing look for the canvas:
   - Orthogonal stream routing with closed, filled ISO 128 arrowheads, and stream numbers in diamonds.
-  - Monochrome symbols modelled on ISO 10628-2: static mixer, heat exchanger with heating or cooling medium, control valve with actuator, and a vertical vessel with dished heads, vapor leaving at the top and liquid at the bottom.
+  - Monochrome symbols redrawn from the ISO 10628-2:2012 symbol sheets (Wikimedia Commons, CC BY-SA 4.0; see the [process symbol reference](design-reference/iso-10628/README.md)): static mixer X2673, heat exchanger X8079 for heater and cooler, valve 2101, shell-and-tube exchanger 2511, pump 2301, compressor 2302, turbine 2571, and vessel with dished ends 2062. Proportions follow the reference. Additions: a medium arrow on heater and cooler, and project symbols for splitter and feed/product, which the sheets do not cover.
   - CAD lettering, a model-space grid with major lines, grips on the selection, and snap markers on free nozzles.
   - The dark scheme looks like CAD model space; the light scheme looks like a plotted sheet.
 - The properties form, with the section 2.3 specification sets and radio buttons.
 - The pre-solve statuses *Underspecified* and *Ready*.
 - The message list, a stream table without values, and the status bar.
 - The SI and Process metric unit sets.
-- Additional units beyond the demonstration: splitter (two outlets, one split fraction), two-stream shell-and-tube heat exchanger, centrifugal pump, compressor, and expander. Pumps, compressors, and expanders can be drawn and specified (pressure plus an editable 75 % default efficiency) but are marked as not yet calculable, because they need a PS flash (section 2.3).
+- Additional units beyond the demonstration: splitter (two outlets, one split fraction), two-stream shell-and-tube heat exchanger, pump, compressor, and expander. Pumps, compressors, and expanders can be drawn and specified (pressure plus an editable 75 % default efficiency) but are marked as not yet calculable, because they need a PS flash (section 2.3).
 - Stream numbers placed beside their lines, avoiding equipment, status badges, other numbers, and all stream lines.
 
 It does not yet cover background solving with cancel, energy streams, splitters with more than two outlets, undo/redo, save/load, typed-unit input, Windows packaging, or the `Slint` comparison. The prototype has not been evaluated against the criteria above.

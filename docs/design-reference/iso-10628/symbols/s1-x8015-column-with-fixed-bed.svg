@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="446.399816 472.900197 42.200002 52.200018" width="240" height="240" role="img" aria-labelledby="asset-title">
+<title id="asset-title">X8015 — Column with fixed bed</title>
+<desc>Adapted from Steven Baltakatei Sandoval's ISO 10628-2:2012 symbol sheets. CC BY-SA 4.0; https://creativecommons.org/licenses/by-sa/4.0/. Standalone vector extraction; geometry retained. Source sheet 1, group g12509.</desc>
+<defs xmlns="http://www.w3.org/2000/svg" id="defs7000">
+    <marker style="overflow:visible" id="marker8716" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8714"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8372" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8370"/>
+    </marker>
+    <marker orient="auto" refY="0" refX="0" id="marker4500" style="overflow:visible">
+      <path id="path4498" d="M 0,0 5,-5 -12.5,0 5,5 Z" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" transform="matrix(-0.4,0,0,-0.4,-4,0)"/>
+    </marker>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#pattern4715" id="pattern4727" patternTransform="matrix(0.09760861,0.09760861,-0.09760861,0.09760861,263.75,184.50023)"/>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#pattern4715" id="pattern4723" patternTransform="matrix(0.09760861,0.09760861,-0.09760861,0.09760861,241.25,184.50023)"/>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#pattern4715" id="pattern4719" patternTransform="matrix(0.09760861,0.09760861,-0.09760861,0.09760861,263.75,184.50023)"/>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#pattern4055" id="pattern4715" patternTransform="matrix(0.09760861,0.09760861,-0.09760861,0.09760861,-16.125,102.00001)"/>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#Strips1_8" id="pattern4055" patternTransform="matrix(0.09760861,0.09760861,-0.09760861,0.09760861,-16.125,102)"/>
+    <pattern id="Strips1_8" patternTransform="translate(0,0) scale(10,10)" height="1" width="9" patternUnits="userSpaceOnUse">
+      <rect id="rect3355" height="2" width="1" y="-0.5" x="0" style="fill:black;stroke:none"/>
+    </pattern>
+  </defs>
+<g xmlns="http://www.w3.org/2000/svg"><g id="g12509" transform="translate(0,297)">
+      <path style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="m 467.49982,219.50023 v 4.99999" id="path4628"/>
+      <path style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="m 454.99982,192.0002 h -5.00001" id="path4630"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 457.49982,202.00018 v 12.5 c 0,0 2.49999,2.50002 10,2.50002 7.49999,0 9.99998,-2.50002 9.99998,-2.50002 v -12.5" id="path4632"/>
+      <path id="path4634" d="m 457.49982,202.00018 v -12.49997 c 0,0 2.50102,-2.37504 10,-2.50003 7.49999,-0.12498 9.99998,2.50003 9.99998,2.50003 v 12.49997" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+      <path id="path4636" d="M 467.49982,184.50019 V 179.5002" style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+      <path id="path4638" d="m 484.99982,212.00019 h -4.99999" style="fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+      <path id="path4640" d="m 457.49982,193.2502 h 20.00001" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:4, 4;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:4, 4;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 457.49982,210.75019 h 20.00001" id="path4642"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="M 457.49982,210.75019 477.49983,193.2502" id="path4838"/>
+      <path id="path4840" d="M 477.49983,210.75019 457.49982,193.2502" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+    </g></g>
+</svg>

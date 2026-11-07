@@ -7,7 +7,7 @@
 pub enum DisplayUnits {
     /// K, Pa, mol/s, W.
     Si,
-    /// Â°C, bar, kmol/h, kW â the default for process engineers.
+    /// °C, bar, kmol/h, kW — the default for process engineers.
     #[default]
     ProcessMetric,
 }
@@ -50,7 +50,7 @@ impl DisplayUnits {
             (DisplayUnits::Si, Quantity::MolarFlow) => "mol/s",
             (DisplayUnits::Si, Quantity::Duty) => "W",
             (DisplayUnits::Si, Quantity::Fraction) => "–",
-            (DisplayUnits::ProcessMetric, Quantity::Temperature) => "Â°C",
+            (DisplayUnits::ProcessMetric, Quantity::Temperature) => "°C",
             (DisplayUnits::ProcessMetric, Quantity::Pressure) => "bar(a)",
             (DisplayUnits::ProcessMetric, Quantity::PressureDrop) => "bar",
             (DisplayUnits::ProcessMetric, Quantity::MolarFlow) => "kmol/h",
