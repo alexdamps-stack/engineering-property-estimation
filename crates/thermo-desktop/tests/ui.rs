@@ -302,10 +302,10 @@ fn equipment_gallery() -> FlowsheetApp {
     let p1 = ed.add_unit_at(UnitKind::Product, at(300.0, -80.0));
     let comp = ed.add_unit_at(UnitKind::Compressor, at(140.0, 60.0));
     let exp = ed.add_unit_at(UnitKind::Expander, at(260.0, 60.0));
-    let hx = ed.add_unit_at(UnitKind::HeatExchanger, at(420.0, 70.0));
+    let hx = ed.add_unit_at(UnitKind::HeatExchanger, at(440.0, 70.0));
     let feed2 = ed.add_unit_at(UnitKind::Feed, at(260.0, 160.0));
-    let p2 = ed.add_unit_at(UnitKind::Product, at(580.0, 60.0));
-    let p3 = ed.add_unit_at(UnitKind::Product, at(580.0, 140.0));
+    let p2 = ed.add_unit_at(UnitKind::Product, at(660.0, 60.0));
+    let p3 = ed.add_unit_at(UnitKind::Product, at(660.0, 140.0));
     for ((a, pa), (b, pb)) in [
         ((feed1, 0), (tee, 0)),
         ((tee, 1), (pump, 0)),

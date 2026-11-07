@@ -77,17 +77,19 @@ pub fn block_size(kind: UnitKind) -> Vec2 {
     match kind {
         UnitKind::Feed | UnitKind::Product => vec2(70.0, 30.0),
         UnitKind::Mixer => vec2(60.0, 60.0),
-        UnitKind::Heater | UnitKind::Cooler => vec2(50.0, 50.0),
-        UnitKind::Valve => vec2(40.0, 40.0),
+        // Circle of 40 plus the medium nozzles above and below.
+        UnitKind::Heater | UnitKind::Cooler => vec2(40.0, 60.0),
+        // Reference proportions: valve 2:1, shell-and-tube 3.5:1, turbine
+        // 2:3 (length to outlet height).
+        UnitKind::Valve => vec2(40.0, 20.0),
         UnitKind::Separator => vec2(50.0, 130.0),
         UnitKind::Splitter => vec2(40.0, 60.0),
-        UnitKind::HeatExchanger => vec2(90.0, 60.0),
-        UnitKind::Pump | UnitKind::Compressor | UnitKind::Expander => vec2(60.0, 60.0),
+        UnitKind::HeatExchanger => vec2(140.0, 40.0),
+        UnitKind::Pump => vec2(50.0, 50.0),
+        UnitKind::Compressor => vec2(60.0, 60.0),
+        UnitKind::Expander => vec2(40.0, 60.0),
     }
 }
-
-/// Radius of the pump casing; its discharge leaves tangentially at the top.
-pub const PUMP_RADIUS: f32 = 20.0;
 
 /// World-space rectangle of a unit symbol centred at `center`.
 pub fn block_rect(kind: UnitKind, center: Pos2) -> Rect {
@@ -114,10 +116,6 @@ pub fn port_pos(kind: UnitKind, center: Pos2, index: usize) -> Pos2 {
     let Some(spec) = ports.get(index) else {
         return center;
     };
-    // Centrifugal pump: tangential discharge nozzle at the top of the casing.
-    if kind == UnitKind::Pump && spec.direction == PortDirection::Outlet {
-        return pos2(rect.right(), center.y - PUMP_RADIUS);
-    }
     let exit = port_exit(kind, index);
     if exit.y < 0.0 {
         return rect.center_top();

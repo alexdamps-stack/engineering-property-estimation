@@ -1,10 +1,11 @@
 //! Technical-drawing look: CAD colour scheme and process-flow-diagram symbols.
 //!
-//! Symbols are monochrome line work modelled on ISO 10628-2 graphical
-//! symbols (vessel with dished heads, heat exchanger with heating/cooling
-//! medium, shell-and-tube exchanger, control valve with diaphragm actuator,
-//! centrifugal pump, turbo compressor and expander, static mixer). Arrowheads
-//! are closed and filled with a 15° half angle as in ISO 128. The dark
+//! Symbols are monochrome line work redrawn from the ISO 10628-2:2012 symbol
+//! sheets by Steven Baltakatei Sandoval (Wikimedia Commons, CC BY-SA 4.0),
+//! as extracted in `docs/design-reference/iso-10628`. Each symbol names the
+//! asset ID it follows and keeps its proportions; nozzles sit on the
+//! outline. The splitter and the feed/product flags are project symbols,
+//! because the sheets have no equivalent. Arrowheads are closed and filled with a 15° half angle as in ISO 128. The dark
 //! scheme mirrors a CAD model space; the light scheme a plotted sheet.
 
 use std::f32::consts::PI;
@@ -93,42 +94,47 @@ pub fn draw_unit(painter: &Painter, kind: UnitKind, r: Rect, stroke: Stroke, fil
             painter.add(Shape::convex_polygon(pts, fill, stroke));
         }
         UnitKind::Mixer => {
-            // Static mixer: pipe section with alternating mixing elements.
+            // s4-x2673-in-line-static-mixer: square body with one diagonal
+            // mixing element.
             painter.rect(r, 0, fill, stroke, eframe::egui::StrokeKind::Middle);
-            let n = 4;
-            let zig: Vec<Pos2> = (0..=n)
-                .map(|i| {
-                    let x = r.left() + r.width() * i as f32 / n as f32;
-                    pos2(x, if i % 2 == 0 { r.top() } else { r.bottom() })
-                })
-                .collect();
-            painter.line(zig, Stroke::new(stroke.width * 0.7, stroke.color));
+            let at = |fx: f32, fy: f32| pos2(r.left() + r.width() * fx, r.top() + r.height() * fy);
+            painter.line(
+                vec![
+                    at(1.0 / 6.0, 5.0 / 12.0),
+                    at(1.0 / 6.0, 1.0 / 12.0),
+                    at(5.0 / 6.0, 11.0 / 12.0),
+                    at(5.0 / 6.0, 7.0 / 12.0),
+                ],
+                stroke,
+            );
         }
         UnitKind::Heater | UnitKind::Cooler => {
-            // Heat exchanger: shell with the heating/cooling medium as a
-            // zig-zag passing through; the medium arrow shows heating
-            // (enters top) or cooling (enters bottom).
-            let radius = r.width().min(r.height()) / 2.0;
+            // s2-x8079-heat-exchanger-general-condenser: circle crossed by
+            // the process line with a Z-shaped bend, heating or cooling
+            // medium nozzles at top and bottom. Project addition: an arrow
+            // on the medium shows heat in (heater, top) or out (cooler,
+            // bottom).
+            let radius = r.width() / 2.0;
+            let half = radius / 2.0;
             painter.circle(c, radius, fill, stroke);
-            let ext = radius * 0.45;
-            let w = radius * 0.4;
-            let ys = [
-                radius + ext,
-                radius * 0.6,
-                radius * 0.3,
-                0.0,
-                -radius * 0.3,
-                -radius * 0.6,
-                -radius - ext,
-            ];
-            let xs = [0.0, 0.0, -w, w, -w, 0.0, 0.0];
-            let zig: Vec<Pos2> = xs.iter().zip(ys).map(|(&x, y)| c + vec2(x, y)).collect();
-            painter.line(zig, stroke);
-            let head = (radius * 0.5).max(5.0);
+            painter.line(
+                vec![
+                    c + vec2(-radius, 0.0),
+                    c + vec2(-half, 0.0),
+                    c + vec2(0.0, -half),
+                    c + vec2(0.0, half),
+                    c + vec2(half, 0.0),
+                    c + vec2(radius, 0.0),
+                ],
+                stroke,
+            );
+            painter.line_segment([pos2(c.x, r.top()), pos2(c.x, c.y - radius)], stroke);
+            painter.line_segment([pos2(c.x, r.bottom()), pos2(c.x, c.y + radius)], stroke);
+            let head = (radius * 0.35).max(4.0);
             if kind == UnitKind::Heater {
                 arrowhead(
                     painter,
-                    c - vec2(0.0, radius + ext * 0.1),
+                    pos2(c.x, c.y - radius),
                     vec2(0.0, 1.0),
                     head,
                     stroke.color,
@@ -136,42 +142,24 @@ pub fn draw_unit(painter: &Painter, kind: UnitKind, r: Rect, stroke: Stroke, fil
             } else {
                 arrowhead(
                     painter,
-                    c + vec2(0.0, radius + ext * 0.1),
-                    vec2(0.0, -1.0),
+                    pos2(c.x, r.bottom()),
+                    vec2(0.0, 1.0),
                     head,
                     stroke.color,
                 );
             }
         }
         UnitKind::Valve => {
-            // Control valve: globe body (bow-tie) with diaphragm actuator.
-            let h = r.height() * 0.25;
-            let body_c = pos2(c.x, c.y);
-            let left = vec![
-                pos2(r.left(), body_c.y - h),
-                body_c,
-                pos2(r.left(), body_c.y + h),
-            ];
-            let right = vec![
-                pos2(r.right(), body_c.y - h),
-                body_c,
-                pos2(r.right(), body_c.y + h),
-            ];
+            // s6-2101-valve-general: two triangles meeting at the seat.
+            let left = vec![r.left_top(), c, r.left_bottom()];
+            let right = vec![r.right_top(), c, r.right_bottom()];
             painter.add(Shape::convex_polygon(left, fill, stroke));
             painter.add(Shape::convex_polygon(right, fill, stroke));
-            let dome_r = r.width() * 0.22;
-            let flat_y = r.top() + dome_r + stroke.width;
-            painter.line_segment([body_c, pos2(c.x, flat_y)], stroke);
-            let dome: Vec<Pos2> = (0..=16)
-                .map(|i| {
-                    let a = PI * i as f32 / 16.0;
-                    pos2(c.x - dome_r * a.cos(), flat_y - dome_r * a.sin())
-                })
-                .collect();
-            painter.add(Shape::convex_polygon(dome, fill, stroke));
         }
         UnitKind::Splitter => {
-            // Branch: one inlet forking to the two outlet nozzles.
+            // Branch: one inlet forking to the two outlet nozzles. ISO
+            // 10628-2 has no unit symbol for a stream split; this is a
+            // project symbol.
             painter.rect(r, 0, fill, stroke, eframe::egui::StrokeKind::Middle);
             let thin = Stroke::new(stroke.width * 0.7, stroke.color);
             let y1 = r.top() + r.height() / 3.0;
@@ -188,63 +176,66 @@ pub fn draw_unit(painter: &Painter, kind: UnitKind, r: Rect, stroke: Stroke, fil
             );
         }
         UnitKind::HeatExchanger => {
-            // Shell-and-tube exchanger: shell (hot side, upper nozzles) with
-            // the tube bundle (cold side, lower nozzles) drawn as a zig-zag.
-            let radius = (r.height() * 0.12).min(255.0) as u8;
-            painter.rect(r, radius, fill, stroke, eframe::egui::StrokeKind::Middle);
-            let y1 = r.top() + r.height() / 3.0;
-            let y2 = r.top() + r.height() * 2.0 / 3.0;
-            let peak = (y1 + y2) / 2.0 - r.height() * 0.05;
-            let inset = r.width() * 0.1;
-            let n = 6;
-            let mut tubes = vec![pos2(r.left(), y2), pos2(r.left() + inset, y2)];
-            for i in 1..n {
-                let x = r.left() + inset + (r.width() - 2.0 * inset) * i as f32 / n as f32;
-                tubes.push(pos2(x, if i % 2 == 1 { peak } else { y2 }));
+            // s2-2511-heat-exchanger-with-straight-tubes-fixed-tube-plates:
+            // shell with a channel head and tube plate at each end and the
+            // straight tube bundle between the plates.
+            painter.rect(r, 0, fill, stroke, eframe::egui::StrokeKind::Middle);
+            let plate = r.width() / 7.0;
+            let (x1, x2) = (r.left() + plate, r.right() - plate);
+            painter.line_segment([pos2(x1, r.top()), pos2(x1, r.bottom())], stroke);
+            painter.line_segment([pos2(x2, r.top()), pos2(x2, r.bottom())], stroke);
+            for i in 1..=3 {
+                let y = r.top() + r.height() * i as f32 / 4.0;
+                painter.line_segment([pos2(x1, y), pos2(x2, y)], stroke);
             }
-            tubes.push(pos2(r.right() - inset, y2));
-            tubes.push(pos2(r.right(), y2));
-            painter.line(tubes, Stroke::new(stroke.width * 0.8, stroke.color));
         }
         UnitKind::Pump => {
-            // Centrifugal pump: casing with axial suction, tangential
-            // discharge at the top, and a base.
-            let radius = r.width() * crate::view::PUMP_RADIUS / crate::view::block_size(kind).x;
-            let foot = vec![
-                c + vec2(-radius * 0.7, radius * 0.7),
-                pos2(c.x - radius, r.bottom()),
-                pos2(c.x + radius, r.bottom()),
-                c + vec2(radius * 0.7, radius * 0.7),
-            ];
-            painter.line(foot, stroke);
-            painter.line_segment([pos2(r.left(), c.y), pos2(c.x - radius, c.y)], stroke);
+            // s4-2301-pump-liquid-type-general: circle with two lines from
+            // the top and bottom meeting at the discharge, so the apex
+            // points in the flow direction.
+            let radius = r.width().min(r.height()) / 2.0;
             painter.circle(c, radius, fill, stroke);
-            painter.line_segment(
-                [pos2(c.x, c.y - radius), pos2(r.right(), c.y - radius)],
+            painter.line(
+                vec![
+                    pos2(c.x, c.y - radius),
+                    pos2(c.x + radius, c.y),
+                    pos2(c.x, c.y + radius),
+                ],
                 stroke,
             );
         }
-        UnitKind::Compressor | UnitKind::Expander => {
-            // Turbomachine: trapezoid narrowing in the flow direction for a
-            // compressor and widening for an expander (turbine).
-            let small = r.height() * 0.3;
-            let (left_h, right_h) = if kind == UnitKind::Compressor {
-                (r.height() / 2.0, small)
-            } else {
-                (small, r.height() / 2.0)
+        UnitKind::Compressor => {
+            // s4-2302-compressor-vacuum-pump-general: circle with two chords
+            // converging in the flow direction (end points at 118 and 26
+            // degrees either side of the flow axis, as in the reference).
+            let radius = r.width().min(r.height()) / 2.0;
+            painter.circle(c, radius, fill, stroke);
+            let on_circle = |deg: f32| {
+                let a = deg.to_radians();
+                c + vec2(a.cos(), -a.sin()) * radius
             };
+            let (wide, narrow) = (117.95_f32, 26.05_f32);
+            painter.line_segment([on_circle(wide), on_circle(narrow)], stroke);
+            painter.line_segment([on_circle(-wide), on_circle(-narrow)], stroke);
+        }
+        UnitKind::Expander => {
+            // s5-2571-turbine-general: trapezoid widening in the flow
+            // direction; the inlet side is one third as high as the outlet
+            // side.
+            let narrow = r.height() / 6.0;
             let pts = vec![
-                pos2(r.left(), c.y - left_h),
-                pos2(r.right(), c.y - right_h),
-                pos2(r.right(), c.y + right_h),
-                pos2(r.left(), c.y + left_h),
+                pos2(r.left(), c.y - narrow),
+                r.right_top(),
+                r.right_bottom(),
+                pos2(r.left(), c.y + narrow),
             ];
             painter.add(Shape::convex_polygon(pts, fill, stroke));
         }
         UnitKind::Separator => {
-            // Vertical vessel with 2:1 semi-elliptical heads.
+            // s1-2062-tank-vessel-with-dished-ends: vertical vessel with
+            // shallow dished heads (depth one eighth of the diameter).
             let a = r.width() / 2.0;
-            let b = a * 0.5;
+            let b = r.width() / 8.0;
             let top_tan = r.top() + b;
             let bot_tan = r.bottom() - b;
             let mut outline = Vec::with_capacity(40);
@@ -257,33 +248,6 @@ pub fn draw_unit(painter: &Painter, kind: UnitKind, r: Rect, stroke: Stroke, fil
                 outline.push(pos2(c.x + a * t.cos(), bot_tan + b * t.sin()));
             }
             painter.add(Shape::convex_polygon(outline, fill, stroke));
-            let thin = Stroke::new(stroke.width * 0.6, stroke.color);
-            // Head-to-shell tangent lines.
-            painter.line_segment([pos2(r.left(), top_tan), pos2(r.right(), top_tan)], thin);
-            painter.line_segment([pos2(r.left(), bot_tan), pos2(r.right(), bot_tan)], thin);
-            // Normal liquid level with level mark.
-            let level = bot_tan - (bot_tan - top_tan) * 0.25;
-            let inset = a * 0.25;
-            painter.extend(Shape::dashed_line(
-                &[
-                    pos2(r.left() + inset, level),
-                    pos2(r.right() - inset, level),
-                ],
-                thin,
-                4.0,
-                3.0,
-            ));
-            let m = a * 0.18;
-            let mx = c.x + a * 0.35;
-            painter.add(Shape::convex_polygon(
-                vec![
-                    pos2(mx, level),
-                    pos2(mx - m, level - m * 1.2),
-                    pos2(mx + m, level - m * 1.2),
-                ],
-                Color32::TRANSPARENT,
-                thin,
-            ));
         }
     }
 }
