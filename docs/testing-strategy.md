@@ -54,21 +54,47 @@ Regenerate expected values only through an explicit reviewed change recording th
 - Compare analytical or automatic derivatives with independently evaluated numerical derivatives using multiple suitable step sizes; use higher precision for difficult diagnostic cases when available. Phase boundaries and singular regions need separate treatment.
 - Verify that permuting components and all associated parameters leaves physical results unchanged; compare composition-dependent outputs after undoing the permutation.
 - Verify pure-fluid limits and appropriate low-density limits within supported model domains. Test trace and zero components according to the calculation contract.
+- For cubic models, verify that each pure component reproduces its own critical temperature and pressure through the vanishing first and second pressure derivatives at the critical point. Where the cubic has three real roots, verify that the selected root minimizes the Gibbs energy, and that phase-specified requests return the requested root or an explicit error.
+- For the BM alpha function, verify continuity of the value and its first temperature derivative at the transition at `T = Tc`.
+
+The following identities must hold for each implemented equation of state to within a tolerance justified by floating-point conditioning, not by reference quality. Evaluate them at the same grid of single-phase states used for reference comparisons.
+
+| Identity | Checks |
+|---|---|
+| `Σ n_i ∂ln φ_i/∂n_j = 0` at constant T and p | Gibbs–Duhem consistency of composition derivatives |
+| `∂ln φ_i/∂n_j = ∂ln φ_j/∂n_i` | Symmetry of the fugacity Jacobian used by flash solvers |
+| `Σ x_i ln φ_i = ln φ_mix` | Partial molar quantities sum to the mixture value |
+| `A_res(λn, λV, T) = λ A_res(n, V, T)` | Euler homogeneity of the residual Helmholtz energy |
+| `ln φ_i → 0` and `Z → 1` as density → 0 | Ideal-gas limit |
+| `cp − cv = −T (∂p/∂T)_V² / (∂p/∂V)_T` | Consistency of caloric derivatives |
+| `(∂s/∂p)_T = −(∂v/∂T)_p` | Maxwell relation linking volumetric and entropic parts |
+| Speed of sound from `cp/cv` and `(∂p/∂ρ)_T` | Cross-check of second derivatives where speed of sound is reported |
+
+Use property-based tests (with the `proptest` crate, added as a development dependency when the first model lands) for component permutation, uniform scaling of amounts, the identities above, and composition normalization. Record the proptest seed for each failure and keep any failing case as a fixed regression fixture.
 
 Derivative verification is particularly important for caloric properties and solver Jacobians; the [NIST teqp paper](https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=933725) illustrates how independent derivative checks can expose precision errors.
 
 ### Stability, TP flash, and PH flash — A4–A5
 
+- Test Rachford–Rice on its own with prescribed K-values: all `K_i > 1` and all `K_i < 1` (no root in `[0, 1]`, single-phase result), `K_i` close to 1, negative-flash ranges where the solver supports them, and monotonicity of the residual within the bracketing interval.
+- Check pure-component saturation pressures against independent references through fugacity equality.
 - Cover known single-phase and two-phase states with independently established phase behavior. Check normalized phase compositions, bounded phase fractions, component balances, and fugacity equality for active components.
 - Test stability assessment separately from solving the phase split. A converged root or small residual alone does not establish a stable equilibrium; finite TPD trials do not prove global stability.
 - Cover phase appearance/disappearance, near-critical states, nearly identical phases, trace components, and sensitive initial guesses. Classify cases as supported, diagnostic, or outside the declared domain before execution.
-- Test TP→PH recovery only where the state is uniquely recoverable under the specified constraints, checking temperature, phases, compositions, and enthalpy as appropriate.
-- Exercise invalid inputs, unsupported domains, missing data, and forced iteration exhaustion. Return explicit diagnostics rather than successful values containing NaNs or stale results.
+- Test TP→PH recovery only where the state is uniquely recoverable under the specified constraints, checking temperature, phases, compositions, and enthalpy as appropriate. Include single-phase and two-phase states.
+- Test PH flash at bubble and dew points (vapor fraction exactly 0 and 1) and for a pure component and a narrow-boiling mixture inside the two-phase region, where temperature alone does not determine enthalpy.
+- Exercise invalid inputs, unsupported domains, missing data, and forced iteration exhaustion. Return explicit diagnostics rather than successful values containing NaNs or stale results. Each iterative solver must have a documented iteration limit, and at least one test must reach it deliberately.
+
+### Saturation points and phase envelope — A13
+
+- Compare bubble- and dew-point pressure and temperature with independent references for the demonstration mixtures, including the hydrocarbon dew point of the natural-gas case.
+- Verify that a saturation result satisfies fugacity equality with an incipient-phase fraction of zero.
+- Verify that the phase-envelope trace reports its covered range and returns an explicit diagnostic near the critical point rather than unverified values.
 
 ### GERG, NRTL, and supported domains — A6–A7
 
 - Qualify reference formulations, component inventories, ideal/residual contributions, and caloric reference states before comparison.
-- For GERG, cover the declared component and state ranges with independent property and derivative comparisons. Do not infer flash validation from single-phase density agreement.
+- For GERG, cover the declared component and state ranges with independent property and derivative comparisons. Do not infer flash validation from single-phase density agreement. The acceptance set is a fixed, versioned list of reference states; every state inside the declared domain must pass, and states outside it must return an explicit out-of-domain outcome rather than being skipped.
 - For NRTL, test directed parameters, component permutations, temperature dependence, activity coefficients, vapor-model coupling, and caloric consistency.
 - Maintain a supported-domain statement for each model/property/solver combination. Keep implementation error separate from differences against other models or experimental measurements.
 
@@ -86,16 +112,32 @@ For scalar comparisons, use `abs(actual - expected) <= atol + rtol * abs(expecte
 
 Retain the initial targets in the [development plan](development-plan.md): composition-sum error at most `1e-10`, normalized component-balance error at most `1e-8`, active-component log-fugacity residual at most `1e-7`, and scaled energy-balance error at most `1e-6` for regular, well-conditioned cases. Define balance normalization, scaling floors, and active-component rules with the relevant calculation contracts before testing. These residual targets are distinct from property accuracy against references or measurements.
 
-Set property tolerances before implementation using reference quality and conditioning. Critical regions and trace components require separate justified criteria; do not silently relax tolerances after failures. Experimental comparisons must state measurement uncertainty and application accuracy requirements separately from numerical agreement limits.
+Set property tolerances before implementation using reference quality and conditioning. Record them in the table below as part of A2; a model milestone cannot be accepted while its rows are still open. Tolerances may differ per model and reference; add rows rather than widening a shared one.
+
+| Quantity | Model / reference | `atol` (unit) | `rtol` | State domain | Rationale |
+|---|---|---|---|---|---|
+| Density ρ | PR, PR-BM / to be selected in A2 | open | open | open | open |
+| Compressibility factor Z | PR, PR-BM / to be selected in A2 | open | open | open | open |
+| ln φ_i | PR, PR-BM / to be selected in A2 | open | open | open | open |
+| Residual enthalpy h_res | PR, PR-BM / to be selected in A2 | open | open | open | open |
+| Residual entropy s_res | PR, PR-BM / to be selected in A2 | open | open | open | open |
+| Isobaric heat capacity cp | PR, PR-BM / to be selected in A2 | open | open | open | open |
+| Speed of sound w | PR, PR-BM / to be selected in A2 | open | open | open | open |
+| Saturation pressure | PR, PR-BM / to be selected in A2 | open | open | open | open |
+| Density, cp, w | GERG-2008 / NIST AGA8 reference values | open | open | open | open |
+
+Each row also states the minimum number of reference states and how they cover the domain, for example a temperature–pressure grid per mixture. Critical regions and trace components require separate justified criteria; do not silently relax tolerances after failures. Experimental comparisons must state measurement uncertainty and application accuracy requirements separately from numerical agreement limits.
 
 Generated cases must record a fixed random seed, generator version, domain, and sampling method. Preserve failing generated inputs as small regression fixtures. Reports identify the code commit, toolchain/platform, case, model/data versions, expected and actual results, residuals, tolerances, phase outcome, and solver status/iterations where applicable. Report failures and unsupported states explicitly; exclude neither silently from success rates.
 
 ## 6. CI and development gates
 
-The existing Windows/Linux workflow runs formatting, Clippy, workspace tests, and documentation builds. Numerical unit and integration tests will run through its existing `cargo test --workspace --locked` step as they are implemented. No workflow changes or numerical pass claims are needed for this documentation update.
+The existing Windows/Linux workflow runs formatting, Clippy, workspace tests, and documentation builds; documentation warnings fail the build, and build artifacts are cached between runs. Numerical unit and integration tests will run through its existing `cargo test --workspace --locked` step as they are implemented. Larger numerical sweeps belong in the validation workflow and should run with `--release`.
+
+Results may differ in the last bits between Linux and Windows, because of differing math-library implementations. Tests must therefore compare with tolerances, never with exact floating-point equality, and the same tolerance must pass on both platforms.
 
 Once executable models exist, introduce a separate scheduled/manual validation workflow with reproducible state-space sweeps and reference reports. Keep a small representative subset in ordinary pull-request tests. Define the sweep workload and supported domains with the model implementation; do not schedule an empty validation job now.
 
-Keep performance runs separate from correctness gates. Record hardware/runner conditions, workloads, repetitions, toolchain, runtime distributions, and iteration counts; do not gate pull requests on noisy shared-runner timings. Numerical correctness remains a prerequisite for any speedup claim.
+Keep performance runs separate from correctness gates. Before A11 starts, set numeric targets for both the required speedup and the maximum interpolation error of values and derivatives over the approved domain. Record hardware/runner conditions, workloads, repetitions, toolchain, runtime distributions, and iteration counts; do not gate pull requests on noisy shared-runner timings. Numerical correctness remains a prerequisite for any speedup claim.
 
 A capability is complete only when its intended behavior, domain, and failure outcomes are documented; meaningful unit/integration tests and applicable independent reference checks pass; evidence and limitations are recorded; and the relevant milestone's acceptance criteria are met. Each fixed bug needs a regression case when its observable behavior can be reproduced. Coverage percentages and test counts are supporting signals, not acceptance evidence by themselves.
