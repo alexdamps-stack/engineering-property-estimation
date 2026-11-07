@@ -1,6 +1,33 @@
 # Testing Strategy
 
-This is the testing guide for the thermodynamic engine and the connected flowsheet simulator. It defines requirements for future implementations, not results already achieved. The repository currently contains scaffolds and infrastructure checks only; no numerical test suite exists yet.
+This is the testing guide for the thermodynamic engine and the connected flowsheet simulator. PR/PR-BM models and TP/PH solvers now have executable numerical comparisons; requirements for future capabilities remain acceptance targets. Evidence and supported domains are recorded in the milestone status documents.
+
+### Mandatory Clapeyron standard check
+
+For the currently supported PR/PR-BM paths, the independent Julia comparison
+is a standard correctness check alongside formatting, Clippy and workspace
+tests. `cargo test --workspace --locked` always runs the committed offline
+Clapeyron references. The live check independently evaluates the same inputs
+using locked Julia 1.11.7 / Clapeyron.jl 0.6.30 and compares them with the
+current Rust engine:
+
+```sh
+julia --project=validation/julia validation/julia/check.jl
+```
+
+The live check runs on every push and pull request, plus the scheduled/manual
+numerical workflow. Any generation failure, changed fixture provenance,
+nonfinite result or out-of-budget comparison fails the job; cases are not
+silently skipped. The check generates temporary candidates and never updates
+committed expected values. Julia is a validation dependency only.
+
+Changes to cubic models, caloric data, equilibrium solvers or their numerical
+contracts must preserve these checks. Adding a supported formulation/domain
+requires matched independent cases and explicit budgets before acceptance.
+Package/default-data differences must be qualified separately; the standard
+check supplies matched parameters, ideal contributions and caloric references.
+See [Clapeyron verification](../validation/clapeyron-checks.md) for scope,
+reproduction, tolerances and local execution evidence.
 
 ## 1. What each kind of evidence establishes
 

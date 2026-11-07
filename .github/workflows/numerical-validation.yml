@@ -9,6 +9,26 @@ permissions:
   contents: read
 
 jobs:
+  clapeyron:
+    name: Independent Clapeyron numerical check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      JULIA_NUM_PRECOMPILE_TASKS: 2
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install pinned Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11.7'
+      - uses: julia-actions/cache@v2
+      - name: Instantiate locked Julia reference environment
+        run: julia --project=validation/julia -e 'using Pkg; Pkg.instantiate()'
+      - name: Compare current Rust calculations with live Clapeyron
+        run: julia --project=validation/julia validation/julia/check.jl
+
   homogeneous:
     name: Homogeneous cubic sweep (${{ matrix.os }})
     strategy:
@@ -25,7 +45,7 @@ jobs:
         run: rustup show
       - uses: Swatinem/rust-cache@v2
       - name: Independent fixtures and fixed-seed property sweep
-        run: cargo test -p thermo-types -p thermo-data -p thermo-models -p thermo-cli --release --locked -- --nocapture
+        run: cargo test -p thermo-types -p thermo-data -p thermo-models -p thermo-solvers -p thermo-cli --release --locked -- --nocapture
       - name: Reproducible natural-gas case
         run: cargo run -p thermo-cli --release --locked -- examples/homogeneous-natural-gas.json
       - name: Reproducible binary case

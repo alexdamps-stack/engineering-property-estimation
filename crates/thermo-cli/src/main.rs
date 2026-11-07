@@ -1,9 +1,9 @@
-//! Reproducible homogeneous cubic calculations and A4 two-phase TP flashes.
+//! Reproducible homogeneous cubic calculations and two-phase TP/PH flashes.
 use serde::Deserialize;
 use serde_json::{Value, json};
 use thermo_data::ComponentDatabase;
 use thermo_models::{CubicModel, CubicVariant, HomogeneousState, RootSelection};
-use thermo_solvers::{FlashOptions, StabilityAssessment, tp_flash};
+use thermo_solvers::{FlashOptions, PhFlashOptions, StabilityAssessment, ph_flash, tp_flash};
 use thermo_types::{
     ComponentId, Composition, CompositionBasis, NormalizationPolicy, Phase, Pressure, Temperature,
 };
@@ -12,12 +12,16 @@ use thermo_types::{
 #[serde(deny_unknown_fields)]
 struct Case {
     id: String,
-    /// "homogeneous" (default) or "tp-flash".
+    /// "homogeneous" (default), "tp-flash" or "ph-flash".
     #[serde(default)]
     calculation: Option<String>,
     components: Vec<String>,
     mole_fractions: Vec<f64>,
-    temperature_k: f64,
+    #[serde(default)]
+    temperature_k: Option<f64>,
+    /// Required only for PH flash, on the reported model caloric reference.
+    #[serde(default)]
+    enthalpy_j_per_mol: Option<f64>,
     pressure_pa: f64,
     model: String,
     /// Required for homogeneous evaluation; rejected for a flash.
@@ -75,14 +79,15 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
         "PR-BM" => CubicVariant::PengRobinsonBostonMathias,
         _ => return Err("model must be PR or PR-BM".into()),
     };
-    let flash = match case.calculation.as_deref() {
-        None | Some("homogeneous") => false,
-        Some("tp-flash") => true,
-        Some(_) => return Err("calculation must be homogeneous or tp-flash".into()),
+    let calculation = case.calculation.as_deref().unwrap_or("homogeneous");
+    let flash = match calculation {
+        "homogeneous" => false,
+        "tp-flash" | "ph-flash" => true,
+        _ => return Err("calculation must be homogeneous, tp-flash or ph-flash".into()),
     };
     let root = match (flash, case.root.as_deref()) {
         (true, None) => None,
-        (true, Some(_)) => return Err("root is not an input of tp-flash; omit it".into()),
+        (true, Some(_)) => return Err("root is not an input of a flash; omit it".into()),
         (false, Some("smallest-volume")) => Some(RootSelection::SmallestVolume),
         (false, Some("largest-volume")) => Some(RootSelection::LargestVolume),
         (false, Some("minimum-gibbs")) => Some(RootSelection::MinimumGibbs),
@@ -109,15 +114,54 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
         case.kij,
         case.interaction_source,
     )?;
-    let t = Temperature::new(case.temperature_k)?;
     let p = Pressure::new(case.pressure_pa)?;
     let fractions: Vec<f64> = composition.entries().iter().map(|(_, x)| *x).collect();
+    if calculation == "ph-flash" {
+        if case.temperature_k.is_some() {
+            return Err("temperature_k is an output of ph-flash; omit it".into());
+        }
+        let h = case
+            .enthalpy_j_per_mol
+            .ok_or("ph-flash requires enthalpy_j_per_mol")?;
+        let r = ph_flash(&model, p, h, PhFlashOptions::default())?;
+        return Ok(json!({
+            "case":case.id, "calculation":"ph-flash", "components":case.components,
+            "feed_mole_fractions":fractions, "temperature_K":r.temperature_k,
+            "pressure_Pa_absolute":r.pressure_pa, "target_enthalpy_J_per_mol":r.target_enthalpy,
+            "enthalpy_J_per_mol":r.enthalpy, "phase_count":r.phases.len(),
+            "phases": r.phases.iter().map(|ph| {
+                let mut v = state_json(&ph.state);
+                v["label"] = json!(phase_label(ph.phase));
+                v["molar_phase_fraction"] = json!(ph.phase_fraction);
+                v["mole_fractions"] = json!(ph.composition);
+                v
+            }).collect::<Vec<_>>(),
+            "convergence": {
+                "temperature_iterations":r.iterations,
+                "scaled_energy_residual":r.scaled_energy_residual,
+                "energy_scale_floor_J_per_mol":1.0,
+                "max_abs_ln_fugacity_residual":r.tp.as_ref().map(|f| f.max_ln_fugacity_residual).or_else(|| r.pure_saturation.as_ref().map(|s| s.fugacity_residual)),
+                "max_abs_component_balance_residual":r.tp.as_ref().map(|f| f.max_component_balance_residual).unwrap_or(0.0),
+                "pure_saturation_iterations":r.pure_saturation.as_ref().map(|s| s.iterations),
+            },
+            "feed_stability":r.tp.as_ref().map(|f| stability_json(&f.feed_stability)),
+            "phase_stability":r.tp.as_ref().map(|f| f.phase_stability.iter().map(stability_json).collect::<Vec<_>>()),
+            "provenance":provenance(&r.phases[0].state),
+            "validity":"unassessed physical phase/domain; evaluated inside computational envelope",
+            "diagnostics":r.diagnostics.iter().map(|d| json!({"code":d.code,"severity":format!("{:?}",d.severity),"message":d.message})).collect::<Vec<_>>(),
+        }));
+    }
+    if case.enthalpy_j_per_mol.is_some() {
+        return Err("enthalpy_j_per_mol is only an input of ph-flash".into());
+    }
+    let t = Temperature::new(case.temperature_k.ok_or("temperature_k is required")?)?;
     let Some(root) = root else {
         let r = tp_flash(&model, t, p, FlashOptions::default())?;
         return Ok(json!({
             "case":case.id, "calculation":"tp-flash", "components":case.components,
             "feed_mole_fractions":fractions,
             "temperature_K":r.temperature_k, "pressure_Pa_absolute":r.pressure_pa,
+            "enthalpy_J_per_mol":r.enthalpy(),
             "phase_count":r.phases.len(), "molar_vapor_fraction":r.vapor_fraction(),
             "phases": r.phases.iter().map(|ph| {
                 let mut v = state_json(&ph.state);
@@ -164,7 +208,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     if args.first().is_some_and(|a| a == "--help" || a == "-h") {
         println!(
-            "Usage: thermo-cli [case.json]\nDefault: embedded dry natural-gas PR-BM homogeneous example.\nSchema/examples: examples/homogeneous-*.json and examples/tp-flash-*.json.\ncalculation: homogeneous (default; requires root) or tp-flash (at most two phases). No PH flash."
+            "Usage: thermo-cli [case.json]\nDefault: embedded dry natural-gas PR-BM homogeneous example.\nSchema/examples: examples/homogeneous-*.json, examples/tp-flash-*.json, examples/ph-flash-*.json.\ncalculation: homogeneous (requires root), tp-flash (requires temperature_k) or ph-flash (requires enthalpy_j_per_mol; temperature is an output). Flashes support at most two phases."
         );
         return Ok(());
     }
@@ -236,10 +280,52 @@ mod tests {
         case.root = Some("minimum-gibbs".into());
         assert!(calculate(case).is_err(), "flash rejects a root request");
         let mut case: Case = serde_json::from_str(input).unwrap();
-        case.calculation = Some("ph-flash".into());
+        case.calculation = Some("unknown-flash".into());
         assert!(calculate(case).is_err());
         let gas = include_str!("../../../examples/tp-flash-natural-gas.json");
         let result = calculate(serde_json::from_str(gas).unwrap()).unwrap();
         assert_eq!(result["phase_count"], 2);
+    }
+
+    #[test]
+    fn ph_cli_round_trip_and_schema_errors() {
+        let input = include_str!("../../../examples/tp-flash-binary.json");
+        let tp = calculate(serde_json::from_str(input).unwrap()).unwrap();
+        let mut ph: Case = serde_json::from_str(input).unwrap();
+        ph.calculation = Some("ph-flash".into());
+        ph.temperature_k = None;
+        ph.enthalpy_j_per_mol = tp["enthalpy_J_per_mol"].as_f64();
+        let output = calculate(ph).unwrap();
+        assert!((output["temperature_K"].as_f64().unwrap() - 250.0).abs() < 1e-7);
+        assert_eq!(output["phase_count"], 2);
+        assert!(
+            output["convergence"]["scaled_energy_residual"]
+                .as_f64()
+                .unwrap()
+                .abs()
+                <= 1e-10
+        );
+        let example = include_str!("../../../examples/ph-flash-natural-gas.json");
+        assert_eq!(
+            calculate(serde_json::from_str(example).unwrap()).unwrap()["phase_count"],
+            2
+        );
+        for invalid in [
+            example.replace("enthalpy_j_per_mol", "wrong_enthalpy"),
+            example.replace(
+                "\"calculation\": \"ph-flash\",",
+                "\"calculation\": \"ph-flash\", \"temperature_k\": 250.0,",
+            ),
+            example.replace(
+                "\"calculation\": \"ph-flash\",",
+                "\"calculation\": \"ph-flash\", \"root\": \"minimum-gibbs\",",
+            ),
+        ] {
+            assert!(
+                serde_json::from_str::<Case>(&invalid)
+                    .map(calculate)
+                    .map_or(true, |r| r.is_err())
+            );
+        }
     }
 }

@@ -2,7 +2,7 @@
 
 A Rust workspace for a planned standalone thermodynamic property engine and steady-state flowsheet simulator.
 
-**Status: homogeneous PR/PR-BM implementation.** Validated SI types, eight pinned component records, NASA7 ideal contributions, cubic roots, fugacities and caloric properties are implemented with offline independent reference comparisons. The CLI evaluates reproducible JSON cases. A4 adds TPD stability assessment, two-phase TP flash and pure saturation pressure with independent reference comparisons ([A4 record](docs/a4-status.md)); PH flash remains open. `flowsheet-core` holds a GUI-independent topology model, and `thermo-desktop` is an `egui` editor prototype without process solving. See the [A1–A3 verification record](docs/a1-a3-status.md) for formulation, tests, domains and remaining acceptance gates.
+**Status: homogeneous PR/PR-BM implementation.** Validated SI types, eight pinned component records, NASA7 ideal contributions, cubic roots, fugacities and caloric properties are implemented with offline independent reference comparisons. The CLI evaluates reproducible JSON cases. A4 adds TPD stability assessment, two-phase TP flash and pure saturation pressure with independent reference comparisons ([A4 record](docs/a4-status.md)); A5 adds PH flash with a pure-fluid saturation lever rule, energy diagnostics and independent references ([A5 record](docs/a5-status.md)). `flowsheet-core` holds a GUI-independent topology model, and `thermo-desktop` is an `egui` editor prototype without process solving. See the [A1–A3 verification record](docs/a1-a3-status.md) for formulation, tests, domains and remaining acceptance gates.
 
 ## Development plan
 
@@ -51,7 +51,14 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo doc --workspace --no-deps --locked
+julia --project=validation/julia validation/julia/check.jl
 ```
+
+The Julia command is the standard independent PR/PR-BM comparison using Julia
+1.11.7 and the locked Clapeyron.jl 0.6.30 environment. It runs on every push/PR
+and in scheduled numerical validation. Ordinary Rust tests also compare the
+committed Clapeyron reference values offline, without requiring Julia. See
+[comparison scope and evidence](validation/clapeyron-checks.md).
 
 ### Desktop UI tests
 

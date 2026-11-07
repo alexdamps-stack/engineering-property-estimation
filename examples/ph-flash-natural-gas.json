@@ -1,0 +1,11 @@
+{
+  "id": "ng-energy-flash-pr-bm-v1",
+  "calculation": "ph-flash",
+  "components": ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide"],
+  "mole_fractions": [0.70, 0.15, 0.13, 0.01, 0.01],
+  "enthalpy_j_per_mol": -6000.0,
+  "pressure_pa": 1500000.0,
+  "model": "PR-BM",
+  "kij": [[0,0,0,0,0], [0,0,0,0,0], [0,0,0,0,0], [0,0,0,0,0], [0,0,0,0,0]],
+  "interaction_source": "Explicit synthetic zero-kij approximation; not fitted VLE data"
+}

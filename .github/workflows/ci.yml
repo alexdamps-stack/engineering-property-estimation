@@ -10,6 +10,27 @@ permissions:
   contents: read
 
 jobs:
+  clapeyron:
+    name: Independent Clapeyron numerical check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      JULIA_NUM_PRECOMPILE_TASKS: 2
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install pinned Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11.7'
+      - uses: julia-actions/cache@v2
+      - name: Instantiate locked Julia reference environment
+        run: julia --project=validation/julia -e 'using Pkg; Pkg.instantiate()'
+      - name: Compare current Rust calculations with live Clapeyron
+        run: julia --project=validation/julia validation/julia/check.jl
+
   workspace:
     name: Workspace (${{ matrix.os }})
     strategy:
