@@ -1,0 +1,23 @@
+{
+  "schema": "a2-tolerance-proposals-provisional-v1",
+  "version": "2026-11-07.1",
+  "status": "all rows pending source generation, conditioning assessment, A1 agreement and coordinator approval",
+  "comparison": "abs(actual - expected) <= atol + rtol * abs(expected); reject nonfinite values before comparison",
+  "scope": "Implementation agreement only; no experimental accuracy claim. Apply separately to PR and PR-BM with their matched references.",
+  "regular_domain_proposal": "320,360,400 K x 0.1,1,5 MPa absolute for each of the two examples; 18 candidate states per model, 36 total; phase and conditioning screening required before acceptance",
+  "quantities": [
+    {"quantity": "molar density", "atol": 0.000001, "unit": "mol/m^3", "rtol": 0.00000001, "minimum_states_per_model": 18, "rationale": "double-precision root agreement; absolute floor protects dilute gas"},
+    {"quantity": "mass density", "atol": 0.00000001, "unit": "kg/m^3", "rtol": 0.00000001, "minimum_states_per_model": 18, "rationale": "same cubic volume and exact shared molar masses required"},
+    {"quantity": "Z", "atol": 0.000000001, "unit": "1", "rtol": 0.00000001, "minimum_states_per_model": 18, "rationale": "near-unity roots need an absolute floor"},
+    {"quantity": "ln phi_i", "atol": 0.000000001, "unit": "1", "rtol": 0.00000001, "minimum_states_per_model": 18, "rationale": "absolute floor near zero fugacity departure; compare every active component"},
+    {"quantity": "residual enthalpy", "atol": 0.001, "unit": "J/mol", "rtol": 0.0000001, "minimum_states_per_model": 18, "rationale": "temperature derivatives and cancellation near ideal limit"},
+    {"quantity": "residual entropy", "atol": 0.00001, "unit": "J/(mol K)", "rtol": 0.0000001, "minimum_states_per_model": 18, "rationale": "zero departure floor and common residual convention required"},
+    {"quantity": "cp", "atol": 0.0001, "unit": "J/(mol K)", "rtol": 0.000001, "minimum_states_per_model": 18, "rationale": "second derivatives; exact ideal cp and R must match"},
+    {"quantity": "speed of sound", "atol": 0.001, "unit": "m/s", "rtol": 0.000001, "minimum_states_per_model": 18, "rationale": "second derivative and molar-to-mass propagation"},
+    {"quantity": "pure saturation pressure", "atol": 0.1, "unit": "Pa", "rtol": 0.000001, "minimum_states_per_model": 9, "rationale": "methane/ethane/propane at Tr 0.70,0.80,0.90; exclude critical/triple regions after screening"},
+    {"quantity": "bubble/dew pressure", "atol": 1.0, "unit": "Pa", "rtol": 0.00001, "minimum_states_per_model": 6, "rationale": "three temperatures per mixture selected only after phase-envelope references establish a valid branch"},
+    {"quantity": "ideal gas cp", "atol": 0.00000001, "unit": "J/(mol K)", "rtol": 0.000000001, "minimum_states_per_model": 40, "rationale": "eight NASA7 gases at 200,298.15,999,1001,6000 K; independent Cantera evaluation needed; separate from cubic state count"}
+  ],
+  "diagnostic_proposals": {"BM_transition": "8 components x T/Tc = 0.999999,1,1.000001 = 24 alpha states per variant; compare value and first derivative; no cp continuity assertion", "ideal_gas_join": "8 x 999.999,1000,1000.001 K = 24 join diagnostics; inspect fit discontinuity, do not force mathematical continuity", "critical_trace_and_phase_boundaries": "separate criteria and reference selection pending; not included in regular counts"},
+  "GERG": {"status": "pending separate A6 source/domain qualification", "candidate": "https://pages.nist.gov/AGA8/", "atol": null, "rtol": null}
+}
