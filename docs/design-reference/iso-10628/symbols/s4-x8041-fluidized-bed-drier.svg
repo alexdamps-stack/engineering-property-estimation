@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="46.4 177.9 42.2 52.2" width="240" height="240" role="img" aria-labelledby="asset-title">
+<title id="asset-title">X8041 — Fluidized bed drier</title>
+<desc>Adapted from Steven Baltakatei Sandoval's ISO 10628-2:2012 symbol sheets. CC BY-SA 4.0; https://creativecommons.org/licenses/by-sa/4.0/. Standalone vector extraction; geometry retained. Source sheet 4, group g18674.</desc>
+<defs xmlns="http://www.w3.org/2000/svg" id="defs7000">
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2430-9-9">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path2428-1-7"/>
+    </marker>
+    <marker orient="auto" refY="0" refX="0" id="marker4500-3" style="overflow:visible">
+      <path id="path4498-6" d="M 0,0 5,-5 -12.5,0 5,5 Z" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" transform="matrix(-0.4,0,0,-0.4,-4,0)"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8372-53" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8370-5"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8716-2" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8714-9"/>
+    </marker>
+  </defs>
+<g xmlns="http://www.w3.org/2000/svg"><g id="g18674" transform="translate(0,297)">
+      <path id="path2341" d="M 67.499999,-108 H 60 l -2.5,5 v 25 h 20 v -25 l -2.5,-5 z" style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+      <path style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="m 67.5,-110.5 v -5" id="path2343"/>
+      <path style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="m 80,-95.5 h 5" id="path2345"/>
+      <path id="path2347" d="m 50,-95.5 h 5" style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 57.5,-100.5 h 20" id="path2349"/>
+      <path id="path2351" d="m 67.5,-108 v 7.5" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 57.5,-93 h 20" id="path2353"/>
+      <g id="g2667">
+        <use transform="translate(-2.5,2.5)" height="100%" width="100%" id="use2648" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#path2413-6" y="0" x="0"/>
+        <use transform="translate(12.5,2.5)" height="100%" width="100%" id="use2650" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#path2413-6" y="0" x="0"/>
+        <use transform="translate(-2.5,-2.5)" height="100%" width="100%" id="use2652" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#use2650" y="0" x="0"/>
+        <use transform="translate(-2.5,2.5)" height="100%" width="100%" id="use2654" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#use2652" y="0" x="0"/>
+        <use transform="translate(-2.5,-2.5)" height="100%" width="100%" id="use2656" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#use2654" y="0" x="0"/>
+        <use transform="translate(-2.5,2.5)" height="100%" width="100%" id="use2658" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#use2656" y="0" x="0"/>
+        <path id="path2413-6" d="M 62.49997,-98 H 62.5" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.75;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+      </g>
+      <path id="path2669" d="m 67.5,-70.5 v -5" style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+    </g></g>
+</svg>

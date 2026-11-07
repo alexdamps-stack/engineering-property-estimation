@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="41.4 332.9 52.2 24.7" width="240" height="240" role="img" aria-labelledby="asset-title">
+<title id="asset-title">X8175 — Conveyer, belt type, reversible</title>
+<desc>Adapted from Steven Baltakatei Sandoval's ISO 10628-2:2012 symbol sheets. CC BY-SA 4.0; https://creativecommons.org/licenses/by-sa/4.0/. Standalone vector extraction; geometry retained. Source sheet 5, group g60761.</desc>
+<defs xmlns="http://www.w3.org/2000/svg" id="defs7000">
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2480-6">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 9.4488194,2.4201489e-6 c 0,0 0,4.7226330798511 0,4.7226330798511 L 4.5817615e-7,2.3613379 Z" id="path2478-2"/>
+    </marker>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker3346">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path3344"/>
+    </marker>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2430-9-9-3-9">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path2428-1-7-6-3"/>
+    </marker>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2480-6-7">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 9.4488194,2.4201489e-6 c 0,0 0,4.7226330798511 0,4.7226330798511 L 4.5817615e-7,2.3613379 Z" id="path2478-2-3"/>
+    </marker>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2430-9-6">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path2428-1-1"/>
+    </marker>
+    <marker orient="auto" refY="0" refX="0" id="marker4500-3" style="overflow:visible">
+      <path id="path4498-6" d="M 0,0 5,-5 -12.5,0 5,5 Z" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" transform="matrix(-0.4,0,0,-0.4,-4,0)"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8372-53" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8370-5"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8716-2" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8714-9"/>
+    </marker>
+  </defs>
+<g xmlns="http://www.w3.org/2000/svg"><g id="g60761" transform="translate(0,297)">
+      <path style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="m 67.374988,44.5 v -5" id="path3096-3"/>
+      <path id="path3098-7" d="M 67.500001,47 H 82.5 V 57 H 52.500002 V 47 Z" style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+      <circle style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" id="circle3104-5" r="2.5" cy="51.999989" cx="57.500004"/>
+      <circle id="circle3106-9" style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" r="2.5" cy="51.999989" cx="77.5"/>
+      <path style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="M 57.499999,54.49998 77.500002,54.5" id="path3108-2"/>
+      <path style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 77.500002,49.5 -20.000003,-3e-5" id="path3110-28"/>
+      <path style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="m 85.000003,52 h 5 v 5" id="path3118-9"/>
+      <path id="path3573" d="m 50,52 h -5 v 5" style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+      <path id="path2531-2-2" d="m 63.75,52 h 7.5" style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;marker-start:url(#marker2480-6-7);marker-end:url(#marker2430-9-6);paint-order:normal"/>
+    </g></g>
+</svg>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="246.199999 505.199984 42.600002 55.100018" width="240" height="240" role="img" aria-labelledby="asset-title">
+<title id="asset-title">X8030 — Screening device, basket reeltype</title>
+<desc>Adapted from Steven Baltakatei Sandoval's ISO 10628-2:2012 symbol sheets. CC BY-SA 4.0; https://creativecommons.org/licenses/by-sa/4.0/. Standalone vector extraction; geometry retained. Source sheet 3, group g33757.</desc>
+<defs xmlns="http://www.w3.org/2000/svg" id="defs7000">
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2430">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path2428"/>
+    </marker>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2480-6">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 9.4488194,2.4201489e-6 c 0,0 0,4.7226330798511 0,4.7226330798511 L 4.5817615e-7,2.3613379 Z" id="path2478-2"/>
+    </marker>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2430-9-7">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path2428-1-0"/>
+    </marker>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2430-7">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path2428-3"/>
+    </marker>
+    <marker orient="auto" refY="0" refX="0" id="marker4500-3" style="overflow:visible">
+      <path id="path4498-6" d="M 0,0 5,-5 -12.5,0 5,5 Z" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" transform="matrix(-0.4,0,0,-0.4,-4,0)"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8372-53" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8370-5"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8716-2" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8714-9"/>
+    </marker>
+  </defs>
+<g xmlns="http://www.w3.org/2000/svg"><g id="g33757" transform="translate(0,297)">
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="M 267.49999,211.99999 H 257.5 v 30.00002 l 9.99999,9.99998 10.00001,-9.99998 v -30.00002 z" id="path2770"/>
+      <circle r="2.5" cy="-267.5" cx="217" id="circle2772" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" transform="rotate(90)"/>
+      <circle style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" id="circle2774" cx="237" cy="-267.5" r="2.5" transform="rotate(90)"/>
+      <path id="path2776" d="M 265,216.99999 V 237" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:3, 1;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+      <path id="path2778" d="m 270,237 10e-6,-20.00001" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:3, 1;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+      <path id="circle2800" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:3, 1;stroke-dashoffset:1.45;stroke-opacity:1;paint-order:normal" d="m -265,-224.5 a 5,5 0 0 1 5,5" transform="scale(-1)"/>
+      <use x="0" y="0" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#circle2800" id="use2806" width="100%" height="100%" transform="translate(0,7.5)"/>
+      <use x="0" y="0" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#use2806" id="use2808" width="100%" height="100%" transform="rotate(180,267.5,225.75)"/>
+      <use x="0" y="0" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#use2808" id="use2810" width="100%" height="100%" transform="translate(0,7.5)"/>
+      <path id="path2812" d="m 267.5,259.5 v -5" style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+      <path style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="m 280,217 h 5" id="path2814"/>
+      <path id="path2816" d="m 250,217 h 5" style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+    </g></g>
+</svg>

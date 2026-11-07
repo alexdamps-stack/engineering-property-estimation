@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="252.999573 22 28.821808 14" width="240" height="240" role="img" aria-labelledby="asset-title">
+<title id="asset-title">X8136 — Tube bundle, heat exchanger with U-shaped tubes</title>
+<desc>Adapted from Steven Baltakatei Sandoval's ISO 10628-2:2012 symbol sheets. CC BY-SA 4.0; https://creativecommons.org/licenses/by-sa/4.0/. Standalone vector extraction; geometry retained. Source sheet 2, group g19580.</desc>
+<defs xmlns="http://www.w3.org/2000/svg" id="defs7000">
+    <inkscape:path-effect xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" effect="spiro" id="path-effect2196" is_visible="true" lpeversion="0"/>
+    <marker xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" inkscape:stockid="Arrow1Mend" orient="auto" refY="0" refX="0" id="marker4500-6" style="overflow:visible" inkscape:isstock="true" inkscape:collect="always">
+      <path id="path4498-8" d="M 0,0 5,-5 -12.5,0 5,5 Z" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" transform="matrix(-0.4,0,0,-0.4,-4,0)"/>
+    </marker>
+    <inkscape:path-effect xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" effect="bspline" id="path-effect4496-8" is_visible="true" weight="33.333333" steps="2" helper_size="0" apply_no_weight="true" apply_with_weight="true" only_selected="false" lpeversion="0"/>
+    <marker xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" inkscape:isstock="true" style="overflow:visible" id="marker8372-4" refX="0" refY="0" orient="auto" inkscape:stockid="Arrow1Mend">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8370-31"/>
+    </marker>
+    <inkscape:path-effect xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" only_selected="false" apply_with_weight="true" apply_no_weight="true" helper_size="0" steps="2" weight="33.333333" is_visible="true" id="path-effect8362-4" effect="bspline" lpeversion="0"/>
+    <marker xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" inkscape:isstock="true" style="overflow:visible" id="marker8716-9" refX="0" refY="0" orient="auto" inkscape:stockid="Arrow1Mend">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8714-2"/>
+    </marker>
+    <inkscape:path-effect xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" effect="bspline" id="path-effect8706-0" is_visible="true" weight="33.333333" steps="2" helper_size="0" apply_no_weight="true" apply_with_weight="true" only_selected="false" lpeversion="0"/>
+  </defs>
+<g xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" inkscape:groupmode="layer" inkscape:label="Main_group_3"><g id="g19580" inkscape:label="REG#:X8136_symbol" transform="translate(0,297)">
+      <path inkscape:connector-curvature="0" id="path2067" d="m 257.49956,-273 h -2.5 v 4.99999 c 0,0 5,0 5,0 V -273 Z" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 257.49956,-267.99999 h -2.5 V -263 c 0,0 5,0 5,0 v -4.99999 z" id="path2069" inkscape:connector-curvature="0"/>
+      <path inkscape:connector-curvature="0" id="path2071" d="m 259.99956,-270.5 h 18.75" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 259.99956,-265.49999 h 18.75" id="path2073" inkscape:connector-curvature="0"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 278.74956,-270.49999 c 0,0 1.07181,0.62564 1.07181,2.50256 0,1.87693 -1.07181,2.50256 -1.07181,2.50256" id="path2075" inkscape:connector-curvature="0" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" sodipodi:nodetypes="csc"/>
+    </g></g>
+</svg>

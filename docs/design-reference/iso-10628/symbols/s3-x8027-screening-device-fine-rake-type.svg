@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="257 308.500004 28.5 43.5" width="240" height="240" role="img" aria-labelledby="asset-title">
+<title id="asset-title">X8027 — Screening device, fine rake type</title>
+<desc>Adapted from Steven Baltakatei Sandoval's ISO 10628-2:2012 symbol sheets. CC BY-SA 4.0; https://creativecommons.org/licenses/by-sa/4.0/. Standalone vector extraction; geometry retained. Source sheet 3, group g32218.</desc>
+<defs xmlns="http://www.w3.org/2000/svg" id="defs7000">
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2430">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path2428"/>
+    </marker>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2480-6">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 9.4488194,2.4201489e-6 c 0,0 0,4.7226330798511 0,4.7226330798511 L 4.5817615e-7,2.3613379 Z" id="path2478-2"/>
+    </marker>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2430-9-7">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path2428-1-0"/>
+    </marker>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2430-7">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path2428-3"/>
+    </marker>
+    <marker orient="auto" refY="0" refX="0" id="marker4500-3" style="overflow:visible">
+      <path id="path4498-6" d="M 0,0 5,-5 -12.5,0 5,5 Z" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" transform="matrix(-0.4,0,0,-0.4,-4,0)"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8372-53" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8370-5"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8716-2" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8714-9"/>
+    </marker>
+  </defs>
+<g xmlns="http://www.w3.org/2000/svg"><g id="g32218" transform="translate(0,297)">
+      <path id="path1898" d="M 267.49999,22 H 260 V 37.000002 L 267.49999,44.5 c 0,0 7.50001,-7.499998 7.50001,-7.499998 V 22 Z" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal"/>
+      <path id="path1900" d="m 260,22.000004 15,15" style="display:inline;opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:3, 3;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+      <path style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="m 267.5,19.500004 v -5" id="path1902"/>
+      <path id="path1904" d="m 267.5,52.000004 v -5" style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+      <path style="display:inline;fill:none;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="m 277.5,34.500004 h 5" id="path1906"/>
+      <g id="g1978" transform="translate(-14.99998,50.000001)">
+        <path id="path1912-6" d="M 282.49998,-25.500001 287.5,-20.5" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal"/>
+        <path id="path1914-7" d="m 286.25,-19.25 1.25,-1.25" style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal"/>
+        <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 281.25,-24.25 1.25,-1.25" id="path1916-5"/>
+        <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 284.583,-20.916667 1.25,-1.25" id="path1918-3"/>
+        <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 282.917,-22.583333 1.25,-1.25" id="path1920-5"/>
+        <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 285.41667,-20.083 1.25,-1.25" id="path1964"/>
+        <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="M 283.75,-21.75 285,-23" id="path1966"/>
+        <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 282.08333,-23.416667 1.25,-1.25" id="path1968"/>
+      </g>
+    </g></g>
+</svg>

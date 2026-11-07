@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="50.099778 419.099999 27.300002 34.800018" width="240" height="240" role="img" aria-labelledby="asset-title">
+<title id="asset-title">X2062 — Closed tank with conical bottom</title>
+<desc>Adapted from Steven Baltakatei Sandoval's ISO 10628-2:2012 symbol sheets. CC BY-SA 4.0; https://creativecommons.org/licenses/by-sa/4.0/. Standalone vector extraction; geometry retained. Source sheet 1, group g7646.</desc>
+<defs xmlns="http://www.w3.org/2000/svg" id="defs7000">
+    <marker style="overflow:visible" id="marker8716" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8714"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8372" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8370"/>
+    </marker>
+    <marker orient="auto" refY="0" refX="0" id="marker4500" style="overflow:visible">
+      <path id="path4498" d="M 0,0 5,-5 -12.5,0 5,5 Z" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" transform="matrix(-0.4,0,0,-0.4,-4,0)"/>
+    </marker>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#pattern4715" id="pattern4727" patternTransform="matrix(0.09760861,0.09760861,-0.09760861,0.09760861,263.75,184.50023)"/>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#pattern4715" id="pattern4723" patternTransform="matrix(0.09760861,0.09760861,-0.09760861,0.09760861,241.25,184.50023)"/>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#pattern4715" id="pattern4719" patternTransform="matrix(0.09760861,0.09760861,-0.09760861,0.09760861,263.75,184.50023)"/>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#pattern4055" id="pattern4715" patternTransform="matrix(0.09760861,0.09760861,-0.09760861,0.09760861,-16.125,102.00001)"/>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#Strips1_8" id="pattern4055" patternTransform="matrix(0.09760861,0.09760861,-0.09760861,0.09760861,-16.125,102)"/>
+    <pattern id="Strips1_8" patternTransform="translate(0,0) scale(10,10)" height="1" width="9" patternUnits="userSpaceOnUse">
+      <rect id="rect3355" height="2" width="1" y="-0.5" x="0" style="fill:black;stroke:none"/>
+    </pattern>
+  </defs>
+<g xmlns="http://www.w3.org/2000/svg"><g id="g7646" transform="translate(0,297)">
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" d="m 57.49978,127.00002 h -5" id="path1080-2"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" d="m 67.49978,149.50003 v 4.99999" id="path1084-2"/>
+      <path style="opacity:1;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 67.49978,124.5 h -7.5 v 15.00002 l 7.5,7.49999 7.5,-7.49999 V 124.5 h -7.5" id="path1687"/>
+    </g></g>
+</svg>

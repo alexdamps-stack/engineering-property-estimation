@@ -4,6 +4,11 @@ Date: November 7, 2026. Status: **proposal for review.** This document suggests 
 
 ## 1. Target users and design principles
 
+The [process symbol reference](design-reference/iso-10628/README.md) supplies 296
+editable SVG equipment, valve, and piping drawings with a searchable catalog and
+AI reuse guidance. Use it when selecting canvas graphics; symbol availability
+does not imply an implemented unit-operation model.
+
 The users are **process engineers**. They know commercial and open simulators (Aspen HYSYS/Plus, DWSIM, UniSim) and expect a process flow diagram (PFD), forms for specifications, stream tables, and engineering units. Design principles that follow from this:
 
 - **Familiar conventions over novelty.** Canvas with unit symbols and streams, a properties panel, and a stream table, as in established simulators.

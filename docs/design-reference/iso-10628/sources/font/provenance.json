@@ -1,0 +1,27 @@
+{
+  "retrieved": "2026-11-07",
+  "source": "https://github.com/hikikomori82/osifont",
+  "license": "GPL-3.0 with upstream font exception (see MANUAL)",
+  "files": [
+    {
+      "file": "osifont.ttf",
+      "url": "https://raw.githubusercontent.com/hikikomori82/osifont/master/osifont.ttf",
+      "sha256": "31e457a464b27ad0e3137bf957f0f4044ed9a3678df91eea2aea55c97c677208"
+    },
+    {
+      "file": "MANUAL",
+      "url": "https://raw.githubusercontent.com/hikikomori82/osifont/master/MANUAL",
+      "sha256": "3b22dd431554618d5cb31e48892111448dc07025a2e4a5ef1ee32f922d608b43"
+    },
+    {
+      "file": "README.md",
+      "url": "https://raw.githubusercontent.com/hikikomori82/osifont/master/README.md",
+      "sha256": "7ba462231fd835682f2594db1207ef2eed8dc4b0f25a160dfe8350313de526c2"
+    },
+    {
+      "file": "GPL-3.0.txt",
+      "url": "https://raw.githubusercontent.com/spdx/license-list-data/main/text/GPL-3.0-or-later.txt",
+      "sha256": "fb981668c18a279e285fc4d83fba1e836cc84dd4daa73c9697d3cfd2d8aca6e0"
+    }
+  ]
+}

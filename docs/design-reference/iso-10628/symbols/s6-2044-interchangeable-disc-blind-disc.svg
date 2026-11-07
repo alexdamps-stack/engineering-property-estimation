@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="462.999969 126.929764 9 24" width="240" height="240" role="img" aria-labelledby="asset-title">
+<title id="asset-title">2044 — Interchangeable disc (blind disc)</title>
+<desc>Adapted from Steven Baltakatei Sandoval's ISO 10628-2:2012 symbol sheets. CC BY-SA 4.0; https://creativecommons.org/licenses/by-sa/4.0/. Standalone vector extraction; geometry retained. Source sheet 6, group g19418.</desc>
+<defs xmlns="http://www.w3.org/2000/svg" id="defs7000">
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#pattern4765" id="pattern5012" patternTransform="matrix(0.19614445,0,0,0.19614445,4.505865e-6,5e-6)"/>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#pattern4765" id="pattern4799" patternTransform="matrix(0.19614445,0,0,0.19614445,4.5100057e-6,5e-6)"/>
+    <linearGradient id="linearGradient4733">
+      <stop style="stop-color:#000000;stop-opacity:1;" offset="0" id="stop4731"/>
+    </linearGradient>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker3346-3">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path3344-6"/>
+    </marker>
+    <pattern xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#Hatch1.0x045-3" id="pattern4765" patternTransform="matrix(0.19614445,0,0,0.19614445,4.5058593e-6,4.9888535e-6)"/>
+    <pattern patternUnits="userSpaceOnUse" height="5.345059133378628" width="5.345059133378628" y="0" x="0" id="Hatch1.0x045-3">
+      <path id="path3673-6" d="M -3.7795275590551185,3.7795275590551185 3.7795275590551185,-3.7795275590551185" style="stroke:#000000;stroke-width:0.25mm"/>
+      <path id="path3675-7" d="M -3.7795275590551185,9.124586692433747 9.124586692433747,-3.7795275590551185" style="stroke:#000000;stroke-width:0.25mm"/>
+      <path id="path3677-5" d="M 1.5655315743235096,9.124586692433747 9.124586692433747,1.5655315743235096" style="stroke:#000000;stroke-width:0.25mm"/>
+    </pattern>
+    <marker markerWidth="9.4488211" markerHeight="4.7226381" refX="4.7244105" refY="2.3613191" orient="auto" id="marker2430-9-3">
+      <path style="opacity:1;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:6.51969;stroke-opacity:1;paint-order:normal" d="m 1.8897638e-6,2.4201488e-6 c 0,0 0,4.7226330798512 0,4.7226330798512 L 9.4488208,2.3613379 Z" id="path2428-1-5"/>
+    </marker>
+    <marker orient="auto" refY="0" refX="0" id="marker4500-3" style="overflow:visible">
+      <path id="path4498-6" d="M 0,0 5,-5 -12.5,0 5,5 Z" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" transform="matrix(-0.4,0,0,-0.4,-4,0)"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8372-53" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8370-5"/>
+    </marker>
+    <marker style="overflow:visible" id="marker8716-2" refX="0" refY="0" orient="auto">
+      <path transform="matrix(-0.4,0,0,-0.4,-4,0)" style="fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:1pt;stroke-opacity:1" d="M 0,0 5,-5 -12.5,0 5,5 Z" id="path8714-9"/>
+    </marker>
+  </defs>
+<g xmlns="http://www.w3.org/2000/svg"><g id="g19418" style="display:inline" transform="translate(0,297)">
+      <path style="display:inline;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" d="m 467.49999,-158.07023 v 10" id="path6226"/>
+      <circle style="display:inline;fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal" id="circle6228" cx="467.49997" cy="-165.57024" r="2.5"/>
+      <circle r="2.5" cy="-160.57024" cx="467.49997" id="circle6230" style="display:inline;fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;paint-order:normal"/>
+    </g></g>
+</svg>

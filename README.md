@@ -40,6 +40,9 @@ cargo run -p thermo-desktop --locked
 
 The desktop command is a console placeholder; it does not open a GUI.
 
+For future flowsheet/UI design, see the [process symbol reference](docs/design-reference/iso-10628/README.md):
+296 editable SVG symbols, a searchable visual catalog, source references, and AI reuse guidance.
+
 ## Checks
 
 ```sh
