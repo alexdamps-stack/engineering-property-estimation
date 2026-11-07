@@ -1,6 +1,6 @@
 # Architecture
 
-The repository starts with six library crates and two binary crates. Library crates contain module documentation only. Binary crates report that implementation is pending. There are no public calculation functions, cross-crate dependencies, external dependencies, or selected GUI framework yet.
+The repository has six library crates and two binary crates. There are no public calculation functions yet. Except for `flowsheet-core`, the library crates contain only module documentation. `flowsheet-core` holds a GUI-independent topology model: units, ports, streams, specifications, and pre-calculation diagnostics. `thermo-desktop` is a GUI prototype built on `egui`/`eframe` and depends on `flowsheet-core`. Using `egui` here is for the prototype only and does not decide the final framework (see the [flowsheet and interface proposal](flowsheet-and-ui.md), section 4.7). Canvas layout, zoom, and selection stay in the desktop crate.
 
 ## Intended boundaries
 

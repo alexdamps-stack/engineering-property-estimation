@@ -2,7 +2,7 @@
 
 A Rust workspace for a planned standalone thermodynamic property engine and steady-state flowsheet simulator.
 
-**Status: initial scaffold.** Thermodynamic models, flash calculations, component datasets, and the graphical interface are not implemented. The two executable entry points print scaffold notices only. Passing CI verifies the workspace structure, not numerical accuracy.
+**Status: initial scaffold.** Thermodynamic models, flash calculations, and component datasets are not implemented. `flowsheet-core` holds a GUI-independent flowsheet topology model, and `thermo-desktop` is an `egui` prototype of the flowsheet editor; it cannot solve or display results. The CLI prints a scaffold notice only. Passing CI verifies the workspace structure, not numerical accuracy.
 
 ## Development plan
 
@@ -21,7 +21,7 @@ Initial numerical priorities are PR/PR-BM, validated component data, stability a
 | `property-packages` | Compatible model/data combinations |
 | `flowsheet-core` | Streams, unit operations, balances, calculation order |
 | `thermo-cli` | Command-line entry point |
-| `thermo-desktop` | Future native graphical application |
+| `thermo-desktop` | Native flowsheet editor (`egui` prototype) |
 
 Additional directories: `data/` for qualified data, `examples/` for reproducible cases, `validation/` for independent reference comparisons, and `docs/` for planning and architecture. Each currently contains guidance rather than numerical content.
 
@@ -38,7 +38,7 @@ cargo run -p thermo-cli --locked
 cargo run -p thermo-desktop --locked
 ```
 
-The desktop command is a console placeholder; it does not open a GUI.
+The desktop command opens the flowsheet editor prototype. Add `-- --demo` to start with the demonstration flowsheet (mix, cool, expand, separate). You can place units, connect ports, and enter specifications; solving stays disabled until the flowsheet engine (A8) exists.
 
 ## Checks
 
@@ -47,6 +47,22 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo doc --workspace --no-deps --locked
+```
+
+### Desktop UI tests
+
+`crates/thermo-desktop/tests/ui.rs` runs the whole editor headlessly with [`egui_kittest`](https://docs.rs/egui_kittest). The tests never open a window or move the real mouse:
+
+- **Interaction tests** inject pointer and key events: placing units, connecting nozzles, moving and deleting.
+- **Snapshot tests** render the UI off-screen and compare it with the PNG baselines in `tests/snapshots/`.
+
+After an intended visual change, set `UPDATE_SNAPSHOTS=1` to re-record the baselines, then review the PNGs before committing. On CI the snapshots are rendered but not compared pixel by pixel.
+
+On Windows with **Smart App Control** enabled, freshly built unsigned test executables can be blocked ("An application control policy has blocked this file"). Run the UI tests in WSL instead (needs Ubuntu with rustup and `mesa-vulkan-drivers`):
+
+```powershell
+wsl -d Ubuntu --cd "$PWD" -- bash scripts/wsl-ui-tests.sh
+wsl -d Ubuntu --cd "$PWD" -- env UPDATE_SNAPSHOTS=1 bash scripts/wsl-ui-tests.sh
 ```
 
 No numerical tests or validation claims are present yet. Add meaningful reference-based tests as models are introduced, following the [testing strategy](docs/testing-strategy.md). See also [contributing](CONTRIBUTING.md), [architecture](docs/architecture.md), and the [artifact inventory](docs/artifact-inventory.md).
