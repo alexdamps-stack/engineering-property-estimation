@@ -2,7 +2,7 @@
 
 A Rust workspace for a planned standalone thermodynamic property engine and steady-state flowsheet simulator.
 
-**Status: initial scaffold.** Thermodynamic models, flash calculations, and component datasets are not implemented. `flowsheet-core` holds a GUI-independent flowsheet topology model, and `thermo-desktop` is an `egui` prototype of the flowsheet editor; it cannot solve or display results. The CLI prints a scaffold notice only. Passing CI verifies the workspace structure, not numerical accuracy.
+**Status: homogeneous PR/PR-BM implementation.** Validated SI types, eight pinned component records, NASA7 ideal contributions, cubic roots, fugacities and caloric properties are implemented with offline independent reference comparisons. The CLI evaluates reproducible JSON cases. Stability and TP/PH flash remain open. `flowsheet-core` holds a GUI-independent topology model, and `thermo-desktop` is an `egui` editor prototype without process solving. See the [A1–A3 verification record](docs/a1-a3-status.md) for formulation, tests, domains and remaining acceptance gates.
 
 ## Development plan
 
@@ -23,7 +23,7 @@ Initial numerical priorities are PR/PR-BM, validated component data, stability a
 | `thermo-cli` | Command-line entry point |
 | `thermo-desktop` | Native flowsheet editor (`egui` prototype) |
 
-Additional directories: `data/` for qualified data, `examples/` for reproducible cases, `validation/` for independent reference comparisons, and `docs/` for planning and architecture. Each currently contains guidance rather than numerical content.
+Additional directories: `data/` for pinned source transcriptions, `examples/` for reproducible cases, `validation/` for independent reference comparisons, and `docs/` for planning and architecture.
 
 ## Getting started
 
@@ -35,6 +35,7 @@ From the repository root:
 rustup show
 cargo build --workspace --locked
 cargo run -p thermo-cli --locked
+cargo run -p thermo-cli --locked -- examples/homogeneous-binary.json
 cargo run -p thermo-desktop --locked
 ```
 
@@ -68,7 +69,7 @@ wsl -d Ubuntu --cd "$PWD" -- bash scripts/wsl-ui-tests.sh
 wsl -d Ubuntu --cd "$PWD" -- env UPDATE_SNAPSHOTS=1 bash scripts/wsl-ui-tests.sh
 ```
 
-No numerical tests or validation claims are present yet. Add meaningful reference-based tests as models are introduced, following the [testing strategy](docs/testing-strategy.md). See also [contributing](CONTRIBUTING.md), [architecture](docs/architecture.md), and the [artifact inventory](docs/artifact-inventory.md).
+Numerical tests compare homogeneous PR and PR-BM separately against teqp and NASA7 against Cantera. They verify implementation agreement; phase stability and experimental accuracy are unassessed. See the [testing strategy](docs/testing-strategy.md), [contributing](CONTRIBUTING.md), [architecture](docs/architecture.md), and [artifact inventory](docs/artifact-inventory.md).
 
 ## Access and licensing
 

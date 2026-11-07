@@ -1,5 +1,11 @@
 # Calculation contract — provisional A1 foundation
 
+Current implementation decisions and check evidence are recorded in
+[A1–A3 status](a1-a3-status.md). In particular, A3 now selects exact critical
+factors, analytical temperature derivatives, scalar root isolation without a
+matrix dependency, and cp-integrated NASA7 reference offsets. The original
+foundation and worker history below remain for audit.
+
 This contract defines the dependency-free `thermo-types` API introduced after
 scaffold baseline `bf86da9`. It implements validated inputs and conversions,
 not thermodynamic models, flashes, property packages or numerical accuracy

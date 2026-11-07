@@ -7,3 +7,11 @@ description = "Thermodynamic formulations and derivatives."
 
 [lints]
 workspace = true
+
+[dependencies]
+thermo-types = { path = "../thermo-types" }
+thermo-data = { path = "../thermo-data" }
+
+[dev-dependencies]
+serde_json = "1"
+proptest = "1"
