@@ -17,10 +17,15 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TERM_COLOR: always
+      RUSTDOCFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Install pinned Rust toolchain
         run: rustup show
+      - name: Cache Cargo registry and build output
+        uses: Swatinem/rust-cache@v2
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Lint workspace

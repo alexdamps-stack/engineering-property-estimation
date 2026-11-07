@@ -1,5 +1,7 @@
 # Entwicklungsplan – Engineering Tools / Property Estimation
 
+> **Historische Fassung.** Dieses Dokument ist die ursprüngliche Planungsgrundlage vom 1. November 2026 und wird nicht mehr fortgeschrieben. Bestandsaufnahme (§2) und Architekturhinweis (§4) beschreiben den Stand vor Einrichtung des Repositorys. Maßgeblich für Umfang, Arbeitspakete und Abnahmekriterien ist der englische Plan [`docs/development-plan.md`](docs/development-plan.md); die Prüfanforderungen stehen in [`docs/testing-strategy.md`](docs/testing-strategy.md).
+
 Stand: 1. November 2026. Neuer Planungsvorschlag auf Grundlage der zugänglichen Projektchats und der lokalen Bestandsaufnahme.
 
 ## 1. Ziel und Leitentscheidungen
