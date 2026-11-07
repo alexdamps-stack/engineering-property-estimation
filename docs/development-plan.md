@@ -4,6 +4,11 @@ Date: November 1, 2026; revised November 7, 2026 after a plan and test review. P
 
 ## Repository setup note
 
+Current numerical implementation: see [A1–A3 verification record](a1-a3-status.md)
+for the homogeneous PR/PR-BM engine, executed references, and outstanding gates.
+The scaffold description below records the initial setup rather than current
+implementation status.
+
 The initial repository now supplies the Rust workspace and documentation structure. All eight crates are scaffolds; no thermodynamic models, solvers, GUI, datasets, or numerical validation results are included. The historical inventory below describes the state before this repository was initialized. Creating the scaffold does not complete the numerical contracts, data work, or validation required by A1 and subsequent packages.
 
 ## 1. Goal and guiding decisions

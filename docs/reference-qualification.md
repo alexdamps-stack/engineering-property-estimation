@@ -1,5 +1,11 @@
 # A2 reference preparation and qualification
 
+**Implementation update:** [A1–A3 status](a1-a3-status.md) records the implemented
+homogeneous data/model path and executed independent teqp/Cantera references.
+It resolves the earlier exact-factor, offset and homogeneous expected-value
+gaps; demonstration phase/PH and full milestone acceptance remain pending.
+The preparation-only statements below describe the earlier first-wave record.
+
 Prepared 2026-11-07 against scaffold baseline `bf86da9`. **Preparation only:**
 A1 integration, independent output generation, phase qualification and numerical
 tolerance approval remain pending. No PR, PR-BM, flash or experimental acceptance

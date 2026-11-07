@@ -1,4 +1,4 @@
-//! Thermodynamic formulations and derivatives.
-//!
-//! Scaffold only. Public calculation APIs will be introduced with the
-//! corresponding work packages in docs/development-plan.md.
+//! Untranslated PR and PR-BM homogeneous roots and molar caloric properties.
+//! This is a fixed-composition EOS evaluator, not a stability test or flash.
+mod cubic;
+pub use cubic::*;

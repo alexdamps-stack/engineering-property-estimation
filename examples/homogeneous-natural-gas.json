@@ -1,0 +1,11 @@
+{
+  "id": "ng-dry-homogeneous-bm-v1",
+  "components": ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide"],
+  "mole_fractions": [0.88, 0.06, 0.03, 0.02, 0.01],
+  "temperature_k": 330.0,
+  "pressure_pa": 5000000.0,
+  "model": "PR-BM",
+  "root": "minimum-gibbs",
+  "kij": [[0,0,0,0,0], [0,0,0,0,0], [0,0,0,0,0], [0,0,0,0,0], [0,0,0,0,0]],
+  "interaction_source": "Explicit synthetic zero-kij approximation; not fitted VLE data"
+}

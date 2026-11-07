@@ -1,0 +1,6 @@
+teqp==0.23.2
+numpy==2.3.4
+scipy==1.16.3
+cantera==3.2.0
+ruamel.yaml==0.19.1
+typing_extensions==4.16.0

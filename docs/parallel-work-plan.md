@@ -1,5 +1,10 @@
 # Parallel work plan
 
+Continuation on November 7: the [A1–A3 verification record](a1-a3-status.md)
+documents the subsequent homogeneous implementation, independent references
+and review. The first-wave history below is retained; no first-wave worker is
+still assigned. Full milestone gates are not superseded by implementation tests.
+
 Prepared November 7, 2026 against `bf86da9`, using the maintained
 [development plan](development-plan.md), artifact inventory, architecture, and
 testing strategy. All eight crates are still scaffolds. This dispatch starts the

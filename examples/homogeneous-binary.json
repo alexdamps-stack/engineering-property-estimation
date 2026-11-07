@@ -1,0 +1,11 @@
+{
+  "id": "c1-c3-homogeneous-pr-v1",
+  "components": ["methane", "propane"],
+  "mole_fractions": [0.5, 0.5],
+  "temperature_k": 330.0,
+  "pressure_pa": 2000000.0,
+  "model": "PR",
+  "root": "minimum-gibbs",
+  "kij": [[0,0], [0,0]],
+  "interaction_source": "Explicit synthetic zero-kij approximation; not fitted VLE data"
+}

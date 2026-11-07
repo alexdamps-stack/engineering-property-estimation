@@ -1,0 +1,57 @@
+{
+  "schema": "helmholtz-decimal-reference-v1",
+  "precision_decimal_digits": 80,
+  "generator": "validation/generate-helmholtz-reference.py",
+  "input_sha256": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147",
+  "method": "Independent Decimal evaluation of untranslated PR Helmholtz expression, same pinned constants; no Rust calls",
+  "cases": [
+    {
+      "variant": "PR",
+      "component": "methane",
+      "temperature_K": "300",
+      "volume_m3": "1",
+      "moles": "1000",
+      "energy_J": "-129253.47041445499890075121569060138081087713831147644643282294769649263122972104"
+    },
+    {
+      "variant": "PR",
+      "component": "methane",
+      "temperature_K": "300",
+      "volume_m3": "1E+27",
+      "moles": "1E+15",
+      "energy_J": "-135.35394993250723312263959415977744163411591889658301008800474822023118253900948"
+    },
+    {
+      "variant": "PR",
+      "component": "methane",
+      "temperature_K": "300",
+      "volume_m3": "1E+30",
+      "moles": "1E+15",
+      "energy_J": "-0.13535394993250723943143528537034654349504499495549023729496466720873597203724931"
+    },
+    {
+      "variant": "PR-BM",
+      "component": "methane",
+      "temperature_K": "300",
+      "volume_m3": "1",
+      "moles": "1000",
+      "energy_J": "-124223.42650331914552746498450425251347316496517228996768309397700884455008354992"
+    },
+    {
+      "variant": "PR-BM",
+      "component": "methane",
+      "temperature_K": "300",
+      "volume_m3": "1E+27",
+      "moles": "1E+15",
+      "energy_J": "-130.19144266635652178349125928013795678055492413274000764037403944865319515292172"
+    },
+    {
+      "variant": "PR-BM",
+      "component": "methane",
+      "temperature_K": "300",
+      "volume_m3": "1E+30",
+      "moles": "1E+15",
+      "energy_J": "-0.13019144266635652795406513466581735501094950159390191959115359411236189571348634"
+    }
+  ]
+}

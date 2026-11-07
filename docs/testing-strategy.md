@@ -116,17 +116,25 @@ Set property tolerances before implementation using reference quality and condit
 
 | Quantity | Model / reference | `atol` (unit) | `rtol` | State domain | Rationale |
 |---|---|---|---|---|---|
-| Density ρ | PR, PR-BM / to be selected in A2 | open | open | open | open |
-| Compressibility factor Z | PR, PR-BM / to be selected in A2 | open | open | open | open |
-| ln φ_i | PR, PR-BM / to be selected in A2 | open | open | open | open |
-| Residual enthalpy h_res | PR, PR-BM / to be selected in A2 | open | open | open | open |
-| Residual entropy s_res | PR, PR-BM / to be selected in A2 | open | open | open | open |
-| Isobaric heat capacity cp | PR, PR-BM / to be selected in A2 | open | open | open | open |
-| Speed of sound w | PR, PR-BM / to be selected in A2 | open | open | open | open |
+| Mass density ρ | PR-exact and PR-exact-BM / teqp 0.23.2 | 1e-7 kg/m³ | 2e-9 | 30 homogeneous states/model, including 18 regular grid states | Double precision, matched constants and regular roots |
+| Compressibility factor Z | same separate model fixtures | 2e-10 | 2e-9 | same, every admissible root | Independent NumPy roots plus teqp pressure refinement |
+| ln φ_i | same | 2e-9 | 2e-9 | mechanically stable roots in same fixture | Independent residual Helmholtz derivatives |
+| Residual and total enthalpy | same + Cantera 3.2 NASA7 for total | 2e-5 J/mol | 2e-9 | same | Matched R and ideal reference offsets |
+| Residual and total entropy | same + Cantera 3.2 NASA7 for total | 2e-7 J/(mol K) | 2e-9 | same | Same-T,p ideal departures and mixing entropy |
+| cp and cv | same + Cantera 3.2 NASA7 | 2e-5 J/(mol K) | 2e-8 | smooth stable roots; BM Tc excluded | Second-derivative and root conditioning budget |
+| Speed of sound w | same | 2e-4 m/s | 2e-8 | same | Independent residual derivatives and cp/cv |
 | Saturation pressure | PR, PR-BM / to be selected in A2 | open | open | open | open |
 | Density, cp, w | GERG-2008 / NIST AGA8 reference values | open | open | open | open |
 
 Each row also states the minimum number of reference states and how they cover the domain, for example a temperature–pressure grid per mixture. Critical regions and trace components require separate justified criteria; do not silently relax tolerances after failures. Experimental comparisons must state measurement uncertainty and application accuracy requirements separately from numerical agreement limits.
+
+The homogeneous fixture, exact state list, preselected budgets, reference
+independence and computational/physical validity distinction are documented in
+[A1–A3 status](a1-a3-status.md). These rows qualify implementation agreement for
+that fixture only; saturation and process phase qualification remain open.
+The manual/monthly numerical-validation workflow runs the fixed independent
+fixtures plus 2048 fixed-seed permutation/scaling/identity cases per platform in
+release mode. It never regenerates expected values.
 
 Generated cases must record a fixed random seed, generator version, domain, and sampling method. Preserve failing generated inputs as small regression fixtures. Reports identify the code commit, toolchain/platform, case, model/data versions, expected and actual results, residuals, tolerances, phase outcome, and solver status/iterations where applicable. Report failures and unsupported states explicitly; exclude neither silently from success rates.
 
