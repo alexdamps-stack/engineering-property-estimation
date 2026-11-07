@@ -22,6 +22,7 @@ pub use flowsheet::{
     ConnectError, Diagnostic, DiagnosticKind, Flowsheet, Stream, StreamId, UnitStatus,
 };
 pub use unit::{
-    MixerPressure, PortDirection, PortRef, PortSpec, PressureSpec, SeparatorThermal, SpecIssue,
-    SpecProblem, ThermalSpec, Unit, UnitId, UnitKind, UnitSpec,
+    DEFAULT_EFFICIENCY, ExchangerSpec, MixerPressure, PortDirection, PortRef, PortSpec,
+    PressureRise, PressureSpec, SeparatorThermal, SpecIssue, SpecProblem, ThermalSpec, Unit,
+    UnitId, UnitKind, UnitSpec,
 };

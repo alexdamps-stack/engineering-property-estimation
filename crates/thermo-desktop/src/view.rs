@@ -80,8 +80,14 @@ pub fn block_size(kind: UnitKind) -> Vec2 {
         UnitKind::Heater | UnitKind::Cooler => vec2(50.0, 50.0),
         UnitKind::Valve => vec2(40.0, 40.0),
         UnitKind::Separator => vec2(50.0, 130.0),
+        UnitKind::Splitter => vec2(40.0, 60.0),
+        UnitKind::HeatExchanger => vec2(90.0, 60.0),
+        UnitKind::Pump | UnitKind::Compressor | UnitKind::Expander => vec2(60.0, 60.0),
     }
 }
+
+/// Radius of the pump casing; its discharge leaves tangentially at the top.
+pub const PUMP_RADIUS: f32 = 20.0;
 
 /// World-space rectangle of a unit symbol centred at `center`.
 pub fn block_rect(kind: UnitKind, center: Pos2) -> Rect {
@@ -108,6 +114,10 @@ pub fn port_pos(kind: UnitKind, center: Pos2, index: usize) -> Pos2 {
     let Some(spec) = ports.get(index) else {
         return center;
     };
+    // Centrifugal pump: tangential discharge nozzle at the top of the casing.
+    if kind == UnitKind::Pump && spec.direction == PortDirection::Outlet {
+        return pos2(rect.right(), center.y - PUMP_RADIUS);
+    }
     let exit = port_exit(kind, index);
     if exit.y < 0.0 {
         return rect.center_top();
@@ -203,43 +213,99 @@ fn simplify(pts: Vec<Pos2>) -> Vec<Pos2> {
 ///
 /// Returns the anchor on the line and whether its run is horizontal.
 pub fn route_label_anchor(route: &[Pos2], arrow_clearance: f32) -> Option<(Pos2, bool)> {
-    let last = route.len().checked_sub(2)?;
-    let usable = |i: usize, w: &[Pos2]| {
-        let (a, mut b) = (w[0], w[1]);
-        if i == last {
-            let len = a.distance(b);
-            b = a + (b - a) * ((len - arrow_clearance).max(0.0) / len.max(1e-6));
-        }
-        (a, b)
+    route_label_candidates(route, arrow_clearance)
+        .into_iter()
+        .next()
+}
+
+/// All anchors for a stream number in order of preference: horizontal runs
+/// before vertical ones, longer runs first, earlier runs first on ties.
+pub fn route_label_candidates(route: &[Pos2], arrow_clearance: f32) -> Vec<(Pos2, bool)> {
+    let Some(last) = route.len().checked_sub(2) else {
+        return Vec::new();
     };
-    let best = |horizontal_only: bool| {
-        let mut best: Option<(f32, Pos2)> = None;
-        for (i, w) in route.windows(2).enumerate() {
-            if horizontal_only && w[0].y != w[1].y {
-                continue;
+    let mut runs: Vec<(bool, f32, usize, Pos2)> = route
+        .windows(2)
+        .enumerate()
+        .filter_map(|(i, w)| {
+            let (a, mut b) = (w[0], w[1]);
+            if i == last {
+                let len = a.distance(b);
+                b = a + (b - a) * ((len - arrow_clearance).max(0.0) / len.max(1e-6));
             }
-            let (a, b) = usable(i, w);
             let len = a.distance(b);
-            if best.is_none_or(|(l, _)| len > l + 0.5) {
-                best = Some((len, a + (b - a) / 2.0));
-            }
-        }
-        best.map(|(_, p)| p)
-    };
-    best(true)
-        .map(|p| (p, true))
-        .or_else(|| best(false).map(|p| (p, false)))
+            (len >= 1.0).then_some((w[0].y == w[1].y, len, i, a + (b - a) / 2.0))
+        })
+        .collect();
+    // Lengths within half a point count as equal so earlier runs win ties.
+    runs.sort_by(|x, y| {
+        y.0.cmp(&x.0)
+            .then_with(|| (y.1 * 2.0).round().total_cmp(&(x.1 * 2.0).round()))
+            .then(x.2.cmp(&y.2))
+    });
+    runs.into_iter().map(|(h, _, _, p)| (p, h)).collect()
 }
 
 /// Centre of a stream tag with half extents `half` placed beside the line at
-/// `anchor`, leaving `gap` between tag and line: above a horizontal run,
-/// right of a vertical run. The tag never covers the line it labels.
-pub fn tag_center(anchor: Pos2, horizontal: bool, half: Vec2, gap: f32) -> Pos2 {
+/// `anchor`, leaving `gap` between tag and line. A horizontal run puts the
+/// tag above (`flip`: below), a vertical run to the right (`flip`: left).
+/// The tag never covers the line it labels.
+pub fn tag_center(anchor: Pos2, horizontal: bool, half: Vec2, gap: f32, flip: bool) -> Pos2 {
+    let sign = if flip { -1.0 } else { 1.0 };
     if horizontal {
-        anchor - vec2(0.0, half.y + gap)
+        anchor - vec2(0.0, (half.y + gap) * sign)
     } else {
-        anchor + vec2(half.x + gap, 0.0)
+        anchor + vec2((half.x + gap) * sign, 0.0)
     }
+}
+
+/// Whether any segment of `line` passes through `rect`.
+pub fn line_crosses_rect(line: &[Pos2], rect: Rect) -> bool {
+    line.windows(2).any(|w| {
+        let (a, b) = (w[0], w[1]);
+        if a.y == b.y {
+            rect.y_range().contains(a.y)
+                && a.x.min(b.x) <= rect.right()
+                && a.x.max(b.x) >= rect.left()
+        } else if a.x == b.x {
+            rect.x_range().contains(a.x)
+                && a.y.min(b.y) <= rect.bottom()
+                && a.y.max(b.y) >= rect.top()
+        } else {
+            (0..=16).any(|i| rect.contains(a + (b - a) * (i as f32 / 16.0)))
+        }
+    })
+}
+
+/// Chooses the centre of a stream tag with half extents `half` for `route`.
+///
+/// Tries every candidate run (see [`route_label_candidates`]) on both sides
+/// of the line and returns the first position whose box overlaps none of
+/// `obstacles` (equipment and tags already placed) and is crossed by none of
+/// `lines` (all stream routes, including this one). Falls back to the
+/// preferred position when every option collides.
+pub fn place_tag(
+    route: &[Pos2],
+    half: Vec2,
+    gap: f32,
+    arrow_clearance: f32,
+    obstacles: &[Rect],
+    lines: &[&[Pos2]],
+) -> Option<Pos2> {
+    let candidates = route_label_candidates(route, arrow_clearance);
+    let first = candidates.first().copied()?;
+    for &(anchor, horizontal) in &candidates {
+        for flip in [false, true] {
+            let center = tag_center(anchor, horizontal, half, gap, flip);
+            let rect = Rect::from_center_size(center, half * 2.0);
+            let free = !obstacles.iter().any(|o| o.intersects(rect))
+                && !lines.iter().any(|l| line_crosses_rect(l, rect));
+            if free {
+                return Some(center);
+            }
+        }
+    }
+    Some(tag_center(first.0, first.1, half, gap, false))
 }
 
 /// Shortest distance from `p` to a polyline.
@@ -427,12 +493,70 @@ mod tests {
         let half = vec2(18.0, 10.0);
         let gap = 3.0;
         // Horizontal run: tag above, its bottom corner `gap` above the line.
-        let c = tag_center(pos2(50.0, 0.0), true, half, gap);
+        let c = tag_center(pos2(50.0, 0.0), true, half, gap, false);
         assert_eq!(c, pos2(50.0, -13.0));
         assert!(c.y + half.y < 0.0);
         // Vertical run: tag to the right, its left corner `gap` right of the line.
-        let c = tag_center(pos2(0.0, 50.0), false, half, gap);
+        let c = tag_center(pos2(0.0, 50.0), false, half, gap, false);
         assert_eq!(c, pos2(21.0, 50.0));
         assert!(c.x - half.x > 0.0);
+        // Flipped: below a horizontal run, left of a vertical run.
+        assert_eq!(
+            tag_center(pos2(50.0, 0.0), true, half, gap, true),
+            pos2(50.0, 13.0)
+        );
+        assert_eq!(
+            tag_center(pos2(0.0, 50.0), false, half, gap, true),
+            pos2(-21.0, 50.0)
+        );
+    }
+
+    #[test]
+    fn line_crossing_detection() {
+        let rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(10.0, 10.0));
+        assert!(line_crosses_rect(&[pos2(-5.0, 5.0), pos2(20.0, 5.0)], rect));
+        assert!(line_crosses_rect(&[pos2(5.0, -5.0), pos2(5.0, 20.0)], rect));
+        assert!(!line_crosses_rect(
+            &[pos2(-5.0, 15.0), pos2(20.0, 15.0)],
+            rect
+        ));
+        assert!(!line_crosses_rect(
+            &[pos2(15.0, -5.0), pos2(15.0, 20.0)],
+            rect
+        ));
+    }
+
+    #[test]
+    fn tags_of_parallel_streams_do_not_overlap() {
+        // Two outlets 20 apart running in parallel, like a splitter's.
+        let a = vec![pos2(0.0, 0.0), pos2(100.0, 0.0)];
+        let b = vec![pos2(0.0, 20.0), pos2(100.0, 20.0)];
+        let lines: Vec<&[Pos2]> = vec![&a, &b];
+        let half = vec2(16.0, 9.0);
+        let first = place_tag(&a, half, 3.0, 0.0, &[], &lines).unwrap();
+        let first_rect = Rect::from_center_size(first, half * 2.0);
+        let second = place_tag(&b, half, 3.0, 0.0, &[first_rect], &lines).unwrap();
+        let second_rect = Rect::from_center_size(second, half * 2.0);
+        assert!(!first_rect.intersects(second_rect), "{first:?} {second:?}");
+        // Neither tag covers either line.
+        for r in [first_rect, second_rect] {
+            assert!(!line_crosses_rect(&a, r) && !line_crosses_rect(&b, r));
+        }
+    }
+
+    #[test]
+    fn tag_avoids_equipment_and_falls_back_when_boxed_in() {
+        let route = vec![pos2(0.0, 0.0), pos2(100.0, 0.0)];
+        let lines: Vec<&[Pos2]> = vec![&route];
+        let half = vec2(16.0, 9.0);
+        let above = Rect::from_min_max(pos2(-50.0, -40.0), pos2(150.0, -1.0));
+        let c = place_tag(&route, half, 3.0, 0.0, &[above], &lines).unwrap();
+        assert!(c.y > 0.0, "should move below the line: {c:?}");
+        let below = Rect::from_min_max(pos2(-50.0, 1.0), pos2(150.0, 40.0));
+        let fallback = place_tag(&route, half, 3.0, 0.0, &[above, below], &lines).unwrap();
+        assert_eq!(
+            fallback,
+            tag_center(pos2(50.0, 0.0), true, half, 3.0, false)
+        );
     }
 }

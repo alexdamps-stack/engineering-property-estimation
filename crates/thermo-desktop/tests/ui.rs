@@ -274,3 +274,71 @@ fn snapshot_selected_cooler_properties() {
     let mut h = harness(app, egui::Theme::Dark);
     check_snapshot(&mut h, "cooler_selected_dark");
 }
+
+#[test]
+fn every_palette_entry_places_its_unit_kind() {
+    let mut h = harness(FlowsheetApp::default(), egui::Theme::Dark);
+    for kind in UnitKind::ALL {
+        h.get_by_label(kind.label()).click();
+        h.run();
+        let ed = h.state().editor();
+        let Some(Selection::Unit(id)) = ed.selection else {
+            panic!("{kind}: nothing selected after placing");
+        };
+        assert_eq!(ed.fs.unit(id).map(|u| u.kind), Some(kind));
+    }
+    assert_eq!(h.state().editor().fs.units().count(), UnitKind::ALL.len());
+}
+
+/// Splitter, pump, compressor, expander, and two-stream heat exchanger
+/// wired into one small flowsheet.
+fn equipment_gallery() -> FlowsheetApp {
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    let at = egui::pos2;
+    let feed1 = ed.add_unit_at(UnitKind::Feed, at(-100.0, 0.0));
+    let tee = ed.add_unit_at(UnitKind::Splitter, at(20.0, 0.0));
+    let pump = ed.add_unit_at(UnitKind::Pump, at(140.0, -60.0));
+    let p1 = ed.add_unit_at(UnitKind::Product, at(300.0, -80.0));
+    let comp = ed.add_unit_at(UnitKind::Compressor, at(140.0, 60.0));
+    let exp = ed.add_unit_at(UnitKind::Expander, at(260.0, 60.0));
+    let hx = ed.add_unit_at(UnitKind::HeatExchanger, at(420.0, 70.0));
+    let feed2 = ed.add_unit_at(UnitKind::Feed, at(260.0, 160.0));
+    let p2 = ed.add_unit_at(UnitKind::Product, at(580.0, 60.0));
+    let p3 = ed.add_unit_at(UnitKind::Product, at(580.0, 140.0));
+    for ((a, pa), (b, pb)) in [
+        ((feed1, 0), (tee, 0)),
+        ((tee, 1), (pump, 0)),
+        ((pump, 1), (p1, 0)),
+        ((tee, 2), (comp, 0)),
+        ((comp, 1), (exp, 0)),
+        ((exp, 1), (hx, 0)),
+        ((feed2, 0), (hx, 1)),
+        ((hx, 2), (p2, 0)),
+        ((hx, 3), (p3, 0)),
+    ] {
+        ed.connect(PortRef::new(a, pa), PortRef::new(b, pb))
+            .expect("gallery connection");
+    }
+    ed.selection = None;
+    ed.fit_requested = true;
+    app
+}
+
+#[test]
+fn equipment_gallery_is_fully_connected() {
+    let app = equipment_gallery();
+    let fs = &app.editor().fs;
+    assert_eq!(fs.streams().count(), 9);
+    assert!(
+        !fs.diagnostics()
+            .iter()
+            .any(|d| matches!(d.kind, flowsheet_core::DiagnosticKind::UnconnectedPort(_)))
+    );
+}
+
+#[test]
+fn snapshot_equipment_gallery() {
+    let mut h = harness(equipment_gallery(), egui::Theme::Dark);
+    check_snapshot(&mut h, "equipment_gallery_dark");
+}

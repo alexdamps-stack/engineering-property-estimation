@@ -4,8 +4,8 @@
 
 use eframe::egui::{self, DragValue, Key, Panel, RichText, ScrollArea, Sense, Stroke, Ui, vec2};
 use flowsheet_core::{
-    DiagnosticKind, MixerPressure, PortRef, PressureSpec, SeparatorThermal, SpecProblem, StreamId,
-    ThermalSpec, UnitId, UnitKind, UnitSpec, UnitStatus,
+    DiagnosticKind, ExchangerSpec, MixerPressure, PortRef, PressureRise, PressureSpec,
+    SeparatorThermal, SpecProblem, StreamId, ThermalSpec, UnitId, UnitKind, UnitSpec, UnitStatus,
 };
 
 use crate::canvas;
@@ -63,7 +63,7 @@ impl eframe::App for FlowsheetApp {
             .show(ui, |ui| bottom_panel(ui, ed, &mut self.bottom_tab));
         Panel::left("palette")
             .resizable(false)
-            .exact_size(150.0)
+            .exact_size(175.0)
             .show(ui, |ui| palette(ui, ed));
         Panel::right("properties")
             .resizable(true)
@@ -133,17 +133,21 @@ fn status_bar(ui: &mut Ui, ed: &Editor) {
 }
 
 fn palette(ui: &mut Ui, ed: &mut Editor) {
+    ScrollArea::vertical().show(ui, |ui| palette_items(ui, ed));
+}
+
+fn palette_items(ui: &mut Ui, ed: &mut Editor) {
     ui.add_space(6.0);
     ui.strong("Unit operations");
     ui.add_space(4.0);
     for kind in UnitKind::ALL {
         let (rect, response) =
-            ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::click());
+            ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::click());
         let visuals = ui.style().interact(&response);
         if response.hovered() {
             ui.painter().rect_filled(rect, 4, visuals.weak_bg_fill);
         }
-        let icon_area = egui::Rect::from_min_size(rect.min + vec2(8.0, 6.0), vec2(36.0, 28.0));
+        let icon_area = egui::Rect::from_min_size(rect.min + vec2(8.0, 5.0), vec2(36.0, 26.0));
         draw_unit(
             ui.painter(),
             kind,
@@ -401,8 +405,109 @@ fn spec_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
                 u,
             );
         }
+        UnitSpec::Splitter { fraction_to_first } => {
+            opt_field(
+                ui,
+                "Fraction to out 1",
+                fraction_to_first,
+                Quantity::Fraction,
+                u,
+            );
+            note_row(ui, "Out 2 receives the rest; same state in both.");
+        }
+        UnitSpec::HeatExchanger {
+            thermal,
+            hot_pressure_drop_pa,
+            cold_pressure_drop_pa,
+        } => {
+            let current = match thermal {
+                ExchangerSpec::HotOutletTemperature(_) => 0,
+                ExchangerSpec::ColdOutletTemperature(_) => 1,
+                ExchangerSpec::Duty(_) => 2,
+            };
+            match choice(ui, "Specify", current, &["Hot out T", "Cold out T", "Duty"]) {
+                Some(0) => *thermal = ExchangerSpec::HotOutletTemperature(None),
+                Some(1) => *thermal = ExchangerSpec::ColdOutletTemperature(None),
+                Some(_) => *thermal = ExchangerSpec::Duty(None),
+                None => {}
+            }
+            match thermal {
+                ExchangerSpec::HotOutletTemperature(t) => {
+                    opt_field(ui, "Hot outlet temperature", t, Quantity::Temperature, u)
+                }
+                ExchangerSpec::ColdOutletTemperature(t) => {
+                    opt_field(ui, "Cold outlet temperature", t, Quantity::Temperature, u)
+                }
+                ExchangerSpec::Duty(q) => opt_field(ui, "Duty (hot to cold)", q, Quantity::Duty, u),
+            }
+            value_field(
+                ui,
+                "Hot-side pressure drop",
+                hot_pressure_drop_pa,
+                Quantity::PressureDrop,
+                u,
+            );
+            value_field(
+                ui,
+                "Cold-side pressure drop",
+                cold_pressure_drop_pa,
+                Quantity::PressureDrop,
+                u,
+            );
+        }
+        UnitSpec::Pressurize {
+            pressure,
+            efficiency,
+        } => {
+            let current = matches!(pressure, PressureRise::PressureIncrease(_)) as usize;
+            match choice(ui, "Specify", current, &["Outlet p", "Pressure increase"]) {
+                Some(0) => *pressure = PressureRise::OutletPressure(None),
+                Some(_) => *pressure = PressureRise::PressureIncrease(None),
+                None => {}
+            }
+            match pressure {
+                PressureRise::OutletPressure(p) => {
+                    opt_field(ui, "Outlet pressure", p, Quantity::Pressure, u)
+                }
+                PressureRise::PressureIncrease(dp) => {
+                    opt_field(ui, "Pressure increase", dp, Quantity::PressureDrop, u)
+                }
+            }
+            value_field(ui, "Efficiency", efficiency, Quantity::Fraction, u);
+            note_row(ui, ROTATING_DEFERRED);
+        }
+        UnitSpec::Expand {
+            pressure,
+            efficiency,
+        } => {
+            let current = matches!(pressure, PressureSpec::PressureDrop(_)) as usize;
+            match choice(ui, "Specify", current, &["Outlet p", "Pressure drop"]) {
+                Some(0) => *pressure = PressureSpec::OutletPressure(None),
+                Some(_) => *pressure = PressureSpec::PressureDrop(None),
+                None => {}
+            }
+            match pressure {
+                PressureSpec::OutletPressure(p) => {
+                    opt_field(ui, "Outlet pressure", p, Quantity::Pressure, u)
+                }
+                PressureSpec::PressureDrop(dp) => {
+                    opt_field(ui, "Pressure drop", dp, Quantity::PressureDrop, u)
+                }
+            }
+            value_field(
+                ui,
+                "Isentropic efficiency",
+                efficiency,
+                Quantity::Fraction,
+                u,
+            );
+            note_row(ui, ROTATING_DEFERRED);
+        }
     }
 }
+
+/// Pumps, compressors, and expanders need a PS flash (proposal section 2.3).
+const ROTATING_DEFERRED: &str = "Calculation deferred: needs a PS flash and efficiency model.";
 
 /// A row of radio buttons; returns the newly chosen index if it changed.
 fn choice(ui: &mut Ui, label: &str, current: usize, options: &[&str]) -> Option<usize> {
@@ -426,7 +531,7 @@ fn note_row(ui: &mut Ui, text: &str) {
 fn drag_value<'a>(shown: &'a mut f64, q: Quantity, u: DisplayUnits) -> DragValue<'a> {
     DragValue::new(shown)
         .speed(u.drag_speed(q))
-        .range(u.display_min(q)..=f64::INFINITY)
+        .range(u.display_min(q)..=u.display_max(q))
         .max_decimals(6)
         .suffix(format!(" {}", u.symbol(q)))
 }

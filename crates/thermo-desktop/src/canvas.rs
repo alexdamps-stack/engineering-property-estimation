@@ -12,14 +12,19 @@ use flowsheet_core::{PortDirection, PortRef, StreamId, UnitId, UnitKind, UnitSta
 use crate::editor::{Drag, Editor, Selection};
 use crate::symbols::{Theme, arrowhead, draw_unit};
 use crate::view::{
-    SNAP, block_rect, distance_to_polyline, port_exit, port_pos, route_label_anchor, snap,
-    stream_route, tag_center,
+    SNAP, block_rect, distance_to_polyline, place_tag, port_exit, port_pos, snap, stream_route,
 };
 
 const PORT_HIT_RADIUS: f32 = 9.0;
 const STREAM_HIT_DISTANCE: f32 = 5.0;
 const MAJOR_EVERY: i32 = 5;
 const GRIP: f32 = 7.0;
+const BADGE_RADIUS: f32 = 6.5;
+
+/// Centre of the status badge of a symbol drawn in screen rectangle `r`.
+fn badge_center(r: Rect, scale: f32) -> Pos2 {
+    r.right_top() + vec2(4.0, -4.0) * scale
+}
 
 /// Shows the canvas filling the available space of `ui`.
 pub fn show(ui: &mut Ui, ed: &mut Editor) {
@@ -55,13 +60,21 @@ pub fn show(ui: &mut Ui, ed: &mut Editor) {
         .and_then(|p| stream_at(ed, canvas, p));
 
     // Process lines.
-    for stream in ed.fs.streams() {
-        let Some(route) = stream_screen_route(ed, canvas, stream.id) else {
-            continue;
-        };
-        let selected = ed.selection == Some(Selection::Stream(stream.id));
-        let color = if selected { theme.select } else { theme.line };
-        let width = if hovered_stream == Some(stream.id) {
+    let routes: Vec<(StreamId, String, Vec<Pos2>)> = ed
+        .fs
+        .streams()
+        .filter_map(|s| Some((s.id, s.name.clone(), stream_screen_route(ed, canvas, s.id)?)))
+        .collect();
+    let stream_color = |id: StreamId| {
+        if ed.selection == Some(Selection::Stream(id)) {
+            theme.select
+        } else {
+            theme.line
+        }
+    };
+    for (id, _, route) in &routes {
+        let color = stream_color(*id);
+        let width = if hovered_stream == Some(*id) {
             process_w * 1.8
         } else {
             process_w
@@ -75,22 +88,44 @@ pub fn show(ui: &mut Ui, ed: &mut Editor) {
             11.0 * scale,
             color,
         );
-        if z >= 0.45
-            && let Some((anchor, horizontal)) = route_label_anchor(&route, 16.0 * scale)
-        {
-            stream_tag(
-                &painter,
-                anchor,
-                horizontal,
-                &stream.name,
-                font(11.0),
-                color,
-                &theme,
-            );
-        }
-        if selected {
-            for &p in &route {
+        if ed.selection == Some(Selection::Stream(*id)) {
+            for &p in route {
                 grip(&painter, p, &theme);
+            }
+        }
+    }
+
+    // Stream numbers: beside their line and clear of equipment, other
+    // numbers, and every stream line.
+    if z >= 0.45 {
+        let lines: Vec<&[Pos2]> = routes.iter().map(|(_, _, r)| r.as_slice()).collect();
+        // Equipment symbols and their status badges are obstacles.
+        let mut taken: Vec<Rect> = Vec::new();
+        for u in ed.fs.units() {
+            let Some(&center) = ed.layout.get(&u.id) else {
+                continue;
+            };
+            let world = block_rect(u.kind, center);
+            let r = Rect::from_min_max(
+                ed.viewport.to_screen(canvas, world.min),
+                ed.viewport.to_screen(canvas, world.max),
+            );
+            taken.push(r.expand(2.0));
+            if ed.fs.unit_status(u.id) == Some(UnitStatus::Underspecified) {
+                let d = 2.0 * BADGE_RADIUS * scale + 4.0;
+                taken.push(Rect::from_center_size(
+                    badge_center(r, scale),
+                    Vec2::splat(d),
+                ));
+            }
+        }
+        for (id, name, route) in &routes {
+            let color = stream_color(*id);
+            let galley = painter.layout_no_wrap(name.clone(), font(11.0), color);
+            let half = tag_half_size(galley.size());
+            if let Some(at) = place_tag(route, half, 3.0, 16.0 * scale, &taken, &lines) {
+                stream_tag(&painter, at, half, galley, color, &theme);
+                taken.push(Rect::from_center_size(at, half * 2.0).expand(1.0));
             }
         }
     }
@@ -158,8 +193,8 @@ pub fn show(ui: &mut Ui, ed: &mut Editor) {
             painter.text(pos, align, &unit.name, font(12.0), theme.line);
         }
         if underspecified {
-            let at = r.right_top() + vec2(4.0, -4.0) * scale;
-            let rad = 6.5 * scale;
+            let at = badge_center(r, scale);
+            let rad = BADGE_RADIUS * scale;
             painter.circle(at, rad, theme.background, Stroke::new(1.0, theme.muted));
             painter.text(at, Align2::CENTER_CENTER, "!", font(10.0), theme.muted);
         }
@@ -287,27 +322,27 @@ fn draw_grid(painter: &eframe::egui::Painter, ed: &Editor, canvas: Rect, theme: 
     }
 }
 
-/// Stream number in a diamond placed beside the line (never on it).
-#[allow(clippy::too_many_arguments)]
+/// Half extents of the diamond enclosing a stream number of text size `text`.
+fn tag_half_size(text: Vec2) -> Vec2 {
+    let hw = text.x / 2.0 + text.y;
+    vec2(hw, hw / 2.0 + 1.0)
+}
+
+/// Draws a stream number in a diamond centred at `at`.
 fn stream_tag(
     painter: &eframe::egui::Painter,
-    anchor: Pos2,
-    horizontal: bool,
-    text: &str,
-    font: FontId,
+    at: Pos2,
+    half: Vec2,
+    galley: std::sync::Arc<eframe::egui::Galley>,
     color: Color32,
     theme: &Theme,
 ) {
-    let galley = painter.layout_no_wrap(text.to_owned(), font, color);
     let size = galley.size();
-    let hw = size.x / 2.0 + size.y;
-    let hh = hw / 2.0 + 1.0;
-    let at = tag_center(anchor, horizontal, vec2(hw, hh), 3.0);
     let diamond = vec![
-        at - vec2(hw, 0.0),
-        at - vec2(0.0, hh),
-        at + vec2(hw, 0.0),
-        at + vec2(0.0, hh),
+        at - vec2(half.x, 0.0),
+        at - vec2(0.0, half.y),
+        at + vec2(half.x, 0.0),
+        at + vec2(0.0, half.y),
     ];
     painter.add(Shape::convex_polygon(
         diamond,

@@ -65,19 +65,45 @@ pub enum UnitKind {
     Valve,
     /// Two-phase vapor/liquid separator (drum).
     Separator,
+    /// Divides one stream into two streams of identical state.
+    Splitter,
+    /// Two-stream heat exchanger (hot side and cold side).
+    HeatExchanger,
+    /// Raises the pressure of a liquid stream.
+    Pump,
+    /// Raises the pressure of a gas stream.
+    Compressor,
+    /// Lowers the pressure of a gas stream while recovering work.
+    Expander,
 }
 
 impl UnitKind {
     /// All kinds, in palette order.
-    pub const ALL: [UnitKind; 7] = [
+    pub const ALL: [UnitKind; 12] = [
         UnitKind::Feed,
         UnitKind::Mixer,
+        UnitKind::Splitter,
         UnitKind::Heater,
         UnitKind::Cooler,
+        UnitKind::HeatExchanger,
         UnitKind::Valve,
+        UnitKind::Pump,
+        UnitKind::Compressor,
+        UnitKind::Expander,
         UnitKind::Separator,
         UnitKind::Product,
     ];
+
+    /// Whether the steady-state engine is planned to calculate this kind in
+    /// the first usable version. Pumps, compressors, and expanders need a PS
+    /// flash and efficiency models and are deferred (proposal section 2.3);
+    /// they can be drawn and specified but not yet solved.
+    pub fn calculation_planned(self) -> bool {
+        !matches!(
+            self,
+            UnitKind::Pump | UnitKind::Compressor | UnitKind::Expander
+        )
+    }
 
     /// User-facing name of the kind.
     pub fn label(self) -> &'static str {
@@ -89,25 +115,34 @@ impl UnitKind {
             UnitKind::Cooler => "Cooler",
             UnitKind::Valve => "Valve",
             UnitKind::Separator => "Separator",
+            UnitKind::Splitter => "Splitter",
+            UnitKind::HeatExchanger => "Heat exchanger",
+            UnitKind::Pump => "Pump",
+            UnitKind::Compressor => "Compressor",
+            UnitKind::Expander => "Expander",
         }
     }
 
-    /// Tag series shared by kinds that are numbered together; heaters and
-    /// coolers are both heat exchangers (`E-100`, `E-101`, …).
+    /// Tag series shared by kinds that are numbered together; heaters,
+    /// coolers, and heat exchangers are all `E-…`.
     pub(crate) fn tag_series(self) -> &'static str {
         match self {
             UnitKind::Feed => "Feed",
             UnitKind::Product => "Product",
             UnitKind::Mixer => "M",
-            UnitKind::Heater | UnitKind::Cooler => "E",
+            UnitKind::Heater | UnitKind::Cooler | UnitKind::HeatExchanger => "E",
             UnitKind::Valve => "V",
             UnitKind::Separator => "D",
+            UnitKind::Splitter => "TEE",
+            UnitKind::Pump => "P",
+            UnitKind::Compressor => "K",
+            UnitKind::Expander => "EX",
         }
     }
 
     /// Generated tag for the `n`-th unit (1-based) of this kind's series,
     /// following common PFD conventions: `Feed 1`, `M-100`, `E-100`,
-    /// `V-100`, `D-100`, `Product 1`.
+    /// `V-100`, `D-100`, `P-100`, `K-100`, `Product 1`.
     pub(crate) fn tag(self, n: u64) -> String {
         match self {
             UnitKind::Feed | UnitKind::Product => format!("{} {n}", self.tag_series()),
@@ -123,12 +158,26 @@ impl UnitKind {
         const MIXER: [PortSpec; 3] = [inlet("in 1"), inlet("in 2"), outlet("out")];
         const SINGLE: [PortSpec; 2] = [inlet("in"), outlet("out")];
         const SEPARATOR: [PortSpec; 3] = [inlet("in"), outlet("vapor"), outlet("liquid")];
+        const SPLITTER: [PortSpec; 3] = [inlet("in"), outlet("out 1"), outlet("out 2")];
+        const EXCHANGER: [PortSpec; 4] = [
+            inlet("hot in"),
+            inlet("cold in"),
+            outlet("hot out"),
+            outlet("cold out"),
+        ];
         match self {
             UnitKind::Feed => &FEED,
             UnitKind::Product => &PRODUCT,
             UnitKind::Mixer => &MIXER,
-            UnitKind::Heater | UnitKind::Cooler | UnitKind::Valve => &SINGLE,
+            UnitKind::Heater
+            | UnitKind::Cooler
+            | UnitKind::Valve
+            | UnitKind::Pump
+            | UnitKind::Compressor
+            | UnitKind::Expander => &SINGLE,
             UnitKind::Separator => &SEPARATOR,
+            UnitKind::Splitter => &SPLITTER,
+            UnitKind::HeatExchanger => &EXCHANGER,
         }
     }
 
@@ -156,9 +205,29 @@ impl UnitKind {
                 thermal: SeparatorThermal::Adiabatic,
                 pressure_drop_pa: 0.0,
             },
+            UnitKind::Splitter => UnitSpec::Splitter {
+                fraction_to_first: None,
+            },
+            UnitKind::HeatExchanger => UnitSpec::HeatExchanger {
+                thermal: ExchangerSpec::HotOutletTemperature(None),
+                hot_pressure_drop_pa: 0.0,
+                cold_pressure_drop_pa: 0.0,
+            },
+            UnitKind::Pump | UnitKind::Compressor => UnitSpec::Pressurize {
+                pressure: PressureRise::OutletPressure(None),
+                efficiency: DEFAULT_EFFICIENCY,
+            },
+            UnitKind::Expander => UnitSpec::Expand {
+                pressure: PressureSpec::OutletPressure(None),
+                efficiency: DEFAULT_EFFICIENCY,
+            },
         }
     }
 }
+
+/// Default isentropic (compressor, expander) or hydraulic (pump) efficiency,
+/// shown in the form and editable; 75 % is a common simulator default.
+pub const DEFAULT_EFFICIENCY: f64 = 0.75;
 
 impl fmt::Display for UnitKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -205,6 +274,26 @@ pub enum PressureSpec {
     PressureDrop(Option<f64>),
 }
 
+/// Pump/compressor pressure specification: exactly one of these.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PressureRise {
+    /// Absolute outlet pressure in Pa.
+    OutletPressure(Option<f64>),
+    /// Pressure increase in Pa.
+    PressureIncrease(Option<f64>),
+}
+
+/// Two-stream heat exchanger specification: exactly one of these.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ExchangerSpec {
+    /// Hot-side outlet temperature in K.
+    HotOutletTemperature(Option<f64>),
+    /// Cold-side outlet temperature in K.
+    ColdOutletTemperature(Option<f64>),
+    /// Heat transferred from the hot to the cold side in W.
+    Duty(Option<f64>),
+}
+
 /// User-entered specification of a unit, in SI units with absolute pressure.
 ///
 /// `None` means "not yet specified". The feed composition is not part of
@@ -247,6 +336,34 @@ pub enum UnitSpec {
         /// Pressure drop in Pa.
         pressure_drop_pa: f64,
     },
+    /// Splitter with two outlets (n − 1 = 1 split fraction).
+    Splitter {
+        /// Fraction of the inlet flow leaving through `out 1`, 0 to 1.
+        fraction_to_first: Option<f64>,
+    },
+    /// Two-stream heat exchanger.
+    HeatExchanger {
+        /// Hot outlet temperature, cold outlet temperature, or duty.
+        thermal: ExchangerSpec,
+        /// Hot-side pressure drop in Pa.
+        hot_pressure_drop_pa: f64,
+        /// Cold-side pressure drop in Pa.
+        cold_pressure_drop_pa: f64,
+    },
+    /// Pump or compressor.
+    Pressurize {
+        /// Outlet pressure or pressure increase.
+        pressure: PressureRise,
+        /// Efficiency, greater than 0 and at most 1.
+        efficiency: f64,
+    },
+    /// Expander.
+    Expand {
+        /// Outlet pressure or pressure drop.
+        pressure: PressureSpec,
+        /// Isentropic efficiency, greater than 0 and at most 1.
+        efficiency: f64,
+    },
 }
 
 /// What is wrong with one specification field.
@@ -260,6 +377,10 @@ pub enum SpecProblem {
     NotPositive,
     /// The value must not be negative (flows, pressure drops).
     Negative,
+    /// The value must lie between 0 and 1 (split fractions).
+    NotAFraction,
+    /// The value must be greater than 0 and at most 1 (efficiencies).
+    NotAnEfficiency,
 }
 
 impl fmt::Display for SpecProblem {
@@ -269,6 +390,8 @@ impl fmt::Display for SpecProblem {
             SpecProblem::NotFinite => "is not a finite number",
             SpecProblem::NotPositive => "must be positive",
             SpecProblem::Negative => "must not be negative",
+            SpecProblem::NotAFraction => "must be between 0 and 1",
+            SpecProblem::NotAnEfficiency => "must be greater than 0 and at most 1",
         })
     }
 }
@@ -286,6 +409,8 @@ pub struct SpecIssue {
 enum Sign {
     Positive,
     NonNegative,
+    Fraction,
+    Efficiency,
     Any,
 }
 
@@ -339,20 +464,63 @@ impl UnitSpec {
                 }
                 SeparatorThermal::Duty(q) => opt("duty", q, Sign::Any),
             },
+            UnitSpec::Splitter { fraction_to_first } => {
+                opt("split fraction", fraction_to_first, Sign::Fraction)
+            }
+            UnitSpec::HeatExchanger { thermal, .. } => match thermal {
+                ExchangerSpec::HotOutletTemperature(t) => {
+                    opt("hot outlet temperature", t, Sign::Positive)
+                }
+                ExchangerSpec::ColdOutletTemperature(t) => {
+                    opt("cold outlet temperature", t, Sign::Positive)
+                }
+                ExchangerSpec::Duty(q) => opt("duty", q, Sign::NonNegative),
+            },
+            UnitSpec::Pressurize { pressure, .. } => match pressure {
+                PressureRise::OutletPressure(p) => opt("outlet pressure", p, Sign::Positive),
+                PressureRise::PressureIncrease(dp) => {
+                    opt("pressure increase", dp, Sign::NonNegative)
+                }
+            },
+            UnitSpec::Expand { pressure, .. } => match pressure {
+                PressureSpec::OutletPressure(p) => opt("outlet pressure", p, Sign::Positive),
+                PressureSpec::PressureDrop(dp) => opt("pressure drop", dp, Sign::NonNegative),
+            },
         }
-        if let UnitSpec::HeatExchange {
-            pressure_drop_pa, ..
-        }
-        | UnitSpec::Separator {
-            pressure_drop_pa, ..
-        } = *self
-        {
-            check_value(
+        match *self {
+            UnitSpec::HeatExchange {
+                pressure_drop_pa, ..
+            }
+            | UnitSpec::Separator {
+                pressure_drop_pa, ..
+            } => check_value(
                 &mut fixed,
                 "pressure drop",
                 pressure_drop_pa,
                 Sign::NonNegative,
-            );
+            ),
+            UnitSpec::HeatExchanger {
+                hot_pressure_drop_pa,
+                cold_pressure_drop_pa,
+                ..
+            } => {
+                check_value(
+                    &mut fixed,
+                    "hot-side pressure drop",
+                    hot_pressure_drop_pa,
+                    Sign::NonNegative,
+                );
+                check_value(
+                    &mut fixed,
+                    "cold-side pressure drop",
+                    cold_pressure_drop_pa,
+                    Sign::NonNegative,
+                );
+            }
+            UnitSpec::Pressurize { efficiency, .. } | UnitSpec::Expand { efficiency, .. } => {
+                check_value(&mut fixed, "efficiency", efficiency, Sign::Efficiency)
+            }
+            _ => {}
         }
         out.extend(fixed);
         out
@@ -366,6 +534,8 @@ fn check_value(out: &mut Vec<SpecIssue>, field: &'static str, v: f64, sign: Sign
         match sign {
             Sign::Positive if v <= 0.0 => Some(SpecProblem::NotPositive),
             Sign::NonNegative if v < 0.0 => Some(SpecProblem::Negative),
+            Sign::Fraction if !(0.0..=1.0).contains(&v) => Some(SpecProblem::NotAFraction),
+            Sign::Efficiency if v <= 0.0 || v > 1.0 => Some(SpecProblem::NotAnEfficiency),
             _ => None,
         }
     };
@@ -427,7 +597,10 @@ mod tests {
                 UnitKind::Feed => assert_eq!((inlets, outlets), (0, 1)),
                 UnitKind::Product => assert_eq!((inlets, outlets), (1, 0)),
                 UnitKind::Mixer => assert_eq!((inlets, outlets), (2, 1)),
-                UnitKind::Separator => assert_eq!((inlets, outlets), (1, 2)),
+                UnitKind::Separator | UnitKind::Splitter => {
+                    assert_eq!((inlets, outlets), (1, 2))
+                }
+                UnitKind::HeatExchanger => assert_eq!((inlets, outlets), (2, 2)),
                 _ => assert_eq!((inlets, outlets), (1, 1)),
             }
         }
@@ -440,6 +613,73 @@ mod tests {
         assert_eq!(UnitKind::Separator.tag(1), "D-100");
         assert_eq!(UnitKind::Feed.tag(2), "Feed 2");
         assert_eq!(UnitKind::Heater.tag_series(), UnitKind::Cooler.tag_series());
+        assert_eq!(
+            UnitKind::HeatExchanger.tag_series(),
+            UnitKind::Heater.tag_series()
+        );
+        assert_eq!(UnitKind::Pump.tag(1), "P-100");
+        assert_eq!(UnitKind::Compressor.tag(1), "K-100");
+        assert_eq!(UnitKind::Expander.tag(1), "EX-100");
+        assert_eq!(UnitKind::Splitter.tag(1), "TEE-100");
+    }
+
+    #[test]
+    fn rotating_equipment_is_drawable_but_not_yet_calculated() {
+        for kind in UnitKind::ALL {
+            let deferred = matches!(
+                kind,
+                UnitKind::Pump | UnitKind::Compressor | UnitKind::Expander
+            );
+            assert_eq!(kind.calculation_planned(), !deferred, "{kind}");
+        }
+    }
+
+    #[test]
+    fn new_unit_defaults_and_ranges() {
+        use SpecProblem::*;
+        assert_eq!(
+            fields(UnitKind::Splitter.default_spec()),
+            [("split fraction", Missing)]
+        );
+        assert_eq!(
+            fields(UnitKind::HeatExchanger.default_spec()),
+            [("hot outlet temperature", Missing)]
+        );
+        // Efficiency has a visible default, so only the pressure is required.
+        for kind in [UnitKind::Pump, UnitKind::Compressor, UnitKind::Expander] {
+            assert_eq!(fields(kind.default_spec()), [("outlet pressure", Missing)]);
+        }
+        for (f, ok) in [
+            (0.0, true),
+            (1.0, true),
+            (0.3, true),
+            (-0.1, false),
+            (1.2, false),
+        ] {
+            let issues = fields(UnitSpec::Splitter {
+                fraction_to_first: Some(f),
+            });
+            assert_eq!(issues.is_empty(), ok, "fraction {f}");
+        }
+        for (eta, ok) in [(1.0, true), (0.5, true), (0.0, false), (1.01, false)] {
+            let issues = fields(UnitSpec::Pressurize {
+                pressure: PressureRise::PressureIncrease(Some(1.0e5)),
+                efficiency: eta,
+            });
+            assert_eq!(issues.is_empty(), ok, "efficiency {eta}");
+            if !ok {
+                assert_eq!(issues, [("efficiency", NotAnEfficiency)]);
+            }
+        }
+        let hx = UnitSpec::HeatExchanger {
+            thermal: ExchangerSpec::Duty(Some(-1.0)),
+            hot_pressure_drop_pa: 0.0,
+            cold_pressure_drop_pa: -5.0,
+        };
+        assert_eq!(
+            fields(hx),
+            [("duty", Negative), ("cold-side pressure drop", Negative)]
+        );
     }
 
     #[test]

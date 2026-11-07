@@ -7,7 +7,7 @@
 pub enum DisplayUnits {
     /// K, Pa, mol/s, W.
     Si,
-    /// °C, bar, kmol/h, kW — the default for process engineers.
+    /// Â°C, bar, kmol/h, kW â the default for process engineers.
     #[default]
     ProcessMetric,
 }
@@ -25,6 +25,8 @@ pub enum Quantity {
     MolarFlow,
     /// Heat duty, stored in W, positive into the unit.
     Duty,
+    /// Dimensionless fraction from 0 to 1 (split fraction, efficiency).
+    Fraction,
 }
 
 impl DisplayUnits {
@@ -47,11 +49,13 @@ impl DisplayUnits {
             (DisplayUnits::Si, Quantity::PressureDrop) => "Pa",
             (DisplayUnits::Si, Quantity::MolarFlow) => "mol/s",
             (DisplayUnits::Si, Quantity::Duty) => "W",
-            (DisplayUnits::ProcessMetric, Quantity::Temperature) => "°C",
+            (DisplayUnits::Si, Quantity::Fraction) => "–",
+            (DisplayUnits::ProcessMetric, Quantity::Temperature) => "Â°C",
             (DisplayUnits::ProcessMetric, Quantity::Pressure) => "bar(a)",
             (DisplayUnits::ProcessMetric, Quantity::PressureDrop) => "bar",
             (DisplayUnits::ProcessMetric, Quantity::MolarFlow) => "kmol/h",
             (DisplayUnits::ProcessMetric, Quantity::Duty) => "kW",
+            (DisplayUnits::ProcessMetric, Quantity::Fraction) => "%",
         }
     }
 
@@ -65,6 +69,7 @@ impl DisplayUnits {
             }
             (DisplayUnits::ProcessMetric, Quantity::MolarFlow) => si * 3.6,
             (DisplayUnits::ProcessMetric, Quantity::Duty) => si / 1.0e3,
+            (DisplayUnits::ProcessMetric, Quantity::Fraction) => si * 100.0,
         }
     }
 
@@ -78,12 +83,14 @@ impl DisplayUnits {
             }
             (DisplayUnits::ProcessMetric, Quantity::MolarFlow) => shown / 3.6,
             (DisplayUnits::ProcessMetric, Quantity::Duty) => shown * 1.0e3,
+            (DisplayUnits::ProcessMetric, Quantity::Fraction) => shown / 100.0,
         }
     }
 
     /// Drag speed for editing a displayed value.
     pub fn drag_speed(self, q: Quantity) -> f64 {
         match (self, q) {
+            (DisplayUnits::Si, Quantity::Fraction) => 0.001,
             (DisplayUnits::Si, Quantity::Pressure | Quantity::PressureDrop | Quantity::Duty) => {
                 100.0
             }
@@ -103,6 +110,14 @@ impl DisplayUnits {
             _ => self.si_to_display(q, 0.0),
         }
     }
+
+    /// Highest displayed value the editor allows (fractions are capped at 1).
+    pub fn display_max(self, q: Quantity) -> f64 {
+        match q {
+            Quantity::Fraction => self.si_to_display(q, 1.0),
+            _ => f64::INFINITY,
+        }
+    }
 }
 
 /// Initial SI value when the user chooses to specify a previously unset
@@ -114,6 +129,7 @@ pub fn starting_value(q: Quantity) -> f64 {
         Quantity::Pressure => 101_325.0,
         Quantity::MolarFlow => 1.0,
         Quantity::PressureDrop | Quantity::Duty => 0.0,
+        Quantity::Fraction => 0.5,
     }
 }
 
@@ -121,7 +137,8 @@ pub fn starting_value(q: Quantity) -> f64 {
 mod tests {
     use super::*;
 
-    const ALL_Q: [Quantity; 5] = [
+    const ALL_Q: [Quantity; 6] = [
+        Quantity::Fraction,
         Quantity::Temperature,
         Quantity::Pressure,
         Quantity::PressureDrop,

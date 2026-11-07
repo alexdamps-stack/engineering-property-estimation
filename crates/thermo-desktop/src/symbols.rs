@@ -2,7 +2,8 @@
 //!
 //! Symbols are monochrome line work modelled on ISO 10628-2 graphical
 //! symbols (vessel with dished heads, heat exchanger with heating/cooling
-//! medium, control valve with diaphragm actuator, static mixer). Arrowheads
+//! medium, shell-and-tube exchanger, control valve with diaphragm actuator,
+//! centrifugal pump, turbo compressor and expander, static mixer). Arrowheads
 //! are closed and filled with a 15° half angle as in ISO 128. The dark
 //! scheme mirrors a CAD model space; the light scheme a plotted sheet.
 
@@ -168,6 +169,77 @@ pub fn draw_unit(painter: &Painter, kind: UnitKind, r: Rect, stroke: Stroke, fil
                 })
                 .collect();
             painter.add(Shape::convex_polygon(dome, fill, stroke));
+        }
+        UnitKind::Splitter => {
+            // Branch: one inlet forking to the two outlet nozzles.
+            painter.rect(r, 0, fill, stroke, eframe::egui::StrokeKind::Middle);
+            let thin = Stroke::new(stroke.width * 0.7, stroke.color);
+            let y1 = r.top() + r.height() / 3.0;
+            let y2 = r.top() + r.height() * 2.0 / 3.0;
+            let fork = pos2(c.x, c.y);
+            painter.line_segment([pos2(r.left(), c.y), fork], thin);
+            painter.line(
+                vec![pos2(r.right(), y1), pos2(c.x + r.width() * 0.2, y1), fork],
+                thin,
+            );
+            painter.line(
+                vec![pos2(r.right(), y2), pos2(c.x + r.width() * 0.2, y2), fork],
+                thin,
+            );
+        }
+        UnitKind::HeatExchanger => {
+            // Shell-and-tube exchanger: shell (hot side, upper nozzles) with
+            // the tube bundle (cold side, lower nozzles) drawn as a zig-zag.
+            let radius = (r.height() * 0.12).min(255.0) as u8;
+            painter.rect(r, radius, fill, stroke, eframe::egui::StrokeKind::Middle);
+            let y1 = r.top() + r.height() / 3.0;
+            let y2 = r.top() + r.height() * 2.0 / 3.0;
+            let peak = (y1 + y2) / 2.0 - r.height() * 0.05;
+            let inset = r.width() * 0.1;
+            let n = 6;
+            let mut tubes = vec![pos2(r.left(), y2), pos2(r.left() + inset, y2)];
+            for i in 1..n {
+                let x = r.left() + inset + (r.width() - 2.0 * inset) * i as f32 / n as f32;
+                tubes.push(pos2(x, if i % 2 == 1 { peak } else { y2 }));
+            }
+            tubes.push(pos2(r.right() - inset, y2));
+            tubes.push(pos2(r.right(), y2));
+            painter.line(tubes, Stroke::new(stroke.width * 0.8, stroke.color));
+        }
+        UnitKind::Pump => {
+            // Centrifugal pump: casing with axial suction, tangential
+            // discharge at the top, and a base.
+            let radius = r.width() * crate::view::PUMP_RADIUS / crate::view::block_size(kind).x;
+            let foot = vec![
+                c + vec2(-radius * 0.7, radius * 0.7),
+                pos2(c.x - radius, r.bottom()),
+                pos2(c.x + radius, r.bottom()),
+                c + vec2(radius * 0.7, radius * 0.7),
+            ];
+            painter.line(foot, stroke);
+            painter.line_segment([pos2(r.left(), c.y), pos2(c.x - radius, c.y)], stroke);
+            painter.circle(c, radius, fill, stroke);
+            painter.line_segment(
+                [pos2(c.x, c.y - radius), pos2(r.right(), c.y - radius)],
+                stroke,
+            );
+        }
+        UnitKind::Compressor | UnitKind::Expander => {
+            // Turbomachine: trapezoid narrowing in the flow direction for a
+            // compressor and widening for an expander (turbine).
+            let small = r.height() * 0.3;
+            let (left_h, right_h) = if kind == UnitKind::Compressor {
+                (r.height() / 2.0, small)
+            } else {
+                (small, r.height() / 2.0)
+            };
+            let pts = vec![
+                pos2(r.left(), c.y - left_h),
+                pos2(r.right(), c.y - right_h),
+                pos2(r.right(), c.y + right_h),
+                pos2(r.left(), c.y + left_h),
+            ];
+            painter.add(Shape::convex_polygon(pts, fill, stroke));
         }
         UnitKind::Separator => {
             // Vertical vessel with 2:1 semi-elliptical heads.

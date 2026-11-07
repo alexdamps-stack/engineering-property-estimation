@@ -184,8 +184,10 @@ Evaluation criteria: canvas performance with about 100 units, table and form qua
 - The pre-solve statuses *Underspecified* and *Ready*.
 - The message list, a stream table without values, and the status bar.
 - The SI and Process metric unit sets.
+- Additional units beyond the demonstration: splitter (two outlets, one split fraction), two-stream shell-and-tube heat exchanger, centrifugal pump, compressor, and expander. Pumps, compressors, and expanders can be drawn and specified (pressure plus an editable 75 % default efficiency) but are marked as not yet calculable, because they need a PS flash (section 2.3).
+- Stream numbers placed beside their lines, avoiding equipment, status badges, other numbers, and all stream lines.
 
-It does not yet cover background solving with cancel, energy streams, the splitter, undo/redo, save/load, typed-unit input, Windows packaging, or the `Slint` comparison. The prototype has not been evaluated against the criteria above.
+It does not yet cover background solving with cancel, energy streams, splitters with more than two outlets, undo/redo, save/load, typed-unit input, Windows packaging, or the `Slint` comparison. The prototype has not been evaluated against the criteria above.
 
 ## 5. Open decisions
 
