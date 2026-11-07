@@ -1,4 +1,16 @@
-//! Units, component identities, mixture composition bases, states, and errors.
+//! Dependency-free validated SI inputs and shared calculation vocabulary.
 //!
-//! Scaffold only. Public calculation APIs will be introduced with the
-//! corresponding work packages in docs/development-plan.md.
+//! Constructors reject invalid values. See `docs/calculation-contract.md` for
+//! conventions and limits. No thermodynamic models or solvers are implemented.
+
+mod composition;
+mod error;
+mod flow;
+mod metadata;
+mod quantity;
+
+pub use composition::*;
+pub use error::*;
+pub use flow::*;
+pub use metadata::*;
+pub use quantity::*;

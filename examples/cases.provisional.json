@@ -1,0 +1,15 @@
+{
+  "schema": "a2-case-inputs-provisional-v1",
+  "version": "2026-11-07.1",
+  "status": "design inputs; not CLI fixtures or accepted validation states",
+  "units": {"temperature": "K", "pressure": "Pa absolute", "flow": "mol/s", "composition": "mole fraction"},
+  "model_variants": ["PR-1976-provisional", "PR-BM-Clapeyron-0.6.30-provisional"],
+  "parameter_data": "../data/source-extracts/components.provisional.json",
+  "mixing": {"attraction": "quadratic van der Waals one-fluid", "covolume": "linear mole fraction", "interaction_policy": "explicit synthetic approximation, not fitted VLE data", "off_diagonal_kij": 0.0, "diagonal_kij": 0.0, "symmetric": true, "temperature_dependence": "none", "volume_translation": "none"},
+  "cases": [
+    {"id": "ng-dry-01", "components": ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide"], "mole_fractions": [0.88, 0.06, 0.03, 0.02, 0.01], "temperature_K": 330.0, "pressure_Pa": 5000000.0, "flow_mol_per_s": 100.0, "sweep_temperature_K": [320.0, 360.0, 400.0], "sweep_pressure_Pa": [100000.0, 1000000.0, 5000000.0], "phase_request": "equilibrium", "expected_phase": null, "phase_evidence": "pending matched stability and TP reference; feed contains no water or methanol"},
+    {"id": "binary-c1-c3-01", "components": ["methane", "propane"], "mole_fractions": [0.5, 0.5], "temperature_K": 330.0, "pressure_Pa": 2000000.0, "flow_mol_per_s": 10.0, "sweep_temperature_K": [320.0, 360.0, 400.0], "sweep_pressure_Pa": [100000.0, 1000000.0, 5000000.0], "phase_request": "equilibrium", "expected_phase": null, "phase_evidence": "pending matched stability and TP reference"}
+  ],
+  "requested_outputs": ["phase count and labels", "molar vapor fraction", "phase mole fractions", "Z", "molar density mol/m^3", "mass density kg/m^3", "ln fugacity coefficients", "residual enthalpy J/mol", "residual entropy J/(mol K)", "total enthalpy J/mol", "total entropy J/(mol K)", "cp J/(mol K)", "cv J/(mol K)", "speed of sound m/s", "validity and solver diagnostics"],
+  "independent_expected_outputs": null
+}
