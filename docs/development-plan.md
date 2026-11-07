@@ -4,6 +4,10 @@ Date: November 1, 2026; revised November 7, 2026 after a plan and test review. P
 
 ## Repository setup note
 
+Current A5 implementation: see [PH flash and energy verification](a5-status.md)
+for the bracketed TP-based PH solver, pure-fluid saturation lever rule,
+independent references, supported domain and remaining review gates.
+
 Current numerical implementation: see [A1–A3 verification record](a1-a3-status.md)
 for the homogeneous PR/PR-BM engine, executed references, and outstanding gates.
 The scaffold description below records the initial setup rather than current

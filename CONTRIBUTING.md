@@ -13,7 +13,16 @@ Commit the root `Cargo.lock`. Do not commit build output, credentials, local env
 
 ## Numerical development
 
-The current crates contain no numerical API. Define calculation contracts as part of work package A1 rather than assuming the scaffold is a functioning engine. Keep GUI dependencies out of the calculation crates.
+The PR/PR-BM numerical APIs and TP/PH flash contracts are documented in the
+milestone status records. Keep GUI dependencies out of the calculation crates.
+
+The Clapeyron comparison is a standard numerical check for supported PR/PR-BM
+changes. Run `julia --project=validation/julia validation/julia/check.jl` with
+Julia 1.11.7; the locked environment instantiates automatically. Workspace
+tests also run the committed Clapeyron fixtures offline. Both checks must pass;
+generation or comparison failures must remain visible. Review reference,
+tolerance and Julia dependency updates explicitly. See
+[Clapeyron checks](validation/clapeyron-checks.md).
 
 Follow the [testing strategy](docs/testing-strategy.md) for test layers, placement, independent reference cases, tolerances, CI, and completion criteria. Add tests with each implemented capability and regression cases with reproducible bug fixes. Review regeneration of expected values explicitly; do not replace them with our own engine's output to resolve failures. Generated tests must be reproducible using recorded seeds and inputs.
 
