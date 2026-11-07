@@ -14,4 +14,7 @@ cargo run -p thermo-cli --locked -- examples/homogeneous-binary.json
 
 They produce homogeneous properties with explicit SI quantities and provenance.
 Root selection compares fixed-composition roots; phase stability and flashes
-remain unassessed. The provisional process file is not a CLI input format.
+remain unassessed in that mode. Two-phase TP flashes with stability evidence use
+`"calculation": "tp-flash"`, see [binary](tp-flash-binary.json) and
+[mixed natural-gas separator state](tp-flash-natural-gas.json); see [A4 status](../docs/a4-status.md).
+The provisional process file is not a CLI input format.

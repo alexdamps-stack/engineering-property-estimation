@@ -1,0 +1,11 @@
+{
+  "id": "c1-c3-tp-flash-pr-bm-v1",
+  "calculation": "tp-flash",
+  "components": ["methane", "propane"],
+  "mole_fractions": [0.5, 0.5],
+  "temperature_k": 250.0,
+  "pressure_pa": 3000000.0,
+  "model": "PR-BM",
+  "kij": [[0,0], [0,0]],
+  "interaction_source": "Explicit synthetic zero-kij approximation; not fitted VLE data"
+}

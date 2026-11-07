@@ -161,5 +161,5 @@ TP/PH flash, saturation, global mixture Gibbs minimization, critical-neighborhoo
 accuracy or experimental accuracy is supplied here. The provisional process,
 future saturation tolerances and GERG rows stay provisional. Review and CI results
 must be read alongside these limits; passing a homogeneous test is not a phase
-qualification. A4/A5 own implementing stability and flash; independent process
+qualification. A4 stability and TP flash are now implemented, see [A4 status](a4-status.md); A5 owns PH flash; independent process
 reference evidence still needs to be supplied to close the original A2 gate.

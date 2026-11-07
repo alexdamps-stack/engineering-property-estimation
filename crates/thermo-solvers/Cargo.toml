@@ -7,3 +7,11 @@ description = "Root finding, phase stability, and flash algorithms."
 
 [lints]
 workspace = true
+
+[dependencies]
+thermo-types = { path = "../thermo-types" }
+thermo-models = { path = "../thermo-models" }
+
+[dev-dependencies]
+thermo-data = { path = "../thermo-data" }
+serde_json = "1"

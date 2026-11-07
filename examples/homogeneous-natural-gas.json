@@ -5,6 +5,7 @@
   "temperature_k": 330.0,
   "pressure_pa": 5000000.0,
   "model": "PR-BM",
+  "calculation": "homogeneous",
   "root": "minimum-gibbs",
   "kij": [[0,0,0,0,0], [0,0,0,0,0], [0,0,0,0,0], [0,0,0,0,0], [0,0,0,0,0]],
   "interaction_source": "Explicit synthetic zero-kij approximation; not fitted VLE data"
