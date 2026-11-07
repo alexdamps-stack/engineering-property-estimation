@@ -2,7 +2,7 @@
 
 A Rust workspace for a planned standalone thermodynamic property engine and steady-state flowsheet simulator.
 
-**Status: homogeneous PR/PR-BM implementation.** Validated SI types, eight pinned component records, NASA7 ideal contributions, cubic roots, fugacities and caloric properties are implemented with offline independent reference comparisons. The CLI evaluates reproducible JSON cases. Stability and TP/PH flash remain open. `flowsheet-core` holds a GUI-independent topology model, and `thermo-desktop` is an `egui` editor prototype without process solving. See the [A1–A3 verification record](docs/a1-a3-status.md) for formulation, tests, domains and remaining acceptance gates.
+**Status: homogeneous PR/PR-BM implementation.** Validated SI types, eight pinned component records, NASA7 ideal contributions, cubic roots, fugacities and caloric properties are implemented with offline independent reference comparisons. The CLI evaluates reproducible JSON cases. A4 adds TPD stability assessment, two-phase TP flash and pure saturation pressure with independent reference comparisons ([A4 record](docs/a4-status.md)); PH flash remains open. `flowsheet-core` holds a GUI-independent topology model, and `thermo-desktop` is an `egui` editor prototype without process solving. See the [A1–A3 verification record](docs/a1-a3-status.md) for formulation, tests, domains and remaining acceptance gates.
 
 ## Development plan
 
@@ -69,7 +69,7 @@ wsl -d Ubuntu --cd "$PWD" -- bash scripts/wsl-ui-tests.sh
 wsl -d Ubuntu --cd "$PWD" -- env UPDATE_SNAPSHOTS=1 bash scripts/wsl-ui-tests.sh
 ```
 
-Numerical tests compare homogeneous PR and PR-BM separately against teqp and NASA7 against Cantera. They verify implementation agreement; phase stability and experimental accuracy are unassessed. See the [testing strategy](docs/testing-strategy.md), [contributing](CONTRIBUTING.md), [architecture](docs/architecture.md), and [artifact inventory](docs/artifact-inventory.md).
+Numerical tests compare homogeneous PR and PR-BM separately against teqp and NASA7 against Cantera. They verify implementation agreement; A4 stability/flash tests compare against an independent SciPy/teqp equilibrium solution; global stability proof and experimental accuracy are not claimed. See the [testing strategy](docs/testing-strategy.md), [contributing](CONTRIBUTING.md), [architecture](docs/architecture.md), and [artifact inventory](docs/artifact-inventory.md).
 
 ## Access and licensing
 

@@ -3407,6 +3407,7 @@ dependencies = [
  "serde_json",
  "thermo-data",
  "thermo-models",
+ "thermo-solvers",
  "thermo-types",
 ]
 
@@ -3441,6 +3442,12 @@ dependencies = [
 [[package]]
 name = "thermo-solvers"
 version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "thermo-data",
+ "thermo-models",
+ "thermo-types",
+]
 
 [[package]]
 name = "thermo-types"

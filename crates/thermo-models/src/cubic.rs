@@ -53,6 +53,19 @@ pub struct HomogeneousState {
     pub selection: RootSelection,
 }
 
+/// Volumetric root and fugacity coefficients only; no caloric or stability claim.
+#[derive(Debug, Clone)]
+pub struct FugacityState {
+    pub compressibility: f64,
+    /// m³/mol
+    pub molar_volume: f64,
+    pub ln_fugacity_coefficients: Vec<f64>,
+    /// sum x_i ln(phi_i) = g_res/(RT) at this T,p,x.
+    pub reduced_residual_gibbs: f64,
+    /// Number of admissible real roots found at this T,p,x (1 or 3, rarely 2).
+    pub root_count: usize,
+}
+
 /// Private immutable data and fully specified symmetric, constant interactions.
 #[derive(Debug, Clone)]
 pub struct CubicModel {
@@ -150,6 +163,10 @@ impl CubicModel {
     }
 
     fn parameters(&self, t: f64) -> Result<Parameters, Error> {
+        self.parameters_at(t, &self.fractions)
+    }
+
+    fn parameters_at(&self, t: f64, fractions: &[f64]) -> Result<Parameters, Error> {
         let mut bi = Vec::new();
         let mut g = Vec::new();
         let mut dg = Vec::new();
@@ -177,14 +194,14 @@ impl CubicModel {
         let mut cross = vec![0.0; g.len()];
         for i in 0..g.len() {
             for j in 0..g.len() {
-                let weight = self.fractions[i] * self.fractions[j] * (1.0 - self.kij[i][j]);
+                let weight = fractions[i] * fractions[j] * (1.0 - self.kij[i][j]);
                 a += weight * g[i] * g[j];
                 da += weight * (dg[i] * g[j] + g[i] * dg[j]);
                 d2a += weight * (d2g[i] * g[j] + 2.0 * dg[i] * dg[j] + g[i] * d2g[j]);
-                cross[i] += self.fractions[j] * (1.0 - self.kij[i][j]) * g[i] * g[j];
+                cross[i] += fractions[j] * (1.0 - self.kij[i][j]) * g[i] * g[j];
             }
         }
-        let b = bi.iter().zip(&self.fractions).map(|(b, x)| b * x).sum();
+        let b = bi.iter().zip(fractions).map(|(b, x)| b * x).sum();
         if ![a, da, d2a, b].iter().all(|v| v.is_finite()) || a <= 0.0 || b <= 0.0 {
             return Err(Error::NumericalFailure(
                 "invalid mixed cubic parameters".into(),
@@ -253,32 +270,10 @@ impl CubicModel {
             return Err(Error::UnsupportedCapability("BM second temperature derivative has one-sided values at T=Tc; cp/cv not defined there".into()));
         }
         let par = self.parameters(t)?;
-        let log_phi = |z: f64| {
-            let b_red = par.b * p / (R * t);
-            let q = attraction_integral(z * R * t / p, par.b);
-            (0..self.components.len())
-                .map(|i| {
-                    par.bi[i] / par.b * (z - 1.0)
-                        - (z - b_red).ln()
-                        - (2.0 * par.cross[i] - par.a * par.bi[i] / par.b) * q / (R * t)
-                })
-                .collect::<Vec<_>>()
-        };
-        let gibbs = |z| {
-            log_phi(z)
-                .iter()
-                .zip(&self.fractions)
-                .map(|(l, x)| l * x)
-                .sum::<f64>()
-        };
-        let z = match selection {
-            RootSelection::SmallestVolume => roots[0],
-            RootSelection::LargestVolume => *roots.last().unwrap(),
-            RootSelection::MinimumGibbs => *roots
-                .iter()
-                .min_by(|a, b| gibbs(**a).total_cmp(&gibbs(**b)))
-                .unwrap(),
-        };
+        let log_phi = |z: f64| ln_phi(&par, t, p, z);
+        let z = select_root(&roots, selection, |z| {
+            self.reduced_residual_gibbs(&log_phi(z))
+        });
         let v = z * R * t / p;
         let denom = v * v + 2.0 * par.b * v - par.b * par.b;
         let pt = R / (v - par.b) - par.da / denom;
@@ -325,6 +320,91 @@ impl CubicModel {
             internal_energy:h0+hr-p*v, cp,cv,speed_of_sound:sound,dp_dt:pt,dp_dv:pv,model:self.metadata(),data:self.data.clone(),
             caloric_reference: CaloricReference { identifier: "ideal-pure-zero-298.15K-1bar-cp-integrated-v1".into(), definition: "NASA7 cp integrals; pure ideal h=s=0 at 298.15 K, 100000 Pa; ideal mixing entropy; EOS departures at same T,p,x; J/mol and J/(mol K)".into() },
             validity: ValidityStatus::Unassessed, selection })
+    }
+
+    /// The same model and interactions at another mole-fraction vector in model order.
+    /// Fractions must be finite, nonnegative and sum to one within 1e-10; zero entries
+    /// keep the component present at infinite dilution for fugacity evaluation.
+    pub fn with_fractions(&self, fractions: &[f64]) -> Result<Self, Error> {
+        if fractions.len() != self.components.len() {
+            return Err(InputError::ComponentMismatch.into());
+        }
+        if fractions.iter().any(|x| !x.is_finite()) {
+            return Err(InputError::NonFinite("mole fraction").into());
+        }
+        if fractions.iter().any(|x| *x < 0.0) {
+            return Err(InputError::Negative("mole fraction").into());
+        }
+        if (fractions.iter().sum::<f64>() - 1.0).abs() > 1e-10 {
+            return Err(InputError::NotNormalized.into());
+        }
+        Ok(Self {
+            fractions: fractions.to_vec(),
+            ..self.clone()
+        })
+    }
+
+    pub fn components(&self) -> &[Component] {
+        &self.components
+    }
+
+    /// Mole fractions in model order.
+    pub fn fractions(&self) -> &[f64] {
+        &self.fractions
+    }
+
+    pub fn variant(&self) -> CubicVariant {
+        self.variant
+    }
+
+    /// Mixture covolume b in m³/mol at the model fractions (temperature independent).
+    pub fn covolume(&self) -> f64 {
+        self.components
+            .iter()
+            .zip(&self.fractions)
+            .map(|(c, x)| x * OMEGA_B * R * c.critical_temperature() / c.critical_pressure())
+            .sum()
+    }
+
+    /// Z and ln(phi) of the requested root, without caloric evaluation. Intended for
+    /// stability and flash iterations. MinimumGibbs compares roots at this composition
+    /// only. A selected root with nonnegative (dp/dv)_T is rejected as mechanically
+    /// unstable rather than returned.
+    pub fn ln_fugacity(
+        &self,
+        temperature: Temperature,
+        pressure: Pressure,
+        selection: RootSelection,
+    ) -> Result<FugacityState, Error> {
+        let (t, p) = (temperature.value(), pressure.value());
+        let roots = self.compressibility_roots(temperature, pressure)?;
+        let par = self.parameters(t)?;
+        let z = select_root(&roots, selection, |z| {
+            self.reduced_residual_gibbs(&ln_phi(&par, t, p, z))
+        });
+        let v = z * R * t / p;
+        let denom = v * v + 2.0 * par.b * v - par.b * par.b;
+        let pv = -R * t / (v - par.b).powi(2) + par.a * (2.0 * v + 2.0 * par.b) / denom.powi(2);
+        if pv >= 0.0 || !pv.is_finite() {
+            return Err(Error::NumericalFailure(
+                "selected root is mechanically unstable".into(),
+            ));
+        }
+        let ln_fugacity_coefficients = ln_phi(&par, t, p, z);
+        if !ln_fugacity_coefficients.iter().all(|v| v.is_finite()) {
+            return Err(Error::NumericalFailure("nonfinite ln(phi)".into()));
+        }
+        Ok(FugacityState {
+            compressibility: z,
+            molar_volume: v,
+            root_count: roots.len(),
+            reduced_residual_gibbs: self.reduced_residual_gibbs(&ln_fugacity_coefficients),
+            ln_fugacity_coefficients,
+        })
+    }
+
+    fn reduced_residual_gibbs(&self, ln_phi: &[f64]) -> f64 {
+        ln_phi.iter().zip(&self.fractions).map(|(l, x)| l * x).sum()
     }
 
     /// EOS pressure and first/second volume derivatives; useful for critical constraints.
@@ -386,6 +466,30 @@ impl CubicModel {
             return Err(Error::NumericalFailure("Helmholtz overflow".into()));
         }
         Ok(result)
+    }
+}
+
+fn ln_phi(par: &Parameters, t: f64, p: f64, z: f64) -> Vec<f64> {
+    let b_red = par.b * p / (R * t);
+    let q = attraction_integral(z * R * t / p, par.b);
+    (0..par.bi.len())
+        .map(|i| {
+            par.bi[i] / par.b * (z - 1.0)
+                - (z - b_red).ln()
+                - (2.0 * par.cross[i] - par.a * par.bi[i] / par.b) * q / (R * t)
+        })
+        .collect()
+}
+
+fn select_root(roots: &[f64], selection: RootSelection, gibbs: impl Fn(f64) -> f64) -> f64 {
+    match selection {
+        RootSelection::SmallestVolume => roots[0],
+        RootSelection::LargestVolume => roots[roots.len() - 1],
+        RootSelection::MinimumGibbs => roots
+            .iter()
+            .copied()
+            .min_by(|a, b| gibbs(*a).total_cmp(&gibbs(*b)))
+            .unwrap_or(roots[0]),
     }
 }
 
