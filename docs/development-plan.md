@@ -4,6 +4,12 @@ Date: November 1, 2026; revised November 7, 2026 after a plan and test review. P
 
 ## Repository setup note
 
+Current A6 implementation: see [native GERG-2008 status](a6-status.md) for the
+21-component native model, bracketed pressure inversion, analytic fugacity and
+caloric derivatives, dry-gas TPD/TP/PH integration, independent references and
+explicit qualification boundaries. Execution evidence is in
+[A6 checks](../validation/a6-checks.md).
+
 Current A5 implementation: see [PH flash and energy verification](a5-status.md)
 for the bracketed TP-based PH solver, pure-fluid saturation lever rule,
 independent references, supported domain and remaining review gates.

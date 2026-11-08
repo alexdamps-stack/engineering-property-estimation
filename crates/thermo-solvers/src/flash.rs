@@ -1,9 +1,10 @@
 //! Two-phase TP flash: TPD stability of the feed, damped/accelerated successive
 //! substitution on ln K with a negative-flash Rachford–Rice inner solve, Gibbs
 //! decrease check, and post-split stability of each phase.
+use crate::equilibrium_model::EquilibriumModel;
 use crate::rachford_rice::{RACHFORD_RICE_MAX_ITERATIONS, rachford_rice_negative};
 use crate::stability::{
-    StabilityAssessment, StabilityOptions, TrialOutcome, assess_stability, normalized,
+    StabilityAssessment, StabilityOptions, TrialOutcome, assess_stability_impl, normalized,
 };
 use thermo_models::{CubicModel, FugacityState, HomogeneousState, RootSelection};
 use thermo_types::{
@@ -99,10 +100,19 @@ pub fn tp_flash(
     pressure: Pressure,
     options: FlashOptions,
 ) -> Result<TpFlash, Error> {
+    tp_flash_impl(model, temperature, pressure, options)
+}
+
+pub(crate) fn tp_flash_impl<M: EquilibriumModel>(
+    model: &M,
+    temperature: Temperature,
+    pressure: Pressure,
+    options: FlashOptions,
+) -> Result<TpFlash, Error> {
     let z = model.fractions().to_vec();
     let n = z.len();
     let active: Vec<usize> = (0..n).filter(|i| z[*i] > 0.0).collect();
-    let feed_stability = assess_stability(model, temperature, pressure, options.stability)?;
+    let feed_stability = assess_stability_impl(model, temperature, pressure, options.stability)?;
     let mut diagnostics = vec![info(
         "A4-STABILITY-FINITE-TRIALS",
         format!(
@@ -118,10 +128,10 @@ pub fn tp_flash(
     )];
     if feed_stability.stable_in_trials {
         let state = model.evaluate(temperature, pressure, RootSelection::MinimumGibbs)?;
-        let phase = single_phase_label(model, &state);
+        let phase = model.phase_label(&state);
         diagnostics.push(info(
             "A4-SINGLE-PHASE-LABEL",
-            "Single-phase label from Kay pseudo-critical T and p and EOS v/b against the PR critical Zc/Bc; a label, not a phase-boundary result.",
+            "Single-phase label from the model adapter's documented pseudo-critical/density heuristic; a label, not a phase-boundary result.",
             DiagnosticSeverity::Information,
         ));
         return Ok(TpFlash {
@@ -261,7 +271,7 @@ pub fn tp_flash(
     }
     let mut phase_stability = Vec::new();
     for phase in &phases {
-        let assessment = assess_stability(
+        let assessment = assess_stability_impl(
             &model.with_fractions(&phase.composition)?,
             temperature,
             pressure,
@@ -301,8 +311,8 @@ fn expand(active: &[usize], values: &[f64], n: usize) -> Vec<f64> {
     normalized(full)
 }
 
-fn phase_fugacity(
-    model: &CubicModel,
+fn phase_fugacity<M: EquilibriumModel>(
+    model: &M,
     temperature: Temperature,
     pressure: Pressure,
     composition: &[f64],

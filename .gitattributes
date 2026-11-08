@@ -2,3 +2,5 @@
 *.png binary
 *.jpg binary
 *.zip binary
+# Preserve the pinned upstream notice verbatim, including its trailing space.
+data/source-extracts/gerg/LICENSE whitespace=-blank-at-eol

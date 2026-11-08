@@ -9,6 +9,8 @@ Thumbs.db
 !.env.example
 *.log
 node_modules/
+__pycache__/
+*.py[cod]
 
 # egui_kittest snapshot artifacts (baselines are the plain .png files)
 **/tests/snapshots/**/*.new.png

@@ -62,7 +62,8 @@ pub struct FugacityState {
     pub ln_fugacity_coefficients: Vec<f64>,
     /// sum x_i ln(phi_i) = g_res/(RT) at this T,p,x.
     pub reduced_residual_gibbs: f64,
-    /// Number of admissible real roots found at this T,p,x (1 or 3, rarely 2).
+    /// Number of roots located at this T,p,x. Cubics: 1 or 3 (rarely 2).
+    /// The GERG equilibrium adapter reports sampled exterior roots only.
     pub root_count: usize,
 }
 

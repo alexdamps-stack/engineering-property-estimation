@@ -1,0 +1,2698 @@
+{
+  "schema": "gerg-equilibrium-v1",
+  "packages": {
+    "teqp": "0.23.2",
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "source_sha256": "901c03cd98263acae8d10480f9ada67ea9bbdf1a5a1b2f1b4a862a493266dec1",
+  "a4_adapter_sha256": "bbc264bc56be9648c6a011e335c9a4972580cd962c717bd947cbdc3c97119148",
+  "generator_sha256": "28252cfa595561f6007dfc6126d14c2e5cbe60c93199f44d38098f63128b3110",
+  "seed": 42662,
+  "random_tpd_starts": 16,
+  "independence": "NIST native pressure/calorics, teqp AD fugacity, SciPy L-BFGS-B TPD and hybrid Powell split; no Rust calls; outer roots from denser independent sampling",
+  "scope": "dry five-component fluid EOS, regular finite-start VLE evidence; no solids, global stability proof, critical-region or experimental accuracy claim",
+  "tolerances": {
+    "composition": [
+      2e-08,
+      1e-07
+    ],
+    "vapor_fraction": [
+      2e-08,
+      0.0
+    ],
+    "temperature": [
+      2e-06,
+      0.0
+    ],
+    "rho": [
+      2e-05,
+      2e-08
+    ],
+    "Z": [
+      2e-09,
+      2e-08
+    ],
+    "h": [
+      2e-05,
+      2e-09
+    ],
+    "s": [
+      2e-07,
+      2e-09
+    ],
+    "cp": [
+      2e-05,
+      2e-08
+    ]
+  },
+  "tp": [
+    {
+      "id": "binary-split",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "T": 250.0,
+      "p": 3000000.0,
+      "feed_min_tm": -0.6108757165721745,
+      "phases": 2,
+      "vapor_fraction": 0.4017555851513232,
+      "vapor": [
+        0.8946733721639133,
+        0.10532662783608672
+      ],
+      "liquid": [
+        0.2349540962827601,
+        0.7650459037172399
+      ],
+      "vapor_properties": {
+        "h": -2861.126118645631,
+        "s": -35.00403830312717,
+        "cp": 47.2967995975304,
+        "rho": 1691.2744733350419,
+        "Z": 0.8533603827875756
+      },
+      "liquid_properties": {
+        "h": -17903.928787774148,
+        "s": -80.37827185196797,
+        "cp": 95.79808207106387,
+        "rho": 13568.781672961548,
+        "Z": 0.10636670754605171
+      },
+      "fugacity_residual": 1.9539925233402755e-14,
+      "phase_min_tm": [
+        -1.6964207816272392e-13,
+        -1.596500709410975e-13
+      ],
+      "reduced_gibbs_change": -0.12478347222072417,
+      "enthalpy": -11860.398799122533,
+      "reference_tpd_trajectories": [
+        {
+          "T": 250.0,
+          "p": 3000000.0,
+          "composition": [
+            0.5,
+            0.5
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 1,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 3,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 9,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 12,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 13,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 14,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 250.0,
+          "p": 3000000.0,
+          "composition": [
+            0.2349540962827601,
+            0.7650459037172399
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 3,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 5,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 6,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 7,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 9,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 17,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 250.0,
+          "p": 3000000.0,
+          "composition": [
+            0.8946733721639133,
+            0.10532662783608672
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 3,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 4,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 7,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 9,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 10,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 16,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binary-vapor",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "T": 330.0,
+      "p": 2000000.0,
+      "feed_min_tm": -4.374278717023117e-14,
+      "phases": 1,
+      "composition": [
+        0.5,
+        0.5
+      ],
+      "h": 770.14413603717,
+      "s": -15.540195677863455,
+      "cp": 66.39959626139272,
+      "rho": 819.2599911386462,
+      "Z": 0.8897328678076762,
+      "enthalpy": 770.14413603717,
+      "reference_tpd_trajectories": [
+        {
+          "T": 330.0,
+          "p": 2000000.0,
+          "composition": [
+            0.5,
+            0.5
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 6,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 11,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 15,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binary-liquid",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.05,
+        0.95
+      ],
+      "T": 250.0,
+      "p": 5000000.0,
+      "feed_min_tm": -3.1308289294429414e-13,
+      "phases": 1,
+      "composition": [
+        0.05,
+        0.95
+      ],
+      "h": -20678.963054747783,
+      "s": -88.91133112698242,
+      "cp": 99.90036446806151,
+      "rho": 13010.8122713662,
+      "Z": 0.18488041610594474,
+      "enthalpy": -20678.963054747783,
+      "reference_tpd_trajectories": [
+        {
+          "T": 250.0,
+          "p": 5000000.0,
+          "composition": [
+            0.05,
+            0.95
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 5,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 6,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 7,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 9,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 10,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 14,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 17,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binary-zero-n2",
+      "ids": [
+        "methane",
+        "propane",
+        "nitrogen"
+      ],
+      "z": [
+        0.5,
+        0.5,
+        0.0
+      ],
+      "T": 250.0,
+      "p": 3000000.0,
+      "feed_min_tm": -0.6108757165721737,
+      "phases": 2,
+      "vapor_fraction": 0.40175558515130677,
+      "vapor": [
+        0.8946733721639194,
+        0.10532662783608064,
+        0.0
+      ],
+      "liquid": [
+        0.2349540962827741,
+        0.7650459037172259,
+        0.0
+      ],
+      "vapor_properties": {
+        "h": -2861.1261186456018,
+        "s": -35.0040383031272,
+        "cp": 47.29679959752994,
+        "rho": 1691.2744733350419,
+        "Z": 0.8533603827875784
+      },
+      "liquid_properties": {
+        "h": -17903.92878777392,
+        "s": -80.37827185196741,
+        "cp": 95.79808207106356,
+        "rho": 13568.78167296159,
+        "Z": 0.10636670754605604
+      },
+      "fugacity_residual": 3.419486915845482e-14,
+      "phase_min_tm": [
+        -1.4988010832439613e-13,
+        -1.2323475573339238e-13
+      ],
+      "reduced_gibbs_change": -0.12478347222074415,
+      "enthalpy": -11860.398799122631,
+      "reference_tpd_trajectories": [
+        {
+          "T": 250.0,
+          "p": 3000000.0,
+          "composition": [
+            0.5,
+            0.5,
+            0.0
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 1,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 3,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 4,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 14,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 16,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 250.0,
+          "p": 3000000.0,
+          "composition": [
+            0.2349540962827741,
+            0.7650459037172259,
+            0.0
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 3,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 7,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 9,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 10,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 12,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 250.0,
+          "p": 3000000.0,
+          "composition": [
+            0.8946733721639194,
+            0.10532662783608064,
+            0.0
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 1,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 3,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 7,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 9,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 12,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 15,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 17,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ng-vapor",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "T": 330.0,
+      "p": 5000000.0,
+      "feed_min_tm": -1.84297022087776e-14,
+      "phases": 1,
+      "composition": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "h": 424.5677333317572,
+      "s": -26.08858780023263,
+      "cp": 44.38372450035314,
+      "rho": 1960.0500143060576,
+      "Z": 0.929724415290041,
+      "enthalpy": 424.5677333317572,
+      "reference_tpd_trajectories": [
+        {
+          "T": 330.0,
+          "p": 5000000.0,
+          "composition": [
+            0.88,
+            0.06,
+            0.03,
+            0.02,
+            0.01
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 4,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 16,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ng-rich-split",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.7,
+        0.15,
+        0.13,
+        0.01,
+        0.01
+      ],
+      "T": 250.0,
+      "p": 3000000.0,
+      "feed_min_tm": -0.2881267497654676,
+      "phases": 2,
+      "vapor_fraction": 0.8853168852103626,
+      "vapor": [
+        0.76331061354283,
+        0.13695580141548377,
+        0.07823809085418348,
+        0.011180201971557049,
+        0.010315292215945755
+      ],
+      "liquid": [
+        0.2112623572763318,
+        0.25069703183500236,
+        0.5295853466447424,
+        0.0008892190860478455,
+        0.007566045157875416
+      ],
+      "vapor_properties": {
+        "h": -3092.9045967356883,
+        "s": -32.06775026802639,
+        "cp": 51.03666863720637,
+        "rho": 1748.6974410761077,
+        "Z": 0.8253381048445123
+      },
+      "liquid_properties": {
+        "h": -16528.772786854515,
+        "s": -73.46364649873793,
+        "cp": 93.0258760455928,
+        "rho": 14079.53266641517,
+        "Z": 0.10250813476266418
+      },
+      "fugacity_residual": 3.108624468950438e-14,
+      "phase_min_tm": [
+        -1.2967404927621828e-13,
+        -1.2989609388114332e-13
+      ],
+      "reduced_gibbs_change": -0.014893379222615133,
+      "enthalpy": -4633.771810681525,
+      "reference_tpd_trajectories": [
+        {
+          "T": 250.0,
+          "p": 3000000.0,
+          "composition": [
+            0.7,
+            0.15,
+            0.13,
+            0.01,
+            0.01
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 0,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 1,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 3,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 5,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 9,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 11,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 14,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 16,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 17,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 250.0,
+          "p": 3000000.0,
+          "composition": [
+            0.2112623572763318,
+            0.25069703183500236,
+            0.5295853466447424,
+            0.0008892190860478455,
+            0.007566045157875416
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 15,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 250.0,
+          "p": 3000000.0,
+          "composition": [
+            0.76331061354283,
+            0.13695580141548377,
+            0.07823809085418348,
+            0.011180201971557049,
+            0.010315292215945755
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 17,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ng-rich-low-T",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.7,
+        0.15,
+        0.13,
+        0.01,
+        0.01
+      ],
+      "T": 230.0,
+      "p": 2000000.0,
+      "feed_min_tm": -0.8893831570689172,
+      "phases": 2,
+      "vapor_fraction": 0.8212554679393957,
+      "vapor": [
+        0.8121674656635612,
+        0.12099675338215889,
+        0.04444334065528882,
+        0.01204570664507505,
+        0.010346733653916007
+      ],
+      "liquid": [
+        0.18463797219894265,
+        0.283257642056546,
+        0.5230966362744397,
+        0.000600843848480851,
+        0.008406905621590837
+      ],
+      "vapor_properties": {
+        "h": -3353.7356787985514,
+        "s": -31.43153983617433,
+        "cp": 44.506790346330575,
+        "rho": 1201.596460874387,
+        "Z": 0.8703798817119208
+      },
+      "liquid_properties": {
+        "h": -18555.972088396426,
+        "s": -81.20343961478963,
+        "cp": 87.5215066538324,
+        "rho": 14893.793090692456,
+        "Z": 0.07022021718126215
+      },
+      "fugacity_residual": 1.3988810110276972e-14,
+      "phase_min_tm": [
+        -2.531308496145357e-13,
+        -2.637889906509372e-13
+      ],
+      "reduced_gibbs_change": -0.059197204296171924,
+      "enthalpy": -6071.052312106804,
+      "reference_tpd_trajectories": [
+        {
+          "T": 230.0,
+          "p": 2000000.0,
+          "composition": [
+            0.7,
+            0.15,
+            0.13,
+            0.01,
+            0.01
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 1,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 4,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 6,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 11,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 12,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 13,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 14,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 15,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 16,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 17,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 230.0,
+          "p": 2000000.0,
+          "composition": [
+            0.18463797219894265,
+            0.283257642056546,
+            0.5230966362744397,
+            0.000600843848480851,
+            0.008406905621590837
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 1,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 230.0,
+          "p": 2000000.0,
+          "composition": [
+            0.8121674656635612,
+            0.12099675338215889,
+            0.04444334065528882,
+            0.01204570664507505,
+            0.010346733653916007
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 0,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 10,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 15,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ng-mixed",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.85,
+        0.075,
+        0.04666666666666666,
+        0.018333333333333333,
+        0.01
+      ],
+      "T": 240.0,
+      "p": 5000000.0,
+      "feed_min_tm": -0.007959254588662423,
+      "phases": 2,
+      "vapor_fraction": 0.9961741776031743,
+      "vapor": [
+        0.8516116044516833,
+        0.07454666834534202,
+        0.045456724663919874,
+        0.018391540672787206,
+        0.00999346186626738
+      ],
+      "liquid": [
+        0.4303676771275433,
+        0.19303927140869956,
+        0.36171343426724434,
+        0.003177206755412527,
+        0.011702410441100224
+      ],
+      "vapor_properties": {
+        "h": -4071.267615916263,
+        "s": -41.369711997216854,
+        "cp": 62.53478619475663,
+        "rho": 3480.6940875288883,
+        "Z": 0.7198768903669603
+      },
+      "liquid_properties": {
+        "h": -14134.916157563071,
+        "s": -70.13055268390283,
+        "cp": 87.71613079819613,
+        "rho": 15007.026804955087,
+        "Z": 0.1669665329858332
+      },
+      "fugacity_residual": 4.884981308350689e-15,
+      "phase_min_tm": [
+        -1.6187051699034782e-13,
+        -1.7141843500212417e-13
+      ],
+      "reduced_gibbs_change": -1.5115689116940167e-05,
+      "enthalpy": -4109.7693479006775,
+      "reference_tpd_trajectories": [
+        {
+          "T": 240.0,
+          "p": 5000000.0,
+          "composition": [
+            0.85,
+            0.075,
+            0.04666666666666666,
+            0.018333333333333333,
+            0.01
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 3,
+              "reason": "(['methane', 'ethane', 'propane', 'nitrogen', 'carbon-dioxide'], 240.0, 5000000.0, array([0.22228531, 0.10768145, 0.02121619, 0.1428685 , 0.50594854]), 'no regular density root')"
+            },
+            {
+              "start": 4,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 5,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 7,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 9,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 15,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 240.0,
+          "p": 5000000.0,
+          "composition": [
+            0.4303676771275433,
+            0.19303927140869956,
+            0.36171343426724434,
+            0.003177206755412527,
+            0.011702410441100224
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 3,
+              "reason": "(['methane', 'ethane', 'propane', 'nitrogen', 'carbon-dioxide'], 240.0, 5000000.0, array([0.22228531, 0.10768145, 0.02121619, 0.1428685 , 0.50594854]), 'no regular density root')"
+            },
+            {
+              "start": 11,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 14,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 15,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 16,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 240.0,
+          "p": 5000000.0,
+          "composition": [
+            0.8516116044516833,
+            0.07454666834534202,
+            0.045456724663919874,
+            0.018391540672787206,
+            0.00999346186626738
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 1,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 3,
+              "reason": "(['methane', 'ethane', 'propane', 'nitrogen', 'carbon-dioxide'], 240.0, 5000000.0, array([0.22228531, 0.10768145, 0.02121619, 0.1428685 , 0.50594854]), 'no regular density root')"
+            },
+            {
+              "start": 7,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 16,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binary-boundary-low",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "T": 290.0,
+      "p": 1000000.0,
+      "feed_min_tm": -1.865174681370263e-14,
+      "phases": 1,
+      "composition": [
+        0.5,
+        0.5
+      ],
+      "h": -1100.6292795428653,
+      "s": -16.375596412343484,
+      "cp": 59.355661061210355,
+      "rho": 452.7940094084912,
+      "Z": 0.9159392177826364,
+      "enthalpy": -1100.6292795428653,
+      "reference_tpd_trajectories": [
+        {
+          "T": 290.0,
+          "p": 1000000.0,
+          "composition": [
+            0.5,
+            0.5
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 1,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 4,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 10,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 11,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binary-boundary-high",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "T": 290.0,
+      "p": 5000000.0,
+      "feed_min_tm": -0.0750196181228806,
+      "phases": 2,
+      "vapor_fraction": 0.4921720986868775,
+      "vapor": [
+        0.743437095547113,
+        0.25656290445288704
+      ],
+      "liquid": [
+        0.2640678152896826,
+        0.7359321847103175
+      ],
+      "vapor_properties": {
+        "h": -2479.0338295648426,
+        "s": -34.282079995931255,
+        "cp": 67.57153711650794,
+        "rho": 2744.5771893682877,
+        "Z": 0.755547689459735
+      },
+      "liquid_properties": {
+        "h": -13336.806772117421,
+        "s": -64.57461497527964,
+        "cp": 112.70974140767999,
+        "rho": 11891.163948661135,
+        "Z": 0.17438654137848575
+      },
+      "fugacity_residual": 1.0369483049998962e-13,
+      "phase_min_tm": [
+        -1.425526363618701e-13,
+        -2.1183055309847987e-13
+      ],
+      "reduced_gibbs_change": -0.04987197552819711,
+      "enthalpy": -7992.913875915725,
+      "reference_tpd_trajectories": [
+        {
+          "T": 290.0,
+          "p": 5000000.0,
+          "composition": [
+            0.5,
+            0.5
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 0,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 6,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 7,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 9,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 10,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 12,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 13,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 16,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 17,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 290.0,
+          "p": 5000000.0,
+          "composition": [
+            0.2640678152896826,
+            0.7359321847103175
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 3,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 4,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 5,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 17,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 290.0,
+          "p": 5000000.0,
+          "composition": [
+            0.743437095547113,
+            0.25656290445288704
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 0,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 1,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 3,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 5,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 6,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 11,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 13,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pure-propane",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "T": 300.0,
+      "p": 1000000.0,
+      "feed_min_tm": 0.0,
+      "phases": 1,
+      "composition": [
+        1.0
+      ],
+      "h": -16028.487410525455,
+      "s": -71.05895951025934,
+      "cp": 121.48749125844452,
+      "rho": 11102.880682056337,
+      "Z": 0.03610841269470677,
+      "enthalpy": -16028.487410525455,
+      "reference_tpd_trajectories": []
+    },
+    {
+      "id": "pure-methane",
+      "ids": [
+        "methane"
+      ],
+      "z": [
+        1.0
+      ],
+      "T": 300.0,
+      "p": 5000000.0,
+      "feed_min_tm": 0.0,
+      "phases": 1,
+      "composition": [
+        1.0
+      ],
+      "h": -730.2597108678411,
+      "s": -34.162839550180124,
+      "cp": 41.250887598207676,
+      "rho": 2179.891432241944,
+      "Z": 0.9195581757837653,
+      "enthalpy": -730.2597108678411,
+      "reference_tpd_trajectories": []
+    },
+    {
+      "id": "narrow-ethane-propane",
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "z": [
+        0.98,
+        0.02
+      ],
+      "T": 260.0,
+      "p": 1660384.6946371451,
+      "feed_min_tm": -0.006798860289472852,
+      "phases": 2,
+      "vapor_fraction": 0.4344226376982914,
+      "vapor": [
+        0.9918900103710401,
+        0.00810998962895998
+      ],
+      "liquid": [
+        0.9708672269932689,
+        0.02913277300673115
+      ],
+      "vapor_properties": {
+        "h": -3549.3062833936465,
+        "s": -34.26365646336024,
+        "cp": 71.69791822757676,
+        "rho": 1008.8747315511456,
+        "Z": 0.7613133642892449
+      },
+      "liquid_properties": {
+        "h": -14195.197233512907,
+        "s": -74.32443654630345,
+        "cp": 95.54357910070777,
+        "rho": 14251.029421070698,
+        "Z": 0.05389574277967424
+      },
+      "fugacity_residual": 1.9290125052862095e-14,
+      "phase_min_tm": [
+        -2.9976021664879227e-13,
+        -2.8554936193359026e-13
+      ],
+      "reduced_gibbs_change": -0.0016553689625175005,
+      "enthalpy": -9570.381206313728,
+      "reference_tpd_trajectories": [
+        {
+          "T": 260.0,
+          "p": 1660384.6946371451,
+          "composition": [
+            0.98,
+            0.02
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 13,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 14,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 15,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 16,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 260.0,
+          "p": 1660384.6946371451,
+          "composition": [
+            0.9708672269932689,
+            0.02913277300673115
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 1,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 5,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 6,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 7,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 8,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 13,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 14,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 17,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        },
+        {
+          "T": 260.0,
+          "p": 1660384.6946371451,
+          "composition": [
+            0.9918900103710401,
+            0.00810998962895998
+          ],
+          "attempted_starts": 18,
+          "failed_trajectories": [
+            {
+              "start": 1,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 2,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 5,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 6,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 7,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 9,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 10,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 11,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 14,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 16,
+              "reason": "ABNORMAL: "
+            },
+            {
+              "start": 17,
+              "reason": "ABNORMAL: "
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "ph": [
+    {
+      "id": "binary-split-ph",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "p": 3000000.0,
+      "target_h": -11860.398799122533,
+      "T": 250.0,
+      "temperature_bracket": [
+        235.0,
+        265.0
+      ],
+      "expected_tp": {
+        "id": "binary-split",
+        "ids": [
+          "methane",
+          "propane"
+        ],
+        "z": [
+          0.5,
+          0.5
+        ],
+        "T": 250.0,
+        "p": 3000000.0,
+        "feed_min_tm": -0.6108757165721745,
+        "phases": 2,
+        "vapor_fraction": 0.4017555851513232,
+        "vapor": [
+          0.8946733721639133,
+          0.10532662783608672
+        ],
+        "liquid": [
+          0.2349540962827601,
+          0.7650459037172399
+        ],
+        "vapor_properties": {
+          "h": -2861.126118645631,
+          "s": -35.00403830312717,
+          "cp": 47.2967995975304,
+          "rho": 1691.2744733350419,
+          "Z": 0.8533603827875756
+        },
+        "liquid_properties": {
+          "h": -17903.928787774148,
+          "s": -80.37827185196797,
+          "cp": 95.79808207106387,
+          "rho": 13568.781672961548,
+          "Z": 0.10636670754605171
+        },
+        "fugacity_residual": 1.9539925233402755e-14,
+        "phase_min_tm": [
+          -1.6964207816272392e-13,
+          -1.596500709410975e-13
+        ],
+        "reduced_gibbs_change": -0.12478347222072417,
+        "enthalpy": -11860.398799122533,
+        "reference_tpd_trajectories": [
+          {
+            "T": 250.0,
+            "p": 3000000.0,
+            "composition": [
+              0.5,
+              0.5
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 1,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 3,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 8,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 9,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 12,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 13,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 14,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          },
+          {
+            "T": 250.0,
+            "p": 3000000.0,
+            "composition": [
+              0.2349540962827601,
+              0.7650459037172399
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 3,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 5,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 6,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 7,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 9,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 17,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          },
+          {
+            "T": 250.0,
+            "p": 3000000.0,
+            "composition": [
+              0.8946733721639133,
+              0.10532662783608672
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 2,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 3,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 4,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 7,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 8,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 9,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 10,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 16,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "binary-vapor-ph",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "p": 2000000.0,
+      "target_h": 770.14413603717,
+      "T": 330.0,
+      "temperature_bracket": [
+        315.0,
+        345.0
+      ],
+      "expected_tp": {
+        "id": "binary-vapor",
+        "ids": [
+          "methane",
+          "propane"
+        ],
+        "z": [
+          0.5,
+          0.5
+        ],
+        "T": 330.0,
+        "p": 2000000.0,
+        "feed_min_tm": -4.374278717023117e-14,
+        "phases": 1,
+        "composition": [
+          0.5,
+          0.5
+        ],
+        "h": 770.14413603717,
+        "s": -15.540195677863455,
+        "cp": 66.39959626139272,
+        "rho": 819.2599911386462,
+        "Z": 0.8897328678076762,
+        "enthalpy": 770.14413603717,
+        "reference_tpd_trajectories": [
+          {
+            "T": 330.0,
+            "p": 2000000.0,
+            "composition": [
+              0.5,
+              0.5
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 6,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 8,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 11,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 15,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "binary-liquid-ph",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.05,
+        0.95
+      ],
+      "p": 5000000.0,
+      "target_h": -20678.963054747783,
+      "T": 250.0,
+      "temperature_bracket": [
+        235.0,
+        265.0
+      ],
+      "expected_tp": {
+        "id": "binary-liquid",
+        "ids": [
+          "methane",
+          "propane"
+        ],
+        "z": [
+          0.05,
+          0.95
+        ],
+        "T": 250.0,
+        "p": 5000000.0,
+        "feed_min_tm": -3.1308289294429414e-13,
+        "phases": 1,
+        "composition": [
+          0.05,
+          0.95
+        ],
+        "h": -20678.963054747783,
+        "s": -88.91133112698242,
+        "cp": 99.90036446806151,
+        "rho": 13010.8122713662,
+        "Z": 0.18488041610594474,
+        "enthalpy": -20678.963054747783,
+        "reference_tpd_trajectories": [
+          {
+            "T": 250.0,
+            "p": 5000000.0,
+            "composition": [
+              0.05,
+              0.95
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 5,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 6,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 7,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 8,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 9,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 10,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 14,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 17,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ng-vapor-ph",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "p": 5000000.0,
+      "target_h": 424.5677333317572,
+      "T": 330.0,
+      "temperature_bracket": [
+        315.0,
+        345.0
+      ],
+      "expected_tp": {
+        "id": "ng-vapor",
+        "ids": [
+          "methane",
+          "ethane",
+          "propane",
+          "nitrogen",
+          "carbon-dioxide"
+        ],
+        "z": [
+          0.88,
+          0.06,
+          0.03,
+          0.02,
+          0.01
+        ],
+        "T": 330.0,
+        "p": 5000000.0,
+        "feed_min_tm": -1.84297022087776e-14,
+        "phases": 1,
+        "composition": [
+          0.88,
+          0.06,
+          0.03,
+          0.02,
+          0.01
+        ],
+        "h": 424.5677333317572,
+        "s": -26.08858780023263,
+        "cp": 44.38372450035314,
+        "rho": 1960.0500143060576,
+        "Z": 0.929724415290041,
+        "enthalpy": 424.5677333317572,
+        "reference_tpd_trajectories": [
+          {
+            "T": 330.0,
+            "p": 5000000.0,
+            "composition": [
+              0.88,
+              0.06,
+              0.03,
+              0.02,
+              0.01
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 4,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 16,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ng-rich-split-ph",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.7,
+        0.15,
+        0.13,
+        0.01,
+        0.01
+      ],
+      "p": 3000000.0,
+      "target_h": -4633.771810681525,
+      "T": 250.0,
+      "temperature_bracket": [
+        235.0,
+        265.0
+      ],
+      "expected_tp": {
+        "id": "ng-rich-split",
+        "ids": [
+          "methane",
+          "ethane",
+          "propane",
+          "nitrogen",
+          "carbon-dioxide"
+        ],
+        "z": [
+          0.7,
+          0.15,
+          0.13,
+          0.01,
+          0.01
+        ],
+        "T": 250.0,
+        "p": 3000000.0,
+        "feed_min_tm": -0.2881267497654676,
+        "phases": 2,
+        "vapor_fraction": 0.8853168852103626,
+        "vapor": [
+          0.76331061354283,
+          0.13695580141548377,
+          0.07823809085418348,
+          0.011180201971557049,
+          0.010315292215945755
+        ],
+        "liquid": [
+          0.2112623572763318,
+          0.25069703183500236,
+          0.5295853466447424,
+          0.0008892190860478455,
+          0.007566045157875416
+        ],
+        "vapor_properties": {
+          "h": -3092.9045967356883,
+          "s": -32.06775026802639,
+          "cp": 51.03666863720637,
+          "rho": 1748.6974410761077,
+          "Z": 0.8253381048445123
+        },
+        "liquid_properties": {
+          "h": -16528.772786854515,
+          "s": -73.46364649873793,
+          "cp": 93.0258760455928,
+          "rho": 14079.53266641517,
+          "Z": 0.10250813476266418
+        },
+        "fugacity_residual": 3.108624468950438e-14,
+        "phase_min_tm": [
+          -1.2967404927621828e-13,
+          -1.2989609388114332e-13
+        ],
+        "reduced_gibbs_change": -0.014893379222615133,
+        "enthalpy": -4633.771810681525,
+        "reference_tpd_trajectories": [
+          {
+            "T": 250.0,
+            "p": 3000000.0,
+            "composition": [
+              0.7,
+              0.15,
+              0.13,
+              0.01,
+              0.01
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 0,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 1,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 2,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 3,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 5,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 8,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 9,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 11,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 14,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 16,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 17,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          },
+          {
+            "T": 250.0,
+            "p": 3000000.0,
+            "composition": [
+              0.2112623572763318,
+              0.25069703183500236,
+              0.5295853466447424,
+              0.0008892190860478455,
+              0.007566045157875416
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 15,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          },
+          {
+            "T": 250.0,
+            "p": 3000000.0,
+            "composition": [
+              0.76331061354283,
+              0.13695580141548377,
+              0.07823809085418348,
+              0.011180201971557049,
+              0.010315292215945755
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 17,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "narrow-ethane-propane-ph",
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "z": [
+        0.98,
+        0.02
+      ],
+      "p": 1660384.6946371451,
+      "target_h": -9570.381206313728,
+      "T": 260.0,
+      "temperature_bracket": [
+        245.0,
+        275.0
+      ],
+      "expected_tp": {
+        "id": "narrow-ethane-propane",
+        "ids": [
+          "ethane",
+          "propane"
+        ],
+        "z": [
+          0.98,
+          0.02
+        ],
+        "T": 260.0,
+        "p": 1660384.6946371451,
+        "feed_min_tm": -0.006798860289472852,
+        "phases": 2,
+        "vapor_fraction": 0.4344226376982914,
+        "vapor": [
+          0.9918900103710401,
+          0.00810998962895998
+        ],
+        "liquid": [
+          0.9708672269932689,
+          0.02913277300673115
+        ],
+        "vapor_properties": {
+          "h": -3549.3062833936465,
+          "s": -34.26365646336024,
+          "cp": 71.69791822757676,
+          "rho": 1008.8747315511456,
+          "Z": 0.7613133642892449
+        },
+        "liquid_properties": {
+          "h": -14195.197233512907,
+          "s": -74.32443654630345,
+          "cp": 95.54357910070777,
+          "rho": 14251.029421070698,
+          "Z": 0.05389574277967424
+        },
+        "fugacity_residual": 1.9290125052862095e-14,
+        "phase_min_tm": [
+          -2.9976021664879227e-13,
+          -2.8554936193359026e-13
+        ],
+        "reduced_gibbs_change": -0.0016553689625175005,
+        "enthalpy": -9570.381206313728,
+        "reference_tpd_trajectories": [
+          {
+            "T": 260.0,
+            "p": 1660384.6946371451,
+            "composition": [
+              0.98,
+              0.02
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 2,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 8,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 13,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 14,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 15,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 16,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          },
+          {
+            "T": 260.0,
+            "p": 1660384.6946371451,
+            "composition": [
+              0.9708672269932689,
+              0.02913277300673115
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 1,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 2,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 5,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 6,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 7,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 8,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 13,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 14,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 17,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          },
+          {
+            "T": 260.0,
+            "p": 1660384.6946371451,
+            "composition": [
+              0.9918900103710401,
+              0.00810998962895998
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": [
+              {
+                "start": 1,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 2,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 5,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 6,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 7,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 9,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 10,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 11,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 14,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 16,
+                "reason": "ABNORMAL: "
+              },
+              {
+                "start": 17,
+                "reason": "ABNORMAL: "
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "pure-propane-280.0-0.0",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "p": 581099.1862789534,
+      "target_h": -18368.28383397923,
+      "T": 280.0,
+      "temperature_bracket": [
+        250.0,
+        330.0
+      ],
+      "vapor_fraction": 0.0,
+      "saturation": {
+        "component": "propane",
+        "T": 280.0,
+        "p": 581099.1862789534,
+        "vapor_properties": {
+          "h": -2248.360792089989,
+          "s": -21.42973261895434,
+          "cp": 80.47513051936075,
+          "rho": 285.51801113522333,
+          "Z": 0.8742266694607678
+        },
+        "liquid_properties": {
+          "h": -18368.28383397923,
+          "s": -79.00088633998735,
+          "cp": 112.60480282144626,
+          "rho": 11779.603561434584,
+          "Z": 0.02118980139221671
+        }
+      }
+    },
+    {
+      "id": "pure-propane-280.0-0.25",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "p": 581099.1862789534,
+      "target_h": -14338.303073506919,
+      "T": 280.0,
+      "temperature_bracket": [
+        250.0,
+        330.0
+      ],
+      "vapor_fraction": 0.25,
+      "saturation": {
+        "component": "propane",
+        "T": 280.0,
+        "p": 581099.1862789534,
+        "vapor_properties": {
+          "h": -2248.360792089989,
+          "s": -21.42973261895434,
+          "cp": 80.47513051936075,
+          "rho": 285.51801113522333,
+          "Z": 0.8742266694607678
+        },
+        "liquid_properties": {
+          "h": -18368.28383397923,
+          "s": -79.00088633998735,
+          "cp": 112.60480282144626,
+          "rho": 11779.603561434584,
+          "Z": 0.02118980139221671
+        }
+      }
+    },
+    {
+      "id": "pure-propane-280.0-0.75",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "p": 581099.1862789534,
+      "target_h": -6278.341552562299,
+      "T": 280.0,
+      "temperature_bracket": [
+        250.0,
+        330.0
+      ],
+      "vapor_fraction": 0.75,
+      "saturation": {
+        "component": "propane",
+        "T": 280.0,
+        "p": 581099.1862789534,
+        "vapor_properties": {
+          "h": -2248.360792089989,
+          "s": -21.42973261895434,
+          "cp": 80.47513051936075,
+          "rho": 285.51801113522333,
+          "Z": 0.8742266694607678
+        },
+        "liquid_properties": {
+          "h": -18368.28383397923,
+          "s": -79.00088633998735,
+          "cp": 112.60480282144626,
+          "rho": 11779.603561434584,
+          "Z": 0.02118980139221671
+        }
+      }
+    },
+    {
+      "id": "pure-propane-280.0-1.0",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "p": 581099.1862789534,
+      "target_h": -2248.360792089989,
+      "T": 280.0,
+      "temperature_bracket": [
+        250.0,
+        330.0
+      ],
+      "vapor_fraction": 1.0,
+      "saturation": {
+        "component": "propane",
+        "T": 280.0,
+        "p": 581099.1862789534,
+        "vapor_properties": {
+          "h": -2248.360792089989,
+          "s": -21.42973261895434,
+          "cp": 80.47513051936075,
+          "rho": 285.51801113522333,
+          "Z": 0.8742266694607678
+        },
+        "liquid_properties": {
+          "h": -18368.28383397923,
+          "s": -79.00088633998735,
+          "cp": 112.60480282144626,
+          "rho": 11779.603561434584,
+          "Z": 0.02118980139221671
+        }
+      }
+    },
+    {
+      "id": "pure-propane-300.0-0.0",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "p": 996884.8250326511,
+      "target_h": -16028.479543985259,
+      "T": 300.0,
+      "temperature_bracket": [
+        250.0,
+        330.0
+      ],
+      "vapor_fraction": 0.0,
+      "saturation": {
+        "component": "propane",
+        "T": 300.0,
+        "p": 996884.8250326511,
+        "vapor_properties": {
+          "h": -1339.8476371435688,
+          "s": -22.095891677336,
+          "cp": 90.87044463176692,
+          "rho": 489.3874627591322,
+          "Z": 0.8166504691902278
+        },
+        "liquid_properties": {
+          "h": -16028.479543985259,
+          "s": -71.05799803347499,
+          "cp": 121.49238511918047,
+          "rho": 11102.649864006093,
+          "Z": 0.03599667700714748
+        }
+      }
+    },
+    {
+      "id": "pure-propane-300.0-0.25",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "p": 996884.8250326511,
+      "target_h": -12356.321567274836,
+      "T": 300.0,
+      "temperature_bracket": [
+        250.0,
+        330.0
+      ],
+      "vapor_fraction": 0.25,
+      "saturation": {
+        "component": "propane",
+        "T": 300.0,
+        "p": 996884.8250326511,
+        "vapor_properties": {
+          "h": -1339.8476371435688,
+          "s": -22.095891677336,
+          "cp": 90.87044463176692,
+          "rho": 489.3874627591322,
+          "Z": 0.8166504691902278
+        },
+        "liquid_properties": {
+          "h": -16028.479543985259,
+          "s": -71.05799803347499,
+          "cp": 121.49238511918047,
+          "rho": 11102.649864006093,
+          "Z": 0.03599667700714748
+        }
+      }
+    },
+    {
+      "id": "pure-propane-300.0-0.75",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "p": 996884.8250326511,
+      "target_h": -5012.005613853991,
+      "T": 300.0,
+      "temperature_bracket": [
+        250.0,
+        330.0
+      ],
+      "vapor_fraction": 0.75,
+      "saturation": {
+        "component": "propane",
+        "T": 300.0,
+        "p": 996884.8250326511,
+        "vapor_properties": {
+          "h": -1339.8476371435688,
+          "s": -22.095891677336,
+          "cp": 90.87044463176692,
+          "rho": 489.3874627591322,
+          "Z": 0.8166504691902278
+        },
+        "liquid_properties": {
+          "h": -16028.479543985259,
+          "s": -71.05799803347499,
+          "cp": 121.49238511918047,
+          "rho": 11102.649864006093,
+          "Z": 0.03599667700714748
+        }
+      }
+    },
+    {
+      "id": "pure-propane-300.0-1.0",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "p": 996884.8250326511,
+      "target_h": -1339.8476371435688,
+      "T": 300.0,
+      "temperature_bracket": [
+        250.0,
+        330.0
+      ],
+      "vapor_fraction": 1.0,
+      "saturation": {
+        "component": "propane",
+        "T": 300.0,
+        "p": 996884.8250326511,
+        "vapor_properties": {
+          "h": -1339.8476371435688,
+          "s": -22.095891677336,
+          "cp": 90.87044463176692,
+          "rho": 489.3874627591322,
+          "Z": 0.8166504691902278
+        },
+        "liquid_properties": {
+          "h": -16028.479543985259,
+          "s": -71.05799803347499,
+          "cp": 121.49238511918047,
+          "rho": 11102.649864006093,
+          "Z": 0.03599667700714748
+        }
+      }
+    },
+    {
+      "id": "ng-isenthalpic-valve",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "p": 3000000.0,
+      "target_h": 424.5677333317572,
+      "T": 322.30329325632096,
+      "temperature_bracket": [
+        300.0,
+        350.0
+      ],
+      "expected_tp": {
+        "id": "ng-isenthalpic-valve-outlet",
+        "ids": [
+          "methane",
+          "ethane",
+          "propane",
+          "nitrogen",
+          "carbon-dioxide"
+        ],
+        "z": [
+          0.88,
+          0.06,
+          0.03,
+          0.02,
+          0.01
+        ],
+        "T": 322.30329325632096,
+        "p": 3000000.0,
+        "feed_min_tm": -1.887379141862766e-14,
+        "phases": 1,
+        "composition": [
+          0.88,
+          0.06,
+          0.03,
+          0.02,
+          0.01
+        ],
+        "h": 424.56773333181906,
+        "s": -22.09037003772083,
+        "cp": 41.99742645245512,
+        "rho": 1175.6405540199678,
+        "Z": 0.9522418794167962,
+        "enthalpy": 424.56773333181906,
+        "reference_tpd_trajectories": [
+          {
+            "T": 322.30329325632096,
+            "p": 3000000.0,
+            "composition": [
+              0.88,
+              0.06,
+              0.03,
+              0.02,
+              0.01
+            ],
+            "attempted_starts": 18,
+            "failed_trajectories": []
+          }
+        ]
+      },
+      "inlet": {
+        "T": 330.0,
+        "p": 5000000.0,
+        "h": 424.5677333317572
+      }
+    }
+  ]
+}

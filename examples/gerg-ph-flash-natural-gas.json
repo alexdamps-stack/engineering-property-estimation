@@ -1,0 +1,25 @@
+{
+  "id": "gerg-natural-gas-isenthalpic-valve",
+  "calculation": "ph-flash",
+  "model": "GERG-2008",
+  "components": [
+    "methane",
+    "ethane",
+    "propane",
+    "nitrogen",
+    "carbon-dioxide"
+  ],
+  "mole_fractions": [
+    0.88,
+    0.06,
+    0.03,
+    0.02,
+    0.01
+  ],
+  "pressure_pa": 3000000.0,
+  "enthalpy_j_per_mol": 424.5677333317572,
+  "temperature_bracket_k": [
+    300.0,
+    350.0
+  ]
+}

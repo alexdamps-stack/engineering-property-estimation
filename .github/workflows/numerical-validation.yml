@@ -9,6 +9,35 @@ permissions:
   contents: read
 
 jobs:
+  gerg:
+    name: Independent GERG parameter reproduction and teqp AD
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install pinned reference dependencies
+        run: python -m pip install -r validation/reference-requirements.txt
+      - name: Reproduce NIST data and fixtures without replacing them
+        run: python validation/prepare-gerg.py
+      - name: Compare NIST fixtures with teqp AD
+        run: python validation/check-gerg-teqp.py
+      - name: Reproduce independent GERG density and fugacity references without writing
+        run: |
+          python validation/generate-gerg-density-references.py
+          python validation/generate-gerg-fugacity-references.py
+      - name: Independently reproduce GERG equilibrium into a temporary candidate
+        run: |
+          python validation/generate-gerg-equilibrium-references.py --output "$RUNNER_TEMP/gerg-equilibrium.json"
+          python - "$RUNNER_TEMP/gerg-equilibrium.json" <<'PY'
+          import json, pathlib, sys
+          expected = json.loads(pathlib.Path("validation/fixtures/gerg-equilibrium-v1.json").read_text())
+          actual = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          assert actual == expected, "GERG equilibrium reference reproduction differs; review explicitly"
+          PY
+
   clapeyron:
     name: Independent Clapeyron numerical check
     runs-on: ubuntu-latest
@@ -28,6 +57,8 @@ jobs:
         run: julia --project=validation/julia -e 'using Pkg; Pkg.instantiate()'
       - name: Compare current Rust calculations with live Clapeyron
         run: julia --project=validation/julia validation/julia/check.jl
+      - name: Verify GERG phase EOS and equilibrium residuals with Clapeyron
+        run: julia --compile=min --project=validation/julia validation/julia/check-gerg.jl
 
   homogeneous:
     name: Homogeneous cubic sweep (${{ matrix.os }})
