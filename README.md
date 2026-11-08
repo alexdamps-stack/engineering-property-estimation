@@ -2,7 +2,7 @@
 
 A Rust workspace for a planned standalone thermodynamic property engine and steady-state flowsheet simulator.
 
-**Status: homogeneous PR/PR-BM implementation.** Validated SI types, eight pinned component records, NASA7 ideal contributions, cubic roots, fugacities and caloric properties are implemented with offline independent reference comparisons. The CLI evaluates reproducible JSON cases. A4 adds TPD stability assessment, two-phase TP flash and pure saturation pressure with independent reference comparisons ([A4 record](docs/a4-status.md)); A5 adds PH flash with a pure-fluid saturation lever rule, energy diagnostics and independent references ([A5 record](docs/a5-status.md)); A7 adds a directed, temperature-dependent NRTL liquid with an explicitly selected ideal-gas vapor, pinned methanol/water data, and gamma-phi bubble/dew points and TP/PH flash with independent Clapeyron references ([A7 record](docs/a7-status.md)). `flowsheet-core` holds a GUI-independent topology model, and `thermo-desktop` is an `egui` editor prototype without process solving. See the [A1–A3 verification record](docs/a1-a3-status.md) for formulation, tests, domains and remaining acceptance gates.
+**Status: homogeneous PR/PR-BM implementation.** Validated SI types, eight pinned component records, NASA7 ideal contributions, cubic roots, fugacities and caloric properties are implemented with offline independent reference comparisons. The CLI evaluates reproducible JSON cases. A4 adds TPD stability assessment, two-phase TP flash and pure saturation pressure with independent reference comparisons ([A4 record](docs/a4-status.md)); A5 adds PH flash with a pure-fluid saturation lever rule, energy diagnostics and independent references ([A5 record](docs/a5-status.md)); A7 adds a directed, temperature-dependent NRTL liquid with an explicitly selected ideal-gas vapor, pinned methanol/water data, and gamma-phi bubble/dew points and TP/PH flash with independent Clapeyron references ([A7 record](docs/a7-status.md)). `flowsheet-core` supplies the A8 sequential engine with native unit operations, balances and the qualified headless demonstration ([A8 record](docs/a8-status.md)); `thermo-desktop` remains an `egui` editor prototype awaiting A9 calculation integration. See the [A1–A3 verification record](docs/a1-a3-status.md) for formulation, tests, domains and remaining acceptance gates.
 
 ## Development plan
 
@@ -48,7 +48,16 @@ cargo run -p thermo-cli --locked -- examples/homogeneous-binary.json
 cargo run -p thermo-desktop --locked
 ```
 
-The desktop command opens the flowsheet editor prototype. Add `-- --demo` to start with the demonstration flowsheet (mix, cool, expand, separate). You can place units, connect ports, and enter specifications; solving stays disabled until the flowsheet engine (A8) exists.
+The desktop command opens the flowsheet editor prototype. Add `-- --demo` to start with the demonstration topology (mix, cool, expand, separate). Desktop calculation integration remains A9 work. The A8 headless engine runs the independently qualified process through native unit-operation APIs:
+
+```sh
+cargo run -p flowsheet-core --example demonstration --locked -- PR-BM
+cargo run -p flowsheet-core --example demonstration --locked -- PR 100
+```
+
+The optional final argument scales all feed flows. JSON output includes streams,
+phase properties, model/data/reference provenance, duties, balances and solver
+diagnostics. See the [A8 implementation and verification record](docs/a8-status.md).
 
 For future flowsheet/UI design, see the [process symbol reference](docs/design-reference/iso-10628/README.md):
 296 editable SVG symbols, a searchable visual catalog, source references, and AI reuse guidance.

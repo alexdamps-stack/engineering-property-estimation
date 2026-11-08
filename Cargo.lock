@@ -1221,6 +1221,14 @@ dependencies = [
 [[package]]
 name = "flowsheet-core"
 version = "0.0.0"
+dependencies = [
+ "property-packages",
+ "serde_json",
+ "thermo-data",
+ "thermo-models",
+ "thermo-solvers",
+ "thermo-types",
+]
 
 [[package]]
 name = "fnv"
@@ -2784,6 +2792,11 @@ checksum = "3d595e54a326bc53c1c197b32d295e14b169e3cfeaa8dc82b529f947fba6bcf5"
 [[package]]
 name = "property-packages"
 version = "0.0.0"
+dependencies = [
+ "thermo-models",
+ "thermo-solvers",
+ "thermo-types",
+]
 
 [[package]]
 name = "proptest"

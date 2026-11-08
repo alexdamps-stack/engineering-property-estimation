@@ -88,8 +88,9 @@ pub struct Diagnostic {
 
 /// Pre-calculation status of a unit (proposal section 4.6).
 ///
-/// The calculated states (solved, warning, failed, stale) are added with the
-/// flowsheet engine (A8); until then no unit is ever reported as solved.
+/// This describes readiness only. Successful solved/warning results live in
+/// [`crate::Calculation`]; failures use [`crate::SolveError`] and result currency
+/// is checked with [`crate::Calculation::is_current`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnitStatus {
     /// A specification is missing or invalid, or a port is unconnected.
@@ -99,7 +100,7 @@ pub enum UnitStatus {
 }
 
 /// GUI-independent flowsheet topology and specifications.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Flowsheet {
     units: BTreeMap<UnitId, Unit>,
     streams: BTreeMap<StreamId, Stream>,
