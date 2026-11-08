@@ -11,11 +11,12 @@ source transcription) ran in the same WSL environment.
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | passed |
 | `cargo test --workspace --locked` | 128 passed: 12 NRTL model, 11 gamma–phi solver, 6 NRTL reference and 1 new CLI test |
 | `RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked` | passed |
-| `julia --project=validation/julia validation/julia/check.jl` | passed in 217 s after the review fixes (206 s before): PR/PR-BM (60 homogeneous, 28 PH, deviations unchanged from A5) and NRTL live candidates |
+| `julia --project=validation/julia validation/julia/check.jl` | passed in 198 s with the restored 1e-12 volume budget and 1e-13 split tolerance: PR/PR-BM (60 homogeneous, 28 PH, deviations unchanged from A5) and NRTL live candidates |
 | Hosted CI on PR #75 (pre-review commit) | Workspace ubuntu/windows and independent Clapeyron check passed |
 | PH sweep through the release CLI (after review fixes) | 48 near-zero-enthalpy targets at 1 atm (8 feeds × 6 targets) and 168 TP→PH round trips over 100 Pa–500 kPa, 3 feeds, 274–445 K: no failures |
 | `python3 -I validation/prepare-nrtl-source-data.py` | 2 pure-liquid and 1 NRTL transcription; thermo/ChemSep cross-check passed |
-| `thermo-cli examples/nrtl-tp-flash-methanol-water.json` | two phases, β = 0.27685, ln-fugacity residual `3.2e-12` |
+| `thermo-cli examples/nrtl-tp-flash-methanol-water.json` | two phases, β = 0.27685, ln-fugacity residual `8.7e-14` |
+| Saturation stress test through the release CLI (tolerance 1e-13) | 540 bubble/dew pressure/temperature cases, 1e-6 to 1 − 1e-6 methanol, 700 Pa–500 kPa: none failed; max ln-fugacity residual `4.6e-14` |
 
 Maximum deviations against the independent Clapeyron references (committed
 fixture and live candidate are identical):
@@ -29,20 +30,33 @@ fixture and live candidate are identical):
 | p^sat | `6.1e-9 Pa` | `8.2e-3` |
 | Pure-liquid h | `3.3e-11 J/mol` | `4.3e-7` |
 | Saturated-liquid density | `7.7e-9 mol/m³` | `0.35` (1e-12 relative budget) |
-| Bubble/dew T | `2.7e-10 K` | `2.7e-2` |
+| Bubble/dew T | `6.3e-13 K` | `6.3e-5` |
 | Bubble/dew p | `7.0e-10 Pa` | `2.4e-5` |
-| Flash compositions | `2.1e-12` | `3.9e-3` |
-| Flash phase h | `1.4e-7 J/mol` | `2.7e-3` |
-| PH temperature | `4.9e-10 K` | `4.9e-2` |
+| Flash compositions | `5.4e-14` | `9.9e-5` |
+| Flash phase h | `3.5e-9 J/mol` | `7.0e-5` |
+| Flash phase molar volume | `3.5e-18 m³/mol` | `4.1e-2` (1e-12 relative budget) |
+| PH temperature | `5.1e-10 K` | `5.1e-2` |
 | PH vapor fraction | `2.8e-11` | `2.8e-2` |
 
-Generator tolerances were set before comparison. When the fixture was first
-generated, a two-phase liquid molar volume differed by `1.6e-12` relative,
-against an initial `1e-12` phase-volume budget. That budget was below the 1e-9
-relative composition budget that the volume inherits through the solved
-liquid composition. It was corrected to 1e-9 before the fixture was adopted.
-The pure correlation density keeps its 1e-12 budget. No other budget changed,
-and no reference value was taken from Rust.
+Generator tolerances were set before comparison and none is widened. No
+reference value was taken from Rust.
+
+**Phase molar volume (1e-12 relative).** The first comparison failed. The liquid
+of the TP state at 345 K, 1 atm, z = (0.7, 0.3) differed by `1.6e-12` relative.
+An intermediate commit widened that budget to 1e-9. The review flagged this
+against AGENTS.md, and the 1e-9 budget was reverted. The cause was in the
+engine, not the budget. Liquid volume is `v = Σ x_i/ρ_i(T)`, so a composition
+error δx changes it by about `δx (v_1 − v_2)/v ≈ 0.9 δx`. The split stopped at
+an ln-fugacity residual of 1e-11, which left about 2e-12 composition error
+against the 256-bit reference. The default `ActivityOptions::tolerance` is now
+1e-13. Composition deviations fell from `2.1e-12` to `5.4e-14`. The volume
+passes the original budget at 4 % of it, and bubble/dew temperatures moved
+from `2.7e-10 K` to `6.3e-13 K`. Regenerating the fixture changed only the
+generator hash and that budget value; every reference value is bit-identical.
+The tighter tolerance was stress-tested. 540 bubble/dew pressure and
+temperature cases ran for feeds from 1e-6 to 1 − 1e-6 methanol and 700 Pa to
+500 kPa; none failed, and the largest ln-fugacity residual was `4.6e-14`. The
+PH sweep below was repeated.
 
 The live check first ran the NRTL generator with `--compile=min`, like the
 PR/PR-BM generator. Its 256-bit BigFloat solves had not finished after 15
@@ -64,12 +78,9 @@ ten findings. It was not an independent human review. Resolution:
    example, z = (0.4, 0.6) at 1 kPa failed for a vapor target. Saturation
    temperatures outside the bracket now truncate or remove that branch.
    Covered by `ph_with_saturation_outside_the_bracket_solves_the_reachable_branches`.
-3. **Not changed: phase molar-volume budget (1e-12 → 1e-9, described above).**
-   The reviewer cites the AGENTS.md rule against widening tolerances to
-   resolve a failure. The change was made, and disclosed, because the original
-   budget was inconsistent with the composition budget the volume depends on.
-   This needs a maintainer decision. Reverting it would make the committed
-   fixture fail.
+3. **Fixed: the phase molar-volume budget had been widened (1e-12 → 1e-9).**
+   This breaks the AGENTS.md rule. The budget is back at 1e-12, and the
+   engine's split is converged further instead (described above).
 4. **Fixed:** a liquid with no interacting pair reported `WithinDeclaredDomain`
    at any temperature. It now reports `Unassessed`.
 5. **Fixed:** the CLI provenance now carries the component and liquid/NRTL data

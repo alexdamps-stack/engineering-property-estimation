@@ -102,7 +102,9 @@ correlation must cover T. Outside it, the package returns `OutsideValidityDomain
   fugacities, the feed is liquid for `p ≥ p_bubble(T, z)`, vapor for
   `p ≤ p_dew(T, z)`, and two-phase between them. The split iterates γ(x) with
   the existing negative-flash Rachford–Rice, converging on
-  `max |ln(y_i p) − ln(x_i γ_i p_i^sat)| ≤ 1e-11`. Every liquid result passes
+  `max |ln(y_i p) − ln(x_i γ_i p_i^sat)| ≤ 1e-13`. That is near machine
+  precision, so derived phase properties such as the liquid volume inherit
+  only ~1e-14 composition error. Every liquid result passes
   finite near-pure NRTL tangent-plane trials. A negative TPD (liquid–liquid
   split) returns `UnsupportedCapability`; VLLE is not supported.
 - **PH flash** locates the feed's bubble and dew temperatures at p relative to
@@ -117,9 +119,9 @@ correlation must cover T. Outside it, the package returns `OutsideValidityDomain
   two-phase range, a mixture uses Illinois regula falsi on the split enthalpy
   (stability trials are skipped during the search, and the accepted
   temperature is flashed again with them). Its energy scale is
-  `max(|h_t|, h(T_hi) − h(T_lo), 1 J/mol)` over the two-phase range. The 1e-11
-  composition tolerance of the split limits the attainable enthalpy precision
-  to roughly 1e-11 of that span. With a 1 J/mol floor, two-phase targets near
+  `max(|h_t|, h(T_hi) − h(T_lo), 1 J/mol)` over the two-phase range. The split's
+  composition tolerance and the temperature resolution limit the attainable
+  enthalpy precision to a small fraction of that span. With a 1 J/mol floor, two-phase targets near
   h = 0 (for example 95 % vaporized at 1 atm with this reference) were
   unreachable. A single active component uses the lever rule at the
   correlation saturation temperature, retaining both endpoint phases. The

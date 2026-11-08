@@ -37,7 +37,7 @@ impl Default for ActivityOptions {
     fn default() -> Self {
         Self {
             max_iterations: 500,
-            tolerance: 1e-11,
+            tolerance: 1e-13,
             max_temperature_iterations: 200,
             energy_tolerance: 1e-10,
             tm_threshold: -1e-8,

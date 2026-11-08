@@ -192,7 +192,7 @@ fluid) fails with a missing `a_res` method. The generator therefore solves the
 modified-Raoult equations (`y_i p = x_i γ_i p_i^sat`, ideal-gas vapor, no
 Poynting factor) in 256-bit BigFloat. Pure liquids use Clausius–Clapeyron,
 matching the engine's declared formulation. Tolerances were fixed in the
-generator before comparison. One budget was corrected before the fixture was
-adopted: phase molar volume went from 1e-12 to 1e-9 relative, matching the
-composition budget it depends on. The pure density correlation keeps 1e-12.
-Details are in [A7 checks](a7-checks.md).
+generator before comparison and are not widened. The phase molar volume keeps
+its 1e-12 relative budget. This requires the engine's split to be converged
+close to machine precision (ln-fugacity tolerance 1e-13). Details are in
+[A7 checks](a7-checks.md).

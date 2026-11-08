@@ -260,7 +260,7 @@ function main()
             "g_excess" => [1e-9, 1e-11], "h_excess" => [1e-8, 1e-9], "s_excess" => [1e-10, 1e-9],
             "cp_excess" => [1e-7, 1e-7], "psat" => [0.0, 1e-12], "dlnpsat_dT" => [0.0, 1e-10],
             "d2lnpsat_dT2" => [0.0, 1e-8], "h" => [2e-5, 2e-9], "s" => [2e-7, 2e-9], "cp" => [2e-5, 1e-8],
-            "liquid_molar_density" => [0.0, 1e-12], "molar_volume" => [0.0, 1e-9],
+            "liquid_molar_density" => [0.0, 1e-12], "molar_volume" => [0.0, 1e-12],
             "pressure" => [0.0, 1e-10], "temperature" => [1e-8, 0.0], "composition" => [1e-10, 1e-9],
             "fraction" => [1e-9, 0.0]),
         "activity" => activity, "ternary" => ternary, "ternary_parameters" => Dict(String(k) => [collect(v[i, :]) for i in 1:3] for (k, v) in pairs(TERNARY)),  # rows: [i][j] = parameter_ij

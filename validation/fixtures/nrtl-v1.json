@@ -121,7 +121,7 @@
             "h_ideal": 5176.79965458209
         }
     ],
-    "generator_sha256": "f22601bc369b482b274ec7a9ff2bacc0ad82c3c749d0fe7c0596f7a7399b5b21",
+    "generator_sha256": "113163eb0b593b2355834bf9103b9faa5c1be21152858c7b7691de56ce47dfa7",
     "saturation": [
         {
             "kind": "bubble-pressure",
@@ -801,7 +801,7 @@
         ],
         "molar_volume": [
             0,
-            1.0e-9
+            1.0e-12
         ],
         "pressure": [
             0,
