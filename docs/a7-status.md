@@ -54,9 +54,11 @@ nonpositive α(T) returns `OutsideValidityDomain`. `ln γ_i`, `∂ln γ_i/∂T`,
 with second-order temperature jets. There is no finite differencing.
 Explicit parameter sets need a nonblank source.
 
-Validity reports whether T lies inside every active pair's regression interval
-(`WithinDeclaredDomain`) or outside one (`Extrapolated`). Explicit parameters
-without an interval report `Unassessed`.
+Validity reports whether T lies inside every interacting pair's regression
+interval (`WithinDeclaredDomain`) or outside one (`Extrapolated`). A pair
+interacts when both components are present. Explicit parameters without an
+interval report `Unassessed`. So does a liquid with no interacting pair (a
+single active component, where g^E = 0), because no interval applies.
 
 **Gamma–phi package (`thermo-models::ActivityModel`).** The vapor model is a
 required `VaporModel` argument with no default. `IdealGas` is the only variant.
@@ -103,12 +105,29 @@ correlation must cover T. Outside it, the package returns `OutsideValidityDomain
   `max |ln(y_i p) − ln(x_i γ_i p_i^sat)| ≤ 1e-11`. Every liquid result passes
   finite near-pure NRTL tangent-plane trials. A negative TPD (liquid–liquid
   split) returns `UnsupportedCapability`; VLLE is not supported.
-- **PH flash** computes the feed's bubble and dew temperatures at p, which must
-  lie inside the bracket. The liquid branch (`h ≤ h_L(T_b)`) and vapor branch
-  (`h ≥ h_V(T_d)`) use Newton with exact c_p. Between them, a mixture uses
-  bisection on TP enthalpy. A single active component uses the lever rule at
-  the correlation saturation temperature, retaining both endpoint phases. The
-  energy criterion matches A5: `|h − h_t|/max(|h_t|, 1 J/mol) ≤ 1e-10`.
+- **PH flash** locates the feed's bubble and dew temperatures at p relative to
+  the option bracket. They split it into a liquid branch (`h ≤ h_L(T_b)`), a
+  two-phase range and a vapor branch (`h ≥ h_V(T_d)`). A saturation temperature
+  outside the bracket truncates or removes the corresponding branch and is
+  reported as `A7-PH-SATURATION-OUTSIDE-BRACKET`. For example, at 1 kPa the
+  bubble temperature of most mixtures lies below 273.16 K, so there is no
+  liquid branch. A target that cannot be reached inside the bracket returns
+  `OutsideValidityDomain`. The single-phase branches use Newton with exact c_p
+  and the A5 criterion `|h − h_t|/max(|h_t|, 1 J/mol) ≤ 1e-10`. In the
+  two-phase range, a mixture uses Illinois regula falsi on the split enthalpy
+  (stability trials are skipped during the search, and the accepted
+  temperature is flashed again with them). Its energy scale is
+  `max(|h_t|, h(T_hi) − h(T_lo), 1 J/mol)` over the two-phase range. The 1e-11
+  composition tolerance of the split limits the attainable enthalpy precision
+  to roughly 1e-11 of that span. With a 1 J/mol floor, two-phase targets near
+  h = 0 (for example 95 % vaporized at 1 atm with this reference) were
+  unreachable. A single active component uses the lever rule at the
+  correlation saturation temperature, retaining both endpoint phases. The
+  scale used is reported (`energy_scale_J_per_mol` in the CLI).
+- A split that converges to a vapor fraction within 1e-10 outside (0, 1),
+  which is roundoff at p ≈ p_dew or p_bubble, is reported as the saturated
+  single phase with `A7-SPLIT-AT-SATURATION-BOUNDARY`. Larger excursions
+  remain `NumericalFailure`.
 
 Every loop has a documented limit (500 composition, 200 temperature
 iterations). Tests deliberately exhaust each limit. Invalid options, a
@@ -118,7 +137,9 @@ explicit errors.
 The CLI accepts `"model": "NRTL-IG"` for `tp-flash`, `ph-flash`,
 `bubble-pressure`, `dew-pressure`, `bubble-temperature` and `dew-temperature`;
 see `examples/nrtl-*.json`. It rejects `kij`, `interaction_source` and `root`
-for this model.
+for this model. Its provenance records the component and liquid/NRTL data
+identifiers and versions. Bubble and dew outputs report the NRTL validity of
+the saturated liquid.
 
 ## Independent evidence
 
@@ -170,4 +191,5 @@ hypothetical immiscible parameter set, and iteration exhaustion.
 - Mixing of cubic and gamma–phi streams in a flowsheet needs A8 to select one
   property package per stream. The shared caloric reference only makes that
   possible.
-- Hosted CI and independent code review remain formal acceptance gates.
+- Hosted CI and a code review were completed on PR #75. The review findings and
+  their resolution are recorded in [the A7 verification report](../validation/a7-checks.md).

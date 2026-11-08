@@ -34,7 +34,9 @@ fn validity(v: ValidityStatus) -> &'static str {
         ValidityStatus::Extrapolated => {
             "NRTL parameters extrapolated outside their regression temperature interval"
         }
-        ValidityStatus::Unassessed => "unassessed",
+        ValidityStatus::Unassessed => {
+            "NRTL regression interval not assessed (no interval, or no interacting pair present)"
+        }
     }
 }
 
@@ -51,13 +53,18 @@ fn phases_json(phases: &[ActivityFlashPhase]) -> Vec<Value> {
         .collect()
 }
 
-fn provenance(model: &ActivityModel) -> Value {
+fn provenance(model: &ActivityModel) -> Result<Value> {
     let m = model.metadata();
     let c = ActivityModel::caloric_reference();
-    json!({
+    let data = |d: thermo_types::DataMetadata| json!({"id":d.identifier,"version":d.version,"source":d.source});
+    Ok(json!({
         "model":{"id":m.identifier,"implementation":m.implementation_version,"formulation":m.formulation},
+        "data":{
+            "components": data(ComponentDatabase::embedded()?.metadata()),
+            "liquid_and_nrtl": data(LiquidDatabase::embedded()?.metadata()),
+        },
         "caloric_reference":{"id":c.identifier,"definition":c.definition},
-    })
+    }))
 }
 
 fn diagnostics(d: &[Diagnostic]) -> Vec<Value> {
@@ -71,15 +78,18 @@ fn saturation_json(
     kind: &str,
     s: &ActivitySaturation,
     model: &ActivityModel,
-) -> Value {
-    json!({
+) -> Result<Value> {
+    // NRTL validity of the saturated liquid (feed for bubble, incipient for dew).
+    let liquid_validity = model.nrtl().excess(s.temperature_k, &s.liquid)?.validity;
+    Ok(json!({
         "case": case.id, "calculation": kind, "components": case.components,
         "temperature_K": s.temperature_k, "pressure_Pa_absolute": s.pressure_pa,
         "liquid_mole_fractions": s.liquid, "vapor_mole_fractions": s.vapor,
         "convergence": {"iterations": s.iterations, "max_abs_ln_fugacity_residual": s.max_ln_fugacity_residual},
         "incipient_phase": if kind.starts_with("bubble") { "vapor" } else { "liquid" },
-        "provenance": provenance(model),
-    })
+        "liquid_validity": validity(liquid_validity),
+        "provenance": provenance(model)?,
+    }))
 }
 
 pub(crate) fn calculate(case: Case) -> Result<Value> {
@@ -139,7 +149,7 @@ pub(crate) fn calculate(case: Case) -> Result<Value> {
             } else {
                 activity_dew_pressure(&model, t, o)?
             };
-            Ok(saturation_json(&case, calculation, &s, &model))
+            saturation_json(&case, calculation, &s, &model)
         }
         "bubble-temperature" | "dew-temperature" => {
             enthalpy_only_ph(calculation)?;
@@ -152,7 +162,7 @@ pub(crate) fn calculate(case: Case) -> Result<Value> {
             } else {
                 activity_dew_temperature(&model, p, o)?
             };
-            Ok(saturation_json(&case, calculation, &s, &model))
+            saturation_json(&case, calculation, &s, &model)
         }
         "tp-flash" => {
             enthalpy_only_ph(calculation)?;
@@ -169,7 +179,7 @@ pub(crate) fn calculate(case: Case) -> Result<Value> {
                     "max_abs_ln_fugacity_residual": r.max_ln_fugacity_residual,
                     "max_abs_component_balance_residual": r.max_component_balance_residual},
                 "liquid_stability_finite_trials": r.liquid_stability.as_ref().map(|s| s.stable_in_trials),
-                "provenance": provenance(&model),
+                "provenance": provenance(&model)?,
                 "diagnostics": diagnostics(&r.diagnostics),
             }))
         }
@@ -187,8 +197,8 @@ pub(crate) fn calculate(case: Case) -> Result<Value> {
                 "bubble_temperature_K": r.bubble_temperature_k, "dew_temperature_K": r.dew_temperature_k,
                 "phase_count": r.phases.len(), "phases": phases_json(&r.phases),
                 "convergence": {"temperature_iterations": r.iterations,
-                    "scaled_energy_residual": r.scaled_energy_residual, "energy_scale_floor_J_per_mol": 1.0},
-                "provenance": provenance(&model),
+                    "scaled_energy_residual": r.scaled_energy_residual, "energy_scale_J_per_mol": r.energy_scale},
+                "provenance": provenance(&model)?,
                 "diagnostics": diagnostics(&r.diagnostics),
             }))
         }

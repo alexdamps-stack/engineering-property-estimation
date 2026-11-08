@@ -13,9 +13,9 @@
 use crate::nrtl::{ExcessState, NrtlModel, NrtlParameters};
 use thermo_data::{Component, ComponentDatabase, LiquidDatabase, PureLiquid, REFERENCE_PRESSURE};
 use thermo_types::{
-    CalculationError as Error, CaloricReference, ComponentId, Composition, CompositionBasis,
-    DataMetadata, InputError, MOLAR_GAS_CONSTANT as R, ModelMetadata, Phase, Pressure, Temperature,
-    ValidityStatus,
+    COMPOSITION_SUM_TOLERANCE, CalculationError as Error, CaloricReference, ComponentId,
+    Composition, CompositionBasis, DataMetadata, InputError, MOLAR_GAS_CONSTANT as R,
+    ModelMetadata, Phase, Pressure, Temperature, ValidityStatus,
 };
 
 /// Computational envelope of the gamma–phi package (K, Pa). The ideal-gas vapor
@@ -152,7 +152,7 @@ impl ActivityModel {
         if fractions.iter().any(|x| *x < 0.0) {
             return Err(InputError::Negative("mole fraction").into());
         }
-        if (fractions.iter().sum::<f64>() - 1.0).abs() > 1e-10 {
+        if (fractions.iter().sum::<f64>() - 1.0).abs() > COMPOSITION_SUM_TOLERANCE {
             return Err(InputError::NotNormalized.into());
         }
         Ok(Self {
@@ -255,24 +255,6 @@ impl ActivityModel {
             heat_capacity: ideal.heat_capacity
                 - R * (2.0 * t * vp.d_ln_pressure_dt + t * t * vp.d2_ln_pressure_dt2),
         })
-    }
-
-    /// ln K_i = ln γ_i(x) + ln p_i^sat − ln p at liquid composition `x` (model order).
-    pub fn ln_k_values(
-        &self,
-        temperature: Temperature,
-        pressure: Pressure,
-        x: &[f64],
-    ) -> Result<Vec<f64>, Error> {
-        self.check_domain(temperature, pressure)?;
-        let ex = self.nrtl.excess(temperature.value(), x)?;
-        self.liquids
-            .iter()
-            .zip(&ex.ln_activity_coefficients)
-            .map(
-                |(l, g)| Ok(g + l.vapor_pressure(temperature)?.ln_pressure - pressure.value().ln()),
-            )
-            .collect()
     }
 
     /// Liquid state at the model's fractions.

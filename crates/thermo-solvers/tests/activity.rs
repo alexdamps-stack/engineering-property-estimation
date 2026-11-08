@@ -118,8 +118,65 @@ fn tp_to_ph_round_trips_recover_temperature_and_phase_split() {
         assert_eq!(ph.phases.len(), tp.phases.len());
         assert!((ph.phases[0].phase_fraction - tp.phases[0].phase_fraction).abs() < 1e-8);
         assert!(ph.scaled_energy_residual.abs() <= 1e-10);
-        assert!(ph.bubble_temperature_k <= ph.dew_temperature_k);
+        assert!(ph.bubble_temperature_k.unwrap() <= ph.dew_temperature_k.unwrap());
     }
+}
+
+/// Review regression: two-phase targets near h = 0 J/mol (about 95 % vaporized at
+/// 1 atm) must converge; a 1 J/mol energy floor is unattainable for the split.
+#[test]
+fn ph_two_phase_targets_near_zero_enthalpy_converge() {
+    let o = ActivityOptions::default();
+    // z = 0.95 methanol hits the dew-temperature endpoint, where the split converges to
+    // β = 1 + O(1e-15); that roundoff must be reported as saturated vapor, not a failure.
+    for z in [[0.1, 0.9], [0.25, 0.75], [0.9, 0.1], [0.95, 0.05]] {
+        let m = model(z);
+        for target in [-0.01, 0.0, 0.1, 0.3, 1.1, 2.2] {
+            let ph = activity_ph_flash(&m, p(101_325.0), target, o)
+                .unwrap_or_else(|e| panic!("{z:?} {target}: {e:?}"));
+            assert_eq!(ph.phases.len(), 2, "{z:?} {target}");
+            assert!(ph.energy_scale > 1e4, "{z:?} {target}");
+            assert!(ph.scaled_energy_residual.abs() <= o.energy_tolerance);
+            let tp = activity_tp_flash(&m, t(ph.temperature_k), p(101_325.0), o).unwrap();
+            assert!((tp.enthalpy() - target).abs() <= o.energy_tolerance * ph.energy_scale);
+        }
+    }
+}
+
+/// Review regression: at low pressure the feed bubble temperature lies below the
+/// bracket; single-phase vapor and two-phase targets must still be solved.
+#[test]
+fn ph_with_saturation_outside_the_bracket_solves_the_reachable_branches() {
+    let o = ActivityOptions::default();
+    let m = model([0.4, 0.6]);
+    for temperature in [350.0, 300.0, 280.0, 274.0] {
+        let tp = activity_tp_flash(&m, t(temperature), p(1000.0), o).unwrap();
+        let ph = activity_ph_flash(&m, p(1000.0), tp.enthalpy(), o).unwrap();
+        assert!(
+            (ph.temperature_k - temperature).abs() < 1e-7,
+            "{temperature}"
+        );
+        assert_eq!(ph.phases.len(), tp.phases.len(), "{temperature}");
+        assert_eq!(ph.bubble_temperature_k, None);
+        assert!(
+            ph.diagnostics
+                .iter()
+                .any(|d| d.code == "A7-PH-SATURATION-OUTSIDE-BRACKET")
+        );
+    }
+    // Below the two-phase enthalpy at the bracket minimum there is no liquid branch.
+    let low = activity_tp_flash(&m, t(273.16), p(1000.0), o)
+        .unwrap()
+        .enthalpy();
+    assert!(matches!(
+        activity_ph_flash(&m, p(1000.0), low - 1000.0, o),
+        Err(CalculationError::OutsideValidityDomain(_))
+    ));
+    // High pressure: the dew temperature lies above the bracket, liquid still solvable.
+    let hp = model([0.05, 0.95]);
+    let tp = activity_tp_flash(&hp, t(400.0), p(500_000.0), o).unwrap();
+    let ph = activity_ph_flash(&hp, p(500_000.0), tp.enthalpy(), o).unwrap();
+    assert!((ph.temperature_k - 400.0).abs() < 1e-7);
 }
 
 #[test]

@@ -7,8 +7,8 @@
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use thermo_data::{AlphaTerms, LiquidDatabase, TauTerms};
 use thermo_types::{
-    CalculationError as Error, ComponentId, InputError, MOLAR_GAS_CONSTANT as R, ModelMetadata,
-    ValidityStatus,
+    COMPOSITION_SUM_TOLERANCE, CalculationError as Error, ComponentId, InputError,
+    MOLAR_GAS_CONSTANT as R, ModelMetadata, ValidityStatus,
 };
 
 /// Value with first and second temperature derivatives.
@@ -376,7 +376,7 @@ impl NrtlModel {
         if x.iter().any(|v| *v < 0.0) {
             return Err(InputError::Negative("mole fraction").into());
         }
-        if (x.iter().sum::<f64>() - 1.0).abs() > 1e-10 {
+        if (x.iter().sum::<f64>() - 1.0).abs() > COMPOSITION_SUM_TOLERANCE {
             return Err(InputError::NotNormalized.into());
         }
         let t = temperature;
@@ -434,9 +434,11 @@ impl NrtlModel {
         })
     }
 
+    /// Regression-interval status over interacting (both present) pairs. With no
+    /// interacting pair g^E = 0 and no interval applies, so the status is `Unassessed`.
     fn validity(&self, t: f64, x: &[f64]) -> ValidityStatus {
         let n = x.len();
-        let mut status = ValidityStatus::WithinDeclaredDomain;
+        let mut status = None;
         for i in 0..n {
             for j in i + 1..n {
                 if x[i] <= 0.0 || x[j] <= 0.0 {
@@ -445,12 +447,14 @@ impl NrtlModel {
                 match self.parameters.regression[i][j] {
                     None => return ValidityStatus::Unassessed,
                     Some([lo, hi]) if !(lo..=hi).contains(&t) => {
-                        status = ValidityStatus::Extrapolated
+                        status = Some(ValidityStatus::Extrapolated)
                     }
-                    Some(_) => {}
+                    Some(_) => {
+                        status.get_or_insert(ValidityStatus::WithinDeclaredDomain);
+                    }
                 }
             }
         }
-        status
+        status.unwrap_or(ValidityStatus::Unassessed)
     }
 }

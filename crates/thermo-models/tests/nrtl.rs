@@ -324,7 +324,12 @@ fn validity_reports_regression_interval() {
     let pure = m.nrtl().excess(320.0, &[1.0, 0.0]).unwrap();
     assert_eq!(within.validity, ValidityStatus::WithinDeclaredDomain);
     assert_eq!(below.validity, ValidityStatus::Extrapolated);
-    assert_eq!(pure.validity, ValidityStatus::WithinDeclaredDomain);
+    // No interacting pair: g^E = 0 and no regression interval applies.
+    assert_eq!(pure.validity, ValidityStatus::Unassessed);
+    assert_eq!(
+        m.nrtl().excess(450.0, &[1.0, 0.0]).unwrap().validity,
+        ValidityStatus::Unassessed
+    );
     let explicit = NrtlModel::new(ternary())
         .excess(330.0, &[0.2, 0.3, 0.5])
         .unwrap();
