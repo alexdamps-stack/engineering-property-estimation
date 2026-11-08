@@ -5,6 +5,10 @@ PR-BM ([A1–A3](a1-a3-status.md)), at most two phases, inside the existing
 200–600 K, 0.01 Pa–100 MPa computational envelope. Check outcomes are recorded in
 [the A4 verification report](../validation/a4-checks.md).
 
+Update 2026-11-08: issue #30 adds safeguarded Newton acceleration as described
+below. The [A3/A4 acceptance review](a3-a4-acceptance.md) records the milestone
+scope and current evidence, superseding the historical pending review below.
+
 ## Implemented
 
 All calculation code is native Rust in `thermo-solvers`; there is no external
@@ -41,8 +45,19 @@ calculation API, subprocess or Python dependency.
   2. Takes the initial K from the most negative trial, oriented by its volume
      relative to the feed.
   3. Runs successive substitution on ln K with the negative-flash
-     Rachford–Rice inner solve. Every fifth step applies a dominant-eigenvalue
-     extrapolation (0 < λ < 0.95).
+     Rachford–Rice inner solve. From iteration 3, acceleration tries Newton on
+     the active log-fugacity residual. Central differences of the full residual
+     include the implicit phase-fraction dependence; no analytical composition
+     derivative API is assumed. A small dense partial-pivoting solve avoids
+     forming an inverse. Each ln K step is limited to one, and up to 12
+     backtracks require sufficient decrease in the maximum fugacity residual.
+     Newton is attempted only for a physical phase fraction, and its trial
+     fractions must remain physical. Trials must not increase split Gibbs
+     energy beyond 1e-14 in dimensionless per-mole units; this prevents a
+     decreasing fugacity residual from steering toward the trivial solution.
+     Singular Jacobians, failed model/RR probes, trivial candidates and failed
+     line searches fall back to SS. Every fifth fallback step can apply the
+     existing dominant-eigenvalue extrapolation (0 < λ < 0.95).
   4. Converges on max_i |ln(y_i φ_i^V) − ln(x_i φ_i^L)| ≤ 1e-10, with a limit
      of 2000 iterations.
   5. Rejects: approach to the trivial solution (all |ln K| < 1e-6), a
@@ -53,6 +68,11 @@ calculation API, subprocess or Python dependency.
   Phases carry full `HomogeneousState` properties (shared caloric reference)
   and a molar phase fraction. The result also reports iterations, fugacity
   residual, component-balance residual, the Δg/RT of the split and every trial.
+  `A4-NEWTON-STEPS` reports the accepted Newton step count for a split.
+  The CLI's `split_iterations` includes both Newton and SS; the legacy
+  `successive_substitution_iterations` key is retained as an alias.
+  `FlashOptions::newton=false` retains eigenvalue-only acceleration;
+  `acceleration=false` disables both accelerators. Defaults enable Newton.
 - **Labels.** These are labels, not phase-boundary results:
   - A split labels the larger molar volume `Vapor` and the other `Liquid`. A
     warning is raised when the molar volumes differ by < 0.1 %.
@@ -179,12 +199,16 @@ Not claimed:
 - More than two phases, including VLLE (water/methanol hydrocarbon systems
   remain excluded).
 - Near-critical accuracy.
-- Newton or second-order flash convergence (plan step 6).
 - Bubble/dew points and phase envelopes (A13).
 - PH flash (A5).
 - Fitted kij or experimental accuracy.
 
-The demonstration's provisional process phases now have matched PR/PR-BM flash
-evidence at the reference states above. The cooler and valve outlet states
-themselves depend on A5 (PH flash) and remain open. Coordinator review and
-hosted CI are still required for formal milestone acceptance.
+Newton convergence is verified on eighteen difficult methane/propane states at
+250 K and 8.5–9.3 MPa: 6–20 split iterations versus 63–599 for the previous
+eigenvalue-only algorithm, with matching phase fractions and compositions.
+This measures iteration reduction, not wall-clock speed or accuracy at the
+critical point. Finite-difference Newton requires extra EOS evaluations.
+
+The [A2 process qualification](a2-process-qualification.md) and A5 PH checks
+now cover the cooler and valve outlet reference states. A13 phase boundaries
+and envelopes and A8 connected flowsheet execution retain their own gates.

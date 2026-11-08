@@ -1,5 +1,15 @@
 # Parallel work plan
 
+## A3/A4 scoped review — 2026-11-08
+
+The [A3/A4 acceptance review](a3-a4-acceptance.md) records separate PR and
+PR-BM homogeneous acceptance and reviews bounded two-phase stability/TP flash,
+including safeguarded Newton acceleration for #30. It supersedes the pending
+A4 coordinator-review note in the historical implementation report. Current
+check outcomes are in [A4 checks](../validation/a4-checks.md); hosted checks
+and PR review remain visible on GitHub. A13 phase boundaries/envelopes,
+critical-point accuracy and global-stability proof are not included.
+
 ## Formal A1/A2 acceptance — 2026-11-08
 
 A1 is accepted after review of the calculation contract, public type/conversion

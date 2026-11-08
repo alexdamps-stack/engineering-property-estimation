@@ -154,6 +154,9 @@ malformed quantities and missing data, returning a nonzero status on failure.
 
 ## Acceptance boundaries
 
+The [A3/A4 scoped review](a3-a4-acceptance.md) confirms separate homogeneous
+PR and PR-BM acceptance for A3 (#18); A3 and all its subtasks are already closed.
+
 A1 and A2 are accepted in the [formal review](a1-a2-acceptance.md). The
 [demonstration qualification](a2-process-qualification.md) supplies independent
 feed, mixer, cooler, PH valve and separated-stream evidence for both variants.

@@ -169,6 +169,64 @@ fn tp_flash_matches_independent_references() {
 }
 
 #[test]
+fn newton_acceleration_reduces_iterations_near_the_critical_region() {
+    for variant in [
+        CubicVariant::PengRobinson,
+        CubicVariant::PengRobinsonBostonMathias,
+    ] {
+        for (fractions, pressures) in [
+            ([0.75, 0.25], &[8.5e6, 8.9e6, 9.025e6][..]),
+            (
+                [0.8, 0.2],
+                &[9.0e6, 9.1e6, 9.15e6, 9.2e6, 9.25e6, 9.3e6][..],
+            ),
+        ] {
+            let m = model(&["methane", "propane"], &fractions, variant, zeros(2));
+            for &pressure in pressures {
+                let (t, p) = tp(250.0, pressure);
+                let accelerated = tp_flash(&m, t, p, FlashOptions::default()).unwrap();
+                let ss = tp_flash(
+                    &m,
+                    t,
+                    p,
+                    FlashOptions {
+                        newton: false,
+                        ..FlashOptions::default()
+                    },
+                )
+                .unwrap();
+                eprintln!(
+                    "{variant:?} p={pressure}: Newton {}, eigenvalue SS {}",
+                    accelerated.iterations, ss.iterations
+                );
+                assert_eq!(accelerated.phases.len(), 2);
+                assert!(accelerated.iterations * 2 < ss.iterations);
+                assert!(
+                    accelerated
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code == "A4-NEWTON-STEPS"
+                            && !d.message.starts_with("Accepted 0 "))
+                );
+                close(
+                    "beta",
+                    accelerated.phases[0].phase_fraction,
+                    ss.phases[0].phase_fraction,
+                    (2e-8, 0.0),
+                );
+                for (a, b) in accelerated.phases.iter().zip(&ss.phases) {
+                    for (x, y) in a.composition.iter().zip(&b.composition) {
+                        close("phase composition", *x, *y, (2e-8, 1e-7));
+                    }
+                }
+                assert!(accelerated.max_ln_fugacity_residual <= 1e-10);
+                assert!(accelerated.max_component_balance_residual <= 1e-12);
+            }
+        }
+    }
+}
+
+#[test]
 fn split_phases_satisfy_fugacity_equality_from_property_evaluation() {
     let m = model(
         &["methane", "propane"],
