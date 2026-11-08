@@ -3,7 +3,9 @@
 **Implementation update:** [A1–A3 status](a1-a3-status.md) records the implemented
 homogeneous data/model path and executed independent teqp/Cantera references.
 It resolves the earlier exact-factor, offset and homogeneous expected-value
-gaps; demonstration phase/PH and full milestone acceptance remain pending.
+gaps. [A2 process qualification](a2-process-qualification.md) now supplies the
+demonstration phase/PH states, and [formal acceptance](a1-a2-acceptance.md)
+records the A1/A2 decisions and approved tolerance registry.
 The preparation-only statements below describe the earlier first-wave record.
 
 Prepared 2026-11-07 against scaffold baseline `bf86da9`. **Preparation only:**
@@ -123,7 +125,7 @@ than changing expected phases by assumption. PH must stop diagnostically outside
 the proposed envelope. There are no standard-volume flows or hidden reference
 conditions. Outputs identify model/data versions and basis.
 
-`validation/tolerances.provisional.json` supplies unit-bearing atol/rtol proposals
+`validation/tolerances.preparation-history.json` supplies unit-bearing atol/rtol proposals
 for density, Z, each ln(phi), residual h/s, cp, sound speed and saturation,
 with rationales and minimum counts. All are **pending**, not approved thresholds.
 The regular grid has 3 temperatures x 3 pressures x 2 mixtures = 18 candidate

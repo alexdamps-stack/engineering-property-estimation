@@ -1,5 +1,19 @@
 # Parallel work plan
 
+## Formal A1/A2 acceptance — 2026-11-08
+
+A1 is accepted after review of the calculation contract, public type/conversion
+and failure tests, A0's fresh-implementation decision and A2 compatibility.
+SI, composition/flow bases, named standard-volume conditions, untranslated
+liquid-density baseline, caloric convention and staged numerical decisions
+are explicit. Current Linux/Windows CI has passed, superseding the historical
+first-wave Windows execution restriction. A2 is accepted for the pinned data,
+matched formulations/references, fixed demonstration states and approved
+quantity budgets. The [formal acceptance record](a1-a2-acceptance.md) provides
+evidence and scope; [process qualification](a2-process-qualification.md) records
+each stream. A13 bubble/dew/envelope and A8 connected process execution remain
+their own gates. The first-wave reviews below are historical.
+
 Continuation on November 7: the [A1–A3 verification record](a1-a3-status.md)
 documents the subsequent homogeneous implementation, independent references
 and review. The first-wave history below is retained; no first-wave worker is
@@ -87,8 +101,8 @@ All three first-wave workers reported successful completion of their assigned
 deliverables. Reviewed the A1 contract, quantity/composition/flow APIs, metadata,
 and public-behavior tests. The shared gas constant, canonical IDs, explicit
 bases, retained zeros, untranslated EOS baseline, and proposed ideal caloric
-reference are compatible with A2 preparation. The contract/API is accepted as
-the foundation for reconciliation; full milestone acceptance remains gated.
+reference are compatible with A2 preparation. This historical foundation review
+is superseded by the formal A1 acceptance entry above.
 
 The worker reported 2 unit and 11 public-behavior tests passing on the pinned
 Windows toolchain. Coordinator combined-workspace formatting, Clippy with

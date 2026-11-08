@@ -54,6 +54,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
       - name: Check formatting
         run: cargo fmt --all -- --check
+      - name: Check approved reference budgets and process provenance
+        run: python validation/consolidate-tolerances.py
       - name: Lint workspace
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Test workspace

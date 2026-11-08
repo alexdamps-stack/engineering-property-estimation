@@ -154,12 +154,13 @@ malformed quantities and missing data, returning a nonzero status on failure.
 
 ## Acceptance boundaries
 
-A1 foundations and A2/A3 **homogeneous implementation evidence** are available.
-Full A2/A3 milestone closure is **not claimed**: independent demonstration
-feed/outlet phase, PH and separator qualification remains pending; no stability,
-TP/PH flash, saturation, global mixture Gibbs minimization, critical-neighborhood
-accuracy or experimental accuracy is supplied here. The provisional process,
-future saturation tolerances and GERG rows stay provisional. Review and CI results
-must be read alongside these limits; passing a homogeneous test is not a phase
-qualification. A4 stability and TP flash are now implemented, see [A4 status](a4-status.md); A5 owns PH flash; independent process
-reference evidence still needs to be supplied to close the original A2 gate.
+A1 and A2 are accepted in the [formal review](a1-a2-acceptance.md). The
+[demonstration qualification](a2-process-qualification.md) supplies independent
+feed, mixer, cooler, PH valve and separated-stream evidence for both variants.
+The [approved tolerance registry](../validation/tolerances.json) supersedes the
+historical preparation proposals. A3 homogeneous implementation evidence and
+its computational bounds above are retained; A4/A5 own stability and TP/PH
+solver acceptance. A13 owns bubble/dew and envelope qualification. Acceptance
+does not assert experimental accuracy, a continuous process phase map, global
+mixture stability or critical-neighborhood accuracy. A8's connected flowsheet
+execution remains a separate milestone.
