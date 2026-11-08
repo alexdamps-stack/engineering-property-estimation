@@ -361,6 +361,8 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
                 v
             }).collect::<Vec<_>>(),
             "convergence":{
+                "split_iterations":r.iterations,
+                // Retained for existing consumers; includes Newton iterations.
                 "successive_substitution_iterations":r.iterations,
                 "max_abs_ln_fugacity_residual":r.max_ln_fugacity_residual,
                 "max_abs_component_balance_residual":r.max_component_balance_residual,
@@ -555,6 +557,11 @@ mod tests {
         let input = include_str!("../../../examples/tp-flash-binary.json");
         let result = calculate(serde_json::from_str(input).unwrap()).unwrap();
         assert_eq!(result["phase_count"], 2);
+        assert!(result["convergence"]["split_iterations"].as_u64().unwrap() > 0);
+        assert_eq!(
+            result["convergence"]["split_iterations"],
+            result["convergence"]["successive_substitution_iterations"]
+        );
         let beta = result["molar_vapor_fraction"].as_f64().unwrap();
         assert!(beta > 0.0 && beta < 1.0);
         assert!(
