@@ -338,3 +338,64 @@ fn component_order_and_zero_fraction_do_not_change_boundaries() {
         Err(thermo_types::CalculationError::UnsupportedCapability(_))
     ));
 }
+
+#[test]
+fn near_unit_pure_fractions_are_canonicalized_in_both_saturation_paths() {
+    for index in [12, 28, 0, 16] {
+        let base = model(&inputs()["cases"][index]);
+        let mut canonical = vec![0.; base.fractions().len()];
+        let propane = canonical.len() - 1;
+        canonical[propane] = 1.;
+        let exact = base.with_fractions(&canonical).unwrap();
+        for kind in [Kind::Bubble, Kind::Dew] {
+            let expected_p = saturation_pressure(
+                &exact,
+                Temperature::new(300.).unwrap(),
+                kind,
+                SaturationOptions::default(),
+            )
+            .unwrap();
+            let expected_t = saturation_temperature(
+                &exact,
+                Pressure::new(1e6).unwrap(),
+                kind,
+                SaturationOptions::default(),
+            )
+            .unwrap();
+            for amount in [1. - 5e-11, 1. + 5e-11] {
+                let mut fractions = canonical.clone();
+                fractions[propane] = amount;
+                let near = base.with_fractions(&fractions).unwrap();
+                let p = saturation_pressure(
+                    &near,
+                    Temperature::new(300.).unwrap(),
+                    kind,
+                    SaturationOptions::default(),
+                )
+                .unwrap();
+                let t = saturation_temperature(
+                    &near,
+                    Pressure::new(1e6).unwrap(),
+                    kind,
+                    SaturationOptions::default(),
+                )
+                .unwrap();
+                assert_eq!(p.pressure_pa, expected_p.pressure_pa);
+                assert_eq!(t.temperature_k, expected_t.temperature_k);
+                for result in [p, t] {
+                    assert_eq!(result.liquid_composition, canonical);
+                    assert_eq!(result.vapor_composition, canonical);
+                    assert!(result.max_ln_fugacity_residual < 1e-9);
+                }
+                let exhausted = SaturationOptions {
+                    max_iterations: 1,
+                    ..Default::default()
+                };
+                assert!(matches!(
+                    saturation_temperature(&near, Pressure::new(1e6).unwrap(), kind, exhausted),
+                    Err(thermo_types::CalculationError::NonConvergence(_))
+                ));
+            }
+        }
+    }
+}

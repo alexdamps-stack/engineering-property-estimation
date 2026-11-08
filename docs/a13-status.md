@@ -13,7 +13,10 @@ The specified composition is liquid for a bubble point and vapor for a dew
 point. The unknowns are ln(p) or ln(T), plus ln(K_i) for active components.
 The equations are ln(K_i) + ln(phi_i^V) - ln(phi_i^L) = 0 and
 ln(sum(z_i K_i)) = 0 (bubble) or ln(sum(z_i/K_i)) = 0 (dew).
-Zero fractions remain zero in both phases. Thirteen Wilson-initialized seeds
+Zero fractions remain zero in both phases. For a single active component,
+A13 canonicalizes the accepted near-unit fraction to exactly one before either
+pressure or temperature solving, retaining all zero-fraction slots. This is
+local to saturation and leaves `CubicModel::with_fractions` unchanged. Thirteen Wilson-initialized seeds
 span the requested log-coordinate interval; finite-difference Newton steps use
 pivoted elimination and backtracking within the requested bounds. Discovered
 multiple physical roots produce an explicit unsupported-branch error rather
@@ -133,18 +136,31 @@ Windows native scoped tests and WSL Linux full-workspace/reference checks.
 |---|---|
 | `cargo fmt --all -- --check` | PASS |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | PASS |
-| `cargo test --workspace --locked` (Linux) | PASS: 219 passed, 0 failed, 1 existing ignored performance measurement |
-| `cargo test -p thermo-solvers -p property-packages -p thermo-cli --locked` (Windows) | PASS: 68 passed, 0 failed |
+| `cargo test --workspace --locked` (Linux) | PASS: 221 passed, 0 failed, 1 existing ignored performance measurement |
+| `cargo test -p thermo-solvers -p property-packages -p thermo-cli --locked` (Windows) | PASS: 70 passed, 0 failed |
 | `RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked` | PASS |
 | `python validation/consolidate-tolerances.py` | PASS for all registered prior fixtures; shared A13 table rows remain coordinator-owned, with the new A13 budgets recorded above and in the fixture |
-| Julia 1.11.7: `julia --project=validation/julia validation/julia/check.jl` | PASS, exit 0: existing PR/PR-BM and NRTL comparisons plus live A13 candidate (62 points, five tests) |
+| Julia 1.11.7: `julia --project=validation/julia validation/julia/check.jl` | PASS, exit 0: existing PR/PR-BM and NRTL comparisons plus live A13 candidate (62 points, six tests) |
 | All five A13 CLI examples | PASS |
 | Git whitespace and A13 provenance against normalized Git-index bytes | PASS |
 
-The five A13 solver tests include all 62 reference points, sampled envelope
+The six A13 solver tests include all 62 reference points, sampled envelope
 comparisons, explicit ambiguity rejection, mixture/pure near-critical stops,
 component invariance and failure paths. The existing ignored Linux test is
 `canvas_frame_time_with_100_units`, a performance measurement rather than a
 correctness gate; no A13 test is ignored. The full live check retains the old
 60 homogeneous, 28 PH, and all six NRTL test groups unchanged. Hosted CI and
 review remain visible on the PR; shared-plan reconciliation is coordinator-owned.
+
+### Review correction: accepted near-unit pure compositions
+
+The original pure-temperature path searched for an exact fraction of one and
+could panic for a pure fraction accepted by `with_fractions` within its 1e-10
+unit-sum budget; the pressure path rejected that same accepted input instead.
+Both paths now canonicalize a single active fraction to exactly one locally,
+including returned phase compositions, while retaining inactive component slots
+and leaving the model API unchanged. Solver/package regressions cover fractions
+1 ? 5e-11, PR and PR-BM, one-component and zero-containing vectors, both bubble
+and dew calculations, invalid package inputs, and Result-based iteration-limit
+failures. All checks above were rerun after the correction; independent inputs,
+generators, fixtures and reference tolerances are unchanged.

@@ -129,12 +129,23 @@ fn solve(
             "A13 fixed coordinate outside requested supported range".into(),
         ));
     }
-    if model.fractions().iter().filter(|x| **x > 0.0).count() == 1 {
+    let mut active_components = model
+        .fractions()
+        .iter()
+        .enumerate()
+        .filter(|(_, x)| **x > 0.0);
+    if let (Some((index, _)), None) = (active_components.next(), active_components.next()) {
+        // with_fractions accepts a small unit-sum error without normalizing.
+        // Canonicalize the single active component for both pure saturation
+        // paths and their returned phase states, retaining inactive slots.
+        let mut fractions = vec![0.0; model.fractions().len()];
+        fractions[index] = 1.0;
+        let pure_model = model.with_fractions(&fractions)?;
+        let model = &pure_model;
         let (t, p, it) = if pressure_unknown {
             let r = pure_saturation_pressure(model, Temperature::new(fixed)?, o.max_iterations)?;
             (fixed, r.pressure_pa, r.iterations)
         } else {
-            let index = model.fractions().iter().position(|x| *x == 1.0).unwrap();
             let mut a = o.minimum_temperature_k;
             let mut b = o.maximum_temperature_k.min(
                 SATURATION_MAX_REDUCED_TEMPERATURE

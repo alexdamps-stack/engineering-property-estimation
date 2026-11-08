@@ -56,3 +56,69 @@ fn saturation_uses_package_model_composition_and_temperature_limits() {
             .is_err()
     );
 }
+
+#[test]
+fn package_accepts_near_unit_pure_fractions_without_panicking() {
+    let composition = Composition::new(
+        CompositionBasis::Mole,
+        vec![
+            (ComponentId::new("methane").unwrap(), 0.),
+            (ComponentId::new("propane").unwrap(), 1.),
+        ],
+        NormalizationPolicy::RequireUnitSum,
+    )
+    .unwrap();
+    for variant in [
+        CubicVariant::PengRobinson,
+        CubicVariant::PengRobinsonBostonMathias,
+    ] {
+        let model = CubicModel::new(
+            &ComponentDatabase::embedded().unwrap(),
+            &composition,
+            variant,
+            vec![vec![0.; 2]; 2],
+            "explicit pure interactions",
+        )
+        .unwrap();
+        let package = CubicPackage::new(model, PhFlashOptions::default());
+        let bounds = SaturationOptions::default();
+        for kind in [Kind::Bubble, Kind::Dew] {
+            let exact_p = package
+                .saturation_pressure(&[0., 1.], 300., kind, bounds)
+                .unwrap();
+            let exact_t = package
+                .saturation_temperature(&[0., 1.], 1e6, kind, bounds)
+                .unwrap();
+            for amount in [1. - 5e-11, 1. + 5e-11] {
+                let p = package
+                    .saturation_pressure(&[0., amount], 300., kind, bounds)
+                    .unwrap();
+                let t = package
+                    .saturation_temperature(&[0., amount], 1e6, kind, bounds)
+                    .unwrap();
+                assert_eq!(p.pressure_pa, exact_p.pressure_pa);
+                assert_eq!(t.temperature_k, exact_t.temperature_k);
+                assert_eq!(p.liquid_composition, vec![0., 1.]);
+                assert_eq!(t.vapor_composition, vec![0., 1.]);
+                let exhausted = SaturationOptions {
+                    max_iterations: 1,
+                    ..bounds
+                };
+                assert!(matches!(
+                    package.saturation_temperature(&[0., amount], 1e6, kind, exhausted),
+                    Err(thermo_types::CalculationError::NonConvergence(_))
+                ));
+            }
+            for invalid in [0.99, 1.01, f64::NAN] {
+                assert!(matches!(
+                    package.saturation_pressure(&[0., invalid], 300., kind, bounds),
+                    Err(thermo_types::CalculationError::InvalidInput(_))
+                ));
+                assert!(matches!(
+                    package.saturation_temperature(&[0., invalid], 1e6, kind, bounds),
+                    Err(thermo_types::CalculationError::InvalidInput(_))
+                ));
+            }
+        }
+    }
+}
