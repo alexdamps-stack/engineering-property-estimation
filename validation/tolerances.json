@@ -1,6 +1,6 @@
 {
   "schema": "a2-approved-tolerances-v1",
-  "version": "2026-11-08.1",
+  "version": "2026-11-09.1",
   "status": "approved for the listed fixed reference sets",
   "comparison": "abs(actual-expected) <= atol + rtol*abs(expected); reject nonfinite values",
   "reference_sets": [
@@ -300,22 +300,39 @@
       ],
       "domain": "45 teqp fugacity states; A6 checks",
       "rationale": "Preserves existing pre-comparison double precision implementation budget; common source parameters and matched reference convention."
+    },
+    {
+      "fixture": "validation/fixtures/a13-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "composition": [
+          2e-08,
+          1e-07
+        ],
+        "volume": [
+          1e-12,
+          2e-08
+        ],
+        "pressure": [
+          0.02,
+          2e-08
+        ],
+        "temperature": [
+          2e-06,
+          0.0
+        ]
+      },
+      "domain": "62 native Clapeyron saturation points: 32 PR/PR-BM bubble/dew p/T cases and 30 PR-BM envelope samples; docs/a13-status.md",
+      "rationale": "Existing A13 pre-comparison budgets, copied unchanged from its independently generated fixture; bounded dry cubic VLE and explicit near-critical/ambiguous-branch stops, not experimental accuracy or global stability proof."
     }
   ],
   "deferred": [
     {
-      "capability": "bubble/dew",
-      "owner": "A13 (#66)",
+      "capability": "critical-point/retrograde envelope continuation",
+      "owner": "A13 follow-up",
       "atol": null,
       "rtol": null,
-      "status": "Deferred; select matched references and conditioning budgets before implementation acceptance"
-    },
-    {
-      "capability": "phase envelope",
-      "owner": "A13 (#66)",
-      "atol": null,
-      "rtol": null,
-      "status": "Deferred; select matched references and conditioning budgets before implementation acceptance"
+      "status": "Outside bounded A13 qualification; no critical-point accuracy, wet VLLE or retrograde/global-envelope budget is approved"
     }
   ],
   "ideal_gas_budgets": {

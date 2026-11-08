@@ -74,7 +74,7 @@ natural-gas feed, the mixed process feed, and pure propane) plus 30 PR-BM
 pressure points along four bounded envelope segments. Offline tests compare
 T, p, both compositions, both molar volumes, and fugacity residuals. Trace tests
 compare the actual returned samples with those independent pressure points.
-The 200?225 K natural-gas dew segment explicitly limits pressure to 4 MPa:
+The 200-225 K natural-gas dew segment explicitly limits pressure to 4 MPa:
 at 225 K the broad default interval contains multiple physical dew roots,
 which the solver rejects; the qualified lower-pressure branch is selected
 by its stated bounds, not an implicit root choice.
@@ -129,17 +129,17 @@ CI never overwrites committed expected values.
 
 ## Executed checks
 
-Executed on 2026-11-09 with Rust 1.99.1, latest main baseline `728a3bc`,
+Executed on 2026-11-09 with Rust 1.99.1, combined A11/A12 main baseline `4887212`,
 Windows native scoped tests and WSL Linux full-workspace/reference checks.
 
 | Check | Result |
 |---|---|
 | `cargo fmt --all -- --check` | PASS |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | PASS |
-| `cargo test --workspace --locked` (Linux) | PASS: 221 passed, 0 failed, 1 existing ignored performance measurement |
-| `cargo test -p thermo-solvers -p property-packages -p thermo-cli --locked` (Windows) | PASS: 70 passed, 0 failed |
+| `cargo test --workspace --locked` (Linux) | PASS: 231 passed, 0 failed, 1 existing ignored performance measurement |
+| `cargo test -p thermo-solvers -p property-packages -p thermo-cli --locked` (Windows, pure-fraction correction before A11 rebase) | PASS: 70 passed, 0 failed |
 | `RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked` | PASS |
-| `python validation/consolidate-tolerances.py` | PASS for all registered prior fixtures; shared A13 table rows remain coordinator-owned, with the new A13 budgets recorded above and in the fixture |
+| `python validation/consolidate-tolerances.py` | PASS for all registered fixtures, including unchanged A13 budgets now reconciled in the shared registry/table |
 | Julia 1.11.7: `julia --project=validation/julia validation/julia/check.jl` | PASS, exit 0: existing PR/PR-BM and NRTL comparisons plus live A13 candidate (62 points, six tests) |
 | All five A13 CLI examples | PASS |
 | Git whitespace and A13 provenance against normalized Git-index bytes | PASS |
@@ -150,7 +150,7 @@ component invariance and failure paths. The existing ignored Linux test is
 `canvas_frame_time_with_100_units`, a performance measurement rather than a
 correctness gate; no A13 test is ignored. The full live check retains the old
 60 homogeneous, 28 PH, and all six NRTL test groups unchanged. Hosted CI and
-review remain visible on the PR; shared-plan reconciliation is coordinator-owned.
+review remain visible on the PR; shared plans and reference-budget tables are reconciled in this PR.
 
 ### Review correction: accepted near-unit pure compositions
 
@@ -160,7 +160,23 @@ unit-sum budget; the pressure path rejected that same accepted input instead.
 Both paths now canonicalize a single active fraction to exactly one locally,
 including returned phase compositions, while retaining inactive component slots
 and leaving the model API unchanged. Solver/package regressions cover fractions
-1 ? 5e-11, PR and PR-BM, one-component and zero-containing vectors, both bubble
+1 +/- 5e-11, PR and PR-BM, one-component and zero-containing vectors, both bubble
 and dew calculations, invalid package inputs, and Result-based iteration-limit
 failures. All checks above were rerun after the correction; independent inputs,
 generators, fixtures and reference tolerances are unchanged.
+
+### Shared-record reconciliation
+
+The delegated documentation follow-up reconciles A11 PR #85 (pinned status at
+`c54d3d2`, now merged after final CI/review), A12 merged PR #84, and A13 PR #86 in the shared
+plans and reference/tolerance records. The registry now includes A13's four
+quantity budgets copied unchanged from `a13-v1.json`; only critical/retrograde
+extensions remain deferred there. Existing registry rows, ideal-gas budgets,
+independent inputs, generators, fixtures and the Julia manifest are unchanged.
+The registry check and deliberate drift rejection for existing cubic and new
+A13 rows passed, as did local Markdown-link, provenance and whitespace checks.
+After A11 merged, A13 was rebased on main `4887212`, retaining the
+`property-tables` and `thermo-bridge` lock entries and the `property-packages`
+test dependency. Combined workspace formatting, Clippy, tests and the full Julia
+standard check are rerun on this tree; final-head hosted CI is observed before
+delivery.

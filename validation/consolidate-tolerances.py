@@ -16,8 +16,8 @@ def main():
     process = json.loads((ROOT / "validation/fixtures/process-v1.json").read_text())
     for name, digest in process["input_sha256"].items():
         assert hashlib.sha256((ROOT / name).read_bytes()).hexdigest() == digest, name
-    assert {r["capability"] for r in registry["deferred"]} == {"bubble/dew", "phase envelope"}
-    print("PASS: approved budgets exactly match every registered reference fixture; A13 rows deferred")
+    assert {r["capability"] for r in registry["deferred"]} == {"critical-point/retrograde envelope continuation"}
+    print("PASS: approved budgets exactly match every registered reference fixture, including bounded A13; critical/retrograde extensions deferred")
 
 
 if __name__ == "__main__":

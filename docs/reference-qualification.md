@@ -6,6 +6,13 @@ It resolves the earlier exact-factor, offset and homogeneous expected-value
 gaps. [A2 process qualification](a2-process-qualification.md) now supplies the
 demonstration phase/PH states, and [formal acceptance](a1-a2-acceptance.md)
 records the A1/A2 decisions and approved tolerance registry.
+The bounded [A13 saturation record](a13-status.md), independent
+`validation/fixtures/a13-v1.json`, and [approved registry](../validation/tolerances.json)
+now also cover the fixed dry cubic bubble/dew and sampled envelope inputs.
+A11 interpolation errors compare against the qualified direct model; A12 DWSIM
+results are cross-model integration evidence, not independent engine fixtures.
+Critical/retrograde/wet-region extensions remain outside A13 qualification.
+
 The preparation-only statements below describe the earlier first-wave record.
 
 Prepared 2026-11-07 against scaffold baseline `bf86da9`. **Preparation only:**
