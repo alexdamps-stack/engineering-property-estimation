@@ -1,4 +1,4 @@
-//! Deterministic, acyclic, sequential-modular execution. No GUI dependencies.
+//! Deterministic sequential-modular execution. No GUI dependencies.
 use crate::{
     Diagnostic, ExchangerSpec, Flowsheet, MixerPressure, PortDirection, PortRef, PressureSpec,
     SeparatorThermal, StreamId, ThermalSpec, UnitId, UnitKind, UnitSpec,
@@ -80,6 +80,8 @@ pub struct Calculation {
     pub order: Vec<UnitId>,
     pub streams: BTreeMap<StreamId, MaterialStream>,
     pub units: BTreeMap<UnitId, UnitCalculation>,
+    /// Tear-stream closure for a successful recycle calculation.
+    pub recycle: Option<crate::RecycleConvergence>,
 }
 
 impl Calculation {
@@ -109,6 +111,8 @@ pub struct SolveError {
 /// Progress of a running solve, reported before each unit is calculated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SolveProgress {
+    /// Recycle pass (1-based), or zero for an acyclic solve/initialization.
+    pub iteration: usize,
     /// Units already calculated.
     pub completed: usize,
     /// Units in the calculation order.
@@ -182,9 +186,17 @@ impl Flowsheet {
         &self,
         package: &CubicPackage,
         feeds: &FeedCompositions,
-        mut progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
+        progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
     ) -> Result<Calculation, SolveError> {
         let order = self.calculation_order()?;
+        self.solve_pass(package, feeds, order, &BTreeMap::new(), progress)
+    }
+
+    pub(crate) fn validate_inputs(
+        &self,
+        package: &CubicPackage,
+        feeds: &FeedCompositions,
+    ) -> Result<(), SolveError> {
         let fail = |id: UnitId, message: String| SolveError {
             unit: Some(id),
             message: format!("{}: {message}", self.unit(id).expect("unit exists").name),
@@ -235,6 +247,24 @@ impl Flowsheet {
                 cancelled: false,
             });
         }
+        Ok(())
+    }
+
+    pub(crate) fn solve_pass(
+        &self,
+        package: &CubicPackage,
+        feeds: &FeedCompositions,
+        order: Vec<UnitId>,
+        tears: &BTreeMap<StreamId, MaterialStream>,
+        mut progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
+    ) -> Result<Calculation, SolveError> {
+        self.validate_inputs(package, feeds)?;
+        let fail = |id: UnitId, message: String| SolveError {
+            unit: Some(id),
+            message: format!("{}: {message}", self.unit(id).expect("unit exists").name),
+            diagnostics: Vec::new(),
+            cancelled: false,
+        };
         let mut report = Calculation {
             topology: self.clone(),
             feeds: feeds.clone(),
@@ -242,10 +272,12 @@ impl Flowsheet {
             order: order.clone(),
             streams: BTreeMap::new(),
             units: BTreeMap::new(),
+            recycle: None,
         };
         let total = order.len();
         for (completed, id) in order.into_iter().enumerate() {
             let step = SolveProgress {
+                iteration: 0,
                 completed,
                 total,
                 unit: id,
@@ -265,7 +297,12 @@ impl Flowsheet {
                     let s = self
                         .stream_at(PortRef::new(id, i))
                         .expect("checked topology");
-                    inlets.push(report.streams[&s.id].clone());
+                    inlets.push(
+                        tears
+                            .get(&s.id)
+                            .unwrap_or_else(|| &report.streams[&s.id])
+                            .clone(),
+                    );
                 }
             }
             let (outlets, duty_w, warnings) =
@@ -538,7 +575,7 @@ fn calculate_unit(
     }
 }
 
-fn balance(
+pub(crate) fn balance(
     inputs: &[MaterialStream],
     outputs: &[MaterialStream],
     duty: f64,

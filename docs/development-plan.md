@@ -118,7 +118,7 @@ The A1 calculation contract must also define:
 | A7 | P1 | NRTL and liquid properties | A2, A4, A5 | Directed parameters, temperature dependence, vapor model, and caloric coupling pass formulation-matched references and consistency checks; supported domains and missing-data failures are explicit |
 | A8 | P1 | Steady-state flowsheet engine | A5 | The headless demonstration and mixer/separator balances, heater energy balance, isenthalpic valve, and applicable flow-scaling tests pass through the qualified engine |
 | A9 | P1 | Native interface and flowsheet editor | API prototype after A3; calculation acceptance after A8 | A user can create, calculate, modify, save, and reload the demonstration; persistence/recalculation is consistent, input changes invalidate affected results, and failures remain visible |
-| A10 | P1 | Recycles and larger networks | A8, A9 | A defined recycle case (section 5.1) converges reproducibly through deterministic tear-stream selection with direct substitution and Wegstein acceleration; tear residuals use the A8 balance scaling; nonconvergence, oscillation, cancellation and failure paths are explicit and leave no partially current result; the desktop shows recycle iteration status |
+| A10 | P1 | Recycles and larger networks | A8, A9 | A defined recycle case converges reproducibly; cancellation and failure paths are checked — implemented with bounded tear-stream direct substitution, project/desktop support and larger-network tests ([A10 record](a10-status.md)). Follow-up for the refrigeration cycle (section 5.1): closed loops without a fresh feed, with a circulating-flow specification at the tear stream, and bounded Wegstein acceleration, with explicit nonconvergence and oscillation diagnostics |
 | A11 | P2 | Tables and splines | Stable direct models and profiling | Speedup and error are measured over an approved domain; outside it, evaluation uses the direct model or returns a clear error |
 | A12 | P2 | External integration | Stable API and clarified target scope | A concrete DWSIM or later Excel use case is demonstrated through a suitable interface |
 | A13 | P1 | Saturation points and phase envelope | A4 | Bubble- and dew-point pressure and temperature for the demonstration mixtures pass independent references, including the hydrocarbon dew point of the natural-gas case; a phase-envelope trace reports its supported range and stops with a diagnostic near the critical point instead of returning unverified values |
@@ -134,14 +134,14 @@ P0 is the critical path to a reliable technical version. P1 adds the usable appl
 
 After A8 and A9, the editor palette already shows pumps, compressors and expanders, but the engine rejects them, and recycles are rejected. The goal of this extension is functional unit operations in the software. It is pulled forward as the current development focus.
 
-**Scope decision.** Rotating equipment (A14) and extended specifications of the existing units (A15) are the selected unit-operation scope. A10 and A13 are included because the selected acceptance processes need them. A16 is included because the methanol/water process needs the NRTL package in the flowsheet.
+**Scope decision.** Rotating equipment (A14) and extended specifications of the existing units (A15) are the selected unit-operation scope. A10 (implemented, [A10 record](a10-status.md)) and A13 are included because the selected acceptance processes need them; the refrigeration cycle additionally needs the A10 closed-loop follow-up. A16 is included because the methanol/water process needs the NRTL package in the flowsheet.
 
 **Acceptance processes.** Each is specified with components, states, required outputs and independent reference values before implementation of the work package that closes it. Reference generation stays independent of the Rust engine.
 
 | Process | Package | Units | Closed by |
 |---|---|---|---|
-| Gas compression with recycle | PR-BM, demonstration components | Feed, mixer, compressor, cooler, separator, valve; separator liquid recycled through the valve to the mixer | A14 + A10 |
-| Propane refrigeration cycle | PR/PR-BM, pure propane | Compressor, condenser (cooler to saturated liquid), expansion valve, evaporator (heater to saturated vapor); closed loop with a specified circulating flow at the tear stream | A14 + A10 + A13 + A15 |
+| Gas compression with recycle | PR-BM, demonstration components | Feed, mixer, compressor, cooler, separator, valve; separator liquid recycled through the valve to the mixer | A14 (uses the implemented A10 recycle solver) |
+| Propane refrigeration cycle | PR/PR-BM, pure propane | Compressor, condenser (cooler to saturated liquid), expansion valve, evaporator (heater to saturated vapor); closed loop with a specified circulating flow at the tear stream | A14 + A10 closed-loop follow-up + A13 + A15 |
 | Methanol/water separation | A7 NRTL gamma–phi | Feed, pump, heater to partial vaporization, flash drum separator, valve | A16 + A14 (NRTL PS for the pump) + A15 (vapor-fraction specification, optional) |
 
 "Separation" here means equilibrium flash-drum separation. Distillation columns remain deferred (section 3).
@@ -149,12 +149,12 @@ After A8 and A9, the editor palette already shows pumps, compressors and expande
 **Order:**
 
 1. **A14 — PS flash and rotating equipment.** Closes the largest functional gap and reuses the qualified TP/PH solver structure. Start with the cubic package, then NRTL PS for the methanol/water pump; GERG PS follows separately. Polytropic compressor models and performance curves are later additions, not part of first acceptance.
-2. **A10 — Recycles** (promoted from P2 to P1). Open recycles (compression loop) first, then closed loops (refrigeration cycle), which need a circulating-flow specification at the tear stream instead of a feed.
+2. **A10 follow-up — closed loops and Wegstein.** Open recycles are implemented (A10, direct substitution). The refrigeration cycle needs closed loops, which have no fresh feed and need a circulating-flow specification at the tear stream, plus bounded Wegstein acceleration for the slower loops expected with compressors and phase changes.
 3. **A13 — Saturation points**, which enable the vapor-fraction specifications of A15 and the saturated condenser/evaporator outlets of the refrigeration cycle.
 4. **A15 — Extended unit specifications.** The parts that do not need vapor fractions can start once A14 is merged.
 5. **A16 — NRTL package in the flowsheet.** Independent of the cubic work and can run in parallel.
 
-All dependencies are satisfied now (A4, A5, A7, A8 and A9 are complete). A10, A13 and A16 may run in parallel with A14 where review capacity allows, because they touch different solver, engine and package areas. A14, A15 and A16 all change the project format, so their format migrations are serialized: one format-version increment per merged work package, in merge order.
+All dependencies are satisfied now (A4, A5, A7, A8, A9 and A10 are complete). The A10 follow-up, A13 and A16 may run in parallel with A14 where review capacity allows, because they touch different solver, engine and package areas. A14, A15 and A16 all change the project format, so their format migrations are serialized: one format-version increment per merged work package, in merge order.
 
 Still deferred: connecting the GERG package to the flowsheet and a reviewed cubic interaction-parameter dataset (candidates for the next block), as well as the section 3 deferrals (reactors, distillation columns, multiple liquid phases).
 
@@ -173,7 +173,7 @@ Each implemented capability requires meaningful tests of its behavior and failur
 7. Initially implement PH flash as a controlled outer temperature iteration around TP flash; test difficult phase transitions separately. For pure components, and approximately for narrow-boiling mixtures, temperature is fixed by pressure inside the two-phase region and enthalpy changes with vapor fraction alone. A temperature-only iteration cannot converge there, so the PH flash needs a path that solves for the phase fraction at saturation temperature.
 8. Explicitly handle near-critical states, vanishing components, and nearly identical phases. A small step alone does not establish convergence.
 9. Implement PS flash (A14) with the same structure as PH flash: a bracketed outer temperature iteration around TP flash, with a separate phase-fraction path at saturation temperature for pure components and narrow-boiling mixtures. Rotating equipment computes the isentropic outlet state with PS flash and the actual outlet state with PH flash from the efficiency-corrected enthalpy.
-10. Solve recycles (A10) as an outer loop around the sequential-modular pass: deterministic tear selection, direct substitution, then bounded Wegstein acceleration, with an iteration limit and explicit nonconvergence.
+10. Solve recycles as an outer loop around the sequential-modular pass: deterministic tear selection and bounded direct substitution (implemented in A10), then bounded Wegstein acceleration and closed loops with a circulating-flow specification (A10 follow-up), with an iteration limit and explicit nonconvergence.
 
 Compare automatic differentiation, trust-region methods, homotopy, and reduction approaches on concrete difficult cases. Expand a general solver framework only when justified by demonstrated needs.
 
@@ -229,12 +229,12 @@ Nonbinding effort estimate for an experienced full-time developer; revise after 
 | A7: NRTL and liquid packages | Initially an additional 3–6 weeks | Extension to defined polar systems |
 
 | A14: PS flash and rotating equipment | 3–5 weeks | Pump, compressor and expander calculate in the editor (cubic package) |
-| A10: recycles | 2–4 weeks | Converged gas-compression loop with recycle |
+| A10 follow-up: closed loops and Wegstein | 1–2 weeks | Converged closed refrigeration loop |
 | A13: saturation points | 3–5 weeks | Bubble/dew points and bounded phase envelope |
 | A15: extended unit specifications | 2–3 weeks | n-port units, mass/standard-volume feeds, exchanger approach/UA, vapor-fraction specs |
 | A16: NRTL package in the flowsheet | 2–4 weeks | Methanol/water flash separation in the editor |
 
-The first PR-BM application therefore represents roughly 11–21 development weeks. GERG, NRTL, critical states, and integrations expand this scope. Reliable existing artifacts may reduce effort; missing parameters and additional phase regions may increase it. The unit-operation extension (A14, A10, A13, A15, A16) adds roughly 12–21 weeks if done sequentially; running A10, A13 and A16 in parallel with A14 shortens elapsed time but not review effort.
+The first PR-BM application therefore represents roughly 11–21 development weeks. GERG, NRTL, critical states, and integrations expand this scope. Reliable existing artifacts may reduce effort; missing parameters and additional phase regions may increase it. The unit-operation extension (A14, A10, A13, A15, A16) adds roughly 11–19 weeks if done sequentially; running the A10 follow-up, A13 and A16 in parallel with A14 shortens elapsed time but not review effort.
 
 ## 10. Immediate next work block
 
@@ -243,7 +243,7 @@ Current block (November 8, 2026): functional unit operations, as set out in sect
 1. Specify the three acceptance processes of section 5.1 (components, states, outputs) and generate their independent reference values.
 2. A14: record the PS flash formulation, reference states and independent reference source; generate PS round-trip and isentropic compression/expansion references independently of the Rust engine, including pure propane in the two-phase region; implement cubic PS flash and run the Clapeyron standard check.
 3. A14: implement pump, compressor and expander specifications (outlet pressure or ratio, isentropic efficiency), shaft power and energy balance; enable them in the editor and migrate the project format. Add NRTL PS for the methanol/water pump.
-4. A10: implement tear streams and Wegstein acceleration in `flowsheet-core` for the compression loop, then closed loops with a circulating-flow specification; recycle status and cancellation in the desktop.
+4. A10 follow-up: bounded Wegstein acceleration and closed loops with a circulating-flow specification in `flowsheet-core`, on top of the implemented A10 tear-stream solver; expose the circulating-flow specification in the editor.
 5. A13: bubble- and dew-point solvers for the demonstration mixtures, pure propane, and the natural-gas hydrocarbon dew point.
 6. A16: NRTL package adapter in `flowsheet-core` and `flowsheet-project`, package selection in the editor, and the methanol/water flash separation.
 7. A15: n-port mixer/splitter, mass and standard-volume feed bases and exchanger approach/UA specifications after A14 merges; vapor-fraction specifications after A13.

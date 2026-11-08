@@ -23,7 +23,7 @@ The users are **process engineers**. They know commercial and open simulators (A
 
 Unit operations are solved one at a time in topological order of the stream connections. Each unit receives fully defined inlet streams and computes its outlets with the property package.
 
-Reasons: easy to understand and diagnose (a failure points to one unit), matches what process engineers know, and is sufficient for the acyclic demonstration process. Recycles (A10) are added later with tear streams and direct substitution or Wegstein acceleration. An equation-oriented solver is out of scope until a concrete need appears.
+Reasons: easy to understand and diagnose (a failure points to one unit), matches what process engineers know, and is sufficient for the acyclic demonstration process. [A10](a10-status.md) adds deterministic tear streams and bounded direct substitution, with closure checks, cancellation and project/desktop support. Wegstein acceleration and an equation-oriented solver remain outside the implemented scope.
 
 ### 2.2 Streams — *proposed*
 
@@ -216,7 +216,7 @@ The desktop layout and framework evaluation remain A9 proposals.
 
 | Decision | Selected behavior | Implementation / owner |
 |---|---|---|
-| Solution approach | Deterministic sequential-modular calculation of acyclic graphs; reject recycles | A8; tear streams remain A10 |
+| Solution approach | Deterministic sequential-modular calculation; acyclic API retained, recycle-capable API uses tear streams and bounded direct substitution | A8 plus [A10](a10-status.md); desktop/project solves use automatic tears |
 | Unit specification sets | Section 2.3 enums; TP feeds, adiabatic PH mixer, T/duty heater/cooler, PH valve, adiabatic/T/duty separator | A8; vapor-fraction specs remain A13 |
 | Initial input basis | Explicit ordered mole fractions and mol/s; SI absolute pressure; one immutable cubic package for every stream | A8; existing thermo-types conversions may be applied explicitly by callers |
 | Splitter in first version | Include one inlet, two outlets and one split fraction, including 0 and 1 | A8; arbitrary port counts are deferred |

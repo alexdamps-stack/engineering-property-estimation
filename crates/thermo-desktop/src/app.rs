@@ -75,6 +75,7 @@ enum Pending {
     NewProject,
     Open,
     Demonstration,
+    RecycleDemonstration,
     Close,
 }
 
@@ -94,6 +95,16 @@ impl FlowsheetApp {
     pub fn with_demonstration() -> Self {
         let mut app = Self::default();
         app.editor.load_demonstration();
+        app
+    }
+
+    /// Starts with the A10 recycle demonstration loaded.
+    pub fn with_recycle_demonstration() -> Self {
+        let mut app = Self::default();
+        app.editor
+            .load_project(flowsheet_project::recycle_demonstration(
+                CubicVariantChoice::PengRobinsonBostonMathias,
+            ));
         app
     }
 
@@ -133,6 +144,12 @@ impl FlowsheetApp {
         match action {
             Pending::NewProject => self.new_project = Some(NewProjectDialog::open()),
             Pending::Demonstration => self.editor.load_demonstration(),
+            Pending::RecycleDemonstration => {
+                self.editor
+                    .load_project(flowsheet_project::recycle_demonstration(
+                        CubicVariantChoice::PengRobinsonBostonMathias,
+                    ))
+            }
             Pending::Open => {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("Flowsheet project", &["json"])
@@ -293,6 +310,9 @@ impl FlowsheetApp {
                 if ui.button("Load demonstration").clicked() {
                     self.request(Pending::Demonstration);
                 }
+                if ui.button("Load recycle demonstration").clicked() {
+                    self.request(Pending::RecycleDemonstration);
+                }
                 ui.separator();
                 if ui.button("Exit").clicked() {
                     ui.ctx().send_viewport_cmd(ViewportCommand::Close);
@@ -376,9 +396,12 @@ impl FlowsheetApp {
             }
             ui.checkbox(&mut ed.auto_solve, "Auto-solve")
                 .on_hover_text("Recalculate after each completed edit");
-            if let Some((done, total)) = ed.solve_progress() {
+            if let Some((done, total, iteration)) = ed.solve_progress() {
                 ui.add(egui::Spinner::new());
                 ui.label(format!("Solving… {done}/{total} units"));
+                if iteration > 0 {
+                    ui.label(format!("Recycle iteration {iteration}"));
+                }
             }
             ui.separator();
             if ui.button("Fit view").clicked() {
@@ -552,8 +575,9 @@ fn status_bar(ui: &mut Ui, ed: &mut Editor) {
             }
         }
         ui.separator();
-        if let Some((done, total)) = ed.solve_progress() {
+        if let Some((done, total, iteration)) = ed.solve_progress() {
             ui.label(format!("Solving {done}/{total}…"));
+            if iteration > 0 { ui.label(format!("Recycle iteration {iteration}")); }
         } else if counts[2] > 0 || ed.failure.is_some() {
             ui.colored_label(theme.error, "✖ Last solve failed — see Messages");
         } else if let Some(r) = &ed.results {
@@ -579,7 +603,7 @@ fn status_bar(ui: &mut Ui, ed: &mut Editor) {
                 counts[1],
                 counts[2],
                 counts[3],
-                ed.fs.diagnostics().len() + issues.len()
+                ed.fs.recycle_diagnostics().len() + issues.len()
             ))
             .weak(),
         );

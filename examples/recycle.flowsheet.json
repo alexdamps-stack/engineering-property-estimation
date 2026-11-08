@@ -1,0 +1,210 @@
+{
+  "format_version": 1,
+  "generator": "thermo-desktop 0.0.0",
+  "package": {
+    "variant": "PR-BM",
+    "components": [
+      "methane",
+      "ethane",
+      "propane",
+      "nitrogen",
+      "carbon-dioxide"
+    ],
+    "kij": [
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "interaction_source": "explicit synthetic zero-kij approximation; A2 fixed demonstration, not measured natural-gas accuracy",
+    "ph_minimum_temperature_k": 200.0,
+    "ph_maximum_temperature_k": 400.0
+  },
+  "units": [
+    {
+      "id": 1,
+      "kind": "feed",
+      "tag": "Feed 1",
+      "spec": {
+        "type": "feed",
+        "temperature_k": 330.0,
+        "pressure_pa": 5000000.0,
+        "molar_flow_mol_s": 100.0
+      }
+    },
+    {
+      "id": 2,
+      "kind": "mixer",
+      "tag": "M-100",
+      "spec": {
+        "type": "mixer",
+        "outlet_pressure": "lowest_inlet"
+      }
+    },
+    {
+      "id": 3,
+      "kind": "heater",
+      "tag": "E-100",
+      "spec": {
+        "type": "heat_exchange",
+        "thermal": {
+          "outlet_temperature_k": 350.0
+        },
+        "pressure_drop_pa": 0.0
+      }
+    },
+    {
+      "id": 4,
+      "kind": "splitter",
+      "tag": "TEE-100",
+      "spec": {
+        "type": "splitter",
+        "fraction_to_first": 0.5
+      }
+    },
+    {
+      "id": 5,
+      "kind": "product",
+      "tag": "Product 1",
+      "spec": {
+        "type": "product"
+      }
+    }
+  ],
+  "streams": [
+    {
+      "id": 1,
+      "name": "fresh",
+      "from": {
+        "unit": 1,
+        "port": 0
+      },
+      "to": {
+        "unit": 2,
+        "port": 0
+      }
+    },
+    {
+      "id": 2,
+      "name": "circulation",
+      "from": {
+        "unit": 2,
+        "port": 2
+      },
+      "to": {
+        "unit": 3,
+        "port": 0
+      }
+    },
+    {
+      "id": 3,
+      "name": "heated",
+      "from": {
+        "unit": 3,
+        "port": 1
+      },
+      "to": {
+        "unit": 4,
+        "port": 0
+      }
+    },
+    {
+      "id": 4,
+      "name": "product",
+      "from": {
+        "unit": 4,
+        "port": 2
+      },
+      "to": {
+        "unit": 5,
+        "port": 0
+      }
+    },
+    {
+      "id": 5,
+      "name": "recycle",
+      "from": {
+        "unit": 4,
+        "port": 1
+      },
+      "to": {
+        "unit": 2,
+        "port": 1
+      }
+    }
+  ],
+  "feeds": [
+    {
+      "unit": 1,
+      "mole_fractions": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ]
+    }
+  ],
+  "layout": [
+    {
+      "unit": 1,
+      "x": -100.0,
+      "y": 0.0
+    },
+    {
+      "unit": 2,
+      "x": 140.0,
+      "y": 0.0
+    },
+    {
+      "unit": 3,
+      "x": 340.0,
+      "y": 0.0
+    },
+    {
+      "unit": 4,
+      "x": 540.0,
+      "y": 0.0
+    },
+    {
+      "unit": 5,
+      "x": 740.0,
+      "y": 0.0
+    }
+  ],
+  "display": {
+    "unit_set": "process_metric"
+  },
+  "results": null
+}

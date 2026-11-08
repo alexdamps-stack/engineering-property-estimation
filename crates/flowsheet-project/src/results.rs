@@ -99,10 +99,23 @@ pub struct UnitResult {
     pub scaled_energy_residual: Option<f64>,
 }
 
+/// Closure evidence for a successful cyclic network calculation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecycleResult {
+    pub iterations: usize,
+    pub max_scaled_residual: f64,
+    /// Stream identifier and scaled closure residual, in identifier order.
+    pub tears: Vec<(u64, f64)>,
+}
+
 /// Snapshot of one successful flowsheet calculation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResultSet {
+    /// Closure evidence for cyclic networks; absent for older or acyclic results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recycle: Option<RecycleResult>,
     /// Engine, model and data identity that produced the values.
     pub provenance: Provenance,
     /// Completion time, seconds since the Unix epoch (UTC).
@@ -156,6 +169,11 @@ impl ResultSet {
             .filter_map(|(id, s)| Some((*id, stream_result(s, fingerprints.stream(fs, *id)?))))
             .collect();
         Self {
+            recycle: calc.recycle.as_ref().map(|r| RecycleResult {
+                iterations: r.iterations,
+                max_scaled_residual: r.max_scaled_residual,
+                tears: r.tear_residuals.iter().map(|(id, r)| (id.0, *r)).collect(),
+            }),
             provenance,
             solved_at_unix_s,
             order: calc.order.clone(),

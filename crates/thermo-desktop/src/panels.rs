@@ -789,6 +789,15 @@ fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
         ui.collapsing("Diagnostics and provenance", |ui| {
             if let Some(results) = &ed.results {
                 let p = &results.provenance;
+                if let Some(r) = &results.recycle {
+                    ui.label(format!(
+                        "Recycle: {} iterations, max scaled residual {:.2e}",
+                        r.iterations, r.max_scaled_residual
+                    ));
+                    for (id, residual) in &r.tears {
+                        ui.label(format!("Tear S{id}: {residual:.2e}"));
+                    }
+                }
                 ui.label(format!("Model {} ({})", p.model, p.model_version));
                 ui.label(format!("Data {} ({})", p.data, p.data_version));
                 ui.label(format!(
@@ -834,6 +843,38 @@ struct Message {
 
 fn messages_of(ed: &mut Editor) -> Vec<Message> {
     let mut out = Vec::new();
+    if ed.results.as_ref().is_some_and(|r| r.recycle.is_some()) {
+        let fps = ed.fingerprints();
+        let current = ed.results.as_ref().is_some_and(|results| {
+            results
+                .units
+                .keys()
+                .all(|id| results.unit_currency(*id, &fps) == flowsheet_project::Currency::Current)
+        });
+        let r = ed
+            .results
+            .as_ref()
+            .and_then(|r| r.recycle.as_ref())
+            .expect("recycle result");
+        out.push(Message {
+            unit: None,
+            status: if current {
+                ItemStatus::Solved
+            } else {
+                ItemStatus::Stale
+            },
+            text: format!(
+                "Recycle {}: {} iterations, max scaled residual {:.2e}; tears {:?}",
+                if current { "converged" } else { "result stale" },
+                r.iterations,
+                r.max_scaled_residual,
+                r.tears
+                    .iter()
+                    .map(|(id, _)| format!("S{id}"))
+                    .collect::<Vec<_>>()
+            ),
+        });
+    }
     if let Some(f) = &ed.failure {
         out.push(Message {
             unit: f.unit,
@@ -841,7 +882,7 @@ fn messages_of(ed: &mut Editor) -> Vec<Message> {
             text: format!("Solve failed: {}", f.message),
         });
     }
-    for d in ed.fs.diagnostics() {
+    for d in ed.fs.recycle_diagnostics() {
         let unit = match d.kind {
             DiagnosticKind::UnconnectedPort(p) => Some(p.unit),
             DiagnosticKind::MissingSpecification(u, _)

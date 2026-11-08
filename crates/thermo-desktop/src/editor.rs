@@ -436,7 +436,7 @@ impl Editor {
         if let Err(e) = &self.package_cache.get(package).built {
             return Some(format!("The property package cannot be built: {e}"));
         }
-        let open = self.fs.diagnostics().len() + self.input_issues().len();
+        let open = self.fs.recycle_diagnostics().len() + self.input_issues().len();
         (open > 0)
             .then(|| format!("{open} open item(s) must be resolved before solving; see Messages."))
     }
@@ -478,8 +478,8 @@ impl Editor {
         self.job.is_some()
     }
 
-    /// `(completed, total)` units of the running solve.
-    pub fn solve_progress(&self) -> Option<(usize, usize)> {
+    /// `(completed, total, recycle_iteration)` of the running solve.
+    pub fn solve_progress(&self) -> Option<(usize, usize, usize)> {
         self.job.as_ref().map(SolveJob::progress)
     }
 
@@ -601,7 +601,7 @@ mod tests {
         ed.load_demonstration();
         assert_eq!(ed.fs.units().count(), 8);
         assert_eq!(ed.fs.streams().count(), 7);
-        assert!(ed.fs.diagnostics().is_empty());
+        assert!(ed.fs.recycle_diagnostics().is_empty());
         assert!(ed.input_issues().is_empty());
         assert_eq!(ed.solve_blocker(), None);
         let fps = ed.fingerprints();
