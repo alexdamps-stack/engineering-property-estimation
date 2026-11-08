@@ -57,9 +57,15 @@ refined until the targets held, not the targets relaxed (refinement study below)
   (∂v/∂T)_p = g_Tx/p, (∂v/∂p)_T = (g_xx − g_x)/p², cv = cp + T(∂v/∂T)²/(∂v/∂p),
   w² = −v² cp /(M cv (∂v/∂p)_T). Hence h = g + Ts, u = h − pv, dh/dT = cp and the
   Maxwell relation (∂s/∂p)_T = −(∂v/∂T)_p hold on the table itself (tested),
-  which independent property splines would not guarantee. cp, cv and (∂v/∂p)_T
-  are second derivatives of the surface and are therefore only C⁰ across cell
-  edges; their errors are reported separately.
+  which independent property splines would not guarantee. The surface is C¹:
+  g, s, h, v, ρ and the cross derivative (∂v/∂T)_p are continuous across cell
+  edges. Pure second derivatives are **not**: cp (from g_TT) can jump across
+  constant-T cell edges, (∂v/∂p)_T (from g_xx) across constant-ln p edges, and
+  cv and w, which depend on both, across either. They are piecewise smooth within
+  cells, and their errors (including the edges) are reported separately. An
+  independent review probe on the approved grid at 3 MPa measured a cp jump of
+  3.4e-5 J/(mol K) across the 300 K edge and 1.3e-5 J/(mol K) across 350 K,
+  about 1e-6 relative and within the cp error budget.
 - **Qualification (excludes phase boundaries and the critical region):** every
   point of a 4× refined lattice (81,225 points, including all nodes and edges)
   must have exactly one real cubic root, be stable in the default TPD trial set,
@@ -177,8 +183,9 @@ tolerance was modified.
   PR-BM, GERG, NRTL and liquid or near-critical domains are not tabulated.
 - Qualification checks a lattice; it is evidence, not a proof, of single-phase
   stability between lattice points, and shares A4's finite-trial caveat.
-- Second-derivative properties are C⁰ across cell edges; a quintic Hermite or
-  node-stored second derivatives would be needed for smooth cp.
+- cp, cv, (∂v/∂p)_T and w can have small jumps at cell edges (the surface is
+  only C¹). Callers that differentiate them further, or need continuous cp,
+  would need a quintic Hermite or node-stored second derivatives.
 - Not integrated into `property-packages`, the flowsheet or the project format;
   integration (and invalidation of tables on package changes) is separate work.
 - Timings come from one laptop; repeat the benchmark on target hardware before
