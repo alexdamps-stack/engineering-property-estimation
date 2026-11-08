@@ -102,7 +102,7 @@ pub enum DiagnosticKind {
     MissingSpecification(UnitId, Vec<&'static str>),
     /// A specified value is outside its admissible range.
     InvalidSpecification(UnitId, SpecIssue),
-    /// The units form a recycle loop; recycles are planned for A10.
+    /// A cycle requires the tear-stream solver rather than the acyclic API.
     RecycleUnsupported(Vec<UnitId>),
     /// The flowsheet contains no feed.
     NoFeed,
@@ -416,7 +416,7 @@ impl Flowsheet {
                 .collect();
             out.push(Diagnostic {
                 message: format!(
-                    "Recycle loop through {} — recycles are not supported yet (A10).",
+                    "Recycle loop through {} — use solve_network or explicit tear streams with solve_recycles.",
                     names.join(" → ")
                 ),
                 kind: DiagnosticKind::RecycleUnsupported(cycle),
@@ -426,7 +426,7 @@ impl Flowsheet {
     }
 
     /// Returns the units of one directed cycle, if any exists.
-    fn find_cycle(&self) -> Option<Vec<UnitId>> {
+    pub(crate) fn find_cycle(&self) -> Option<Vec<UnitId>> {
         let mut successors: BTreeMap<UnitId, BTreeSet<UnitId>> = BTreeMap::new();
         for s in self.streams.values() {
             successors.entry(s.from.unit).or_default().insert(s.to.unit);

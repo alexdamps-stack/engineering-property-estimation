@@ -4,6 +4,7 @@
 //!
 //! - `thermo-desktop` opens an empty editor.
 //! - `thermo-desktop --demo` starts with the demonstration project.
+//! - `thermo-desktop --recycle-demo` starts with the A10 recycle project.
 //! - `thermo-desktop <file.flowsheet.json>` opens a project file.
 //! - `thermo-desktop --self-test <report.json>` runs the headless A9
 //!   acceptance workflow (solve, invalidate, save, reload, recalculate,
@@ -66,6 +67,7 @@ fn main() -> ExitCode {
         _ => {}
     }
     let demo = args.iter().any(|a| a == "--demo");
+    let recycle_demo = args.iter().any(|a| a == "--recycle-demo");
     let file = args
         .iter()
         .find(|a| !a.starts_with("--"))
@@ -81,10 +83,11 @@ fn main() -> ExitCode {
         "thermo-desktop",
         options,
         Box::new(move |_cc| {
-            Ok(Box::new(match (file, demo) {
-                (Some(path), _) => FlowsheetApp::with_file(path),
-                (None, true) => FlowsheetApp::with_demonstration(),
-                (None, false) => FlowsheetApp::default(),
+            Ok(Box::new(match (file, recycle_demo, demo) {
+                (Some(path), _, _) => FlowsheetApp::with_file(path),
+                (None, true, _) => FlowsheetApp::with_recycle_demonstration(),
+                (None, false, true) => FlowsheetApp::with_demonstration(),
+                (None, false, false) => FlowsheetApp::default(),
             }))
         }),
     );

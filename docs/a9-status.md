@@ -234,4 +234,4 @@ No model, data, fixture or tolerance changed.
   is registered for `*.flowsheet.json`.
 - `THIRD-PARTY-CRATES.txt` lists declared licenses. A full license-text
   bundle and a legal review are needed before public distribution.
-- Recycles remain A10, saturation specifications A13.
+- Recycles are implemented in [A10](a10-status.md); saturation specifications remain A13.

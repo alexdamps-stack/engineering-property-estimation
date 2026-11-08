@@ -6,6 +6,13 @@ A Rust workspace for a planned standalone thermodynamic property engine and stea
 
 ## Development plan
 
+A10 adds deterministic tear-stream recycle solving, closure diagnostics,
+bounded iteration and cancellation, plus desktop/project support and an
+analytically checked recycle demonstration ([A10 record](docs/a10-status.md)).
+Run `cargo run -p thermo-desktop --locked -- --recycle-demo`, open
+`examples/recycle.flowsheet.json`, or run the headless
+`cargo run -p flowsheet-project --example recycle --locked`.
+
 A6 now supplies a [native 21-component GERG-2008 homogeneous path](docs/a6-status.md),
 including native ideal/residual derivatives and caloric properties. Run
 `cargo run -p thermo-cli --locked -- examples/gerg-natural-gas.json` for a
