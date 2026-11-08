@@ -101,7 +101,7 @@ Without `-DwsimPath` only the DWSIM-independent CLR checks run.
 version "DWSIM version 9.0.4.0 (28.07.2025 13:19:16)". The Automation3 and
 interface members used were read by reflection from the shipped assemblies.
 
-Run log: `integrations/dwsim/evidence/run-checks-dwsim-9.0.4.log`; report with
+Run log: `integrations/dwsim/evidence/run-checks-dwsim-9.0.4.txt`; report with
 the full request, ThermoCore response and DWSIM values:
 `integrations/dwsim/evidence/dwsim-9.0.4-separator-check.json`. The script
 also saves the solved DWSIM flowsheet as `target/a12-dwsim/dwsim-separator-check.dwxmz`.
