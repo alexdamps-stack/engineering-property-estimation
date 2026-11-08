@@ -66,3 +66,11 @@ ideal adiabatic valve, use this inlet enthalpy as the PH target at the outlet
 pressure, keeping composition, model, interactions and caloric reference fixed.
 PH output includes the energy residual, phase properties and equilibrium
 evidence. See [A5 status](../docs/a5-status.md) for supported cases and limits.
+
+The A7 gamma–phi package uses `"model": "NRTL-IG"` (NRTL liquid with an
+explicitly selected ideal-gas vapor; embedded methanol/water data only, no
+`kij`). It supports `tp-flash`, `ph-flash`, `bubble-pressure`/`dew-pressure`
+(input `temperature_k`) and `bubble-temperature`/`dew-temperature` (input
+`pressure_pa`). See the [TP example](nrtl-tp-flash-methanol-water.json), the
+[bubble-temperature example](nrtl-bubble-temperature-methanol-water.json) and
+[A7 status](../docs/a7-status.md).

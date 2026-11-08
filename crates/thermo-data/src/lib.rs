@@ -1,5 +1,8 @@
 //! Pinned component constants and ideal-gas NASA7 properties.
 //! Source coefficients and notices are retained in `data/source-extracts`.
+mod liquid;
+pub use liquid::*;
+
 use serde::Deserialize;
 use thermo_types::{
     CalculationError, ComponentId, DataMetadata, MOLAR_GAS_CONSTANT as R, MolarMass, Temperature,

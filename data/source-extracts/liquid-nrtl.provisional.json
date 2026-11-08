@@ -1,0 +1,208 @@
+{
+  "schema": "a7-liquid-nrtl-source-extract-v1",
+  "version": "2026-11-08.1",
+  "status": "source transcription for implementation verification; no experimental accuracy qualification",
+  "gas_constant_J_per_mol_K": 8.31446261815324,
+  "calorie_J": 4.184,
+  "sources": [
+    {
+      "id": "coolprop_water",
+      "url": "https://raw.githubusercontent.com/CoolProp/CoolProp/98b3523d5daa98454618d381d2ae53f7471d216b/dev/fluids/Water.json",
+      "sha256": "f2004885fabb3f46a4210b4ef80511410408d597c868d1c7b48d78b22a7151aa"
+    },
+    {
+      "id": "coolprop_methanol",
+      "url": "https://raw.githubusercontent.com/CoolProp/CoolProp/98b3523d5daa98454618d381d2ae53f7471d216b/dev/fluids/Methanol.json",
+      "sha256": "cd6c4eecb108b1cead3b462052b4c77d587ab54b790dfddb3a74564e87477745"
+    },
+    {
+      "id": "thermo_chemsep_nrtl",
+      "url": "https://raw.githubusercontent.com/CalebBell/thermo/2bb466e98439c2395a004e7095d07f9b97a5a0f0/thermo/Interaction%20Parameters/ChemSep/nrtl.json",
+      "sha256": "14db0a06d3a4fd988b6e49e4eb8eac4ea9bc007a550149451c3ac36cc8774f7b"
+    },
+    {
+      "id": "thermo_license",
+      "url": "https://raw.githubusercontent.com/CalebBell/thermo/2bb466e98439c2395a004e7095d07f9b97a5a0f0/LICENSE.txt",
+      "sha256": "8344e0d86815be0032066b1df801611bfc860806d00461a2c4520dc1334f8f40"
+    },
+    {
+      "id": "dwsim_chemsep_nrtl",
+      "url": "https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/nrtl.dat",
+      "sha256": "8d2973322dfb68436fb9a2f01506303779ddfef6901b8c1cc28ec8137e8e753b"
+    }
+  ],
+  "pure_liquid": [
+    {
+      "id": "water",
+      "cas": "7732-18-5",
+      "source": "coolprop_water",
+      "reference_eos": "Wagner-JPCRD-2002",
+      "vapor_pressure": {
+        "form": "pV",
+        "description": "p'' = pc*exp(Tc/T*sum(n_i*theta^t_i))",
+        "reducing_temperature_K": 647.096,
+        "reducing_value": 22064000.0,
+        "using_tau_r": true,
+        "n": [
+          -9.75639641045262,
+          3.3357600887120102,
+          -1.10029278432831,
+          0.02037617155190105,
+          -2.6668589845604367,
+          6.676721087238668
+        ],
+        "t": [
+          1.018,
+          1.206,
+          2.327,
+          5.753,
+          4.215,
+          14.951
+        ],
+        "temperature_range_K": [
+          273.16,
+          647.0959999999985
+        ],
+        "source_max_abs_error_percent_vs_reference_eos": 0.01384518934277601,
+        "units": {
+          "reducing_value": "Pa"
+        }
+      },
+      "saturated_liquid_density": {
+        "form": "rhoLnoexp",
+        "description": "rho' = rhoc*(1+sum(n_i*theta^t_i))",
+        "reducing_temperature_K": 647.096,
+        "reducing_value": 17873.72799560906,
+        "using_tau_r": false,
+        "n": [
+          0.8157021355019343,
+          2.0434712177006693,
+          -78.58278372496308,
+          1026.4273940070307,
+          -2290.5642779377695,
+          8420.141408210317
+        ],
+        "t": [
+          0.276,
+          0.455,
+          7.127,
+          9.846,
+          11.707,
+          17.805
+        ],
+        "temperature_range_K": [
+          273.16,
+          647.0959999999985
+        ],
+        "source_max_abs_error_percent_vs_reference_eos": 0.14434134863475778,
+        "units": {
+          "reducing_value": "mol/m^3"
+        }
+      }
+    },
+    {
+      "id": "methanol",
+      "cas": "67-56-1",
+      "source": "coolprop_methanol",
+      "reference_eos": "deReuck-BOOK-1993",
+      "vapor_pressure": {
+        "form": "pV",
+        "description": "p'' = pc*exp(Tc/T*sum(n_i*theta^t_i))",
+        "reducing_temperature_K": 512.5,
+        "reducing_value": 8215850.0,
+        "using_tau_r": true,
+        "n": [
+          -0.05952506679549117,
+          3.179977554888436,
+          -9.939771147737998,
+          -0.4161041862021708,
+          -2.6160889920993333,
+          -0.9537879619557192
+        ],
+        "t": [
+          0.111,
+          0.6666666666666666,
+          0.8333333333333334,
+          1.5,
+          2.1666666666666665,
+          5.5
+        ],
+        "temperature_range_K": [
+          175.61,
+          512.49
+        ],
+        "source_max_abs_error_percent_vs_reference_eos": 0.013715335397268547,
+        "units": {
+          "reducing_value": "Pa"
+        }
+      },
+      "saturated_liquid_density": {
+        "form": "rhoLnoexp",
+        "description": "rho' = rhoc*(1+sum(n_i*theta^t_i))",
+        "reducing_temperature_K": 512.5,
+        "reducing_value": 8520.024867237415,
+        "using_tau_r": false,
+        "n": [
+          -5161.133254659156,
+          5793.274196569594,
+          -850.8567738433294,
+          221.20959935245452,
+          0.8350964167808183,
+          -322.4150322686462
+        ],
+        "t": [
+          0.099,
+          0.1,
+          0.115,
+          0.137,
+          4.0,
+          25.0
+        ],
+        "temperature_range_K": [
+          175.61,
+          512.49
+        ],
+        "source_max_abs_error_percent_vs_reference_eos": 0.020841754921629985,
+        "units": {
+          "reducing_value": "mol/m^3"
+        }
+      }
+    }
+  ],
+  "nrtl_binary": [
+    {
+      "i": "methanol",
+      "j": "water",
+      "source": "dwsim_chemsep_nrtl; cross-check thermo_chemsep_nrtl",
+      "source_row": "1101;1921;-189.0469;792.802;0.2999;Methanol/Water p61 1/1a",
+      "source_comment": "Methanol/Water p61 1/1a",
+      "source_units": "A_ij in cal/mol (thermochemical calorie 4.184 J); tau_ij = A_ij/(R T)",
+      "A_ij_cal_per_mol": -189.0469,
+      "A_ji_cal_per_mol": 792.802,
+      "alpha": 0.2999,
+      "tau_form": "tau_ij = t0_ij + t1_ij/T + t2_ij ln(T/K) + t3_ij T; alpha_ij = a0_ij + a1_ij T",
+      "tau_ij": {
+        "t0": 0.0,
+        "t1_K": -95.13209282738782,
+        "t2": 0.0,
+        "t3_per_K": 0.0
+      },
+      "tau_ji": {
+        "t0": 0.0,
+        "t1_K": 398.9534525968885,
+        "t2": 0.0,
+        "t3_per_K": 0.0
+      },
+      "alpha_ij": {
+        "a0": 0.2999,
+        "a1_per_K": 0.0
+      },
+      "regression_pressure_Pa": 101325.0,
+      "regression_temperature_K": [
+        337.69,
+        373.13
+      ],
+      "regression_temperature_basis": "isobaric 1 atm data: interval between pure normal boiling points from the transcribed vapor-pressure ancillaries, rounded outward to 0.01 K"
+    }
+  ]
+}

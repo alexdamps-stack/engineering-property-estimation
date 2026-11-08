@@ -1,6 +1,6 @@
 # Guidance for AI contributors
 
-For PR/PR-BM model, caloric-data, or equilibrium-solver changes, run the
+For PR/PR-BM or NRTL/gamma-phi model, caloric-data, or equilibrium-solver changes, run the
 Clapeyron standard check in addition to ordinary Rust checks:
 `julia --project=validation/julia validation/julia/check.jl` with Julia 1.11.7.
 The locked Julia environment and offline reference tests are described in

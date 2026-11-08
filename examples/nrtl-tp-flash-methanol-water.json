@@ -1,0 +1,9 @@
+{
+  "id": "methanol-water-nrtl-ig-tp-v1",
+  "calculation": "tp-flash",
+  "components": ["methanol", "water"],
+  "mole_fractions": [0.3, 0.7],
+  "temperature_k": 355.0,
+  "pressure_pa": 101325.0,
+  "model": "NRTL-IG"
+}

@@ -4,6 +4,11 @@ Date: November 1, 2026; revised November 7, 2026 after a plan and test review. P
 
 ## Repository setup note
 
+Current A7 implementation: see [NRTL and liquid properties](a7-status.md) for the
+directed NRTL model, gamma–phi package with an ideal-gas vapor, pinned
+methanol/water data, caloric coupling, solvers, independent Clapeyron
+references, supported domain and remaining gates.
+
 Current A6 implementation: see [native GERG-2008 status](a6-status.md) for the
 21-component native model, bracketed pressure inversion, analytic fugacity and
 caloric derivatives, dry-gas TPD/TP/PH integration, independent references and
