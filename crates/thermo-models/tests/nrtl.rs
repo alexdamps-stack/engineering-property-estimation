@@ -458,3 +458,28 @@ fn package_rejects_unsupported_inputs_and_domains() {
     assert!(state.data.identifier.contains("chemsep"));
     assert!(state.excess.is_some());
 }
+
+#[test]
+fn pure_liquids_match_per_component_states_and_reject_bad_index() {
+    let m = package(&[0.3, 0.7]);
+    let temperature = Temperature::new(350.0).unwrap();
+    let all = m.pure_liquids(temperature).unwrap();
+    assert_eq!(all.len(), 2);
+    for (i, state) in all.iter().enumerate() {
+        let one = m.pure_liquid(i, temperature).unwrap();
+        assert_eq!(state.vapor_pressure, one.vapor_pressure);
+        assert_eq!(state.enthalpy, one.enthalpy);
+        assert_eq!(state.entropy, one.entropy);
+        assert_eq!(state.heat_capacity, one.heat_capacity);
+    }
+    assert!(matches!(
+        m.pure_liquid(2, temperature),
+        Err(CalculationError::InvalidInput(
+            InputError::ComponentMismatch
+        ))
+    ));
+    assert!(matches!(
+        m.pure_liquids(Temperature::new(460.0).unwrap()),
+        Err(CalculationError::OutsideValidityDomain(_))
+    ));
+}
