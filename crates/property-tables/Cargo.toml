@@ -1,0 +1,15 @@
+[package]
+name = "property-tables"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "A11 tabulation experiment: Gibbs-energy Hermite tables for a fixed mixture in a qualified single-phase domain, with direct-model fallback."
+
+[lints]
+workspace = true
+
+[dependencies]
+thermo-types = { path = "../thermo-types" }
+thermo-data = { path = "../thermo-data" }
+thermo-models = { path = "../thermo-models" }
+thermo-solvers = { path = "../thermo-solvers" }

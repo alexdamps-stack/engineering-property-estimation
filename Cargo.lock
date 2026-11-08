@@ -2826,6 +2826,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "property-tables"
+version = "0.0.0"
+dependencies = [
+ "thermo-data",
+ "thermo-models",
+ "thermo-solvers",
+ "thermo-types",
+]
+
+[[package]]
 name = "proptest"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
