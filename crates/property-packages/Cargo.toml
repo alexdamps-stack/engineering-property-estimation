@@ -7,3 +7,8 @@ description = "Compatible combinations of thermodynamic models and data."
 
 [lints]
 workspace = true
+
+[dependencies]
+thermo-types = { path = "../thermo-types" }
+thermo-models = { path = "../thermo-models" }
+thermo-solvers = { path = "../thermo-solvers" }

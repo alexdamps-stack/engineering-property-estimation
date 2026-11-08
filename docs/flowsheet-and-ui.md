@@ -194,14 +194,26 @@ Evaluation criteria: canvas performance with about 100 units, table and form qua
 
 It does not yet cover background solving with cancel, energy streams, splitters with more than two outlets, undo/redo, save/load, typed-unit input, Windows packaging, or the `Slint` comparison. The prototype has not been evaluated against the criteria above.
 
-## 5. Open decisions
+## 5. Decisions and remaining interface gate
 
-| Decision | Proposal | Needed by |
+A8 decisions recorded November 8, 2026 for #47. Sections 2.1–2.3 are
+accepted for the headless engine with the explicit implementation scope below.
+The desktop layout and framework evaluation remain A9 proposals.
+
+| Decision | Selected behavior | Implementation / owner |
 |---|---|---|
-| Solution approach | Sequential-modular; tear streams in A10 | A8 start |
-| Unit specification sets | Table in section 2.3 | A8 start |
-| Splitter in first version | Include | A8 start |
-| Project file format | Versioned JSON or RON | A8 |
-| Default unit set | Process metric | A9 prototype |
-| Interface language | English first, German prepared | A9 prototype |
-| GUI framework | After prototype comparison | Before A9 implementation |
+| Solution approach | Deterministic sequential-modular calculation of acyclic graphs; reject recycles | A8; tear streams remain A10 |
+| Unit specification sets | Section 2.3 enums; TP feeds, adiabatic PH mixer, T/duty heater/cooler, PH valve, adiabatic/T/duty separator | A8; vapor-fraction specs remain A13 |
+| Initial input basis | Explicit ordered mole fractions and mol/s; SI absolute pressure; one immutable cubic package for every stream | A8; existing thermo-types conversions may be applied explicitly by callers |
+| Splitter in first version | Include one inlet, two outlets and one split fraction, including 0 and 1 | A8; arbitrary port counts are deferred |
+| Additional prototype exchanger | Hot/cold outlet temperature or transferred duty; independent side pressure drops; no terminal crossover | A8; pumps/compressors/expanders require PS and remain unsupported |
+| Separator phase endpoints | Preserve existing phases for unchanged adiabatic conditions; absent outlet has zero flow, no state, and a warning | A8; a single supercritical fluid uses the vapor port by routing convention and retains its actual label |
+| Project file format | Versioned JSON with integer `format_version`, package/component/input/layout selections and result provenance; unknown versions fail; incompatible results load stale | A9 persistence implementation; A8 example JSON is a calculation report, not a project file |
+| Result invalidation | Compare full topology/specification snapshot, feed compositions and immutable package identity; a failed solve returns no partially current result | A8 API; downstream visual invalidation/background solve/cancel remain A9 |
+| Default unit set | Process metric display, SI calculations | Existing prototype; A9 |
+| Interface language | English first; German localization deferred | Existing prototype; A9 |
+| GUI framework | Keep egui as prototype pending the evaluation in section 4.7 and #52 | A9 gate, independent of the A8 engine |
+
+The numerical API and supported domain are recorded in [A8 status](a8-status.md).
+No new equipment graphics are introduced by the headless engine; the existing
+ISO symbol assets, attribution, license and explicit port definitions are retained.

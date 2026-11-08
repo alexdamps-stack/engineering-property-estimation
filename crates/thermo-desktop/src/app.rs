@@ -13,8 +13,8 @@ use crate::editor::{Editor, Selection};
 use crate::symbols::{Theme, draw_unit, icon_rect};
 use crate::units::{DisplayUnits, Quantity, starting_value};
 
-const ENGINE_PENDING: &str = "Solving is not available yet: the steady-state flowsheet engine \
-(A8) and the PH flash it needs (A5) are not implemented.";
+const ENGINE_PENDING: &str =
+    "The flowsheet engine is available. Desktop solving is pending integration.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 enum BottomTab {

@@ -296,9 +296,8 @@ pub enum ExchangerSpec {
 
 /// User-entered specification of a unit, in SI units with absolute pressure.
 ///
-/// `None` means "not yet specified". The feed composition is not part of
-/// this model yet because component identities are defined with work
-/// package A2.
+/// `None` means "not yet specified". Feed compositions are supplied separately
+/// as [`crate::FeedCompositions`], with explicit identities and mole basis.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnitSpec {
     /// Feed state and flow.

@@ -3,9 +3,9 @@
 The repository has six library crates and two binary crates. `thermo-types`,
 `thermo-data` and `thermo-models` provide validated inputs, embedded component
 data and native homogeneous PR/PR-BM calculations; see [A1–A3 status](a1-a3-status.md).
-`thermo-solvers` implements Rachford–Rice, TPD stability, two-phase TP flash and pure saturation ([A4 status](a4-status.md)); `property-packages` remains a scaffold. `flowsheet-core` holds
-a GUI-independent topology model: units, ports, streams, specifications, and
-pre-calculation diagnostics. `thermo-desktop` is a GUI prototype built on
+`thermo-solvers` implements Rachford–Rice, TPD stability, two-phase TP/PH flash and pure saturation ([A4 status](a4-status.md)). `property-packages` now supplies an immutable cubic package adapter that retains model, interaction, data and caloric-reference metadata. `flowsheet-core` holds
+a GUI-independent topology and sequential calculation engine: units, ports,
+material streams, specifications, balances and diagnostics ([A8 record](a8-status.md)). `thermo-desktop` is a GUI prototype built on
 `egui`/`eframe` and depends on `flowsheet-core`. Using `egui` here is for the
 prototype only and does not decide the final framework (see the
 [flowsheet and interface proposal](flowsheet-and-ui.md), section 4.7).
