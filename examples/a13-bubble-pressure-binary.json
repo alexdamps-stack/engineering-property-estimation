@@ -1,0 +1,25 @@
+{
+  "id": "a13-bubble-pressure-binary",
+  "calculation": "bubble-pressure",
+  "components": [
+    "methane",
+    "propane"
+  ],
+  "mole_fractions": [
+    0.5,
+    0.5
+  ],
+  "model": "PR-BM",
+  "kij": [
+    [
+      0,
+      0
+    ],
+    [
+      0,
+      0
+    ]
+  ],
+  "interaction_source": "Explicit synthetic zero-kij approximation; not fitted VLE data",
+  "temperature_k": 250.0
+}

@@ -1,6 +1,7 @@
 //! Reproducible cubic and native GERG properties, TP and PH calculations, and (A7)
 //! NRTL gamma-phi bubble/dew points and TP/PH flashes.
 mod activity;
+mod saturation;
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -18,7 +19,7 @@ use thermo_types::{
 #[serde(deny_unknown_fields)]
 struct Case {
     id: String,
-    /// "homogeneous" (default), "tp-flash" or "ph-flash".
+    /// Homogeneous, TP/PH flash, cubic or NRTL saturation, or bounded cubic envelope.
     #[serde(default)]
     calculation: Option<String>,
     components: Vec<String>,
@@ -41,6 +42,14 @@ struct Case {
     kij: Option<Vec<Vec<f64>>>,
     #[serde(default)]
     interaction_source: Option<String>,
+    #[serde(default)]
+    saturation_temperature_bounds_k: Option<[f64; 2]>,
+    #[serde(default)]
+    saturation_pressure_bounds_pa: Option<[f64; 2]>,
+    #[serde(default)]
+    envelope_step_k: Option<f64>,
+    #[serde(default)]
+    envelope_maximum_points: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -262,6 +271,21 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
     if case.components.len() != case.mole_fractions.len() {
         return Err("component and fraction lengths differ".into());
     }
+    let saturation_controls = case.saturation_temperature_bounds_k.is_some()
+        || case.saturation_pressure_bounds_pa.is_some()
+        || case.envelope_step_k.is_some()
+        || case.envelope_maximum_points.is_some();
+    let is_cubic_saturation = case.model != "NRTL-IG"
+        && case
+            .calculation
+            .as_deref()
+            .is_some_and(|c| c.starts_with("bubble-") || c.starts_with("dew-"));
+    if saturation_controls && !is_cubic_saturation {
+        return Err(
+            "A13 saturation bounds and envelope controls require a cubic saturation calculation"
+                .into(),
+        );
+    }
     let variant = match case.model.as_str() {
         "PR" => CubicVariant::PengRobinson,
         "PR-BM" => CubicVariant::PengRobinsonBostonMathias,
@@ -271,8 +295,9 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
     let calculation = case.calculation.as_deref().unwrap_or("homogeneous");
     let flash = match calculation {
         "homogeneous" => false,
-        "tp-flash" | "ph-flash" => true,
-        _ => return Err("calculation must be homogeneous, tp-flash or ph-flash".into()),
+        "tp-flash" | "ph-flash" | "bubble-pressure" | "dew-pressure" | "bubble-temperature"
+        | "dew-temperature" | "bubble-envelope" | "dew-envelope" => true,
+        _ => return Err("unknown calculation; use homogeneous, tp-flash, ph-flash, bubble/dew-pressure, bubble/dew-temperature or bubble/dew-envelope".into()),
     };
     let root = match (flash, case.root.as_deref()) {
         (true, None) => None,
@@ -300,10 +325,14 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
         &db,
         &composition,
         variant,
-        case.kij.ok_or("cubic models require kij")?,
+        case.kij.clone().ok_or("cubic models require kij")?,
         case.interaction_source
+            .clone()
             .ok_or("cubic models require interaction_source")?,
     )?;
+    if calculation.starts_with("bubble-") || calculation.starts_with("dew-") {
+        return saturation::calculate(&case, &model);
+    }
     let p = Pressure::new(case.pressure_pa.ok_or("pressure_pa is required")?)?;
     let fractions: Vec<f64> = composition.entries().iter().map(|(_, x)| *x).collect();
     if calculation == "ph-flash" {

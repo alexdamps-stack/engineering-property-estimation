@@ -38,11 +38,13 @@ end
 function main()
     verify_provenance("clapeyron-v1.json", "generate.jl")
     verify_provenance("nrtl-v1.json", "generate_nrtl.jl")
+    verify_provenance("a13-v1.json", "generate_a13.jl")
     mktempdir() do dir
         live("generate.jl", joinpath(dir,"clapeyron-current.json"), "clapeyron", "THERMO_CLAPEYRON_REFERENCE"; minimal_compilation=true)
         live("generate_nrtl.jl", joinpath(dir,"nrtl-current.json"), "nrtl_clapeyron", "THERMO_NRTL_REFERENCE"; minimal_compilation=false)
+        live("generate_a13.jl", joinpath(dir,"a13-current.json"), "a13_clapeyron", "THERMO_A13_REFERENCE"; minimal_compilation=false)
     end
-    println("Live Clapeyron standard check passed (PR/PR-BM and NRTL); committed reference fixtures unchanged.")
+    println("Live Clapeyron standard check passed (PR/PR-BM, NRTL and A13 saturation); committed reference fixtures unchanged.")
 end
 
 main()

@@ -1,0 +1,18 @@
+{
+  "id": "a13-bubble-temperature-propane",
+  "calculation": "bubble-temperature",
+  "components": [
+    "propane"
+  ],
+  "mole_fractions": [
+    1.0
+  ],
+  "model": "PR-BM",
+  "kij": [
+    [
+      0
+    ]
+  ],
+  "interaction_source": "Explicit synthetic zero-kij approximation; not fitted VLE data",
+  "pressure_pa": 1000000.0
+}
