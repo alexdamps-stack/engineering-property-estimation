@@ -1,6 +1,6 @@
 # Flowsheet and User Interface — Proposal
 
-Date: November 7, 2026. Status: **proposal for review.** This document suggests how the flowsheet engine (A8) behaves and how the desktop interface (A9) looks and works. Decisions marked *proposed* need confirmation; the GUI framework is chosen only after the prototype described in the [development plan](development-plan.md), section 8.
+Date: November 7, 2026; decisions updated November 8, 2026. Status: **A8 and A9 decisions recorded in section 5.** This document describes how the flowsheet engine (A8) behaves and how the desktop interface (A9) looks and works. Remaining items marked *proposed* (for example undo/redo, typed-unit input and localization) are not implemented yet. The GUI framework decision (section 4.7) is based on the prototype described in the [development plan](development-plan.md), section 8; the implementation record is [A9 status](a9-status.md).
 
 ## 1. Target users and design principles
 
@@ -192,7 +192,21 @@ Evaluation criteria: canvas performance with about 100 units, table and form qua
 - Additional units beyond the demonstration: splitter (two outlets, one split fraction), two-stream shell-and-tube heat exchanger, pump, compressor, and expander. Pumps, compressors, and expanders can be drawn and specified (pressure plus an editable 75 % default efficiency) but are marked as not yet calculable, because they need a PS flash (section 2.3).
 - Stream numbers placed beside their lines, avoiding equipment, status badges, other numbers, and all stream lines.
 
-It does not yet cover background solving with cancel, energy streams, splitters with more than two outlets, undo/redo, save/load, typed-unit input, Windows packaging, or the `Slint` comparison. The prototype has not been evaluated against the criteria above.
+**A9 status (November 8, 2026).** The editor now also covers background solving with progress and cancel, an auto-solve toggle, the section 4.6 statuses on canvas and in tables, results in the properties panel and stream table with tab-separated copy, feed compositions, a new-project dialog, versioned save/load, and a Windows installer. It does not cover energy streams, splitters with more than two outlets, undo/redo, typed-unit input, CSV export, or localization.
+
+**Evaluation and decision (#52).** The criteria were assessed on the A9 editor, which is the prototype's full successor; details and measurements are in [A9 status](a9-status.md), section 4.
+
+| Criterion | egui result |
+|---|---|
+| Canvas with about 100 units | 150 units and 100 streams: 0.78 ms CPU per frame (release, layout, hit-testing and tessellation, excluding GPU). Frames are drawn only on input or while a solve runs |
+| Tables and forms | Grid-based specification forms, radio-button choices, composition editor and stream table are sufficient. `egui_extras` tables remain available for larger tables |
+| Keyboard and clipboard | F5, Esc, Del, Ctrl+N/O/S/Shift+S; stream table copied as tab-separated text through the platform clipboard |
+| High DPI | egui follows the operating-system scale factor; the canvas is vector line work that scales with zoom. Not snapshot-tested at a scale factor other than 1 |
+| Windows packaging | One statically linked executable without runtime dependencies; 17 MB executable; 7.1 MB Inno Setup installer and 7.2 MB portable ZIP, built and smoke-tested on the Windows CI runner |
+| Accessibility | AccessKit is enabled; the headless UI tests locate widgets through the accessibility tree. The custom-painted canvas exposes no per-unit accessible nodes; unit status is also available in the properties panel and message list |
+| License and activity | MIT/Apache-2.0; actively maintained |
+
+A Slint prototype was **not** built. The comparison was judged unnecessary for this gate because egui meets every criterion above. Slint offers no immediate-mode painter, so the PFD canvas (routing, tags, hit-testing and symbols) would have to be re-expressed as declarative path elements. Its royalty-free or GPLv3 licensing would also need a distribution decision. The geometry in `view.rs` and the whole calculation and project layer are framework-independent, so a later port stays bounded. **Decision: egui is the GUI framework.**
 
 ## 5. Decisions and remaining interface gate
 
@@ -208,11 +222,11 @@ The desktop layout and framework evaluation remain A9 proposals.
 | Splitter in first version | Include one inlet, two outlets and one split fraction, including 0 and 1 | A8; arbitrary port counts are deferred |
 | Additional prototype exchanger | Hot/cold outlet temperature or transferred duty; independent side pressure drops; no terminal crossover | A8; pumps/compressors/expanders require PS and remain unsupported |
 | Separator phase endpoints | Preserve existing phases for unchanged adiabatic conditions; absent outlet has zero flow, no state, and a warning | A8; a single supercritical fluid uses the vapor port by routing convention and retains its actual label |
-| Project file format | Versioned JSON with integer `format_version`, package/component/input/layout selections and result provenance; unknown versions fail; incompatible results load stale | A9 persistence implementation; A8 example JSON is a calculation report, not a project file |
-| Result invalidation | Compare full topology/specification snapshot, feed compositions and immutable package identity; a failed solve returns no partially current result | A8 API; downstream visual invalidation/background solve/cancel remain A9 |
+| Project file format | Versioned JSON with integer `format_version`, package/component/input/layout selections and result provenance; unknown versions fail; incompatible results load stale | Implemented in A9 (`flowsheet-project`, format version 1); A8 example JSON is a calculation report, not a project file |
+| Result invalidation | Compare full topology/specification snapshot, feed compositions and immutable package identity; a failed solve returns no partially current result | A8 API; A9 adds per-unit input fingerprints (unit, feed composition, package/provenance and all upstream units) so only affected results turn stale, plus background solve and cancel |
 | Default unit set | Process metric display, SI calculations | Existing prototype; A9 |
 | Interface language | English first; German localization deferred | Existing prototype; A9 |
-| GUI framework | Keep egui as prototype pending the evaluation in section 4.7 and #52 | A9 gate, independent of the A8 engine |
+| GUI framework | **egui** (evaluation in section 4.7; Slint not prototyped, reasons recorded) | Decided in A9 (#52); calculation and project layers stay framework-independent |
 
 The numerical API and supported domain are recorded in [A8 status](a8-status.md).
 No new equipment graphics are introduced by the headless engine; the existing
