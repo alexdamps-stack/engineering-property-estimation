@@ -51,7 +51,7 @@ Each unit has a fixed number of required specifications. The defaults below cove
 | Two-phase separator | 1 in, 2 out (vapor, liquid), optional energy | Adiabatic, or one of outlet T / duty; plus pressure drop | Adiabatic, pressure drop 0 | Flash at outlet conditions; if single phase, the empty outlet carries zero flow and a warning |
 | Splitter (*suggested addition*) | 1 in, n out | n−1 split fractions | — | Same state in all outlets |
 
-Pumps, compressors, and expanders need a PS flash and efficiency models; they are deferred.
+Pumps, compressors, and expanders need a PS flash and efficiency models; they are scheduled as A14 in the [development plan](development-plan.md) (section 5.1).
 
 ### 2.4 Specification check
 

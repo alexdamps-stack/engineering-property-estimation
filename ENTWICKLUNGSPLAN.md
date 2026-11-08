@@ -1,6 +1,36 @@
 # Entwicklungsplan – Engineering Tools / Property Estimation
 
-> **Historische Fassung.** Dieses Dokument ist die ursprüngliche Planungsgrundlage vom 1. November 2026 und wird nicht mehr fortgeschrieben. Bestandsaufnahme (§2) und Architekturhinweis (§4) beschreiben den Stand vor Einrichtung des Repositorys. Maßgeblich für Umfang, Arbeitspakete und Abnahmekriterien ist der englische Plan [`docs/development-plan.md`](docs/development-plan.md); die Prüfanforderungen stehen in [`docs/testing-strategy.md`](docs/testing-strategy.md).
+> **Historische Fassung mit Fortschreibung.** Die Abschnitte 1–11 sind die ursprüngliche Planungsgrundlage vom 1. November 2026 und bleiben unverändert. Bestandsaufnahme (§2) und Architekturhinweis (§4) beschreiben den Stand vor Einrichtung des Repositorys. Der folgende Abschnitt „Fortschreibung“ fasst die Planerweiterung vom 8. November 2026 zusammen. Maßgeblich für Umfang, Arbeitspakete und Abnahmekriterien ist der englische Plan [`docs/development-plan.md`](docs/development-plan.md) (dort §5.1, §9 und §10); die Prüfanforderungen stehen in [`docs/testing-strategy.md`](docs/testing-strategy.md).
+
+## Fortschreibung 8. November 2026: Funktionsfähige Grundoperationen
+
+A0–A9 sind abgeschlossen. Der Editor zeigt Pumpe, Verdichter und Entspanner bereits in der Palette, der Rechenkern weist sie aber ab; Rückführungen werden ebenfalls abgewiesen. Ziel der Erweiterung sind funktionsfähige Grundoperationen. Sie wird als aktueller Entwicklungsschwerpunkt vorgezogen.
+
+**Umfangsentscheidung.** Gewählt sind rotierende Maschinen (A14) und erweiterte Spezifikationen der vorhandenen Apparate (A15). A10 und A13 gehören dazu, weil die Abnahmeprozesse sie benötigen; A16 gehört dazu, weil der Methanol/Wasser-Prozess das NRTL-Paket im Flowsheet benötigt.
+
+| ID | Priorität | Arbeitspaket | Abhängigkeit | Fertig, wenn… |
+|---|---|---|---|---|
+| A14 | P1 | PS-Flash und rotierende Maschinen | A5, A8, A9 | PS-Flash für das kubische Paket besteht TP→PS-Rückrechnungen, Reinstoff- und engsiedende Zweiphasenfälle und Fehlerpfade gegen unabhängige Referenzen; Pumpe, Verdichter und Entspanner rechnen mit Austrittsdruck oder Druckverhältnis und isentropem Wirkungsgrad, weisen die Wellenleistung in der Energiebilanz aus und sind im Editor nutzbar; GERG-PS folgt separat |
+| A10 | P1 (bisher P2) | Rückführungen und größere Netze | A8, A9 | Ein offener Rückführungsfall und ein geschlossener Kreislauf konvergieren reproduzierbar (Tear-Ströme, direkte Substitution, Wegstein); Nichtkonvergenz, Abbruch und Fehlerpfade sind explizit |
+| A13 | P1 | Sättigungspunkte und Phasenhüllkurve | A4 | Unverändert; Voraussetzung für Dampfanteil-Spezifikationen |
+| A15 | P1 | Erweiterte Apparatespezifikationen | A8, A9; Dampfanteil nach A13 | Mischer/Teiler mit beliebig vielen Anschlüssen, Zulauf als Massen- oder Normvolumenstrom mit benannten Bezugsbedingungen, Wärmeübertrager über Mindesttemperaturdifferenz oder UA mit Pinch-Prüfung, Dampfanteil als Austrittsvorgabe |
+| A16 | P1 | NRTL-Paket im Flowsheet | A7, A8, A9 | Flowsheet und Editor akzeptieren das A7-Gamma-Phi-Paket mit expliziten gerichteten Parametern; Zustände außerhalb des A7-Bereichs werden abgewiesen statt auf das kubische Paket auszuweichen |
+
+**Abnahmeprozesse** (vor der Umsetzung mit unabhängigen Referenzwerten festgelegt):
+
+| Prozess | Paket | Apparate | Abgeschlossen durch |
+|---|---|---|---|
+| Gasverdichtung mit Rückführung | PR-BM | Zulauf, Mischer, Verdichter, Kühler, Abscheider, Ventil; Abscheiderflüssigkeit über das Ventil zum Mischer zurück | A14 + A10 |
+| Propan-Kältekreislauf | PR/PR-BM, reines Propan | Verdichter, Kondensator (Kühler auf Siedelinie), Expansionsventil, Verdampfer (Erhitzer auf Taulinie); geschlossener Kreislauf mit vorgegebenem Umlaufstrom | A14 + A10 + A13 + A15 |
+| Methanol/Wasser-Trennung | A7-NRTL | Zulauf, Pumpe, Erhitzer zur Teilverdampfung, Flash-Abscheider, Ventil | A16 + A14 (NRTL-PS) + A15 (optional) |
+
+„Trennung“ bedeutet hier Gleichgewichts-Flash; Destillationskolonnen bleiben zurückgestellt.
+
+**Reihenfolge:** A14 → A10 → A13 → A15 → A16. A10, A13 und A16 können parallel zu A14 laufen; Formatmigrationen der Projektdatei werden in Merge-Reihenfolge mit je einer Versionserhöhung serialisiert. Geschätzter Zusatzaufwand bei sequenzieller Bearbeitung: etwa 12–21 Wochen.
+
+Weiter zurückgestellt: GERG-Paket im Flowsheet, geprüfter kij-Datensatz für kubische Modelle, Reaktoren, Kolonnen und mehrere Flüssigphasen.
+
+---
 
 Stand: 1. November 2026. Neuer Planungsvorschlag auf Grundlage der zugänglichen Projektchats und der lokalen Bestandsaufnahme.
 
