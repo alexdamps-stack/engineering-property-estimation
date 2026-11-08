@@ -35,7 +35,7 @@ unsupported inner roots or equilibrium states return errors.
 
 The [case inputs](cases.provisional.json) define a dry natural-gas mixture and a methane/propane binary. The [process proposal](process.provisional.json) defines two feeds, mixing, cooling, pressure reduction and separation, with explicit mole/flow bases, SI units and assumptions.
 
-These provisional files are engineering design inputs, with deliberately explicit zero-interaction approximations. Their null process-phase expectations remain intentional gaps. See [reference qualification](../docs/reference-qualification.md).
+These provisional files are engineering design inputs, with deliberately explicit zero-interaction approximations. Their historical null process-phase expectations are superseded by the [A2 stream qualification](../docs/a2-process-qualification.md) and `validation/fixtures/process-v1.json`. The input files are retained unchanged for reproducibility. See [reference qualification](../docs/reference-qualification.md).
 
 The executable homogeneous CLI cases are [natural gas](homogeneous-natural-gas.json)
 and [methane/propane](homogeneous-binary.json):

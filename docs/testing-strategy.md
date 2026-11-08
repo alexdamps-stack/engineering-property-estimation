@@ -150,15 +150,55 @@ Set property tolerances before implementation using reference quality and condit
 | Residual and total entropy | same + Cantera 3.2 NASA7 for total | 2e-7 J/(mol K) | 2e-9 | same | Same-T,p ideal departures and mixing entropy |
 | cp and cv | same + Cantera 3.2 NASA7 | 2e-5 J/(mol K) | 2e-8 | smooth stable roots; BM Tc excluded | Second-derivative and root conditioning budget |
 | Speed of sound w | same | 2e-4 m/s | 2e-8 | same | Independent residual derivatives and cp/cv |
-| Saturation pressure | PR, PR-BM / to be selected in A2 | open | open | open | open |
-| Density, cp, w | GERG-2008 / NIST AGA8 reference values | open | open | open | open |
+| Ideal gas h | NASA7 / Cantera 3.2.0 | 2e-6 J/mol | 1e-11 | 64 ideal states, 200..6000 K including fit join | Independent integration and reference offsets |
+| Ideal gas s | same | 2e-8 J/(mol K) | 1e-11 | same | Independent cp/T integration |
+| Ideal gas cp | same | 2e-8 J/(mol K) | 1e-11 | same | Independent retained polynomial evaluation |
+| Pure saturation pressure | PR, PR-BM / teqp 0.23.2 | 1e-6 Pa | 2e-9 | 30 pure states, `flash-v1.json` | Independent superancillary + VLE refinement; regular coexistence |
+| Saturation Z | same | 2e-10 | 2e-9 | same | Refined phase densities |
+| TP vapor fraction | PR, PR-BM / teqp + SciPy | 2e-8 | 0 | 22 TP states, `flash-v1.json` | Independent Powell split and finite-start TPD |
+| TP phase composition | same | 2e-8 | 1e-7 | same | Active-component equilibrium and trace budget |
+| TP phase Z | same | 2e-9 | 2e-8 | same | Split/root error propagation |
+| PH / process temperature | PR, PR-BM / teqp, Cantera + SciPy | 2e-6 K | 0 | 28 PH + 14 process states | Independent energy root/coexistence solve |
+| PH / process h | same | 2e-5 J/mol | 2e-9 | same | Same ideal offsets and AD departures |
+| PH / process fraction and composition | same | 2e-8 | 0 / 1e-7 | same | Fraction / composition budgets respectively |
+| Bubble/dew p and T | PR, PR-BM | deferred | deferred | A13 (#66) | Matched references and conditioning required before acceptance |
+| Phase envelope | PR, PR-BM | deferred | deferred | A13 (#66) | Critical-stop domain and budget remain A13 work |
+| Homogeneous properties and derivatives | GERG-2008 / NIST AGA8 C++ 2.01 | 2e-8 in each reported SI unit | 2e-10 | 273 derivative states / 269 admissible property states, `gerg-v1.json` | Matched native ideal reference; fixed numerical comparison budget |
+| Molar density | GERG / NIST + SciPy | 2e-7 mol/m³ | 2e-9 | 42 TP roots, `gerg-density-v1.json` | Independent bracket/refinement |
+| TP pressure | GERG / NIST + SciPy | 1e-5 Pa | 2e-9 | 42 TP roots | Independent pressure refinement |
+| TP Z | same | 2e-9 | 2e-9 | same | Root propagation |
+| TP h | same | 1e-5 J/mol | 2e-9 | same | Matched native ideal reference |
+| TP s | same | 2e-7 J/(mol K) | 2e-9 | same | Matched native ideal reference |
+| TP cp, cv | same | 2e-6 J/(mol K) | 2e-8 | same | Independent derivative and root conditioning |
+| TP sound | same | 2e-4 m/s | 2e-8 | same | Second derivative conditioning |
+| TP dp/dρ, dp/dT | same | 2e-5 Pa m³/mol, Pa/K respectively | 2e-8 | same | Pressure derivatives at refined roots |
+| ln φ | GERG / teqp AD | 2e-8 | 2e-9 | 45 states | Independent chemical-potential derivatives |
+| Equilibrium phase composition | GERG / NIST + teqp + SciPy | 2e-8 | 1e-7 | 13 TP + 15 PH cases | Independent finite-start stability and split |
+| Equilibrium vapor fraction | same | 2e-8 | 0 | same | Lever-rule and split conditioning |
+| PH temperature | same | 2e-6 K | 0 | same | Independent energy solve |
+| Equilibrium molar density | same | 2e-5 mol/m³ | 2e-8 | same | Phase root/split propagation |
+| Equilibrium Z | same | 2e-9 | 2e-8 | same | Phase root/split propagation |
+| Equilibrium h | same | 2e-5 J/mol | 2e-9 | same | Matched caloric reference |
+| Equilibrium s | same | 2e-7 J/(mol K) | 2e-9 | same | Matched caloric reference |
+| Equilibrium cp | same | 2e-5 J/(mol K) | 2e-8 | same | Second derivative conditioning |
+| Molar volume | PR, PR-BM / Clapeyron 0.6.30 | 1e-12 m³/mol | 2e-9 | 60 homogeneous + phase states of 28 PH cases | Independent cubic roots, BigFloat at dilute bound |
+
+The approved machine-readable [registry](../validation/tolerances.json) preserves
+all exact cubic, TP, PH, process, Clapeyron and GERG budgets from their generators
+and fixtures, including GERG TP root, fugacity and equilibrium quantities.
+`python validation/consolidate-tolerances.py` rejects registry/fixture drift.
+The original proposals are retired to `tolerances.preparation-history.json`
+for the historical preparation checker; they are not acceptance budgets.
+Zero relative tolerances are intentional absolute-only budgets. Units follow
+the fixture quantity name and SI output contract. Separate model/reference
+rows are never combined by selecting the loosest tolerance.
 
 Each row also states the minimum number of reference states and how they cover the domain, for example a temperature–pressure grid per mixture. Critical regions and trace components require separate justified criteria; do not silently relax tolerances after failures. Experimental comparisons must state measurement uncertainty and application accuracy requirements separately from numerical agreement limits.
 
 The homogeneous fixture, exact state list, preselected budgets, reference
 independence and computational/physical validity distinction are documented in
 [A1–A3 status](a1-a3-status.md). These rows qualify implementation agreement for
-that fixture only; saturation and process phase qualification remain open.
+the listed fixed fixtures only; process qualification is recorded in [A2 process qualification](a2-process-qualification.md).
 The manual/monthly numerical-validation workflow runs the fixed independent
 fixtures plus 2048 fixed-seed permutation/scaling/identity cases per platform in
 release mode. It never regenerates expected values.

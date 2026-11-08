@@ -1,0 +1,340 @@
+{
+  "schema": "a2-approved-tolerances-v1",
+  "version": "2026-11-08.1",
+  "status": "approved for the listed fixed reference sets",
+  "comparison": "abs(actual-expected) <= atol + rtol*abs(expected); reject nonfinite values",
+  "reference_sets": [
+    {
+      "fixture": "validation/fixtures/cubic-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "Z": [
+          2e-10,
+          2e-09
+        ],
+        "mass_density": [
+          1e-07,
+          2e-09
+        ],
+        "ln_phi": [
+          2e-09,
+          2e-09
+        ],
+        "h_res": [
+          2e-05,
+          2e-09
+        ],
+        "s_res": [
+          2e-07,
+          2e-09
+        ],
+        "h": [
+          2e-05,
+          2e-09
+        ],
+        "s": [
+          2e-07,
+          2e-09
+        ],
+        "cp": [
+          2e-05,
+          2e-08
+        ],
+        "cv": [
+          2e-05,
+          2e-08
+        ],
+        "sound": [
+          0.0002,
+          2e-08
+        ]
+      },
+      "domain": "60 homogeneous states and 64 ideal states; A1-A3 status",
+      "rationale": "Existing pre-comparison budget: matched formulation/reference, double precision and regular-state conditioning; no experimental accuracy claim. See generator and milestone check record."
+    },
+    {
+      "fixture": "validation/fixtures/flash-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "vapor_fraction": [
+          2e-08,
+          0.0
+        ],
+        "composition": [
+          2e-08,
+          1e-07
+        ],
+        "Z": [
+          2e-09,
+          2e-08
+        ],
+        "saturation_pressure": [
+          1e-06,
+          2e-09
+        ],
+        "saturation_Z": [
+          2e-10,
+          2e-09
+        ],
+        "stable_tm_floor": -1e-08
+      },
+      "domain": "22 TP states and 30 pure saturation states; A4 status",
+      "rationale": "Existing pre-comparison budget: matched formulation/reference, double precision and regular-state conditioning; no experimental accuracy claim. See generator and milestone check record."
+    },
+    {
+      "fixture": "validation/fixtures/ph-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "temperature_K": [
+          2e-06,
+          0.0
+        ],
+        "enthalpy_J_per_mol": [
+          2e-05,
+          2e-09
+        ],
+        "phase_fraction": [
+          2e-08,
+          0.0
+        ],
+        "composition": [
+          2e-08,
+          1e-07
+        ]
+      },
+      "domain": "28 PH states; A5 status",
+      "rationale": "Existing pre-comparison budget: matched formulation/reference, double precision and regular-state conditioning; no experimental accuracy claim. See generator and milestone check record."
+    },
+    {
+      "fixture": "validation/fixtures/clapeyron-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "Z": [
+          2e-10,
+          2e-09
+        ],
+        "composition": [
+          2e-08,
+          1e-07
+        ],
+        "cv": [
+          2e-05,
+          2e-08
+        ],
+        "molar_volume": [
+          1e-12,
+          2e-09
+        ],
+        "mass_density": [
+          1e-07,
+          2e-09
+        ],
+        "s_res": [
+          2e-07,
+          2e-09
+        ],
+        "h": [
+          2e-05,
+          2e-09
+        ],
+        "temperature": [
+          2e-06,
+          0.0
+        ],
+        "cp": [
+          2e-05,
+          2e-08
+        ],
+        "ln_phi": [
+          2e-09,
+          2e-09
+        ],
+        "h_res": [
+          2e-05,
+          2e-09
+        ],
+        "sound": [
+          0.0002,
+          2e-08
+        ],
+        "s": [
+          2e-07,
+          2e-09
+        ],
+        "fraction": [
+          2e-08,
+          0.0
+        ]
+      },
+      "domain": "60 homogeneous and 28 PH states; Clapeyron checks",
+      "rationale": "Existing pre-comparison budget: matched formulation/reference, double precision and regular-state conditioning; no experimental accuracy claim. See generator and milestone check record."
+    },
+    {
+      "fixture": "validation/fixtures/gerg-v1.json",
+      "budget_key": "tolerance",
+      "budgets": {
+        "relative": 2e-10,
+        "absolute": 2e-08
+      },
+      "domain": "273 homogeneous derivative states; A6 checks",
+      "rationale": "Existing pre-comparison budget: matched formulation/reference, double precision and regular-state conditioning; no experimental accuracy claim. See generator and milestone check record."
+    },
+    {
+      "fixture": "validation/fixtures/gerg-density-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "molar_density": [
+          2e-07,
+          2e-09
+        ],
+        "pressure_pa": [
+          1e-05,
+          2e-09
+        ],
+        "compressibility": [
+          2e-09,
+          2e-09
+        ],
+        "enthalpy": [
+          1e-05,
+          2e-09
+        ],
+        "entropy": [
+          2e-07,
+          2e-09
+        ],
+        "cp": [
+          2e-06,
+          2e-08
+        ],
+        "cv": [
+          2e-06,
+          2e-08
+        ],
+        "speed_of_sound": [
+          0.0002,
+          2e-08
+        ],
+        "dp_drho": [
+          2e-05,
+          2e-08
+        ],
+        "dp_dt": [
+          2e-05,
+          2e-08
+        ]
+      },
+      "domain": "42 density roots; A6 checks",
+      "rationale": "Existing pre-comparison budget: matched formulation/reference, double precision and regular-state conditioning; no experimental accuracy claim. See generator and milestone check record."
+    },
+    {
+      "fixture": "validation/fixtures/gerg-equilibrium-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "composition": [
+          2e-08,
+          1e-07
+        ],
+        "vapor_fraction": [
+          2e-08,
+          0.0
+        ],
+        "temperature": [
+          2e-06,
+          0.0
+        ],
+        "rho": [
+          2e-05,
+          2e-08
+        ],
+        "Z": [
+          2e-09,
+          2e-08
+        ],
+        "h": [
+          2e-05,
+          2e-09
+        ],
+        "s": [
+          2e-07,
+          2e-09
+        ],
+        "cp": [
+          2e-05,
+          2e-08
+        ]
+      },
+      "domain": "13 TP and 15 PH cases; A6 checks",
+      "rationale": "Existing pre-comparison budget: matched formulation/reference, double precision and regular-state conditioning; no experimental accuracy claim. See generator and milestone check record."
+    },
+    {
+      "fixture": "validation/fixtures/process-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "temperature_K": [
+          2e-06,
+          0.0
+        ],
+        "enthalpy_J_per_mol": [
+          2e-05,
+          2e-09
+        ],
+        "phase_fraction": [
+          2e-08,
+          0.0
+        ],
+        "composition": [
+          2e-08,
+          1e-07
+        ]
+      },
+      "domain": "14 fixed demonstration stream states; A2 process qualification",
+      "rationale": "Preserves existing pre-comparison double precision implementation budget; common source parameters and matched reference convention."
+    },
+    {
+      "fixture": "validation/fixtures/gerg-fugacity-v1.json",
+      "budget_key": "tolerance",
+      "budgets": [
+        2e-08,
+        2e-09
+      ],
+      "domain": "45 teqp fugacity states; A6 checks",
+      "rationale": "Preserves existing pre-comparison double precision implementation budget; common source parameters and matched reference convention."
+    }
+  ],
+  "deferred": [
+    {
+      "capability": "bubble/dew",
+      "owner": "A13 (#66)",
+      "atol": null,
+      "rtol": null,
+      "status": "Deferred; select matched references and conditioning budgets before implementation acceptance"
+    },
+    {
+      "capability": "phase envelope",
+      "owner": "A13 (#66)",
+      "atol": null,
+      "rtol": null,
+      "status": "Deferred; select matched references and conditioning budgets before implementation acceptance"
+    }
+  ],
+  "ideal_gas_budgets": {
+    "source": "crates/thermo-models/tests/reference.rs::nasa7_against_cantera_offsets_and_both_intervals",
+    "reference": "64 ideal states in cubic-v1.json; Cantera 3.2.0; 200..6000 K including fit join",
+    "budgets": {
+      "h_J_per_mol": [
+        2e-06,
+        1e-11
+      ],
+      "s_J_per_mol_K": [
+        2e-08,
+        1e-11
+      ],
+      "cp_J_per_mol_K": [
+        2e-08,
+        1e-11
+      ]
+    },
+    "rationale": "Retains existing public comparison budgets for independent integration, transformed reference offsets and polynomial evaluation."
+  }
+}

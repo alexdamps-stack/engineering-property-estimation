@@ -54,7 +54,7 @@ Require ('water' -notin $process.components -and 'methanol' -notin $process.comp
 foreach ($feed in $process.feeds) { Check-Composition $process.components $feed.mole_fractions $ids }
 foreach ($phase in $process.expected_phase_by_stream.PSObject.Properties) { Require ($null -eq $phase.Value) 'Unqualified process phase claim' }
 Require ($null -eq $process.independent_expected_outputs) 'Unexpected process expectations'
-$tol = Read-Json 'validation/tolerances.provisional.json'
+$tol = Read-Json 'validation/tolerances.preparation-history.json'
 foreach ($q in $tol.quantities) { Require ($q.atol -gt 0 -and $q.rtol -gt 0 -and $q.unit.Length -gt 0 -and $q.minimum_states_per_model -gt 0) 'Invalid tolerance proposal' }
 # Exercise the checker on actual malformed inputs, with no model implementation.
 $rejections = 0

@@ -1,4 +1,4 @@
-# Calculation contract — provisional A1 foundation
+# Calculation contract — accepted A1 foundation
 
 Current implementation decisions and check evidence are recorded in
 [A1–A3 status](a1-a3-status.md). In particular, A3 now selects exact critical
@@ -12,8 +12,8 @@ not thermodynamic models, flashes, property packages or numerical accuracy
 claims. On November 7, 2026 the coordinator reported reviewing A0's
 explicit-unavailability decision and authorized a fresh Rust foundation.
 The candidate homogeneous Rust model code located during A0 is not copied here.
-A1 acceptance still requires coordinator review of this contract, the types,
-checks, and compatibility with A0 and A2; this document does not accept A1.
+The formal A1 review is recorded in [A1/A2 acceptance](a1-a2-acceptance.md).
+The worker-era descriptions below are retained as history.
 
 ## Units and state inputs
 
