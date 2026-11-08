@@ -1,0 +1,9 @@
+{
+  "id": "gerg-dry-natural-gas-300K",
+  "calculation": "homogeneous-trho",
+  "model": "GERG-2008",
+  "components": ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide"],
+  "mole_fractions": [0.9, 0.04, 0.02, 0.02, 0.02],
+  "temperature_k": 300.0,
+  "molar_density_mol_per_m3": 1000.0
+}

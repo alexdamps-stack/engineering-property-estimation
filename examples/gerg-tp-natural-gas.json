@@ -1,0 +1,10 @@
+{
+  "id": "gerg-dry-natural-gas-300K-10MPa",
+  "calculation": "homogeneous-tp",
+  "model": "GERG-2008",
+  "components": ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide"],
+  "mole_fractions": [0.9, 0.04, 0.02, 0.02, 0.02],
+  "temperature_k": 300.0,
+  "pressure_pa": 10000000.0,
+  "density_bracket_mol_per_m3": [1000.0, 7000.0]
+}

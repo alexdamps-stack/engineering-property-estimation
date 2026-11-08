@@ -1,0 +1,1231 @@
+{
+  "reference": "NIST AGA8 C++ GERG2008 2.01 density solver, independent teqp 0.23.2 AD/SciPy Brent roots",
+  "versions": {
+    "teqp": "0.23.2",
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "source_revision": "3bdb9ab8ff317c618b0b59d1b704c2c86ddc5fce",
+  "source_sha256": "901c03cd98263acae8d10480f9ada67ea9bbdf1a5a1b2f1b4a862a493266dec1",
+  "generator_sha256": "a0b1b5b4bafbb18c30917ee746fef3328e394bc545c6397a48345ea8797ad124",
+  "tolerances": {
+    "molar_density": [
+      2e-07,
+      2e-09
+    ],
+    "pressure_pa": [
+      1e-05,
+      2e-09
+    ],
+    "compressibility": [
+      2e-09,
+      2e-09
+    ],
+    "enthalpy": [
+      1e-05,
+      2e-09
+    ],
+    "entropy": [
+      2e-07,
+      2e-09
+    ],
+    "cp": [
+      2e-06,
+      2e-08
+    ],
+    "cv": [
+      2e-06,
+      2e-08
+    ],
+    "speed_of_sound": [
+      0.0002,
+      2e-08
+    ],
+    "dp_drho": [
+      2e-05,
+      2e-08
+    ],
+    "dp_dt": [
+      2e-05,
+      2e-08
+    ]
+  },
+  "cases": [
+    {
+      "id": "pure-methane",
+      "composition": {
+        "methane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        28.8787300806231,
+        30.683650710662043
+      ],
+      "expected": {
+        "molar_density": 30.082010500649062,
+        "pressure_pa": 100000.00000000007,
+        "compressibility": 0.9995360792769199,
+        "enthalpy": 3860.7470527233518,
+        "entropy": 11.22091027829603,
+        "cp": 40.652406754600214,
+        "cv": 32.30024636740811,
+        "speed_of_sound": 510.5647626926955,
+        "dp_drho": 3322.7082810396864,
+        "dp_dt": 250.56613991798395
+      },
+      "teqp_molar_density": 30.082010500649055
+    },
+    {
+      "id": "pure-nitrogen",
+      "composition": {
+        "nitrogen": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        28.85732700946483,
+        30.660909947556384
+      ],
+      "expected": {
+        "molar_density": 30.0597156348592,
+        "pressure_pa": 100000.0000000001,
+        "compressibility": 1.000277421045096,
+        "enthalpy": 2968.1638106271935,
+        "entropy": 8.6714537993,
+        "cp": 29.272010262022135,
+        "cv": 20.93813927822747,
+        "speed_of_sound": 407.5138149599183,
+        "dp_drho": 3327.6376584926556,
+        "dp_dt": 250.29159960657722
+      },
+      "teqp_molar_density": 30.05971563487192
+    },
+    {
+      "id": "pure-carbon-dioxide",
+      "composition": {
+        "carbon-dioxide": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        28.91756070816822,
+        30.724908252428737
+      ],
+      "expected": {
+        "molar_density": 30.122459071008564,
+        "pressure_pa": 100000.00000000003,
+        "compressibility": 0.9981938978390035,
+        "enthalpy": 3982.206999039131,
+        "entropy": 11.592635137077629,
+        "cp": 41.44531457895521,
+        "cv": 33.05027703381588,
+        "speed_of_sound": 307.28339741371735,
+        "dp_drho": 3313.7847121391774,
+        "dp_dt": 251.20824745875302
+      },
+      "teqp_molar_density": 30.122459071008425
+    },
+    {
+      "id": "pure-ethane",
+      "composition": {
+        "ethane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        28.949036442159937,
+        30.758351219794935
+      ],
+      "expected": {
+        "molar_density": 30.1552462939166,
+        "pressure_pa": 100000.00000000004,
+        "compressibility": 0.9971085806933603,
+        "enthalpy": 5967.237778814984,
+        "entropy": 17.26981452070794,
+        "cp": 65.6362789354232,
+        "cv": 57.20321738049877,
+        "speed_of_sound": 355.2150096992889,
+        "dp_drho": 3306.577334941375,
+        "dp_dt": 251.77630850566257
+      },
+      "teqp_molar_density": 30.155246293916004
+    },
+    {
+      "id": "pure-propane",
+      "composition": {
+        "propane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        29.0451193341014,
+        30.860439292482738
+      ],
+      "expected": {
+        "molar_density": 30.25533263968896,
+        "pressure_pa": 100000.00000000006,
+        "compressibility": 0.9938100893044755,
+        "enthalpy": 8469.328593646676,
+        "entropy": 24.475605302136426,
+        "cp": 94.33932042601319,
+        "cv": 85.79304486874116,
+        "speed_of_sound": 286.198971205513,
+        "dp_drho": 3284.663828598583,
+        "dp_dt": 253.45790817685852
+      },
+      "teqp_molar_density": 30.2553326396813
+    },
+    {
+      "id": "pure-isobutane",
+      "composition": {
+        "isobutane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        29.155251870581953,
+        30.977455112493328
+      ],
+      "expected": {
+        "molar_density": 30.370054031856203,
+        "pressure_pa": 100000.00000000006,
+        "compressibility": 0.9900560203497324,
+        "enthalpy": 11157.77727335279,
+        "entropy": 32.22591368475491,
+        "cp": 125.01505069548053,
+        "cv": 116.32400658687469,
+        "speed_of_sound": 245.50827065898432,
+        "dp_drho": 3259.727901990563,
+        "dp_dt": 255.5890365432777
+      },
+      "teqp_molar_density": 30.370054031871504
+    },
+    {
+      "id": "pure-n-butane",
+      "composition": {
+        "n-butane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        29.18597096047743,
+        31.01009414550727
+      ],
+      "expected": {
+        "molar_density": 30.40205308383066,
+        "pressure_pa": 100000.00000000007,
+        "compressibility": 0.9890139573691358,
+        "enthalpy": 11250.226413340415,
+        "entropy": 32.516837854990804,
+        "cp": 125.43365558415152,
+        "cv": 116.6970800820994,
+        "speed_of_sound": 245.26432207849845,
+        "dp_drho": 3252.7951153004574,
+        "dp_dt": 256.2547292189185
+      },
+      "teqp_molar_density": 30.40205308383203
+    },
+    {
+      "id": "pure-isopentane",
+      "composition": {
+        "isopentane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        29.343233936382873,
+        31.177186057406804
+      ],
+      "expected": {
+        "molar_density": 30.56586868373216,
+        "pressure_pa": 100000.00000000004,
+        "compressibility": 0.9837134073859574,
+        "enthalpy": 13672.894363766283,
+        "entropy": 39.51788376527057,
+        "cp": 153.9221004300501,
+        "cv": 144.9663412072735,
+        "speed_of_sound": 217.60477523747358,
+        "dp_drho": 3217.599839736793,
+        "dp_dt": 259.4322532245924
+      },
+      "teqp_molar_density": 30.565868683732152
+    },
+    {
+      "id": "pure-n-pentane",
+      "composition": {
+        "n-pentane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        29.386571699480616,
+        31.223232430698157
+      ],
+      "expected": {
+        "molar_density": 30.611012186958977,
+        "pressure_pa": 100000.00000000004,
+        "compressibility": 0.9822626788341094,
+        "enthalpy": 13676.603741004057,
+        "entropy": 39.55793017737776,
+        "cp": 153.75507377553387,
+        "cv": 144.72486113124918,
+        "speed_of_sound": 217.34172148701305,
+        "dp_drho": 3207.9595430067884,
+        "dp_dt": 260.5020375279738
+      },
+      "teqp_molar_density": 30.61101218695896
+    },
+    {
+      "id": "pure-n-hexane",
+      "composition": {
+        "n-hexane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        29.658978990335964,
+        31.512665177231963
+      ],
+      "expected": {
+        "molar_density": 30.894769781599962,
+        "pressure_pa": 99999.99999999999,
+        "compressibility": 0.9732409415943778,
+        "enthalpy": 16174.406169019485,
+        "entropy": 46.8394442356048,
+        "cp": 183.76268213933494,
+        "cv": 174.21296085916623,
+        "speed_of_sound": 196.29484042955127,
+        "dp_drho": 3147.922386225407,
+        "dp_dt": 267.8319133643912
+      },
+      "teqp_molar_density": 30.89476978159997
+    },
+    {
+      "id": "pure-n-heptane",
+      "composition": {
+        "n-heptane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        30.044379611602402,
+        31.922153337327554
+      ],
+      "expected": {
+        "molar_density": 31.296228762085835,
+        "pressure_pa": 100000.00000000004,
+        "compressibility": 0.9607564879833755,
+        "enthalpy": 18651.45858039141,
+        "entropy": 54.101901929635915,
+        "cp": 214.3046260549561,
+        "cv": 204.0435252799443,
+        "speed_of_sound": 179.23748310339764,
+        "dp_drho": 3064.9618690927864,
+        "dp_dt": 277.5054561150394
+      },
+      "teqp_molar_density": 31.29622876208583
+    },
+    {
+      "id": "pure-n-octane",
+      "composition": {
+        "n-octane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        30.516001999731074,
+        32.42325212471427
+      ],
+      "expected": {
+        "molar_density": 31.787502083053205,
+        "pressure_pa": 100000.00000000004,
+        "compressibility": 0.945908072739569,
+        "enthalpy": 21082.765488838286,
+        "entropy": 61.26628815406583,
+        "cp": 245.26586085840435,
+        "cv": 234.01798365030652,
+        "speed_of_sound": 164.96845466806167,
+        "dp_drho": 2966.1184712347176,
+        "dp_dt": 290.3059492689834
+      },
+      "teqp_molar_density": 31.78750208305322
+    },
+    {
+      "id": "pure-n-nonane",
+      "composition": {
+        "n-nonane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        31.13715824785021,
+        33.08323063834085
+      ],
+      "expected": {
+        "molar_density": 32.434539841510635,
+        "pressure_pa": 100000.00000000009,
+        "compressibility": 0.9270381198411196,
+        "enthalpy": 23469.599375032616,
+        "entropy": 68.34794148146426,
+        "cp": 276.76642283705024,
+        "cv": 264.20826820734396,
+        "speed_of_sound": 152.31539349053776,
+        "dp_drho": 2840.502926156505,
+        "dp_dt": 306.2938514201217
+      },
+      "teqp_molar_density": 32.43453984151076
+    },
+    {
+      "id": "pure-n-decane",
+      "composition": {
+        "n-decane": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        32.15566376871745,
+        34.16539275426229
+      ],
+      "expected": {
+        "molar_density": 33.49548309241401,
+        "pressure_pa": 100000.00000000004,
+        "compressibility": 0.8976749118568659,
+        "enthalpy": 25670.718016633797,
+        "entropy": 75.03777686833773,
+        "cp": 310.75170081625936,
+        "cv": 295.4794643691457,
+        "speed_of_sound": 139.80043846129485,
+        "dp_drho": 2644.111958097315,
+        "dp_dt": 336.54836879977876
+      },
+      "teqp_molar_density": 33.495483092415284
+    },
+    {
+      "id": "pure-hydrogen",
+      "composition": {
+        "hydrogen": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        28.851758319695115,
+        30.65499321467606
+      ],
+      "expected": {
+        "molar_density": 30.05391491634908,
+        "pressure_pa": 100000.0,
+        "compressibility": 1.0004704850025747,
+        "enthalpy": 2960.412401000893,
+        "entropy": 8.64424594613175,
+        "cp": 29.18710776664771,
+        "cv": 20.87105603479731,
+        "speed_of_sound": 1519.6466474790518,
+        "dp_drho": 3328.9193315138978,
+        "dp_dt": 250.02376091489796
+      },
+      "teqp_molar_density": 30.05391491634908
+    },
+    {
+      "id": "pure-oxygen",
+      "composition": {
+        "oxygen": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        28.866218649844612,
+        30.6703573154599
+      ],
+      "expected": {
+        "molar_density": 30.068977760254803,
+        "pressure_pa": 100000.00000000006,
+        "compressibility": 0.9999693063170865,
+        "enthalpy": 3021.262250871748,
+        "entropy": 8.823391663973709,
+        "cp": 30.133661077089755,
+        "cv": 21.797632393386206,
+        "speed_of_sound": 379.04316157646537,
+        "dp_drho": 3325.58803089997,
+        "dp_dt": 250.3240015404886
+      },
+      "teqp_molar_density": 30.068977760254786
+    },
+    {
+      "id": "pure-carbon-monoxide",
+      "composition": {
+        "carbon-monoxide": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        28.85910065379641,
+        30.662794444658687
+      ],
+      "expected": {
+        "molar_density": 30.06156318103793,
+        "pressure_pa": 100000.00000000006,
+        "compressibility": 1.000215945242397,
+        "enthalpy": 2972.3986020181137,
+        "entropy": 8.683950846189342,
+        "cp": 29.366802629730596,
+        "cv": 21.03013425952837,
+        "speed_of_sound": 407.2784376079096,
+        "dp_drho": 3327.230406208214,
+        "dp_dt": 250.3336693228334
+      },
+      "teqp_molar_density": 30.06156318101485
+    },
+    {
+      "id": "pure-water",
+      "composition": {
+        "water": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        29.231714811786812,
+        31.05869698752349
+      ],
+      "expected": {
+        "molar_density": 30.449702928944596,
+        "pressure_pa": 100000.0,
+        "compressibility": 0.9874662784970577,
+        "enthalpy": 3251.7016631976917,
+        "entropy": 9.667335127359339,
+        "cp": 36.40576855734811,
+        "cv": 27.269224365874624,
+        "speed_of_sound": 490.1892409591065,
+        "dp_drho": 3242.4340204477876,
+        "dp_dt": 262.0472567357541
+      },
+      "teqp_molar_density": 30.4497029289446
+    },
+    {
+      "id": "pure-hydrogen-sulfide",
+      "composition": {
+        "hydrogen-sulfide": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        28.95092149657939,
+        30.760354090115605
+      ],
+      "expected": {
+        "molar_density": 30.1572098922702,
+        "pressure_pa": 100000.00000000006,
+        "compressibility": 0.9970436568899183,
+        "enthalpy": 3518.450354367205,
+        "entropy": 10.28796225619057,
+        "cp": 35.74583299628047,
+        "cv": 27.32053722860908,
+        "speed_of_sound": 356.264755146052,
+        "dp_drho": 3306.1330996732404,
+        "dp_dt": 251.65983504457833
+      },
+      "teqp_molar_density": 30.157209892269325
+    },
+    {
+      "id": "pure-helium",
+      "composition": {
+        "helium": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        28.855421332832364,
+        30.65888516613439
+      ],
+      "expected": {
+        "molar_density": 30.057730555033714,
+        "pressure_pa": 100000.00000000003,
+        "compressibility": 1.0003434816056145,
+        "enthalpy": 2118.429864326487,
+        "entropy": 6.218372727819607,
+        "cp": 20.78613774935966,
+        "cv": 12.472711875827088,
+        "speed_of_sound": 1177.1497702310717,
+        "dp_drho": 3328.073748600074,
+        "dp_dt": 249.98426681605562
+      },
+      "teqp_molar_density": 30.057730555033697
+    },
+    {
+      "id": "pure-argon",
+      "composition": {
+        "argon": 1.0
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        28.86611100561375,
+        30.67024294346461
+      ],
+      "expected": {
+        "molar_density": 30.068865630847657,
+        "pressure_pa": 100000.00000000003,
+        "compressibility": 0.9999730352893347,
+        "enthalpy": 2112.8108686041323,
+        "entropy": 6.2074096113718955,
+        "cp": 20.81050263576716,
+        "cv": 12.4751422350804,
+        "speed_of_sound": 372.65491159138884,
+        "dp_drho": 3325.6127496669887,
+        "dp_dt": 250.31396418333802
+      },
+      "teqp_molar_density": 30.068865630847654
+    },
+    {
+      "id": "natural-gas-250.0-100000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 250.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        46.35415978906409,
+        49.2512947758806
+      ],
+      "expected": {
+        "molar_density": 48.28558311360843,
+        "pressure_pa": 100000.00000000006,
+        "compressibility": 0.9963406182533768,
+        "enthalpy": -1762.878573567985,
+        "entropy": -2.5021874792785788,
+        "cp": 35.463903724711926,
+        "cv": 27.01431772300249,
+        "speed_of_sound": 388.32607282591425,
+        "dp_drho": 2063.4207841028046,
+        "dp_dt": 403.2358085636404
+      },
+      "teqp_molar_density": 48.285583113606215
+    },
+    {
+      "id": "natural-gas-250.0-1000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 250.0,
+      "pressure_pa": 1000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        479.65084745721697,
+        509.62902542329306
+      ],
+      "expected": {
+        "molar_density": 499.636299434601,
+        "pressure_pa": 999999.9999999993,
+        "compressibility": 0.9628781533002788,
+        "enthalpy": -1988.278452307252,
+        "entropy": -22.272756341515638,
+        "cp": 37.172991642773,
+        "cv": 27.36566136434289,
+        "speed_of_sound": 381.6356012459867,
+        "dp_drho": 1926.0317078819935,
+        "dp_dt": 4343.012662571795
+      },
+      "teqp_molar_density": 499.63629943460126
+    },
+    {
+      "id": "natural-gas-250.0-10000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 250.0,
+      "pressure_pa": 10000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        7438.947374619897,
+        7903.881585533642
+      ],
+      "expected": {
+        "molar_density": 7748.90351522906,
+        "pressure_pa": 10000000.00000001,
+        "compressibility": 0.6208476804181158,
+        "enthalpy": -4919.046719539116,
+        "entropy": -50.23183260584405,
+        "cp": 80.5582441670542,
+        "cv": 31.43645811192576,
+        "speed_of_sound": 364.50837109541993,
+        "dp_drho": 931.3777641211362,
+        "dp_dt": 104826.29982829186
+      },
+      "teqp_molar_density": 7748.90351522905
+    },
+    {
+      "id": "natural-gas-250.0-30000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 250.0,
+      "pressure_pa": 30000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        16390.383987647754,
+        17414.78298687574
+      ],
+      "expected": {
+        "molar_density": 17073.316653799746,
+        "pressure_pa": 30000000.00000002,
+        "compressibility": 0.8453346594745652,
+        "enthalpy": -6855.819796914287,
+        "entropy": -63.9904141023837,
+        "cp": 59.716281324366605,
+        "cv": 31.010967724151794,
+        "speed_of_sound": 760.2206096716578,
+        "dp_drho": 5391.245109090806,
+        "dp_dt": 424789.3083177291
+      },
+      "teqp_molar_density": 17073.316653799746
+    },
+    {
+      "id": "natural-gas-300.0-100000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 300.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        38.56338703591884,
+        40.97359872566377
+      ],
+      "expected": {
+        "molar_density": 40.17019482908213,
+        "pressure_pa": 100000.00000000004,
+        "compressibility": 0.9980220396580348,
+        "enthalpy": 50.94559036507135,
+        "entropy": 4.10694617145453,
+        "cp": 37.21821607032628,
+        "cv": 28.818697621570973,
+        "speed_of_sound": 422.634701350139,
+        "dp_drho": 2484.4847666177534,
+        "dp_dt": 335.0338392170757
+      },
+      "teqp_molar_density": 40.170194829081936
+    },
+    {
+      "id": "natural-gas-300.0-1000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 300.0,
+      "pressure_pa": 1000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        392.62048665324295,
+        417.15926706907067
+      ],
+      "expected": {
+        "molar_density": 408.9796735971281,
+        "pressure_pa": 999999.9999999997,
+        "compressibility": 0.9802624033651407,
+        "enthalpy": -109.4244037995085,
+        "entropy": -15.42453039238631,
+        "cp": 38.20971757505499,
+        "cv": 29.001624290718777,
+        "speed_of_sound": 419.2910309002144,
+        "dp_drho": 2396.993600006223,
+        "dp_dt": 3507.9984195623792
+      },
+      "teqp_molar_density": 408.9796735971283
+    },
+    {
+      "id": "natural-gas-300.0-10000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 300.0,
+      "pressure_pa": 10000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        4662.04162743886,
+        4953.419229153789
+      ],
+      "expected": {
+        "molar_density": 4856.293361915479,
+        "pressure_pa": 10000000.000000017,
+        "compressibility": 0.8255419676905218,
+        "enthalpy": -1809.7087406398641,
+        "entropy": -38.82061335610652,
+        "cp": 52.487017327037556,
+        "cv": 30.803435408046745,
+        "speed_of_sound": 412.09893014359506,
+        "dp_drho": 1790.34806002602,
+        "dp_dt": 55243.162693863516
+      },
+      "teqp_molar_density": 4856.293361915472
+    },
+    {
+      "id": "natural-gas-300.0-30000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 300.0,
+      "pressure_pa": 30000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        12885.250696932015,
+        13690.578865490266
+      ],
+      "expected": {
+        "molar_density": 13422.136142637515,
+        "pressure_pa": 29999999.999999993,
+        "compressibility": 0.8960736059611255,
+        "enthalpy": -3870.1036029166967,
+        "entropy": -53.101141944882,
+        "cp": 58.97956052717473,
+        "cv": 31.822080787598807,
+        "speed_of_sound": 635.9914626669361,
+        "dp_drho": 3920.2778487302357,
+        "dp_dt": 252850.70488275427
+      },
+      "teqp_molar_density": 13422.136142637513
+    },
+    {
+      "id": "natural-gas-350.0-100000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 350.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        33.025024213153294,
+        35.089088226475376
+      ],
+      "expected": {
+        "molar_density": 34.40106688870135,
+        "pressure_pa": 100000.00000000009,
+        "compressibility": 0.9989077184268185,
+        "enthalpy": 1970.2048970496007,
+        "entropy": 10.019242026535073,
+        "cp": 39.64525769662296,
+        "cv": 31.272619612343025,
+        "speed_of_sound": 452.68584283035204,
+        "dp_drho": 2903.715599211572,
+        "dp_dt": 286.7121435918145
+      },
+      "teqp_molar_density": 34.40106688870133
+    },
+    {
+      "id": "natural-gas-350.0-1000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 350.0,
+      "pressure_pa": 1000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        333.4869391797975,
+        354.3298728785349
+      ],
+      "expected": {
+        "molar_density": 347.3822283122891,
+        "pressure_pa": 1000000.0000000001,
+        "compressibility": 0.9892127010696983,
+        "enthalpy": 1849.9560029920387,
+        "entropy": -9.38786820657399,
+        "cp": 40.29500410692577,
+        "cv": 31.383572582674578,
+        "speed_of_sound": 451.18662114300895,
+        "dp_drho": 2848.0711698680525,
+        "dp_dt": 2958.1672893193045
+      },
+      "teqp_molar_density": 347.382228312289
+    },
+    {
+      "id": "natural-gas-350.0-10000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 350.0,
+      "pressure_pa": 10000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        3611.56708054607,
+        3837.2900230801997
+      ],
+      "expected": {
+        "molar_density": 3762.0490422354897,
+        "pressure_pa": 10000000.000000007,
+        "compressibility": 0.9134248610651156,
+        "enthalpy": 666.1296795472379,
+        "entropy": -31.178681498775564,
+        "cp": 47.85372173058778,
+        "cv": 32.405239098945714,
+        "speed_of_sound": 453.94144619132067,
+        "dp_drho": 2506.607987880098,
+        "dp_dt": 39570.957103523455
+      },
+      "teqp_molar_density": 3762.0490422354856
+    },
+    {
+      "id": "natural-gas-350.0-30000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 350.0,
+      "pressure_pa": 30000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        10294.250938371672,
+        10937.6416220199
+      ],
+      "expected": {
+        "molar_density": 10723.178060803824,
+        "pressure_pa": 29999999.999999974,
+        "compressibility": 0.9613798551806862,
+        "enthalpy": -995.9299676874334,
+        "entropy": -44.23402432646708,
+        "cp": 56.01706126233455,
+        "cv": 33.48411526688455,
+        "speed_of_sound": 596.4133584712343,
+        "dp_drho": 3819.446810999934,
+        "dp_dt": 168150.71432551046
+      },
+      "teqp_molar_density": 10723.178060803824
+    },
+    {
+      "id": "natural-gas-450.0-100000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 450.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        25.66513851436265,
+        27.269209671510318
+      ],
+      "expected": {
+        "molar_density": 26.734519285794427,
+        "pressure_pa": 99999.99999999999,
+        "compressibility": 0.9997247216406508,
+        "enthalpy": 6224.687417406359,
+        "entropy": 20.680012065256708,
+        "cp": 45.59231924561014,
+        "cv": 37.24609135180517,
+        "speed_of_sound": 504.79629394297376,
+        "dp_drho": 3739.4572254688233,
+        "dp_dt": 222.64632288869748
+      },
+      "teqp_molar_density": 26.734519285794434
+    },
+    {
+      "id": "natural-gas-450.0-1000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 450.0,
+      "pressure_pa": 1000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        257.26083047658335,
+        273.3396323813698
+      ],
+      "expected": {
+        "molar_density": 267.980031746441,
+        "pressure_pa": 1000000.0000000001,
+        "compressibility": 0.9973563954375646,
+        "enthalpy": 6151.544593068972,
+        "entropy": 1.392886181578692,
+        "cp": 45.93383754200798,
+        "cv": 37.29986107039973,
+        "speed_of_sound": 505.1494737909343,
+        "dp_drho": 3722.215635747158,
+        "dp_dt": 2264.656678151477
+      },
+      "teqp_molar_density": 267.9800317464382
+    },
+    {
+      "id": "natural-gas-450.0-10000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 450.0,
+      "pressure_pa": 10000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        2602.1572294010466,
+        2764.792056238612
+      ],
+      "expected": {
+        "molar_density": 2710.580447292757,
+        "pressure_pa": 10000000.00000001,
+        "compressibility": 0.9860308657461808,
+        "enthalpy": 5472.12987288137,
+        "entropy": -19.109086479307017,
+        "cp": 49.3466724121643,
+        "cv": 37.784079775835316,
+        "speed_of_sound": 518.1554327874267,
+        "dp_drho": 3692.8215746141404,
+        "dp_dt": 26403.580201935165
+      },
+      "teqp_molar_density": 2710.5804472927543
+    },
+    {
+      "id": "natural-gas-450.0-30000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 450.0,
+      "pressure_pa": 30000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        7351.656053901194,
+        7811.134557270019
+      ],
+      "expected": {
+        "molar_density": 7657.975056147077,
+        "pressure_pa": 30000000.00000004,
+        "compressibility": 1.047032393885908,
+        "enthalpy": 4469.575083556909,
+        "entropy": -30.490021723717934,
+        "cp": 54.41076606524152,
+        "cv": 38.517811763582294,
+        "speed_of_sound": 605.833729503131,
+        "dp_drho": 4667.355687675678,
+        "dp_dt": 98320.81213088884
+      },
+      "teqp_molar_density": 7657.97505614704
+    },
+    {
+      "id": "propane-low-density",
+      "composition": {
+        "propane": 1.0
+      },
+      "temperature_k": 250.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        47.524292979108765,
+        50.49456129030307
+      ],
+      "expected": {
+        "molar_density": 49.5044718532383,
+        "pressure_pa": 100000.00000000007,
+        "compressibility": 0.9718089281865642,
+        "enthalpy": -3511.0653052242087,
+        "entropy": -12.544934123342848,
+        "cp": 66.453404357611,
+        "cv": 56.9995793991642,
+        "speed_of_sound": 227.72470274949583,
+        "dp_drho": 1961.4180050154957,
+        "dp_dt": 426.34707171067873
+      },
+      "teqp_molar_density": 49.504471853238265
+    },
+    {
+      "id": "propane-high-density",
+      "composition": {
+        "propane": 1.0
+      },
+      "temperature_k": 250.0,
+      "pressure_pa": 100000.0,
+      "nist_initial_density": -12664.0,
+      "density_bracket": [
+        12157.212469984168,
+        12917.038249358178
+      ],
+      "expected": {
+        "molar_density": 12663.762989566841,
+        "pressure_pa": 99999.99999951487,
+        "compressibility": 0.0037989409444522115,
+        "enthalpy": -21609.63757897927,
+        "entropy": -91.08719911891208,
+        "cp": 103.17432448070457,
+        "cv": 66.29829115269072,
+        "speed_of_sound": 1029.2805254133473,
+        "dp_drho": 30018.823358256253,
+        "dp_dt": 842678.0886894346
+      },
+      "teqp_molar_density": 12663.762989566903
+    },
+    {
+      "id": "ethane-low-density",
+      "composition": {
+        "ethane": 1.0
+      },
+      "temperature_k": 250.0,
+      "pressure_pa": 1000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        541.0739555066175,
+        574.8910777257811
+      ],
+      "expected": {
+        "molar_density": 563.6187036527266,
+        "pressure_pa": 999999.9999999997,
+        "compressibility": 0.8535715266429423,
+        "enthalpy": -3331.675676373373,
+        "entropy": -30.39761053413032,
+        "cp": 57.46725077671573,
+        "cv": 41.5747914624667,
+        "speed_of_sound": 260.472022892019,
+        "dp_drho": 1475.8811536204669,
+        "dp_dt": 5459.295973332651
+      },
+      "teqp_molar_density": 563.6187036527269
+    },
+    {
+      "id": "ethane-high-density",
+      "composition": {
+        "ethane": 1.0
+      },
+      "temperature_k": 250.0,
+      "pressure_pa": 1000000.0,
+      "nist_initial_density": -14850.0,
+      "density_bracket": [
+        14275.651164767514,
+        15167.879362565485
+      ],
+      "expected": {
+        "molar_density": 14870.469963299494,
+        "pressure_pa": 999999.9999999333,
+        "compressibility": 0.03235196187535938,
+        "enthalpy": -14900.543653915363,
+        "entropy": -78.40130921597374,
+        "cp": 90.3476973334883,
+        "cv": 45.847892990974096,
+        "speed_of_sound": 786.6504903926176,
+        "dp_drho": 9442.467349623232,
+        "dp_dt": 609644.2561471891
+      },
+      "teqp_molar_density": 14870.469963299496
+    },
+    {
+      "id": "all21-400K-20MPa",
+      "composition": {
+        "methane": 0.77824,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.06,
+        "ethane": 0.08,
+        "propane": 0.03,
+        "isobutane": 0.0015,
+        "n-butane": 0.003,
+        "isopentane": 0.0005,
+        "n-pentane": 0.00165,
+        "n-hexane": 0.00215,
+        "n-heptane": 0.00088,
+        "n-octane": 0.00024,
+        "n-nonane": 0.00015,
+        "n-decane": 9e-05,
+        "hydrogen": 0.004,
+        "oxygen": 0.005,
+        "carbon-monoxide": 0.002,
+        "water": 0.0001,
+        "hydrogen-sulfide": 0.0025,
+        "helium": 0.007,
+        "argon": 0.001
+      },
+      "temperature_k": 400.0,
+      "pressure_pa": 20000000.0,
+      "nist_initial_density": 0.0,
+      "density_bracket": [
+        6126.103230587384,
+        6508.984682499096
+      ],
+      "expected": {
+        "molar_density": 6381.357531861859,
+        "pressure_pa": 20000000.0,
+        "compressibility": 0.9423717346178239,
+        "enthalpy": 2155.598242756375,
+        "entropy": -28.297365639558368,
+        "cp": 56.4745479981287,
+        "cv": 38.13321123538722,
+        "speed_of_sound": 489.40246634587317,
+        "dp_drho": 3322.3194407261476,
+        "dp_dt": 78762.45932256199
+      },
+      "teqp_molar_density": 6381.357531861858
+    }
+  ]
+}

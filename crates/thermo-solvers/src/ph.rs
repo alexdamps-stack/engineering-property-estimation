@@ -62,7 +62,7 @@ fn mixture_enthalpy(phases: &[FlashPhase]) -> f64 {
         .sum()
 }
 
-fn result(
+pub(crate) fn result(
     target: f64,
     phases: Vec<FlashPhase>,
     iterations: usize,
@@ -84,7 +84,7 @@ fn result(
     diagnostics.push(Diagnostic {
         code: if sat.is_some() { "A5-PURE-SATURATION-LEVER-RULE" } else { "A5-BRACKETED-TP-ENERGY" }.into(),
         severity: DiagnosticSeverity::Information,
-        message: "PH energy uses phase-weighted total EOS enthalpy, including NASA7 ideal contributions; scale max(|h_target|, 1 J/mol). Computational envelope only; no global stability proof or critical-region qualification.".into(),
+        message: format!("PH energy uses phase-weighted total EOS enthalpy on reference {}; scale max(|h_target|, 1 J/mol). Computational envelope only; no global stability proof or critical-region qualification.",state.caloric_reference.identifier),
     });
     Ok(PhFlash {
         temperature_k: state.temperature_k,

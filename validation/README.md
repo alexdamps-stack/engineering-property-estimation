@@ -1,5 +1,42 @@
 # Independent numerical validation
 
+For native GERG-2008, ordinary Rust tests compare 273 homogeneous derivative
+states and 269 locally admissible property states against independently executed
+NIST C++ 2.01. Reproduce without writing using `python3 validation/prepare-gerg.py`
+(requires g++); `--write` explicitly replaces outputs and requires diff review.
+`python validation/check-gerg-teqp.py` adds teqp 0.23.2 AD comparisons using the
+existing pinned reference environment. See [A6 scope](../docs/a6-status.md) and
+[executed checks](a6-checks.md), including ideal-reference compatibility.
+
+The additional GERG density and fugacity generators default to read-only
+reproduction of 42 TP roots and 45 chemical-potential states:
+
+```sh
+python validation/generate-gerg-density-references.py
+python validation/generate-gerg-fugacity-references.py
+```
+
+The density check requires g++ and the pinned Python reference dependencies.
+Both accept `--output <candidate.json>` for explicit candidate generation;
+review any differences before replacing a fixture. They never call Rust.
+
+GERG equilibrium references add 13 TP cases and 15 PH targets, including pure
+coexistence, a narrow-boiling mixture and a valve. Generate an explicit temporary
+candidate with the pinned Python requirements and g++:
+
+```sh
+python validation/generate-gerg-equilibrium-references.py --output /tmp/gerg-equilibrium-candidate.json
+julia --compile=min --project=validation/julia validation/julia/check-gerg.jl
+```
+
+Generation uses NIST pressure/calorics, teqp AD and independent SciPy stability
+and phase-split algorithms. The Julia command checks native Clapeyron EOS/AD
+equilibrium residuals on those exterior-branch states and performs two fresh
+binary TP solves. It does not claim a general Clapeyron GERG flash qualification;
+nonfinite backend initialization results are excluded from evidence, not treated
+as successful phases. Reference-state mappings and supported domains are in the
+[A6 record](../docs/a6-status.md). Existing PR/PR-BM standard checks stay mandatory.
+
 Clapeyron.jl is a mandatory independent standard check for supported PR/PR-BM
 calculations. Run `julia --project=validation/julia validation/julia/check.jl`
 with Julia 1.11.7. The locked Julia environment is validation-only. Its live

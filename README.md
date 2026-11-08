@@ -6,6 +6,15 @@ A Rust workspace for a planned standalone thermodynamic property engine and stea
 
 ## Development plan
 
+A6 now supplies a [native 21-component GERG-2008 homogeneous path](docs/a6-status.md),
+including native ideal/residual derivatives and caloric properties. Run
+`cargo run -p thermo-cli --locked -- examples/gerg-natural-gas.json` for a
+temperature/molar-density calculation, or use `examples/gerg-tp-natural-gas.json`
+for pressure inversion with an explicit density bracket. Both return analytic
+fugacity coefficients. Native GERG TP/PH flashes support the declared dry-gas
+domain; examples are `gerg-tp-flash-binary.json` and
+`gerg-ph-flash-natural-gas.json`. The A6 record gives bounds and verification.
+
 Read the [English development plan](docs/development-plan.md) for priorities, dependencies, acceptance criteria, and indicative effort. The [original German plan](ENTWICKLUNGSPLAN.md) is preserved as the planning baseline.
 
 Initial numerical priorities are PR/PR-BM, validated component data, stability assessment, and TP/PH flash. Native GERG-2008, NRTL, a flowsheet editor, and later acceleration are separate work packages. Excel integration is deferred.

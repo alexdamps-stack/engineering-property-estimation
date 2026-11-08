@@ -2,6 +2,7 @@
 //! documented trial set. A negative TPD at any trial proves instability; the
 //! absence of negative values among finite trials is evidence, not proof, of
 //! global stability.
+use crate::equilibrium_model::EquilibriumModel;
 use thermo_models::{CubicModel, RootSelection};
 use thermo_types::{CalculationError as Error, Pressure, Temperature};
 
@@ -107,6 +108,15 @@ pub fn assess_stability(
     pressure: Pressure,
     options: StabilityOptions,
 ) -> Result<StabilityAssessment, Error> {
+    assess_stability_impl(model, temperature, pressure, options)
+}
+
+pub(crate) fn assess_stability_impl<M: EquilibriumModel>(
+    model: &M,
+    temperature: Temperature,
+    pressure: Pressure,
+    options: StabilityOptions,
+) -> Result<StabilityAssessment, Error> {
     let z = model.fractions();
     let active: Vec<usize> = (0..z.len()).filter(|i| z[*i] > 0.0).collect();
     let feed = model.ln_fugacity(temperature, pressure, RootSelection::MinimumGibbs)?;
@@ -130,7 +140,7 @@ pub fn assess_stability(
             }
         })
         .collect();
-    let k = wilson_k(model, temperature, pressure);
+    let k = model.wilson_values(temperature, pressure);
     let mut starts = vec![
         (
             TrialInitialization::WilsonVapor,
@@ -181,8 +191,8 @@ pub fn assess_stability(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn run_trial(
-    model: &CubicModel,
+fn run_trial<M: EquilibriumModel>(
+    model: &M,
     temperature: Temperature,
     pressure: Pressure,
     active: &[usize],
