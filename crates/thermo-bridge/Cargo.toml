@@ -1,0 +1,29 @@
+[package]
+name = "thermo-bridge"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+description = "Versioned C ABI (JSON v1) over the qualified cubic TP/PH package for external hosts such as DWSIM."
+
+[lib]
+name = "thermocore_bridge"
+crate-type = ["cdylib", "rlib"]
+
+# The workspace forbids unsafe code. The C ABI needs `#[unsafe(no_mangle)]` and
+# raw-pointer handling, so this crate denies unsafe code instead and allows it
+# only in the audited `ffi` module. All other lints follow the workspace.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = "warn"
+
+[dependencies]
+property-packages = { path = "../property-packages" }
+thermo-types = { path = "../thermo-types" }
+thermo-data = { path = "../thermo-data" }
+thermo-models = { path = "../thermo-models" }
+thermo-solvers = { path = "../thermo-solvers" }
+serde = { version = "1", features = ["derive"] }
+# Exact decimal round trip of f64 at the JSON boundary (default parsing can be 1 ULP off).
+serde_json = { version = "1", features = ["float_roundtrip"] }

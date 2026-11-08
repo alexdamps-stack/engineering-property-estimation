@@ -1,0 +1,49 @@
+== cargo build (release): thermo-bridge, thermo-cli
+== csc: ThermoCore.Bridge.dll (.NET Framework 4.x, C# 5)
+thermo-cli molar_vapor_fraction = 0.9874922295809163
+== CLR bridge tests
+PASS ABI version 1
+PASS info schema
+PASS catalogue maps methane by CAS 74-82-8
+PASS two-phase split
+PASS SI state echoed (K, Pa absolute)
+PASS vapor fraction equals thermo-cli: 0.98749222958091643 vs 0.98749222958091631
+PASS fugacity residual <= 1e-10
+PASS interaction source survives in model formulation
+PASS caloric reference definition present
+PASS data version present
+PASS vapor density in kg/m3 > 0
+PASS liquid density in kg/m3 > 0
+PASS phase fractions sum to one
+PASS 150 K outside package interval -> unsupported-capability 
+PASS unknown component -> missing-parameter 
+PASS non-SI field rejected -> invalid-request 
+PASS malformed JSON -> error document
+PASS NaN rejected by the client before the call
+PASS 16 concurrent calls identical
+ALL PASSED
+== csc: DWSIM separator check against <DWSIM_DIR>
+DWSIM DWSIM version 9.0.4.0 (28.07.2025 13:19:16) from <DWSIM_DIR>
+feed  T=220 K  P=1500000 Pa  components=methane,ethane,propane,nitrogen,carbon-dioxide
+kij (from DWSIM):
+  [0, -0.0033, 0.0119, 0.0289, 0.0793]
+  [-0.0033, 0, 0.0011, 0.0344, 0.1326]
+  [0.0119, 0.0011, 0, 0.0878, 0.1315]
+  [0.0289, 0.0344, 0.0878, 0, -0.0222]
+  [0.0793, 0.1326, 0.1315, -0.0222, 0]
+vapor fraction  DWSIM=0.989676053  ThermoCore=0.989579098
+vapor Z         DWSIM=0.893338638  ThermoCore=0.889840296
+max |dy|=6.86998489E-05  max |dx|=0.000105474712
+ThermoCore model PR-exact-1976 a3-v1
+PASS DWSIM feed state read back in K and Pa
+PASS DWSIM separator mole balance closes
+PASS both engines report a two-phase split
+PASS ThermoCore fugacity residual <= 1e-10
+PASS DWSIM kij source survives into ThermoCore provenance
+PASS |vapor fraction difference| <= 0.02
+PASS phase composition differences <= 0.02
+PASS |vapor Z difference| <= 0.01
+PASS 150 K state rejected with typed error (unsupported-capability)
+PASS compound outside the ThermoCore catalogue detected before any call: N-butane (CAS 106-97-8)
+ALL PASSED
+Report: <REPO>\target\a12-dwsim\dwsim-separator-check.json

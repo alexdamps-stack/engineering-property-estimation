@@ -3468,6 +3468,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "thermo-bridge"
+version = "0.1.0"
+dependencies = [
+ "property-packages",
+ "serde",
+ "serde_json",
+ "thermo-data",
+ "thermo-models",
+ "thermo-solvers",
+ "thermo-types",
+]
+
+[[package]]
 name = "thermo-cli"
 version = "0.0.0"
 dependencies = [
