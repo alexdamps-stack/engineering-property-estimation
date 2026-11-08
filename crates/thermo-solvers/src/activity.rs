@@ -190,10 +190,7 @@ fn active(z: &[f64]) -> Vec<usize> {
 
 /// Pure-liquid states of every component at T.
 fn pures(model: &ActivityModel, t: f64) -> Result<Vec<PureLiquidState>, Error> {
-    let temperature = Temperature::new(t)?;
-    (0..model.fractions().len())
-        .map(|i| model.pure_liquid(i, temperature))
-        .collect()
+    model.pure_liquids(Temperature::new(t)?)
 }
 
 fn check_pressure(p: f64) -> Result<(), Error> {

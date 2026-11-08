@@ -195,3 +195,7 @@ hypothetical immiscible parameter set, and iteration exhaustion.
   possible.
 - Hosted CI and a code review were completed on PR #75. The review findings and
   their resolution are recorded in [the A7 verification report](../validation/a7-checks.md).
+  After A6 and the A1/A2 acceptance merged, every Rust check and the Clapeyron
+  standard check were rerun on main and passed. The record is in the same report.
+  A7 is accepted within the scope above. The remaining gates are later work
+  packages: nonideal vapor, further components, VLLE and flowsheet integration (A8).

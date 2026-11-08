@@ -232,13 +232,36 @@ impl ActivityModel {
         Ok(())
     }
 
-    /// Pure-liquid standard state of component `i` at T.
+    /// Pure-liquid standard state of component `i` at T. An index outside the
+    /// component list is `InvalidInput(ComponentMismatch)`.
     pub fn pure_liquid(
         &self,
         i: usize,
         temperature: Temperature,
     ) -> Result<PureLiquidState, Error> {
+        if i >= self.components.len() {
+            return Err(Error::InvalidInput(InputError::ComponentMismatch));
+        }
         self.check_temperature(temperature)?;
+        self.pure_liquid_in_domain(i, temperature)
+    }
+
+    /// Pure-liquid standard states of every component at T, checking the
+    /// temperature domain once.
+    pub fn pure_liquids(&self, temperature: Temperature) -> Result<Vec<PureLiquidState>, Error> {
+        self.check_temperature(temperature)?;
+        (0..self.components.len())
+            .map(|i| self.pure_liquid_in_domain(i, temperature))
+            .collect()
+    }
+
+    /// Pure-liquid state for a valid index at a temperature already accepted by
+    /// [`Self::check_temperature`].
+    fn pure_liquid_in_domain(
+        &self,
+        i: usize,
+        temperature: Temperature,
+    ) -> Result<PureLiquidState, Error> {
         let t = temperature.value();
         let ideal = self.components[i].ideal_gas(temperature)?;
         let vp = self.liquids[i].vapor_pressure(temperature)?;
@@ -270,7 +293,7 @@ impl ActivityModel {
         let (mut h, mut s, mut cp, mut v, mut mass) = (0.0, 0.0, 0.0, 0.0, 0.0);
         let mut ln_phi = Vec::with_capacity(x.len());
         for (i, xi) in x.iter().enumerate() {
-            let pure = self.pure_liquid(i, temperature)?;
+            let pure = self.pure_liquid_in_domain(i, temperature)?;
             ln_phi.push(ex.ln_activity_coefficients[i] + pure.vapor_pressure.ln() - p.ln());
             h += xi * pure.enthalpy;
             s += xi * pure.entropy;

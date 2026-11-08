@@ -89,9 +89,10 @@ ten findings. It was not an independent human review. Resolution:
 6. **Fixed:** the PH two-phase search runs split-only TP flashes, without TPD
    trials, using Illinois regula falsi instead of bisection. The accepted
    temperature is flashed again with the trials.
-7. **Fixed (partly):** pure-liquid states are computed once per temperature
-   in the bubble, dew and TP solvers. The per-call domain re-check inside
-   `ActivityModel::liquid` remains.
+7. **Fixed:** pure-liquid states are computed once per temperature in the
+   bubble, dew and TP solvers. In the follow-up after merge (see below),
+   `ActivityModel::liquid` and the new `ActivityModel::pure_liquids` check the
+   temperature domain once rather than once per component.
 8. **Fixed:** the dew-temperature solve reuses the dew point's excess state and
    its last evaluation.
 9. **Fixed:** the shared `stability::normalized` and
@@ -108,3 +109,38 @@ These checks establish
 local implementation agreement within the documented scope. They do not
 establish experimental accuracy, global liquid stability, or flowsheet
 integration.
+
+## Post-merge re-verification and closure
+
+Date: 2026-11-08. Revision: `68ef34a` (main after A6 GERG-2008 #76 and A1/A2
+acceptance #77 merged on top of A7 #75), plus the review finding 7 follow-up.
+Same WSL Ubuntu environment, pinned Rust toolchain, Julia 1.11.7 and the locked
+Clapeyron 0.6.30 environment.
+
+| Check | Outcome |
+|---|---|
+| `cargo fmt --all -- --check` | passed |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings` | passed |
+| `cargo test --workspace --locked` | 147 passed (146 before the follow-up, plus `pure_liquids_match_per_component_states_and_reject_bad_index`) |
+| `RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked` | passed |
+| `julia --project=validation/julia validation/julia/check.jl` | passed on the final tree (PR/PR-BM and NRTL live candidates); committed reference fixtures unchanged |
+
+The NRTL deviations and budget fractions are unchanged from the table above
+(flash compositions `5.4e-14`; the TP-flash vapor fraction, not tabulated
+above, `9.2e-14`). No fixture was regenerated and no tolerance was changed.
+
+Finding 7 follow-up: `ActivityModel::liquid` evaluated each component through
+`pure_liquid`, so the temperature and correlation-range check ran once per
+component after `check_domain` had already run it. A private evaluator now
+assumes a checked temperature. `liquid` and the new
+`ActivityModel::pure_liquids(T)`, which the solvers' per-temperature pure-state
+cache uses, each validate the domain once. `pure_liquid` with an index outside
+the component list now returns `InvalidInput(ComponentMismatch)` instead of
+panicking. Numerical results are bit-identical; the offline reference
+comparisons are unaffected.
+
+The A7 work-package acceptance (#41) is met within the documented scope:
+directed parameters, temperature dependence, the explicit vapor model and
+caloric coupling pass formulation-matched Clapeyron references and the
+consistency checks, and supported domains and missing-data failures are
+explicit (`docs/a7-status.md`).
