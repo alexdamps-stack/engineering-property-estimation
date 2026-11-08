@@ -97,3 +97,62 @@ pub fn demonstration(variant: CubicVariantChoice) -> Project {
     project.display_units = DisplayUnitSet::ProcessMetric;
     project
 }
+
+/// A10 analytical recycle case: 100 mol/s fresh feed at 330 K and 5 MPa,
+/// adiabatic mixing, heating to 350 K, then a 50/50 product/recycle split.
+/// At convergence the recycle is 100 mol/s, circulation 200 mol/s, and
+/// heater duty is 100 * (h(350 K) - h(330 K)). Uses the A8 cubic package.
+pub fn recycle_demonstration(variant: CubicVariantChoice) -> Project {
+    let mut project = Project::new(demonstration(variant).package);
+    let fs = &mut project.flowsheet;
+    let feed = fs.add_unit(UnitKind::Feed);
+    let mixer = fs.add_unit(UnitKind::Mixer);
+    let heater = fs.add_unit(UnitKind::Heater);
+    let splitter = fs.add_unit(UnitKind::Splitter);
+    let product = fs.add_unit(UnitKind::Product);
+    fs.set_spec(
+        feed,
+        UnitSpec::Feed {
+            temperature_k: Some(330.0),
+            pressure_pa: Some(5e6),
+            molar_flow_mol_s: Some(100.0),
+        },
+    );
+    fs.set_spec(
+        heater,
+        UnitSpec::HeatExchange {
+            thermal: ThermalSpec::OutletTemperature(Some(350.0)),
+            pressure_drop_pa: 0.0,
+        },
+    );
+    fs.set_spec(
+        splitter,
+        UnitSpec::Splitter {
+            fraction_to_first: Some(0.5),
+        },
+    );
+    for (name, from, fp, to, tp) in [
+        ("fresh", feed, 0, mixer, 0),
+        ("circulation", mixer, 2, heater, 0),
+        ("heated", heater, 1, splitter, 0),
+        ("product", splitter, 2, product, 0),
+        ("recycle", splitter, 1, mixer, 1),
+    ] {
+        let id = fs
+            .connect(PortRef::new(from, fp), PortRef::new(to, tp))
+            .expect("fixed recycle topology");
+        fs.rename_stream(id, name);
+    }
+    project
+        .feeds
+        .insert(feed, vec![0.88, 0.06, 0.03, 0.02, 0.01]);
+    project.layout = [
+        (feed, [-100.0, 0.0]),
+        (mixer, [140.0, 0.0]),
+        (heater, [340.0, 0.0]),
+        (splitter, [540.0, 0.0]),
+        (product, [740.0, 0.0]),
+    ]
+    .into();
+    project
+}

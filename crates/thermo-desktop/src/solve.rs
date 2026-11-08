@@ -51,6 +51,7 @@ pub(crate) struct SolveJob {
     cancel: Arc<AtomicBool>,
     completed: Arc<AtomicUsize>,
     total: Arc<AtomicUsize>,
+    iteration: Arc<AtomicUsize>,
     /// Fingerprints of the solved inputs.
     pub inputs: Fingerprints,
 }
@@ -66,11 +67,14 @@ impl SolveJob {
         let cancel = Arc::new(AtomicBool::new(false));
         let completed = Arc::new(AtomicUsize::new(0));
         let total = Arc::new(AtomicUsize::new(project.flowsheet.units().count()));
+        let iteration = Arc::new(AtomicUsize::new(0));
+        let pass = iteration.clone();
         let (c, done, all) = (cancel.clone(), completed.clone(), total.clone());
         std::thread::Builder::new()
             .name("flowsheet-solve".into())
             .spawn(move || {
                 let progress = |p: flowsheet_core::SolveProgress| {
+                    pass.store(p.iteration, Ordering::Relaxed);
                     done.store(p.completed, Ordering::Relaxed);
                     all.store(p.total, Ordering::Relaxed);
                     if let Some(ctx) = &repaint {
@@ -101,6 +105,7 @@ impl SolveJob {
             cancel,
             completed,
             total,
+            iteration,
             inputs,
         }
     }
@@ -109,10 +114,11 @@ impl SolveJob {
         self.cancel.store(true, Ordering::Relaxed);
     }
 
-    pub(crate) fn progress(&self) -> (usize, usize) {
+    pub(crate) fn progress(&self) -> (usize, usize, usize) {
         (
             self.completed.load(Ordering::Relaxed),
             self.total.load(Ordering::Relaxed),
+            self.iteration.load(Ordering::Relaxed),
         )
     }
 

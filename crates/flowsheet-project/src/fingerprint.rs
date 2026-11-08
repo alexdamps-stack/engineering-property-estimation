@@ -71,11 +71,9 @@ impl Fnv {
 ///
 /// A unit fingerprint covers the package selection and result provenance,
 /// the unit kind and specification, the feed composition for feeds, and for
-/// every inlet port the fingerprint of the connected upstream unit and its
-/// outlet port. Tags and stream names are not inputs. Units on a recycle or
-/// downstream of an open inlet still receive fingerprints; units that cannot
-/// be ordered because of a recycle receive none and therefore never match a
-/// stored result.
+/// every upstream unit and its connected outlet/inlet ports. Tags and stream
+/// names are not inputs. An iterative traversal hashes each upstream unit once
+/// in identifier order, so loops and long chains need no recursive hashing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Fingerprints {
     /// Package selection plus provenance, or `None` if the package cannot be built.
@@ -109,9 +107,15 @@ impl Fingerprints {
     ) -> Self {
         let mut units = BTreeMap::new();
         if let Some(pfp) = package_fp {
-            let mut visiting = BTreeSet::new();
+            // Serialize local inputs once, then traverse indexed dependencies.
+            // Repeated ancestors in long chains/loops do not rescan streams or
+            // repeatedly serialize the same specifications and compositions.
+            let inputs: BTreeMap<_, _> = fs
+                .units()
+                .map(|u| (u.id, local_inputs(fs, feeds, u.id)))
+                .collect();
             for u in fs.units() {
-                unit_fp(fs, feeds, pfp, u.id, &mut units, &mut visiting);
+                units.insert(u.id, closure_fp(&inputs, pfp, u.id));
             }
         }
         Self {
@@ -142,60 +146,68 @@ impl Fingerprints {
     }
 }
 
+struct InputNode {
+    fingerprint: Fingerprint,
+    upstream: Vec<UnitId>,
+}
+
+fn local_inputs(fs: &Flowsheet, feeds: &FeedFractions, id: UnitId) -> InputNode {
+    let u = fs.unit(id).expect("unit");
+    let mut h = Fnv::new();
+    h.number(id.0)
+        .field(&serde_json::to_string(&KindRecord::from(u.kind)).expect("kind"))
+        .field(&serde_json::to_string(&SpecRecord::from(u.spec)).expect("spec"))
+        .field(&serde_json::to_string(&feeds.get(&id)).expect("feed"));
+    let mut upstream = vec![];
+    for (i, port) in u.kind.ports().iter().enumerate() {
+        if port.direction != PortDirection::Inlet {
+            continue;
+        }
+        h.number(i as u64);
+        match fs.stream_at(PortRef::new(id, i)) {
+            Some(s) => {
+                h.field("connected")
+                    .number(s.from.unit.0)
+                    .number(s.from.port as u64);
+                upstream.push(s.from.unit);
+            }
+            None => {
+                h.field("open");
+            }
+        }
+    }
+    InputNode {
+        fingerprint: h.finish(),
+        upstream,
+    }
+}
+
+fn closure_fp(
+    inputs: &BTreeMap<UnitId, InputNode>,
+    package: Fingerprint,
+    root: UnitId,
+) -> Fingerprint {
+    let mut upstream = BTreeSet::new();
+    let mut pending = vec![root];
+    while let Some(id) = pending.pop() {
+        if upstream.insert(id) {
+            pending.extend(&inputs[&id].upstream);
+        }
+    }
+    let mut h = Fnv::new();
+    h.field("upstream-closure-v2")
+        .number(package.0)
+        .number(root.0);
+    for id in upstream {
+        h.number(id.0).number(inputs[&id].fingerprint.0);
+    }
+    h.finish()
+}
+
 fn stream_fp(source: Fingerprint, port: usize) -> Fingerprint {
     Fnv::new()
         .field("stream")
         .number(source.0)
         .number(port as u64)
         .finish()
-}
-
-fn unit_fp(
-    fs: &Flowsheet,
-    feeds: &FeedFractions,
-    package: Fingerprint,
-    id: UnitId,
-    memo: &mut BTreeMap<UnitId, Fingerprint>,
-    visiting: &mut BTreeSet<UnitId>,
-) -> Option<Fingerprint> {
-    if let Some(fp) = memo.get(&id) {
-        return Some(*fp);
-    }
-    if !visiting.insert(id) {
-        return None; // recycle
-    }
-    let unit = fs.unit(id)?;
-    let mut h = Fnv::new();
-    h.field("unit").number(package.0);
-    h.field(&serde_json::to_string(&KindRecord::from(unit.kind)).expect("kind"));
-    h.field(&serde_json::to_string(&SpecRecord::from(unit.spec)).expect("spec"));
-    match feeds.get(&id) {
-        Some(x) => h.field(&serde_json::to_string(x).expect("fractions")),
-        None => h.field("no composition"),
-    };
-    let mut complete = true;
-    for (i, port) in unit.kind.ports().iter().enumerate() {
-        if port.direction != PortDirection::Inlet {
-            continue;
-        }
-        h.number(i as u64);
-        match fs.stream_at(PortRef::new(id, i)) {
-            Some(s) => match unit_fp(fs, feeds, package, s.from.unit, memo, visiting) {
-                Some(up) => {
-                    h.number(stream_fp(up, s.from.port).0);
-                }
-                None => complete = false,
-            },
-            None => {
-                h.field("open");
-            }
-        }
-    }
-    visiting.remove(&id);
-    if !complete {
-        return None;
-    }
-    let fp = h.finish();
-    memo.insert(id, fp);
-    Some(fp)
 }

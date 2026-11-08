@@ -415,7 +415,7 @@ pub fn solve_project(
     let fingerprints = project.fingerprints();
     let calc = project
         .flowsheet
-        .solve_with_progress(package, &feeds, progress)
+        .solve_network_with_progress(package, &feeds, progress)
         .map_err(|e| SolveFailure {
             unit: e.unit,
             message: e.message,

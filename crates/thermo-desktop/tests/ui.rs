@@ -21,6 +21,108 @@ use thermo_desktop::view::{port_exit, port_pos, stream_route};
 
 const WINDOW: Vec2 = vec2(1280.0, 800.0);
 
+#[test]
+fn recycle_demo_solves_invalidates_reloads_and_reports_failure() {
+    let mut h = harness(
+        FlowsheetApp::with_recycle_demonstration(),
+        egui::Theme::Dark,
+    );
+    assert!(h.state_mut().editor_mut().solve_blocker().is_none());
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    assert!(
+        statuses(&mut h)
+            .iter()
+            .all(|(_, s)| *s == ItemStatus::Solved)
+    );
+    assert!(
+        h.state()
+            .editor()
+            .results
+            .as_ref()
+            .unwrap()
+            .recycle
+            .as_ref()
+            .unwrap()
+            .max_scaled_residual
+            <= 1e-10
+    );
+    let heater = unit_of_kind(&h, UnitKind::Heater);
+    h.state_mut().editor_mut().fs.set_spec(
+        heater,
+        UnitSpec::HeatExchange {
+            thermal: flowsheet_core::ThermalSpec::OutletTemperature(Some(360.0)),
+            pressure_drop_pa: 0.0,
+        },
+    );
+    let fps = h.state_mut().editor_mut().fingerprints();
+    let ed = h.state().editor();
+    for u in ed.fs.units() {
+        assert_eq!(
+            ed.unit_status(u.id, &fps, &[]),
+            if u.kind == UnitKind::Feed {
+                ItemStatus::Solved
+            } else {
+                ItemStatus::Stale
+            }
+        );
+    }
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    assert!(
+        statuses(&mut h)
+            .iter()
+            .all(|(_, s)| *s == ItemStatus::Solved)
+    );
+    let path = std::env::temp_dir().join(format!(
+        "thermo-recycle-ui-{}.flowsheet.json",
+        std::process::id()
+    ));
+    h.state_mut().editor_mut().save_to(&path).unwrap();
+    h.state_mut().editor_mut().open_path(&path).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    assert!(
+        statuses(&mut h)
+            .iter()
+            .all(|(_, s)| *s == ItemStatus::Solved)
+    );
+    // A valid specification with an impossible enthalpy target must leave the
+    // previous loop values stale and show the actual failing heater.
+    h.state_mut().editor_mut().fs.set_spec(
+        heater,
+        UnitSpec::HeatExchange {
+            thermal: flowsheet_core::ThermalSpec::Duty(Some(1e20)),
+            pressure_drop_pa: 0.0,
+        },
+    );
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    assert_eq!(
+        h.state().editor().failure.as_ref().unwrap().unit,
+        Some(heater)
+    );
+    assert!(
+        statuses(&mut h)
+            .iter()
+            .any(|(_, s)| *s == ItemStatus::Failed)
+    );
+    assert!(
+        statuses(&mut h)
+            .iter()
+            .any(|(_, s)| *s == ItemStatus::Stale)
+    );
+}
+
+#[test]
+fn snapshot_solved_recycle_demonstration() {
+    let mut app = FlowsheetApp::with_recycle_demonstration();
+    solve_now(&mut app);
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Stream table").click();
+    h.run();
+    check_snapshot(&mut h, "recycle_solved_dark");
+}
+
 fn harness(app: FlowsheetApp, theme: egui::Theme) -> Harness<'static, FlowsheetApp> {
     let mut h = Harness::builder()
         .with_size(WINDOW)

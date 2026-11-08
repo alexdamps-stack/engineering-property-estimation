@@ -34,17 +34,21 @@ mod results;
 mod time;
 
 pub use acceptance::{AcceptanceReport, run_acceptance};
-pub use demonstration::{DEMONSTRATION_COMPONENTS, DEMONSTRATION_INTERACTIONS, demonstration};
+pub use demonstration::{
+    DEMONSTRATION_COMPONENTS, DEMONSTRATION_INTERACTIONS, demonstration, recycle_demonstration,
+};
 pub use error::ProjectError;
 pub use fingerprint::{Fingerprint, Fingerprints};
 pub use package::{CubicVariantChoice, PackageSelection, Provenance};
 pub use project::{
     DisplayUnitSet, FORMAT_VERSION, FeedFractions, InputIssue, Project, SolveFailure, solve_project,
 };
-pub use results::{Currency, PhaseResult, ResultSet, StateResult, StreamResult, UnitResult};
+pub use results::{
+    Currency, PhaseResult, RecycleResult, ResultSet, StateResult, StreamResult, UnitResult,
+};
 pub use time::format_utc;
 
 /// Revision of the flowsheet engine numerics recorded in result provenance.
 /// Change it whenever `flowsheet-core` unit-operation equations, balances or
 /// routing conventions change, so that stored results load as stale.
-pub const ENGINE_REVISION: &str = "flowsheet-core a8-sequential-v1";
+pub const ENGINE_REVISION: &str = "flowsheet-core a10-tears-v1";

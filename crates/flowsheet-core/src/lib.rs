@@ -5,6 +5,8 @@
 //! specifications in SI units with absolute pressure, and pre-calculation
 //! diagnostics, balances and flash-based unit operations (A8). See the
 //! specification sets in `docs/flowsheet-and-ui.md`, section 2.3.
+//! A10 adds [`Flowsheet::solve_network`] with deterministic automatic tears,
+//! or [`Flowsheet::solve_recycles`] with explicit starting states and limits.
 //!
 //! The model is independent of any GUI framework. Graphical layout (block
 //! positions, zoom, selection) belongs to the consuming application.
@@ -15,9 +17,11 @@
 
 mod engine;
 mod flowsheet;
+mod recycle;
 mod unit;
 
 pub use engine::*;
+pub use recycle::*;
 
 pub use flowsheet::{
     ConnectError, Diagnostic, DiagnosticKind, Flowsheet, RestoreError, Stream, StreamId, UnitStatus,
