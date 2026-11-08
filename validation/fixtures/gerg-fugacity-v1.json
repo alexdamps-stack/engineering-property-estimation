@@ -1,0 +1,933 @@
+{
+  "reference": "teqp 0.23.2 GERG2008 residual Helmholtz AD chemical potentials",
+  "versions": {
+    "teqp": "0.23.2",
+    "numpy": "2.3.4"
+  },
+  "input_sha256": "fe13b73b49236da758f84f1cdf4fc60376b3211f11094c2a14ceaf1b1931f949",
+  "generator_sha256": "875cfbf3a0552d308f752834bb2bef8646600adc740d6e9b1d0e607988f5452c",
+  "tolerance": [
+    2e-08,
+    2e-09
+  ],
+  "cases": [
+    {
+      "id": "pure-methane",
+      "composition": {
+        "methane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.082010500649055,
+      "component_ids": [
+        "methane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.00046460740843651174
+      ]
+    },
+    {
+      "id": "pure-nitrogen",
+      "composition": {
+        "nitrogen": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.05971563487192,
+      "component_ids": [
+        "nitrogen"
+      ],
+      "ln_fugacity_coefficients": [
+        0.0002769230046684599
+      ]
+    },
+    {
+      "id": "pure-carbon-dioxide",
+      "composition": {
+        "carbon-dioxide": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.122459071008425,
+      "component_ids": [
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.0018058744798369643
+      ]
+    },
+    {
+      "id": "pure-ethane",
+      "composition": {
+        "ethane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.155246293916004,
+      "component_ids": [
+        "ethane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.002890394050792195
+      ]
+    },
+    {
+      "id": "pure-propane",
+      "composition": {
+        "propane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.2553326396813,
+      "component_ids": [
+        "propane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.0061778397178119246
+      ]
+    },
+    {
+      "id": "pure-isobutane",
+      "composition": {
+        "isobutane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.370054031871504,
+      "component_ids": [
+        "isobutane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.009906537032217257
+      ]
+    },
+    {
+      "id": "pure-n-butane",
+      "composition": {
+        "n-butane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.40205308383203,
+      "component_ids": [
+        "n-butane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.010937343575731
+      ]
+    },
+    {
+      "id": "pure-isopentane",
+      "composition": {
+        "isopentane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.565868683732152,
+      "component_ids": [
+        "isopentane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.016173930684691726
+      ]
+    },
+    {
+      "id": "pure-n-pentane",
+      "composition": {
+        "n-pentane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.61101218695896,
+      "component_ids": [
+        "n-pentane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.01760094837282175
+      ]
+    },
+    {
+      "id": "pure-n-hexane",
+      "composition": {
+        "n-hexane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.89476978159997,
+      "component_ids": [
+        "n-hexane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.026412318592170757
+      ]
+    },
+    {
+      "id": "pure-n-heptane",
+      "composition": {
+        "n-heptane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 31.29622876208583,
+      "component_ids": [
+        "n-heptane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.038481823888719
+      ]
+    },
+    {
+      "id": "pure-n-octane",
+      "composition": {
+        "n-octane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 31.78750208305322,
+      "component_ids": [
+        "n-octane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.052591911318125996
+      ]
+    },
+    {
+      "id": "pure-n-nonane",
+      "composition": {
+        "n-nonane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 32.43453984151076,
+      "component_ids": [
+        "n-nonane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.07017911912057392
+      ]
+    },
+    {
+      "id": "pure-n-decane",
+      "composition": {
+        "n-decane": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 33.495483092415284,
+      "component_ids": [
+        "n-decane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.09661765820491554
+      ]
+    },
+    {
+      "id": "pure-hydrogen",
+      "composition": {
+        "hydrogen": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.05391491634908,
+      "component_ids": [
+        "hydrogen"
+      ],
+      "ln_fugacity_coefficients": [
+        0.0004704356816891866
+      ]
+    },
+    {
+      "id": "pure-oxygen",
+      "composition": {
+        "oxygen": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.068977760254786,
+      "component_ids": [
+        "oxygen"
+      ],
+      "ln_fugacity_coefficients": [
+        -3.120364781434823e-05
+      ]
+    },
+    {
+      "id": "pure-carbon-monoxide",
+      "composition": {
+        "carbon-monoxide": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.06156318101485,
+      "component_ids": [
+        "carbon-monoxide"
+      ],
+      "ln_fugacity_coefficients": [
+        0.00021518147611727866
+      ]
+    },
+    {
+      "id": "pure-water",
+      "composition": {
+        "water": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.4497029289446,
+      "component_ids": [
+        "water"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.012456627852180487
+      ]
+    },
+    {
+      "id": "pure-hydrogen-sulfide",
+      "composition": {
+        "hydrogen-sulfide": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.157209892269325,
+      "component_ids": [
+        "hydrogen-sulfide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.0029532631900963443
+      ]
+    },
+    {
+      "id": "pure-helium",
+      "composition": {
+        "helium": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.057730555033697,
+      "component_ids": [
+        "helium"
+      ],
+      "ln_fugacity_coefficients": [
+        0.00034350235443177715
+      ]
+    },
+    {
+      "id": "pure-argon",
+      "composition": {
+        "argon": 1.0
+      },
+      "temperature_k": 400.0,
+      "molar_density": 30.068865630847654,
+      "component_ids": [
+        "argon"
+      ],
+      "ln_fugacity_coefficients": [
+        -2.7462014462984998e-05
+      ]
+    },
+    {
+      "id": "natural-gas-250.0-100000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 250.0,
+      "molar_density": 48.285583113606215,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.0031374411833272387,
+        -0.009924868497099592,
+        -0.01564990109103374,
+        0.0001368327749444679,
+        -0.006274352007901039
+      ]
+    },
+    {
+      "id": "natural-gas-250.0-1000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 250.0,
+      "molar_density": 499.63629943460126,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.03148193220615616,
+        -0.10139991319597716,
+        -0.16013809481712682,
+        0.001970649520858258,
+        -0.06378144562542518
+      ]
+    },
+    {
+      "id": "natural-gas-250.0-10000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 250.0,
+      "molar_density": 7748.90351522905,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.318971063264817,
+        -1.2185356076311882,
+        -1.9269953497076198,
+        0.13534920596646824,
+        -0.7512682421017287
+      ]
+    },
+    {
+      "id": "natural-gas-250.0-30000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 250.0,
+      "molar_density": 17073.316653799746,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.6529397860978081,
+        -2.143489198774437,
+        -3.1889516906187603,
+        0.2402401277499879,
+        -1.495560246331419
+      ]
+    },
+    {
+      "id": "natural-gas-300.0-100000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 300.0,
+      "molar_density": 40.170194829081936,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.0016762195588533695,
+        -0.005713662281604466,
+        -0.008943443586891128,
+        0.00040175392806757963,
+        -0.0035071858895253456
+      ]
+    },
+    {
+      "id": "natural-gas-300.0-1000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 300.0,
+      "molar_density": 408.9796735971283,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.016708950318451394,
+        -0.05756502241186998,
+        -0.09011746534912232,
+        0.004236338227468726,
+        -0.03522098912789913
+      ]
+    },
+    {
+      "id": "natural-gas-300.0-10000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 300.0,
+      "molar_density": 4856.293361915472,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.15784682336513325,
+        -0.5928478988840821,
+        -0.9286804504292738,
+        0.07236410574525685,
+        -0.3601577444511179
+      ]
+    },
+    {
+      "id": "natural-gas-300.0-30000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 300.0,
+      "molar_density": 13422.136142637513,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.32956251262296843,
+        -1.2630460711017042,
+        -1.9150223602682186,
+        0.24512808531947114,
+        -0.8334256879102687
+      ]
+    },
+    {
+      "id": "natural-gas-350.0-100000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 350.0,
+      "molar_density": 34.40106688870133,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.0009033030442708441,
+        -0.003492984732615569,
+        -0.005457690307448445,
+        0.0005160604405756727,
+        -0.002073416625242281
+      ]
+    },
+    {
+      "id": "natural-gas-350.0-1000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 350.0,
+      "molar_density": 347.382228312289,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.008960978840037744,
+        -0.03495448516549514,
+        -0.05459736023674761,
+        0.005278608047694992,
+        -0.02070751471527431
+      ]
+    },
+    {
+      "id": "natural-gas-350.0-10000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 350.0,
+      "molar_density": 3762.0490422354856,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.08063890709756369,
+        -0.338797931912505,
+        -0.5296419928891803,
+        0.06558360298342265,
+        -0.20075782436190837
+      ]
+    },
+    {
+      "id": "natural-gas-350.0-30000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 350.0,
+      "molar_density": 10723.178060803824,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.15648143264177927,
+        -0.7519202256230348,
+        -1.1588758187080852,
+        0.22828647442310906,
+        -0.4730163279903962
+      ]
+    },
+    {
+      "id": "natural-gas-450.0-100000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 450.0,
+      "molar_density": 26.734519285794434,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.000190852531410846,
+        -0.0014062837578871692,
+        -0.0022176141770506343,
+        0.0005750665882254966,
+        -0.0007501936481773588
+      ]
+    },
+    {
+      "id": "natural-gas-450.0-1000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 450.0,
+      "molar_density": 267.9800317464382,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.0018580500461889105,
+        -0.013972184083375772,
+        -0.02202700031097645,
+        0.0058072778886207365,
+        -0.0074502320338640385
+      ]
+    },
+    {
+      "id": "natural-gas-450.0-10000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 450.0,
+      "molar_density": 2710.5804472927543,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.013170777243484812,
+        -0.12647510056638384,
+        -0.20154050260488293,
+        0.06255026638554691,
+        -0.06838109820905285
+      ]
+    },
+    {
+      "id": "natural-gas-450.0-30000000.0",
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.04,
+        "propane": 0.02,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.02
+      },
+      "temperature_k": 450.0,
+      "molar_density": 7657.97505614704,
+      "component_ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.0006432168983225332,
+        -0.2651605724389378,
+        -0.4332369493635689,
+        0.20141778867747281,
+        -0.14973994084799935
+      ]
+    },
+    {
+      "id": "propane-low-density",
+      "composition": {
+        "propane": 1.0
+      },
+      "temperature_k": 250.0,
+      "molar_density": 49.504471853238265,
+      "component_ids": [
+        "propane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.02779286312410735
+      ]
+    },
+    {
+      "id": "propane-high-density",
+      "composition": {
+        "propane": 1.0
+      },
+      "temperature_k": 250.0,
+      "molar_density": 12663.762989566903,
+      "component_ids": [
+        "propane"
+      ],
+      "ln_fugacity_coefficients": [
+        0.7116378428108615
+      ]
+    },
+    {
+      "id": "ethane-low-density",
+      "composition": {
+        "ethane": 1.0
+      },
+      "temperature_k": 250.0,
+      "molar_density": 563.6187036527269,
+      "component_ids": [
+        "ethane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.13619563305027388
+      ]
+    },
+    {
+      "id": "ethane-high-density",
+      "composition": {
+        "ethane": 1.0
+      },
+      "temperature_k": 250.0,
+      "molar_density": 14870.469963299496,
+      "component_ids": [
+        "ethane"
+      ],
+      "ln_fugacity_coefficients": [
+        0.0716620362852715
+      ]
+    },
+    {
+      "id": "all21-400K-20MPa",
+      "composition": {
+        "methane": 0.77824,
+        "nitrogen": 0.02,
+        "carbon-dioxide": 0.06,
+        "ethane": 0.08,
+        "propane": 0.03,
+        "isobutane": 0.0015,
+        "n-butane": 0.003,
+        "isopentane": 0.0005,
+        "n-pentane": 0.00165,
+        "n-hexane": 0.00215,
+        "n-heptane": 0.00088,
+        "n-octane": 0.00024,
+        "n-nonane": 0.00015,
+        "n-decane": 9e-05,
+        "hydrogen": 0.004,
+        "oxygen": 0.005,
+        "carbon-monoxide": 0.002,
+        "water": 0.0001,
+        "hydrogen-sulfide": 0.0025,
+        "helium": 0.007,
+        "argon": 0.001
+      },
+      "temperature_k": 400.0,
+      "molar_density": 6381.357531861858,
+      "component_ids": [
+        "methane",
+        "nitrogen",
+        "carbon-dioxide",
+        "ethane",
+        "propane",
+        "isobutane",
+        "n-butane",
+        "isopentane",
+        "n-pentane",
+        "n-hexane",
+        "n-heptane",
+        "n-octane",
+        "n-nonane",
+        "n-decane",
+        "hydrogen",
+        "oxygen",
+        "carbon-monoxide",
+        "water",
+        "hydrogen-sulfide",
+        "helium",
+        "argon"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.05540494933016492,
+        0.1545325644490992,
+        -0.2259899562028284,
+        -0.3794273670938912,
+        -0.6080238905202746,
+        -0.7955884473196817,
+        -0.828019350617378,
+        -0.9730500010154023,
+        -1.0650119178296042,
+        -1.2789229495492458,
+        -1.4801826607139743,
+        -1.686249970753241,
+        -1.9065278841287092,
+        -2.097800395631379,
+        0.28861011088632976,
+        0.1219774341546637,
+        0.13504556288722921,
+        -0.4501409500086564,
+        -0.3535542415653255,
+        0.43271316627006523,
+        0.08697997165557363
+      ]
+    },
+    {
+      "id": "infinite-dilution-0.0",
+      "temperature_k": 300.0,
+      "molar_density": 1000.0,
+      "composition": {
+        "methane": 0.9,
+        "ethane": 0.1,
+        "water": 0.0,
+        "hydrogen-sulfide": 0.0,
+        "n-decane": 0.0
+      },
+      "component_ids": [
+        "methane",
+        "ethane",
+        "water",
+        "hydrogen-sulfide",
+        "n-decane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.039244873024257936,
+        -0.1396563739099725,
+        -0.14720933157633892,
+        -0.11471188621564324,
+        -0.7091231833671453
+      ]
+    },
+    {
+      "id": "infinite-dilution-1e-12",
+      "temperature_k": 300.0,
+      "molar_density": 1000.0,
+      "composition": {
+        "methane": 0.899999999999,
+        "ethane": 0.1,
+        "water": 1e-12,
+        "hydrogen-sulfide": 0.0,
+        "n-decane": 0.0
+      },
+      "component_ids": [
+        "methane",
+        "ethane",
+        "water",
+        "hydrogen-sulfide",
+        "n-decane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.03924487302422953,
+        -0.13965637391017355,
+        -0.14720933157685254,
+        -0.11471188621582566,
+        -0.7091231833674486
+      ]
+    },
+    {
+      "id": "infinite-dilution-1e-06",
+      "temperature_k": 300.0,
+      "molar_density": 1000.0,
+      "composition": {
+        "methane": 0.899999,
+        "ethane": 0.1,
+        "water": 1e-06,
+        "hydrogen-sulfide": 0.0,
+        "n-decane": 0.0
+      },
+      "component_ids": [
+        "methane",
+        "ethane",
+        "water",
+        "hydrogen-sulfide",
+        "n-decane"
+      ],
+      "ln_fugacity_coefficients": [
+        -0.03924484460116807,
+        -0.1396565746872908,
+        -0.14720984525816977,
+        -0.11471206865497238,
+        -0.7091234867534796
+      ]
+    }
+  ]
+}

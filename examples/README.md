@@ -1,5 +1,38 @@
 # Reproducible examples
 
+The [native GERG-2008 example](gerg-natural-gas.json) uses
+`calculation: homogeneous-trho`, temperature in K and molar density in mol/m³.
+Run `cargo run -p thermo-cli --locked -- examples/gerg-natural-gas.json`.
+Pressure is an output; phase stability and equilibrium are unassessed. The
+reported native GERG caloric reference differs from the cubic NASA7 reference.
+
+The [GERG pressure-input example](gerg-tp-natural-gas.json) uses
+`calculation: homogeneous-tp`, `pressure_pa` and an explicit
+`density_bracket_mol_per_m3` in place of a density input:
+
+```sh
+cargo run -p thermo-cli --locked -- examples/gerg-tp-natural-gas.json
+```
+
+The selected density root reports its pressure residual, iteration count and
+bracket. Both GERG modes include analytic ln(phi) in input-component order.
+The bracket selects a homogeneous root and does not establish an equilibrium
+phase; this mode is distinct from `tp-flash`.
+
+Native GERG equilibrium examples use the dry five-component fluid domain,
+230..350 K and 0.1..10 MPa:
+
+```sh
+cargo run -p thermo-cli --locked -- examples/gerg-tp-flash-binary.json
+cargo run -p thermo-cli --locked -- examples/gerg-ph-flash-natural-gas.json
+```
+
+TP selects and checks phase roots internally; omit density/root inputs. PH
+accepts a native-reference molar enthalpy target and an optional explicit
+`temperature_bracket_k`. The valve target comes from an independently evaluated
+330 K / 5 MPa inlet and is applied at 3 MPa. Input changes require a fresh solve;
+unsupported inner roots or equilibrium states return errors.
+
 The [case inputs](cases.provisional.json) define a dry natural-gas mixture and a methane/propane binary. The [process proposal](process.provisional.json) defines two feeds, mixing, cooling, pressure reduction and separation, with explicit mole/flow bases, SI units and assumptions.
 
 These provisional files are engineering design inputs, with deliberately explicit zero-interaction approximations. Their null process-phase expectations remain intentional gaps. See [reference qualification](../docs/reference-qualification.md).

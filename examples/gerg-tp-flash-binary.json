@@ -1,0 +1,9 @@
+{
+  "id": "gerg-methane-propane-250K-3MPa",
+  "calculation": "tp-flash",
+  "model": "GERG-2008",
+  "components": ["methane", "propane"],
+  "mole_fractions": [0.5, 0.5],
+  "temperature_k": 250.0,
+  "pressure_pa": 3000000.0
+}

@@ -30,6 +30,8 @@ jobs:
         run: julia --project=validation/julia -e 'using Pkg; Pkg.instantiate()'
       - name: Compare current Rust calculations with live Clapeyron
         run: julia --project=validation/julia validation/julia/check.jl
+      - name: Verify GERG phase EOS and equilibrium residuals with Clapeyron
+        run: julia --compile=min --project=validation/julia validation/julia/check-gerg.jl
 
   workspace:
     name: Workspace (${{ matrix.os }})

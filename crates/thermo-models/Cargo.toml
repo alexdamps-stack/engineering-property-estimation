@@ -11,7 +11,8 @@ workspace = true
 [dependencies]
 thermo-types = { path = "../thermo-types" }
 thermo-data = { path = "../thermo-data" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
-serde_json = "1"
 proptest = "1"
