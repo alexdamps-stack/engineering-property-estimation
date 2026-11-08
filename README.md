@@ -2,7 +2,7 @@
 
 A Rust workspace for a planned standalone thermodynamic property engine and steady-state flowsheet simulator.
 
-**Status: homogeneous PR/PR-BM implementation.** Validated SI types, eight pinned component records, NASA7 ideal contributions, cubic roots, fugacities and caloric properties are implemented with offline independent reference comparisons. The CLI evaluates reproducible JSON cases. A4 adds TPD stability assessment, two-phase TP flash and pure saturation pressure with independent reference comparisons ([A4 record](docs/a4-status.md)); A5 adds PH flash with a pure-fluid saturation lever rule, energy diagnostics and independent references ([A5 record](docs/a5-status.md)); A7 adds a directed, temperature-dependent NRTL liquid with an explicitly selected ideal-gas vapor, pinned methanol/water data, and gamma-phi bubble/dew points and TP/PH flash with independent Clapeyron references ([A7 record](docs/a7-status.md)). `flowsheet-core` supplies the A8 sequential engine with native unit operations, balances and the qualified headless demonstration ([A8 record](docs/a8-status.md)); `thermo-desktop` remains an `egui` editor prototype awaiting A9 calculation integration. See the [A1–A3 verification record](docs/a1-a3-status.md) for formulation, tests, domains and remaining acceptance gates.
+**Status: homogeneous PR/PR-BM implementation.** Validated SI types, eight pinned component records, NASA7 ideal contributions, cubic roots, fugacities and caloric properties are implemented with offline independent reference comparisons. The CLI evaluates reproducible JSON cases. A4 adds TPD stability assessment, two-phase TP flash and pure saturation pressure with independent reference comparisons ([A4 record](docs/a4-status.md)); A5 adds PH flash with a pure-fluid saturation lever rule, energy diagnostics and independent references ([A5 record](docs/a5-status.md)); A7 adds a directed, temperature-dependent NRTL liquid with an explicitly selected ideal-gas vapor, pinned methanol/water data, and gamma-phi bubble/dew points and TP/PH flash with independent Clapeyron references ([A7 record](docs/a7-status.md)). `flowsheet-core` supplies the A8 sequential engine with native unit operations, balances and the qualified headless demonstration ([A8 record](docs/a8-status.md)); A9 makes `thermo-desktop` a usable `egui` editor: it creates, solves in the background, modifies, saves and reloads projects through the GUI-independent `flowsheet-project` crate, marks exactly the affected results stale after edits, keeps failures visible, and ships as a Windows installer ([A9 record](docs/a9-status.md)). See the [A1–A3 verification record](docs/a1-a3-status.md) for formulation, tests, domains and remaining acceptance gates.
 
 ## Development plan
 
@@ -29,10 +29,11 @@ Initial numerical priorities are PR/PR-BM, validated component data, stability a
 | `thermo-solvers` | Root finding, phase stability, flash calculations |
 | `property-packages` | Compatible model/data combinations |
 | `flowsheet-core` | Streams, unit operations, balances, calculation order |
+| `flowsheet-project` | Versioned project files, package selection, result snapshots and invalidation |
 | `thermo-cli` | Command-line entry point |
-| `thermo-desktop` | Native flowsheet editor (`egui` prototype) |
+| `thermo-desktop` | Native flowsheet editor (`egui`) |
 
-Additional directories: `data/` for pinned source transcriptions, `examples/` for reproducible cases, `validation/` for independent reference comparisons, and `docs/` for planning and architecture.
+Additional directories: `packaging/` for the Windows installer, `data/` for pinned source transcriptions, `examples/` for reproducible cases, `validation/` for independent reference comparisons, and `docs/` for planning and architecture.
 
 ## Getting started
 
@@ -48,7 +49,7 @@ cargo run -p thermo-cli --locked -- examples/homogeneous-binary.json
 cargo run -p thermo-desktop --locked
 ```
 
-The desktop command opens the flowsheet editor prototype. Add `-- --demo` to start with the demonstration topology (mix, cool, expand, separate). Desktop calculation integration remains A9 work. The A8 headless engine runs the independently qualified process through native unit-operation APIs:
+The desktop command opens the flowsheet editor. Add `-- --demo` to start with the qualified demonstration project (mix, cool, expand, separate; press F5 to solve), or pass a `*.flowsheet.json` project file. `-- --self-test report.json` runs the headless acceptance workflow without a window. The Windows installer is built by `packaging/windows/build.ps1` (see the [A9 record](docs/a9-status.md)). The A8 headless engine runs the independently qualified process through native unit-operation APIs:
 
 ```sh
 cargo run -p flowsheet-core --example demonstration --locked -- PR-BM

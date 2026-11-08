@@ -16,7 +16,7 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
 use flowsheet_core::{PortRef, PressureSpec, StreamId, UnitId, UnitKind, UnitSpec};
 use thermo_desktop::FlowsheetApp;
-use thermo_desktop::editor::Selection;
+use thermo_desktop::editor::{ItemStatus, Selection};
 use thermo_desktop::view::{port_exit, port_pos, stream_route};
 
 const WINDOW: Vec2 = vec2(1280.0, 800.0);
@@ -91,7 +91,9 @@ fn key(h: &mut Harness<FlowsheetApp>, key: Key) {
             modifiers: Modifiers::default(),
         });
     }
-    h.run();
+    // Step instead of `run`: a started solve keeps requesting repaints.
+    h.step();
+    h.step();
 }
 
 /// Serialises GPU rendering: concurrent wgpu renders from parallel test
@@ -341,4 +343,265 @@ fn equipment_gallery_is_fully_connected() {
 fn snapshot_equipment_gallery() {
     let mut h = harness(equipment_gallery(), egui::Theme::Dark);
     check_snapshot(&mut h, "equipment_gallery_dark");
+}
+
+/// Solves synchronously and pins the completion time, so snapshots do not
+/// depend on the clock.
+fn solve_now(app: &mut FlowsheetApp) {
+    let ed = app.editor_mut();
+    ed.start_solve(None);
+    ed.wait_for_solve();
+    if let Some(r) = &mut ed.results {
+        r.solved_at_unix_s = 1_794_150_131;
+    }
+}
+
+/// Steps the UI until the background solve has finished.
+fn finish_solve(h: &mut Harness<FlowsheetApp>) {
+    let start = std::time::Instant::now();
+    while h.state().editor().is_solving() {
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(60),
+            "solve did not finish"
+        );
+        h.step();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    h.step();
+    h.step();
+}
+
+fn statuses(h: &mut Harness<FlowsheetApp>) -> Vec<(String, ItemStatus)> {
+    let ed = h.state_mut().editor_mut();
+    let fps = ed.fingerprints();
+    let issues = ed.input_issues();
+    ed.fs
+        .units()
+        .map(|u| (u.name.clone(), ed.unit_status(u.id, &fps, &issues)))
+        .collect()
+}
+
+/// Proposal section 4.1, steps 5–7, driven through the interface: solve,
+/// change the valve pressure (downstream turns stale), solve again, save,
+/// reopen and find the results current.
+#[test]
+fn demonstration_is_solved_modified_saved_and_reopened() {
+    let mut h = harness(FlowsheetApp::with_demonstration(), egui::Theme::Dark);
+    h.get_by_label("Solve (F5)").click();
+    h.step();
+    finish_solve(&mut h);
+    assert!(
+        statuses(&mut h)
+            .iter()
+            .all(|(_, s)| *s == ItemStatus::Solved),
+        "{:?}",
+        statuses(&mut h)
+    );
+
+    let valve = unit_of_kind(&h, UnitKind::Valve);
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(valve));
+    h.state_mut().editor_mut().fs.set_spec(
+        valve,
+        UnitSpec::Valve {
+            pressure: PressureSpec::OutletPressure(Some(2.0e6)),
+        },
+    );
+    h.step();
+    for (name, s) in statuses(&mut h) {
+        let downstream = ["V-100", "D-100", "Vapor", "Liquid"].contains(&name.as_str());
+        let expected = if downstream {
+            ItemStatus::Stale
+        } else {
+            ItemStatus::Solved
+        };
+        assert_eq!(s, expected, "{name}");
+    }
+
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    assert!(
+        statuses(&mut h)
+            .iter()
+            .all(|(_, s)| *s == ItemStatus::Solved)
+    );
+
+    let dir = std::env::temp_dir().join(format!("thermo-desktop-ui-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("demo.flowsheet.json");
+    h.state_mut().editor_mut().save_to(&path).unwrap();
+    let mut reopened = harness(FlowsheetApp::with_file(path.clone()), egui::Theme::Dark);
+    assert_eq!(
+        reopened.state().editor().path.as_deref(),
+        Some(path.as_path())
+    );
+    assert!(!reopened.state().editor().is_modified());
+    assert!(
+        statuses(&mut reopened)
+            .iter()
+            .all(|(_, s)| *s == ItemStatus::Solved)
+    );
+    let saved = std::fs::read_to_string(&path).unwrap();
+    assert!(saved.contains("\"format_version\": 1"));
+    assert!(saved.contains("\"outlet_pressure_pa\": 2000000.0"));
+}
+
+#[test]
+fn failed_solve_is_shown_at_the_unit_and_values_are_not_current() {
+    let mut h = harness(FlowsheetApp::with_demonstration(), egui::Theme::Dark);
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    let valve = unit_of_kind(&h, UnitKind::Valve);
+    {
+        let ed = h.state_mut().editor_mut();
+        ed.fs.set_spec(
+            valve,
+            UnitSpec::Valve {
+                pressure: PressureSpec::OutletPressure(Some(6.0e6)),
+            },
+        );
+        ed.selection = Some(Selection::Unit(valve));
+    }
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    let s = statuses(&mut h);
+    assert!(s.contains(&("V-100".into(), ItemStatus::Failed)), "{s:?}");
+    assert!(s.contains(&("D-100".into(), ItemStatus::Stale)), "{s:?}");
+    assert!(s.contains(&("M-100".into(), ItemStatus::Solved)), "{s:?}");
+    // The properties panel names the cause.
+    let message = h.state().editor().failure.as_ref().unwrap().message.clone();
+    h.get_by_label(&format!("✖ {message}"));
+}
+
+#[test]
+fn cancel_stops_a_running_solve_without_changing_results() {
+    let mut h = harness(FlowsheetApp::with_demonstration(), egui::Theme::Dark);
+    h.state_mut().editor_mut().start_solve(None);
+    h.step();
+    assert!(h.state().editor().is_solving());
+    h.get_by_label("Cancel").click();
+    h.step();
+    let ed = h.state().editor();
+    assert!(!ed.is_solving());
+    assert!(ed.results.is_none());
+    assert!(ed.status.as_deref().unwrap().contains("cancelled"));
+}
+
+#[test]
+fn new_project_dialog_creates_a_package_and_feeds_take_a_composition() {
+    let mut h = harness(FlowsheetApp::default(), egui::Theme::Dark);
+    h.get_by_label("New").click();
+    h.step();
+    {
+        let dialog = h.state_mut().new_project_dialog().expect("dialog open");
+        for (id, on) in &mut dialog.components {
+            *on = id == "methane" || id == "propane";
+        }
+    }
+    h.step();
+    h.get_by_label("Create").click();
+    h.step();
+    h.run();
+    let ed = h.state().editor();
+    let package = ed.package.as_ref().expect("package created");
+    assert_eq!(package.components, ["methane", "propane"]);
+    assert!(package.interaction_source.contains("zero-kij"));
+
+    h.get_by_label("Feed").click();
+    h.run();
+    let feed = unit_of_kind(&h, UnitKind::Feed);
+    h.get_by_label("Enter composition").click();
+    h.run();
+    assert_eq!(h.state().editor().feeds[&feed], vec![0.5, 0.5]);
+}
+
+#[test]
+fn stream_table_copies_values_with_units_and_status() {
+    let mut app = FlowsheetApp::with_demonstration();
+    app.editor_mut().start_solve(None);
+    app.editor_mut().wait_for_solve();
+    let tsv = thermo_desktop::panels::stream_table_tsv(app.editor_mut());
+    let lines: Vec<&str> = tsv.lines().collect();
+    assert!(lines[0].starts_with("Stream\tUnit\tA\tB\tmix"));
+    assert!(lines[1].starts_with("Status\t\tsolved"));
+    assert!(lines[2].starts_with("Temperature\t°C\t56.85"));
+    assert!(tsv.contains("\nx methane\tmol/mol\t0.87999"), "{tsv}");
+    assert!(!tsv.contains("NaN"));
+}
+
+#[test]
+fn snapshot_solved_demonstration_with_stream_table() {
+    let mut app = FlowsheetApp::with_demonstration();
+    solve_now(&mut app);
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Stream table").click();
+    h.run();
+    check_snapshot(&mut h, "demonstration_solved_dark");
+}
+
+#[test]
+fn snapshot_stale_and_failed_after_valve_edit() {
+    let mut app = FlowsheetApp::with_demonstration();
+    solve_now(&mut app);
+    let ed = app.editor_mut();
+    let valve = ed
+        .fs
+        .units()
+        .find(|u| u.kind == UnitKind::Valve)
+        .unwrap()
+        .id;
+    let sep = ed
+        .fs
+        .units()
+        .find(|u| u.kind == UnitKind::Separator)
+        .unwrap()
+        .id;
+    ed.fs.set_spec(
+        valve,
+        UnitSpec::Valve {
+            pressure: PressureSpec::OutletPressure(Some(6.0e6)),
+        },
+    );
+    ed.start_solve(None);
+    ed.wait_for_solve();
+    ed.selection = Some(Selection::Unit(sep));
+    let mut h = harness(app, egui::Theme::Light);
+    check_snapshot(&mut h, "failed_valve_light");
+}
+
+/// Framework evaluation (#52): CPU time per frame of the whole window with a
+/// 100-unit flowsheet (50 feed → heater chains plus products, 150 units and
+/// 100 streams in total). Not a correctness gate; run explicitly with
+/// `cargo test --release -p thermo-desktop --test ui -- --ignored --nocapture`.
+#[test]
+#[ignore = "performance measurement, not a correctness gate"]
+fn canvas_frame_time_with_100_units() {
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    for i in 0..50 {
+        let y = i as f32 * 90.0;
+        let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(0.0, y));
+        let heater = ed.add_unit_at(UnitKind::Heater, egui::pos2(200.0, y));
+        let product = ed.add_unit_at(UnitKind::Product, egui::pos2(400.0, y));
+        ed.connect(PortRef::new(feed, 0), PortRef::new(heater, 0));
+        ed.connect(PortRef::new(heater, 1), PortRef::new(product, 0));
+    }
+    ed.selection = None;
+    ed.fit_requested = true;
+    let mut h = harness(app, egui::Theme::Dark);
+    for _ in 0..5 {
+        h.step();
+    }
+    let frames = 100;
+    let start = std::time::Instant::now();
+    for i in 0..frames {
+        // Move the pointer so every frame does hover hit-testing.
+        h.event(Event::PointerMoved(egui::pos2(300.0 + i as f32, 300.0)));
+        h.step();
+    }
+    let per_frame = start.elapsed() / frames;
+    println!(
+        "units={} streams={} cpu_frame_time={per_frame:?}",
+        h.state().editor().fs.units().count(),
+        h.state().editor().fs.streams().count()
+    );
 }

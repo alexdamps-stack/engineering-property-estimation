@@ -27,6 +27,14 @@ pub enum Quantity {
     Duty,
     /// Dimensionless fraction from 0 to 1 (split fraction, efficiency).
     Fraction,
+    /// Mass flow, stored in kg/s.
+    MassFlow,
+    /// Molar enthalpy, stored in J/mol.
+    MolarEnthalpy,
+    /// Molar entropy, stored in J/(mol K).
+    MolarEntropy,
+    /// Mass density, stored in kg/m³.
+    Density,
 }
 
 impl DisplayUnits {
@@ -50,12 +58,19 @@ impl DisplayUnits {
             (DisplayUnits::Si, Quantity::MolarFlow) => "mol/s",
             (DisplayUnits::Si, Quantity::Duty) => "W",
             (DisplayUnits::Si, Quantity::Fraction) => "–",
+            (DisplayUnits::Si, Quantity::MassFlow) => "kg/s",
+            (DisplayUnits::Si, Quantity::MolarEnthalpy) => "J/mol",
+            (DisplayUnits::Si, Quantity::MolarEntropy) => "J/(mol K)",
+            (_, Quantity::Density) => "kg/m³",
             (DisplayUnits::ProcessMetric, Quantity::Temperature) => "°C",
             (DisplayUnits::ProcessMetric, Quantity::Pressure) => "bar(a)",
             (DisplayUnits::ProcessMetric, Quantity::PressureDrop) => "bar",
             (DisplayUnits::ProcessMetric, Quantity::MolarFlow) => "kmol/h",
             (DisplayUnits::ProcessMetric, Quantity::Duty) => "kW",
             (DisplayUnits::ProcessMetric, Quantity::Fraction) => "%",
+            (DisplayUnits::ProcessMetric, Quantity::MassFlow) => "kg/h",
+            (DisplayUnits::ProcessMetric, Quantity::MolarEnthalpy) => "kJ/kmol",
+            (DisplayUnits::ProcessMetric, Quantity::MolarEntropy) => "kJ/(kmol K)",
         }
     }
 
@@ -70,6 +85,12 @@ impl DisplayUnits {
             (DisplayUnits::ProcessMetric, Quantity::MolarFlow) => si * 3.6,
             (DisplayUnits::ProcessMetric, Quantity::Duty) => si / 1.0e3,
             (DisplayUnits::ProcessMetric, Quantity::Fraction) => si * 100.0,
+            (DisplayUnits::ProcessMetric, Quantity::MassFlow) => si * 3600.0,
+            // kJ/kmol and kJ/(kmol K) equal J/mol and J/(mol K) numerically.
+            (
+                DisplayUnits::ProcessMetric,
+                Quantity::MolarEnthalpy | Quantity::MolarEntropy | Quantity::Density,
+            ) => si,
         }
     }
 
@@ -84,6 +105,11 @@ impl DisplayUnits {
             (DisplayUnits::ProcessMetric, Quantity::MolarFlow) => shown / 3.6,
             (DisplayUnits::ProcessMetric, Quantity::Duty) => shown * 1.0e3,
             (DisplayUnits::ProcessMetric, Quantity::Fraction) => shown / 100.0,
+            (DisplayUnits::ProcessMetric, Quantity::MassFlow) => shown / 3600.0,
+            (
+                DisplayUnits::ProcessMetric,
+                Quantity::MolarEnthalpy | Quantity::MolarEntropy | Quantity::Density,
+            ) => shown,
         }
     }
 
@@ -130,14 +156,42 @@ pub fn starting_value(q: Quantity) -> f64 {
         Quantity::MolarFlow => 1.0,
         Quantity::PressureDrop | Quantity::Duty => 0.0,
         Quantity::Fraction => 0.5,
+        Quantity::MassFlow => 1.0,
+        Quantity::MolarEnthalpy | Quantity::MolarEntropy | Quantity::Density => 0.0,
     }
+}
+
+/// Formats a calculated value for display with about six significant
+/// digits. Nonfinite values are never shown as numbers.
+pub fn format_value(v: f64) -> String {
+    if !v.is_finite() {
+        return "—".into();
+    }
+    if v == 0.0 {
+        return "0".into();
+    }
+    let magnitude = v.abs().log10().floor() as i32;
+    if !(-3..6).contains(&magnitude) {
+        return format!("{v:.4e}");
+    }
+    let decimals = (5 - magnitude).clamp(0, 6) as usize;
+    format!("{v:.decimals$}")
+}
+
+/// Formats a value of quantity `q` in the display set, with its unit.
+pub fn format_quantity(u: DisplayUnits, q: Quantity, si: f64) -> String {
+    format!("{} {}", format_value(u.si_to_display(q, si)), u.symbol(q))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const ALL_Q: [Quantity; 6] = [
+    const ALL_Q: [Quantity; 10] = [
+        Quantity::MassFlow,
+        Quantity::MolarEnthalpy,
+        Quantity::MolarEntropy,
+        Quantity::Density,
         Quantity::Fraction,
         Quantity::Temperature,
         Quantity::Pressure,
@@ -171,5 +225,23 @@ mod tests {
         assert_eq!(m.symbol(Quantity::Pressure), "bar(a)");
         assert!((m.display_min(Quantity::Temperature) + 273.15).abs() < 1e-12);
         assert_eq!(m.display_min(Quantity::Duty), f64::NEG_INFINITY);
+        assert!((m.si_to_display(Quantity::MassFlow, 1.0) - 3600.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn values_are_formatted_without_nan() {
+        assert_eq!(format_value(f64::NAN), "—");
+        assert_eq!(format_value(f64::INFINITY), "—");
+        assert_eq!(format_value(0.0), "0");
+        assert_eq!(format_value(-58.9655), "-58.9655");
+        assert_eq!(format_value(15.0), "15.0000");
+        assert_eq!(format_value(0.964993), "0.964993");
+        assert_eq!(format_value(-555838.418), "-555838");
+        assert_eq!(format_value(2.5e6), "2.5000e6");
+        assert_eq!(format_value(1.2e-7), "1.2000e-7");
+        assert_eq!(
+            format_quantity(DisplayUnits::ProcessMetric, Quantity::Pressure, 1.5e6),
+            "15.0000 bar(a)"
+        );
     }
 }

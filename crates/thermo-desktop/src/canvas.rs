@@ -7,9 +7,11 @@ use eframe::egui::{
     Align2, Color32, FontId, Key, PointerButton, Pos2, Rect, Response, Sense, Shape, Stroke, Ui,
     Vec2, pos2, vec2,
 };
-use flowsheet_core::{PortDirection, PortRef, StreamId, UnitId, UnitKind, UnitStatus};
+use std::collections::HashMap;
 
-use crate::editor::{Drag, Editor, Selection};
+use flowsheet_core::{PortDirection, PortRef, StreamId, UnitId, UnitKind};
+
+use crate::editor::{Drag, Editor, ItemStatus, Selection};
 use crate::symbols::{Theme, arrowhead, draw_unit};
 use crate::view::{
     SNAP, block_rect, distance_to_polyline, place_tag, port_exit, port_pos, snap, stream_route,
@@ -40,6 +42,14 @@ pub fn show(ui: &mut Ui, ed: &mut Editor) {
 
     handle_view_input(ui, &response, ed, canvas);
     handle_edit_input(ui, &response, ed, canvas);
+
+    let fps = ed.fingerprints();
+    let issues = ed.input_issues();
+    let statuses: HashMap<UnitId, ItemStatus> = ed
+        .fs
+        .units()
+        .map(|u| (u.id, ed.unit_status(u.id, &fps, &issues)))
+        .collect();
 
     let z = ed.viewport.zoom;
     let scale = z.clamp(0.6, 1.6);
@@ -111,7 +121,7 @@ pub fn show(ui: &mut Ui, ed: &mut Editor) {
                 ed.viewport.to_screen(canvas, world.max),
             );
             taken.push(r.expand(2.0));
-            if ed.fs.unit_status(u.id) == Some(UnitStatus::Underspecified) {
+            if statuses.get(&u.id).is_some_and(|s| *s != ItemStatus::Ready) {
                 let d = 2.0 * BADGE_RADIUS * scale + 4.0;
                 taken.push(Rect::from_center_size(
                     badge_center(r, scale),
@@ -153,15 +163,18 @@ pub fn show(ui: &mut Ui, ed: &mut Editor) {
             ed.viewport.to_screen(canvas, world.max),
         );
         let selected = ed.selection == Some(Selection::Unit(unit.id));
-        // Proposal section 4.6: underspecified units get a grey outline and
-        // a `!` badge; ready units are drawn normally.
-        let underspecified = ed.fs.unit_status(unit.id) == Some(UnitStatus::Underspecified);
+        // Proposal section 4.6: status by colour *and* badge shape, so it is
+        // readable without colour perception. Ready units have no badge.
+        let status = statuses.get(&unit.id).copied().unwrap_or(ItemStatus::Ready);
         let color = if selected {
             theme.select
-        } else if underspecified {
-            theme.muted
         } else {
-            theme.line
+            match status {
+                ItemStatus::Underspecified | ItemStatus::Stale => theme.muted,
+                ItemStatus::Warning => theme.warning,
+                ItemStatus::Failed => theme.error,
+                ItemStatus::Ready | ItemStatus::Solved => theme.line,
+            }
         };
         let width = if hovered_unit == Some(unit.id) {
             equipment_w * 1.8
@@ -192,12 +205,29 @@ pub fn show(ui: &mut Ui, ed: &mut Editor) {
             };
             painter.text(pos, align, &unit.name, font(12.0), theme.line);
         }
-        if underspecified {
-            let at = badge_center(r, scale);
-            let rad = BADGE_RADIUS * scale;
-            painter.circle(at, rad, theme.background, Stroke::new(1.0, theme.muted));
-            painter.text(at, Align2::CENTER_CENTER, "!", font(10.0), theme.muted);
+        if status == ItemStatus::Stale && !selected {
+            // Dashed outline: inputs changed since the shown result.
+            painter.extend(Shape::dashed_line(
+                &[
+                    r.left_top(),
+                    r.right_top(),
+                    r.right_bottom(),
+                    r.left_bottom(),
+                    r.left_top(),
+                ]
+                .map(|p| p + (p - r.center()).normalized() * 4.0),
+                Stroke::new(1.0, theme.muted),
+                4.0,
+                3.0,
+            ));
         }
+        status_badge(
+            &painter,
+            badge_center(r, scale),
+            BADGE_RADIUS * scale,
+            status,
+            &theme,
+        );
         if selected {
             painter.extend(Shape::dashed_line(
                 &[
@@ -276,6 +306,75 @@ pub fn show(ui: &mut Ui, ed: &mut Editor) {
             FontId::monospace(13.0),
             theme.muted,
         );
+    }
+}
+
+/// Status badge: `!` underspecified, check mark solved, triangle warning,
+/// cross failed, two dots stale. Shapes differ, not only colours.
+fn status_badge(
+    painter: &eframe::egui::Painter,
+    at: Pos2,
+    rad: f32,
+    status: ItemStatus,
+    theme: &Theme,
+) {
+    let (color, filled) = match status {
+        ItemStatus::Ready => return,
+        ItemStatus::Underspecified | ItemStatus::Stale => (theme.muted, false),
+        ItemStatus::Solved => (theme.ok, true),
+        ItemStatus::Warning => (theme.warning, true),
+        ItemStatus::Failed => (theme.error, true),
+    };
+    let ink = if filled { theme.background } else { color };
+    let stroke = Stroke::new((rad * 0.28).max(1.2), ink);
+    if status == ItemStatus::Warning {
+        let h = rad * 1.15;
+        painter.add(Shape::convex_polygon(
+            vec![
+                at + vec2(0.0, -h),
+                at + vec2(h, h * 0.8),
+                at + vec2(-h, h * 0.8),
+            ],
+            color,
+            Stroke::NONE,
+        ));
+        painter.line_segment(
+            [at + vec2(0.0, -h * 0.35), at + vec2(0.0, h * 0.25)],
+            stroke,
+        );
+        painter.circle_filled(at + vec2(0.0, h * 0.55), stroke.width * 0.6, ink);
+        return;
+    }
+    if filled {
+        painter.circle_filled(at, rad, color);
+    } else {
+        painter.circle(at, rad, theme.background, Stroke::new(1.0, color));
+    }
+    let s = rad * 0.5;
+    match status {
+        ItemStatus::Solved => {
+            painter.line(
+                vec![
+                    at + vec2(-s, 0.0),
+                    at + vec2(-s * 0.2, s * 0.8),
+                    at + vec2(s, -s * 0.8),
+                ],
+                stroke,
+            );
+        }
+        ItemStatus::Failed => {
+            painter.line_segment([at + vec2(-s, -s), at + vec2(s, s)], stroke);
+            painter.line_segment([at + vec2(-s, s), at + vec2(s, -s)], stroke);
+        }
+        ItemStatus::Underspecified => {
+            painter.line_segment([at + vec2(0.0, -s * 1.1), at + vec2(0.0, s * 0.3)], stroke);
+            painter.circle_filled(at + vec2(0.0, s * 0.9), stroke.width * 0.6, ink);
+        }
+        ItemStatus::Stale => {
+            painter.circle_filled(at + vec2(-s * 0.6, 0.0), stroke.width * 0.7, ink);
+            painter.circle_filled(at + vec2(s * 0.6, 0.0), stroke.width * 0.7, ink);
+        }
+        ItemStatus::Ready | ItemStatus::Warning => {}
     }
 }
 

@@ -62,6 +62,37 @@ impl fmt::Display for ConnectError {
 
 impl std::error::Error for ConnectError {}
 
+/// Reasons stored units and streams cannot be rebuilt by [`Flowsheet::restore`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RestoreError {
+    /// Two units share an identifier.
+    DuplicateUnit(UnitId),
+    /// Two streams share an identifier.
+    DuplicateStream(StreamId),
+    /// A unit's specification variant does not belong to its kind.
+    SpecKindMismatch(UnitId),
+    /// A stream identifier of zero is not valid.
+    InvalidStreamId(StreamId),
+    /// A stream fails the ordinary connection checks.
+    Connection(StreamId, ConnectError),
+}
+
+impl fmt::Display for RestoreError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RestoreError::DuplicateUnit(u) => write!(f, "unit identifier {u} is used twice"),
+            RestoreError::DuplicateStream(s) => write!(f, "stream identifier {s} is used twice"),
+            RestoreError::SpecKindMismatch(u) => {
+                write!(f, "unit {u} has a specification of another unit kind")
+            }
+            RestoreError::InvalidStreamId(s) => write!(f, "stream identifier {s} is not valid"),
+            RestoreError::Connection(s, e) => write!(f, "stream {s}: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for RestoreError {}
+
 /// Category of a structural diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticKind {
@@ -257,6 +288,60 @@ impl Flowsheet {
         stream.name = name.into();
         self.revision += 1;
         true
+    }
+
+    /// Rebuilds a flowsheet from stored units and streams, for example from a
+    /// project file. Every unit keeps its identifier, tag and specification;
+    /// every stream is reconnected through the same checks as [`Self::connect`].
+    ///
+    /// Identifier counters continue after the largest stored identifier, and
+    /// tag counters after the largest stored tag number of each series, so
+    /// new units never reuse a stored identifier or generated tag. The
+    /// restored flowsheet starts at revision 0.
+    pub fn restore(
+        units: impl IntoIterator<Item = Unit>,
+        streams: impl IntoIterator<Item = Stream>,
+    ) -> Result<Self, RestoreError> {
+        let mut fs = Flowsheet::new();
+        for unit in units {
+            if fs.units.contains_key(&unit.id) {
+                return Err(RestoreError::DuplicateUnit(unit.id));
+            }
+            if std::mem::discriminant(&unit.kind.default_spec())
+                != std::mem::discriminant(&unit.spec)
+            {
+                return Err(RestoreError::SpecKindMismatch(unit.id));
+            }
+            fs.next_unit = fs.next_unit.max(unit.id.0);
+            let series = unit.kind.tag_series();
+            let in_series = fs
+                .units
+                .values()
+                .filter(|u| u.kind.tag_series() == series)
+                .count() as u64
+                + 1;
+            let counter = fs.tag_counters.entry(series).or_insert(0);
+            *counter = (*counter)
+                .max(in_series)
+                .max(unit.kind.tag_number(&unit.name).unwrap_or(0));
+            fs.units.insert(unit.id, unit);
+        }
+        for stream in streams {
+            if fs.streams.contains_key(&stream.id) {
+                return Err(RestoreError::DuplicateStream(stream.id));
+            }
+            let (id, name) = (stream.id, stream.name);
+            if id.0 == 0 {
+                return Err(RestoreError::InvalidStreamId(id));
+            }
+            fs.next_stream = id.0 - 1;
+            fs.connect(stream.from, stream.to)
+                .map_err(|e| RestoreError::Connection(id, e))?;
+            fs.streams.get_mut(&id).expect("just connected").name = name;
+        }
+        fs.next_stream = fs.streams.keys().map(|s| s.0).max().unwrap_or(0);
+        fs.revision = 0;
+        Ok(fs)
     }
 
     /// Pre-calculation status of a unit, or `None` if it does not exist.
@@ -630,6 +715,104 @@ mod tests {
         let mut sorted = cycle.clone();
         sorted.sort();
         assert_eq!(sorted, vec![mix, heater, sep]);
+    }
+
+    #[test]
+    fn restore_rebuilds_topology_and_continues_counters() {
+        let mut fs = Flowsheet::new();
+        let feed = fs.add_unit(UnitKind::Feed);
+        let gone = fs.add_unit(UnitKind::Valve);
+        let valve = fs.add_unit(UnitKind::Valve);
+        let product = fs.add_unit(UnitKind::Product);
+        fs.remove_unit(gone);
+        let s1 = fs.connect(out(feed), PortRef::new(valve, 0)).unwrap();
+        let s2 = fs
+            .connect(PortRef::new(valve, 1), PortRef::new(product, 0))
+            .unwrap();
+        fs.rename_stream(s2, "product");
+        fs.disconnect(s1);
+        let s3 = fs.connect(out(feed), PortRef::new(valve, 0)).unwrap();
+
+        let restored =
+            Flowsheet::restore(fs.units().cloned(), fs.streams().cloned()).expect("restored");
+        assert_eq!(restored.revision(), 0);
+        assert_eq!(
+            restored.units().collect::<Vec<_>>(),
+            fs.units().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            restored.streams().collect::<Vec<_>>(),
+            fs.streams().collect::<Vec<_>>()
+        );
+        assert_eq!(restored.diagnostics(), fs.diagnostics());
+
+        let mut next = restored.clone();
+        let v = next.add_unit(UnitKind::Valve);
+        assert!(v > product);
+        // V-100 was deleted and V-101 kept; the series continues after V-101.
+        assert_eq!(next.unit(v).unwrap().name, "V-102");
+        let f = next.add_unit(UnitKind::Product);
+        let s = next
+            .connect(PortRef::new(v, 1), PortRef::new(f, 0))
+            .unwrap();
+        assert!(s > s3);
+    }
+
+    #[test]
+    fn restore_rejects_inconsistent_input() {
+        let mut fs = Flowsheet::new();
+        let feed = fs.add_unit(UnitKind::Feed);
+        let product = fs.add_unit(UnitKind::Product);
+        let s = fs.connect(out(feed), PortRef::new(product, 0)).unwrap();
+        let units: Vec<Unit> = fs.units().cloned().collect();
+        let streams: Vec<Stream> = fs.streams().cloned().collect();
+
+        let mut twice = units.clone();
+        twice.push(units[0].clone());
+        assert_eq!(
+            Flowsheet::restore(twice, streams.clone()),
+            Err(RestoreError::DuplicateUnit(feed))
+        );
+        let mut wrong = units.clone();
+        wrong[1].spec = UnitSpec::Splitter {
+            fraction_to_first: None,
+        };
+        assert_eq!(
+            Flowsheet::restore(wrong, streams.clone()),
+            Err(RestoreError::SpecKindMismatch(product))
+        );
+        let mut doubled = streams.clone();
+        doubled.push(streams[0].clone());
+        assert_eq!(
+            Flowsheet::restore(units.clone(), doubled),
+            Err(RestoreError::DuplicateStream(s))
+        );
+        let mut reversed = streams.clone();
+        let r = &mut reversed[0];
+        std::mem::swap(&mut r.from, &mut r.to);
+        assert!(matches!(
+            Flowsheet::restore(units.clone(), reversed),
+            Err(RestoreError::Connection(
+                _,
+                ConnectError::SourceNotOutlet(_)
+            ))
+        ));
+        let mut zero = streams;
+        zero[0].id = StreamId(0);
+        assert_eq!(
+            Flowsheet::restore(units, zero),
+            Err(RestoreError::InvalidStreamId(StreamId(0)))
+        );
+    }
+
+    #[test]
+    fn generated_tags_are_recognised() {
+        assert_eq!(UnitKind::Mixer.tag_number("M-100"), Some(1));
+        assert_eq!(UnitKind::Cooler.tag_number("E-104"), Some(5));
+        assert_eq!(UnitKind::Feed.tag_number("Feed 3"), Some(3));
+        assert_eq!(UnitKind::Feed.tag_number("Natural gas"), None);
+        assert_eq!(UnitKind::Valve.tag_number("V-099"), None);
+        assert_eq!(UnitKind::Valve.tag_number("V-0100"), None);
     }
 
     #[test]

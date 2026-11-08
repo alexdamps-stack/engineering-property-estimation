@@ -12,3 +12,12 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = "warn"
+
+# Distribution build for the Windows package (packaging/windows/build.ps1).
+# Same optimisation level as `release`; LTO and one codegen unit reduce size
+# and symbols are stripped. No floating-point semantics change.
+[profile.dist]
+inherits = "release"
+lto = "thin"
+codegen-units = 1
+strip = true

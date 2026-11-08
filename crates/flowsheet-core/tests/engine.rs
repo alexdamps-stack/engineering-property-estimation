@@ -736,3 +736,40 @@ fn invalid_package_bounds_and_nonfinite_extensive_values_are_rejected() {
             .contains("nonfinite extensive")
     );
 }
+
+#[test]
+fn progress_reports_every_unit_in_order_and_cancellation_returns_nothing() {
+    let (fs, pkg, feeds) = support::demonstration(CubicVariant::PengRobinsonBostonMathias, 1.0);
+    let mut seen = Vec::new();
+    let r = fs
+        .solve_with_progress(&pkg, &feeds, |p| {
+            assert_eq!((p.completed, p.total), (seen.len(), 8));
+            seen.push(p.unit);
+            std::ops::ControlFlow::Continue(())
+        })
+        .unwrap();
+    assert_eq!(seen, r.order);
+    assert!(r.is_current(&fs, &feeds, &pkg));
+
+    for stop_at in [0, 3, 7] {
+        let error = fs
+            .solve_with_progress(&pkg, &feeds, |p| {
+                if p.completed == stop_at {
+                    std::ops::ControlFlow::Break(())
+                } else {
+                    std::ops::ControlFlow::Continue(())
+                }
+            })
+            .unwrap_err();
+        assert!(error.cancelled && error.unit.is_none());
+        assert!(error.message.contains("cancelled"));
+    }
+    // Preflight failures are reported as failures, not cancellations, and
+    // happen before the first progress call.
+    let mut empty = Flowsheet::new();
+    empty.add_unit(UnitKind::Valve);
+    let error = empty
+        .solve_with_progress(&pkg, &feeds, |_| panic!("no unit may start"))
+        .unwrap_err();
+    assert!(!error.cancelled);
+}

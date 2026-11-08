@@ -1,0 +1,19 @@
+[package]
+name = "flowsheet-project"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Versioned project files, package selection, result snapshots and invalidation."
+
+[lints]
+workspace = true
+
+[dependencies]
+flowsheet-core = { path = "../flowsheet-core" }
+property-packages = { path = "../property-packages" }
+thermo-data = { path = "../thermo-data" }
+thermo-models = { path = "../thermo-models" }
+thermo-solvers = { path = "../thermo-solvers" }
+thermo-types = { path = "../thermo-types" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
