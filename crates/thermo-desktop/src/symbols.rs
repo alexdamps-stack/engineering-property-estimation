@@ -30,8 +30,12 @@ pub struct Theme {
     pub select: Color32,
     /// Snap marker on free nozzles.
     pub snap: Color32,
-    /// Warnings in the surrounding panels.
+    /// Warnings (amber), on the canvas and in the surrounding panels.
     pub warning: Color32,
+    /// Failures (red).
+    pub error: Color32,
+    /// Current, solved results (green check badges).
+    pub ok: Color32,
 }
 
 impl Theme {
@@ -47,6 +51,8 @@ impl Theme {
                 select: Color32::from_rgb(30, 144, 255),
                 snap: Color32::from_rgb(255, 200, 0),
                 warning: Color32::from_rgb(210, 153, 34),
+                error: Color32::from_rgb(248, 81, 73),
+                ok: Color32::from_rgb(63, 185, 80),
             }
         } else {
             Self {
@@ -58,6 +64,8 @@ impl Theme {
                 select: Color32::from_rgb(0, 102, 214),
                 snap: Color32::from_rgb(214, 130, 0),
                 warning: Color32::from_rgb(154, 103, 0),
+                error: Color32::from_rgb(207, 34, 46),
+                ok: Color32::from_rgb(26, 127, 55),
             }
         }
     }

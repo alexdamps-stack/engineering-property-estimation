@@ -62,3 +62,50 @@ jobs:
         run: cargo test --workspace --locked
       - name: Build documentation
         run: cargo doc --workspace --no-deps --locked
+
+  windows-package:
+    name: Windows installer (build, install, self-test, uninstall)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install pinned Rust toolchain
+        run: rustup show
+      - name: Cache Cargo registry and build output
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-package
+      - name: Install Inno Setup 6 if missing
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+      - name: Build executable, portable ZIP and installer
+        shell: pwsh
+        run: ./packaging/windows/build.ps1 -Version 0.0.0
+      - name: Self-test the built executable
+        shell: pwsh
+        run: |
+          $exe = 'target\windows-package\stage\thermo-desktop.exe'
+          $p = Start-Process $exe -ArgumentList '--self-test', 'target\windows-package\self-test.json' -Wait -PassThru
+          Get-Content target\windows-package\self-test.json
+          if ($p.ExitCode -ne 0) { throw "self-test failed with $($p.ExitCode)" }
+      - name: Install, self-test installed copy, uninstall
+        shell: pwsh
+        run: ./packaging/windows/smoke-test.ps1 -Setup target\windows-package\PropertyEstimationFlowsheet-0.0.0-x64-setup.exe
+      - name: Upload installer, ZIP and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: |
+            target/windows-package/*.exe
+            target/windows-package/*.zip
+            target/windows-package/*.json
+            target/windows-package/*.txt
+            target/windows-package/*.log
+          if-no-files-found: warn

@@ -1,0 +1,38 @@
+Property Estimation Flowsheet (thermo-desktop) - third-party notices
+=====================================================================
+
+This program contains or is derived from the following third-party material.
+The license texts that ship with this file are in the same folder.
+
+Equipment symbols
+-----------------
+The canvas symbols are redrawn from the ISO 10628-2:2012 symbol sheets by
+Steven Baltakatei Sandoval (Baltakatei), 2020, updated 2023:
+https://commons.wikimedia.org/wiki/File:ISO_10628-2_2012_Symbols.pdf
+Licensed under Creative Commons Attribution-ShareAlike 4.0 International,
+https://creativecommons.org/licenses/by-sa/4.0/
+Changes: individual symbols redrawn as vector line work in program code,
+proportions retained; feed/product and splitter symbols are project additions.
+
+Component data (embedded)
+-------------------------
+- CoolProp 7.2.0 cubic constants and ancillaries - MIT license, see
+  CoolProp-LICENSE.txt.
+- Cantera 3.2.0 NASA7 ideal-gas records - BSD-3-Clause license, see
+  Cantera-License.txt.
+- ChemSep/DECHEMA methanol/water NRTL row via the MIT-licensed `thermo`
+  redistribution - see thermo-LICENSE.txt.
+Data provenance and qualification limits: data/README.md in the source
+repository.
+
+Fonts (embedded through egui)
+-----------------------------
+Ubuntu-Light (Ubuntu Font Licence 1.0), Hack (MIT / Bitstream Vera),
+Noto Emoji (SIL Open Font License 1.1) and emoji-icon-font (MIT), as bundled
+by the epaint_default_fonts crate.
+
+Rust crates
+-----------
+THIRD-PARTY-CRATES.txt lists every crate compiled into this program with its
+version, declared license and repository, generated from the locked
+dependency graph at build time.

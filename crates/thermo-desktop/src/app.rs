@@ -1,26 +1,81 @@
 //! Application shell following the main-window layout of
-//! `docs/flowsheet-and-ui.md`, section 3: toolbar, palette, canvas,
-//! properties panel, bottom panel (messages and stream table), status bar.
+//! `docs/flowsheet-and-ui.md`, section 3: menu and toolbar, palette, canvas,
+//! properties panel, bottom panel (messages and stream table), status bar,
+//! plus the new-project and unsaved-changes dialogs.
 
-use eframe::egui::{self, DragValue, Key, Panel, RichText, ScrollArea, Sense, Stroke, Ui, vec2};
-use flowsheet_core::{
-    DiagnosticKind, ExchangerSpec, MixerPressure, PortRef, PressureRise, PressureSpec,
-    SeparatorThermal, SpecProblem, StreamId, ThermalSpec, UnitId, UnitKind, UnitSpec, UnitStatus,
+use std::path::PathBuf;
+
+use eframe::egui::{
+    self, Id, Key, KeyboardShortcut, Modifiers, Panel, RichText, ScrollArea, Sense, Stroke, Ui,
+    ViewportCommand, vec2,
 };
+use flowsheet_core::UnitKind;
+use flowsheet_project::{CubicVariantChoice, PackageSelection, format_utc};
 
 use crate::canvas;
-use crate::editor::{Editor, Selection};
+use crate::editor::{Editor, ItemStatus};
+use crate::panels::{self, BottomTab};
 use crate::symbols::{Theme, draw_unit, icon_rect};
-use crate::units::{DisplayUnits, Quantity, starting_value};
+use crate::units::DisplayUnits;
 
-const ENGINE_PENDING: &str =
-    "The flowsheet engine is available. Desktop solving is pending integration.";
+/// File-name suffix proposed for project files.
+pub const PROJECT_SUFFIX: &str = ".flowsheet.json";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-enum BottomTab {
-    #[default]
-    Messages,
-    StreamTable,
+/// Interaction note recorded when a project is created in the dialog. The
+/// dialog offers no interaction data, so the choice is explicit.
+pub const DIALOG_INTERACTIONS: &str = "explicit synthetic zero-kij approximation selected in the desktop New project dialog; not measured mixture accuracy";
+
+/// New-project dialog state (proposal section 4.1, step 1).
+#[derive(Debug, Clone)]
+pub struct NewProjectDialog {
+    /// Available components and whether each is selected, in database order.
+    pub components: Vec<(String, bool)>,
+    pub variant: CubicVariantChoice,
+    pub ph_minimum_temperature_k: f64,
+    pub ph_maximum_temperature_k: f64,
+    pub error: Option<String>,
+}
+
+impl NewProjectDialog {
+    fn open() -> Self {
+        let (components, error) = match PackageSelection::available_components() {
+            Ok(ids) => (ids.into_iter().map(|id| (id, false)).collect(), None),
+            Err(e) => (Vec::new(), Some(e.to_string())),
+        };
+        Self {
+            components,
+            variant: CubicVariantChoice::PengRobinsonBostonMathias,
+            ph_minimum_temperature_k: 200.0,
+            ph_maximum_temperature_k: 600.0,
+            error,
+        }
+    }
+
+    /// The selection the dialog would create.
+    pub fn selection(&self) -> PackageSelection {
+        let mut s = PackageSelection::zero_interactions(
+            self.variant,
+            self.components
+                .iter()
+                .filter(|(_, on)| *on)
+                .map(|(id, _)| id.clone())
+                .collect(),
+            DIALOG_INTERACTIONS,
+        );
+        s.ph_minimum_temperature_k = self.ph_minimum_temperature_k;
+        s.ph_maximum_temperature_k = self.ph_maximum_temperature_k;
+        s
+    }
+}
+
+/// An action that replaces or closes the project and therefore asks about
+/// unsaved changes first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Pending {
+    NewProject,
+    Open,
+    Demonstration,
+    Close,
 }
 
 /// The thermo-desktop application.
@@ -28,6 +83,10 @@ enum BottomTab {
 pub struct FlowsheetApp {
     editor: Editor,
     bottom_tab: BottomTab,
+    new_project: Option<NewProjectDialog>,
+    confirm: Option<Pending>,
+    allow_close: bool,
+    title: String,
 }
 
 impl FlowsheetApp {
@@ -35,6 +94,15 @@ impl FlowsheetApp {
     pub fn with_demonstration() -> Self {
         let mut app = Self::default();
         app.editor.load_demonstration();
+        app
+    }
+
+    /// Starts with a project file opened; failures are shown in the status line.
+    pub fn with_file(path: PathBuf) -> Self {
+        let mut app = Self::default();
+        if let Err(e) = app.editor.open_path(&path) {
+            app.editor.status = Some(e);
+        }
         app
     }
 
@@ -47,88 +115,474 @@ impl FlowsheetApp {
     pub fn editor_mut(&mut self) -> &mut Editor {
         &mut self.editor
     }
+
+    /// The open new-project dialog, if any (for tests).
+    pub fn new_project_dialog(&mut self) -> Option<&mut NewProjectDialog> {
+        self.new_project.as_mut()
+    }
+
+    fn request(&mut self, action: Pending) {
+        if self.editor.is_modified() {
+            self.confirm = Some(action);
+        } else {
+            self.perform(action);
+        }
+    }
+
+    fn perform(&mut self, action: Pending) {
+        match action {
+            Pending::NewProject => self.new_project = Some(NewProjectDialog::open()),
+            Pending::Demonstration => self.editor.load_demonstration(),
+            Pending::Open => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("Flowsheet project", &["json"])
+                    .pick_file()
+                    && let Err(e) = self.editor.open_path(&path)
+                {
+                    self.editor.status = Some(e);
+                }
+            }
+            Pending::Close => self.allow_close = true,
+        }
+    }
+
+    /// Saves to the current file, or asks for one. Returns `true` if saved.
+    fn save(&mut self, choose: bool) -> bool {
+        let ed = &mut self.editor;
+        if ed.package.is_none() {
+            ed.status = Some("Create a project with a property package before saving.".into());
+            return false;
+        }
+        let path = match (&ed.path, choose) {
+            (Some(p), false) => Some(p.clone()),
+            _ => rfd::FileDialog::new()
+                .add_filter("Flowsheet project", &["json"])
+                .set_file_name(format!("project{PROJECT_SUFFIX}"))
+                .save_file(),
+        };
+        let Some(path) = path else {
+            return false;
+        };
+        match ed.save_to(&path) {
+            Ok(()) => true,
+            Err(e) => {
+                ed.status = Some(e);
+                false
+            }
+        }
+    }
+
+    fn shortcuts(&mut self, ctx: &egui::Context) {
+        let shortcut = |m, k| ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(m, k)));
+        if shortcut(Modifiers::COMMAND | Modifiers::SHIFT, Key::S) {
+            self.save(true);
+        } else if shortcut(Modifiers::COMMAND, Key::S) {
+            self.save(false);
+        }
+        if shortcut(Modifiers::COMMAND, Key::O) {
+            self.request(Pending::Open);
+        }
+        if shortcut(Modifiers::COMMAND, Key::N) {
+            self.request(Pending::NewProject);
+        }
+        if !ctx.egui_wants_keyboard_input() {
+            if ctx.input(|i| i.key_pressed(Key::F5)) {
+                self.editor.start_solve(Some(ctx.clone()));
+            }
+            if self.editor.is_solving() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+                self.editor.cancel_solve();
+            }
+        }
+    }
+
+    fn update_title(&mut self, ctx: &egui::Context) {
+        let name = self
+            .editor
+            .path
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .map_or_else(
+                || "Untitled".to_string(),
+                |n| n.to_string_lossy().into_owned(),
+            );
+        let marker = if self.editor.is_modified() {
+            " •"
+        } else {
+            ""
+        };
+        let title = format!("{name}{marker} — Property Estimation Flowsheet");
+        if title != self.title {
+            ctx.send_viewport_cmd(ViewportCommand::Title(title.clone()));
+            self.title = title;
+        }
+    }
 }
 
 impl eframe::App for FlowsheetApp {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
-        let ed = &mut self.editor;
-        if !ui.ctx().egui_wants_keyboard_input() && ui.input(|i| i.key_pressed(Key::F5)) {
-            ed.status = Some(ENGINE_PENDING.into());
+        let ctx = ui.ctx().clone();
+        self.editor.poll_solve();
+        if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {
+            if self.editor.is_modified() {
+                ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+                self.confirm = Some(Pending::Close);
+            } else {
+                self.editor.cancel_solve();
+            }
         }
-        Panel::top("toolbar").show(ui, |ui| toolbar(ui, ed));
-        Panel::bottom("status_bar").show(ui, |ui| status_bar(ui, ed));
+        self.shortcuts(&ctx);
+        self.update_title(&ctx);
+
+        Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
+        Panel::top("toolbar").show(ui, |ui| self.toolbar(ui));
+        Panel::bottom("status_bar").show(ui, |ui| status_bar(ui, &mut self.editor));
+        let tab = &mut self.bottom_tab;
+        let ed = &mut self.editor;
         Panel::bottom("bottom_panel")
             .resizable(true)
-            .default_size(160.0)
-            .show(ui, |ui| bottom_panel(ui, ed, &mut self.bottom_tab));
+            .default_size(180.0)
+            .show(ui, |ui| panels::bottom_panel(ui, ed, tab));
         Panel::left("palette")
             .resizable(false)
             .exact_size(175.0)
             .show(ui, |ui| palette(ui, ed));
+        let mut open_dialog = false;
         Panel::right("properties")
             .resizable(true)
-            .default_size(300.0)
-            .show(ui, |ui| properties(ui, ed));
+            .default_size(320.0)
+            .show(ui, |ui| open_dialog = panels::properties(ui, ed));
         egui::CentralPanel::no_frame().show(ui, |ui| canvas::show(ui, ed));
+        if open_dialog {
+            self.request(Pending::NewProject);
+        }
+
+        self.new_project_window(&ctx);
+        self.confirm_window(&ctx);
+
+        if self.allow_close {
+            ctx.send_viewport_cmd(ViewportCommand::Close);
+        }
+        // Automatic recalculation waits until no pointer drag is in progress,
+        // so dragging a value does not start a solve per frame.
+        if !ctx.input(|i| i.pointer.any_down()) && ctx.dragged_id().is_none() {
+            self.editor.auto_solve_if_due(Some(ctx.clone()));
+        }
+        if self.editor.is_solving() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
     }
 }
 
-fn toolbar(ui: &mut Ui, ed: &mut Editor) {
-    ui.horizontal(|ui| {
-        if ui
-            .button("New")
-            .on_hover_text("Start an empty flowsheet")
-            .clicked()
-        {
-            ed.clear();
-        }
-        if ui
-            .button("Demonstration")
-            .on_hover_text("Mix two gas streams, cool, reduce pressure, separate phases")
-            .clicked()
-        {
-            ed.load_demonstration();
-        }
-        ui.separator();
-        ui.add_enabled(false, egui::Button::new("Solve (F5)"))
-            .on_disabled_hover_text(ENGINE_PENDING);
-        ui.separator();
-        if ui.button("Fit view").clicked() {
-            ed.fit_requested = true;
-        }
-        ui.label(RichText::new(format!("{:.0} %", ed.viewport.zoom * 100.0)).weak());
-        ui.separator();
-        let label = ui.label("Units:");
-        egui::ComboBox::from_id_salt("display_units")
-            .selected_text(ed.units.label())
-            .show_ui(ui, |ui| {
-                for u in DisplayUnits::ALL {
-                    ui.selectable_value(&mut ed.units, u, u.label());
+impl FlowsheetApp {
+    fn menu_bar(&mut self, ui: &mut Ui) {
+        egui::MenuBar::new().ui(ui, |ui| {
+            ui.menu_button("File", |ui| {
+                if ui.button("New project…  (Ctrl+N)").clicked() {
+                    self.request(Pending::NewProject);
                 }
-            })
-            .response
-            .labelled_by(label.id);
-    });
+                if ui.button("Open…  (Ctrl+O)").clicked() {
+                    self.request(Pending::Open);
+                }
+                if ui.button("Save  (Ctrl+S)").clicked() {
+                    self.save(false);
+                }
+                if ui.button("Save as…  (Ctrl+Shift+S)").clicked() {
+                    self.save(true);
+                }
+                ui.separator();
+                if ui.button("Load demonstration").clicked() {
+                    self.request(Pending::Demonstration);
+                }
+                ui.separator();
+                if ui.button("Exit").clicked() {
+                    ui.ctx().send_viewport_cmd(ViewportCommand::Close);
+                }
+            });
+            ui.menu_button("Flowsheet", |ui| {
+                if ui.button("Solve  (F5)").clicked() {
+                    self.editor.start_solve(Some(ui.ctx().clone()));
+                }
+                if ui
+                    .add_enabled(self.editor.is_solving(), egui::Button::new("Cancel  (Esc)"))
+                    .clicked()
+                {
+                    self.editor.cancel_solve();
+                }
+                ui.checkbox(&mut self.editor.auto_solve, "Auto-solve after edits");
+            });
+            ui.menu_button("View", |ui| {
+                if ui.button("Fit view").clicked() {
+                    self.editor.fit_requested = true;
+                }
+                if ui.button("Copy stream table (tab-separated)").clicked() {
+                    let tsv = panels::stream_table_tsv(&mut self.editor);
+                    ui.ctx().copy_text(tsv);
+                    self.editor.status = Some("Stream table copied as tab-separated text.".into());
+                }
+            });
+        });
+    }
+
+    fn toolbar(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            if ui
+                .button("New")
+                .on_hover_text("New project: choose components and package (Ctrl+N)")
+                .clicked()
+            {
+                self.request(Pending::NewProject);
+            }
+            if ui
+                .button("Open")
+                .on_hover_text("Open a project file (Ctrl+O)")
+                .clicked()
+            {
+                self.request(Pending::Open);
+            }
+            if ui
+                .button("Save")
+                .on_hover_text("Save the project (Ctrl+S)")
+                .clicked()
+            {
+                self.save(false);
+            }
+            if ui
+                .button("Demonstration")
+                .on_hover_text("Mix two gas streams, cool, reduce pressure, separate phases")
+                .clicked()
+            {
+                self.request(Pending::Demonstration);
+            }
+            ui.separator();
+            let ed = &mut self.editor;
+            let blocker = ed.solve_blocker();
+            let solve = ui.add_enabled(
+                blocker.is_none() && !ed.is_solving(),
+                egui::Button::new("Solve (F5)"),
+            );
+            let solve = match &blocker {
+                Some(reason) => solve.on_disabled_hover_text(reason),
+                None => solve.on_hover_text("Calculate the flowsheet in the background"),
+            };
+            if solve.clicked() {
+                ed.start_solve(Some(ui.ctx().clone()));
+            }
+            if ui
+                .add_enabled(ed.is_solving(), egui::Button::new("Cancel"))
+                .on_hover_text("Stop the calculation; results stay as they were (Esc)")
+                .clicked()
+            {
+                ed.cancel_solve();
+            }
+            ui.checkbox(&mut ed.auto_solve, "Auto-solve")
+                .on_hover_text("Recalculate after each completed edit");
+            if let Some((done, total)) = ed.solve_progress() {
+                ui.add(egui::Spinner::new());
+                ui.label(format!("Solving… {done}/{total} units"));
+            }
+            ui.separator();
+            if ui.button("Fit view").clicked() {
+                ed.fit_requested = true;
+            }
+            ui.label(RichText::new(format!("{:.0} %", ed.viewport.zoom * 100.0)).weak());
+            ui.separator();
+            let label = ui.label("Units:");
+            egui::ComboBox::from_id_salt("display_units")
+                .selected_text(ed.units.label())
+                .show_ui(ui, |ui| {
+                    for u in DisplayUnits::ALL {
+                        ui.selectable_value(&mut ed.units, u, u.label());
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+        });
+    }
+
+    fn new_project_window(&mut self, ctx: &egui::Context) {
+        let Some(dialog) = &mut self.new_project else {
+            return;
+        };
+        let mut create = None;
+        let mut close = false;
+        let response = egui::Modal::new(Id::unique("new_project")).show(ctx, |ui| {
+            ui.set_width(420.0);
+            ui.heading("New project");
+            ui.add_space(4.0);
+            ui.strong("Components");
+            ui.label(
+                RichText::new("Order of selection is the database order shown here.")
+                    .small()
+                    .weak(),
+            );
+            egui::Grid::new("components").num_columns(2).show(ui, |ui| {
+                for (i, (id, on)) in dialog.components.iter_mut().enumerate() {
+                    ui.checkbox(on, id.as_str());
+                    if i % 2 == 1 {
+                        ui.end_row();
+                    }
+                }
+            });
+            ui.add_space(6.0);
+            ui.strong("Property package");
+            ui.horizontal(|ui| {
+                for v in CubicVariantChoice::ALL {
+                    ui.radio_value(&mut dialog.variant, v, v.label());
+                }
+            });
+            ui.label(
+                RichText::new(
+                    "Binary interactions: all kij = 0, recorded in the project as an explicit \
+                     synthetic approximation. No measured interaction data is applied.",
+                )
+                .small(),
+            );
+            ui.horizontal(|ui| {
+                ui.label("PH search interval");
+                ui.add(
+                    egui::DragValue::new(&mut dialog.ph_minimum_temperature_k)
+                        .range(200.0..=600.0)
+                        .suffix(" K"),
+                );
+                ui.label("to");
+                ui.add(
+                    egui::DragValue::new(&mut dialog.ph_maximum_temperature_k)
+                        .range(200.0..=600.0)
+                        .suffix(" K"),
+                );
+            });
+            if let Some(e) = &dialog.error {
+                ui.colored_label(Theme::from_visuals(ui.visuals()).error, e);
+            }
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let any = dialog.components.iter().any(|(_, on)| *on);
+                if ui.add_enabled(any, egui::Button::new("Create")).clicked() {
+                    let selection = dialog.selection();
+                    match selection.build() {
+                        Ok(_) => create = Some(selection),
+                        Err(e) => dialog.error = Some(e.to_string()),
+                    }
+                }
+                if ui.button("Cancel").clicked() {
+                    close = true;
+                }
+            });
+        });
+        if let Some(selection) = create {
+            self.editor.new_project(selection);
+            self.new_project = None;
+        } else if close || response.should_close() {
+            self.new_project = None;
+        }
+    }
+
+    fn confirm_window(&mut self, ctx: &egui::Context) {
+        let Some(action) = self.confirm.clone() else {
+            return;
+        };
+        let mut choice = None;
+        let response = egui::Modal::new(Id::unique("unsaved_changes")).show(ctx, |ui| {
+            ui.set_width(360.0);
+            ui.heading("Unsaved changes");
+            ui.label("The project has changes that are not saved. Save them first?");
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button("Save").clicked() {
+                    choice = Some(0);
+                }
+                if ui.button("Discard").clicked() {
+                    choice = Some(1);
+                }
+                if ui.button("Cancel").clicked() {
+                    choice = Some(2);
+                }
+            });
+        });
+        match choice {
+            Some(0) => {
+                self.confirm = None;
+                if self.save(false) {
+                    self.perform(action);
+                }
+            }
+            Some(1) => {
+                self.confirm = None;
+                self.perform(action);
+            }
+            Some(_) => self.confirm = None,
+            None if response.should_close() => self.confirm = None,
+            None => {}
+        }
+    }
 }
 
-fn status_bar(ui: &mut Ui, ed: &Editor) {
-    let open = ed.fs.diagnostics().len();
+fn status_bar(ui: &mut Ui, ed: &mut Editor) {
+    let fps = ed.fingerprints();
+    let issues = ed.input_issues();
+    let theme = Theme::from_visuals(ui.visuals());
+    let counts = ed.fs.units().fold([0usize; 4], |mut c, u| {
+        match ed.unit_status(u.id, &fps, &issues) {
+            ItemStatus::Solved => c[0] += 1,
+            ItemStatus::Warning => c[1] += 1,
+            ItemStatus::Failed => c[2] += 1,
+            ItemStatus::Stale => c[3] += 1,
+            _ => {}
+        }
+        c
+    });
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Package: none selected").weak())
-            .on_hover_text("Component selection and PR / PR-BM packages arrive with A2–A3.");
+        match &ed.package {
+            Some(p) => {
+                let data = ed
+                    .package_cache
+                    .get(p)
+                    .provenance
+                    .as_ref()
+                    .map_or_else(|| "data ?".to_string(), |v| format!("data {}", v.data_version));
+                ui.label(format!(
+                    "Package: {} · {} components · {data}",
+                    p.variant.label(),
+                    p.components.len()
+                ))
+                .on_hover_text(&p.interaction_source);
+            }
+            None => {
+                ui.label(RichText::new("Package: none — File > New project").weak());
+            }
+        }
         ui.separator();
-        ui.label(RichText::new("Not solved").weak());
+        if let Some((done, total)) = ed.solve_progress() {
+            ui.label(format!("Solving {done}/{total}…"));
+        } else if counts[2] > 0 || ed.failure.is_some() {
+            ui.colored_label(theme.error, "✖ Last solve failed — see Messages");
+        } else if let Some(r) = &ed.results {
+            let when = format_utc(r.solved_at_unix_s);
+            if counts[3] > 0 {
+                ui.label(
+                    RichText::new(format!("Stale: {} unit(s) changed since {when}", counts[3]))
+                        .italics(),
+                );
+            } else {
+                ui.label(format!("Solved {when}"));
+            }
+        } else {
+            ui.label(RichText::new("Not solved").weak());
+        }
         ui.separator();
         ui.label(
             RichText::new(format!(
-                "{} units, {} streams, {open} open item(s)",
+                "{} units, {} streams · {} solved, {} warning, {} failed, {} stale · {} open item(s)",
                 ed.fs.units().count(),
-                ed.fs.streams().count()
+                ed.fs.streams().count(),
+                counts[0],
+                counts[1],
+                counts[2],
+                counts[3],
+                ed.fs.diagnostics().len() + issues.len()
             ))
             .weak(),
         );
-        ui.separator();
-        ui.label(RichText::new(format!("revision {}", ed.fs.revision())).weak());
     });
 }
 
@@ -182,566 +636,9 @@ fn palette_items(ui: &mut Ui, ed: &mut Editor) {
             "Drag from an outlet to an inlet to connect.\n\
              Drag blocks to move them.\n\
              Drag the background or scroll to pan; Ctrl+scroll to zoom.\n\
-             Del removes the selection.",
+             Del removes the selection. F5 solves.",
         )
         .small()
         .weak(),
     );
-}
-
-fn properties(ui: &mut Ui, ed: &mut Editor) {
-    ScrollArea::vertical().show(ui, |ui| {
-        ui.add_space(6.0);
-        match ed.selection {
-            Some(Selection::Unit(id)) if ed.fs.unit(id).is_some() => unit_properties(ui, ed, id),
-            Some(Selection::Stream(id)) if ed.fs.stream(id).is_some() => {
-                stream_properties(ui, ed, id)
-            }
-            _ => {
-                ui.strong("Properties");
-                ui.label(RichText::new("Select a unit or stream to edit it.").weak());
-                ui.add_space(8.0);
-                ui.label(
-                    RichText::new(
-                        "Components and the property package are chosen when a project is \
-                         created; both arrive with A2–A3.",
-                    )
-                    .small()
-                    .weak(),
-                );
-            }
-        }
-    });
-}
-
-fn status_line(ui: &mut Ui, status: Option<UnitStatus>) {
-    let theme = Theme::from_visuals(ui.visuals());
-    ui.horizontal(|ui| {
-        ui.label("Status:");
-        match status {
-            Some(UnitStatus::Underspecified) => {
-                ui.label(RichText::new("! Underspecified").color(theme.warning));
-            }
-            Some(UnitStatus::Ready) => {
-                ui.label("Ready (not solved)");
-            }
-            None => {}
-        }
-    });
-}
-
-fn unit_properties(ui: &mut Ui, ed: &mut Editor, id: UnitId) {
-    let Some(unit) = ed.fs.unit(id).cloned() else {
-        return;
-    };
-    let theme = Theme::from_visuals(ui.visuals());
-    let mut name = unit.name.clone();
-    ui.horizontal(|ui| {
-        let label = ui.label("Tag");
-        if ui
-            .add(egui::TextEdit::singleline(&mut name).desired_width(110.0))
-            .labelled_by(label.id)
-            .changed()
-        {
-            ed.fs.rename_unit(id, name);
-        }
-        ui.label(RichText::new(format!("({})", unit.kind.label())).weak());
-    });
-    status_line(ui, ed.fs.unit_status(id));
-
-    ui.add_space(8.0);
-    ui.strong("Specification");
-    let mut spec = unit.spec;
-    let u = ed.units;
-    egui::Grid::new(("spec", id))
-        .num_columns(2)
-        .spacing([8.0, 6.0])
-        .show(ui, |ui| spec_form(ui, &mut spec, u));
-    ed.fs.set_spec(id, spec);
-    for issue in spec.issues() {
-        if issue.problem != SpecProblem::Missing {
-            ui.colored_label(
-                theme.warning,
-                format!("! {} {}", issue.field, issue.problem),
-            );
-        }
-    }
-    if unit.kind == UnitKind::Feed {
-        ui.label(
-            RichText::new("Composition: pending component data (A2).")
-                .small()
-                .weak(),
-        );
-    }
-
-    ui.add_space(8.0);
-    ui.strong("Connections");
-    egui::Grid::new(("ports", id))
-        .num_columns(2)
-        .show(ui, |ui| {
-            for (i, port) in unit.kind.ports().iter().enumerate() {
-                ui.label(port.name);
-                match ed.fs.stream_at(PortRef::new(id, i)) {
-                    Some(s) => {
-                        let sid = s.id;
-                        if ui.link(s.name.clone()).clicked() {
-                            ed.selection = Some(Selection::Stream(sid));
-                        }
-                    }
-                    None => {
-                        ui.label(RichText::new("not connected").color(theme.warning));
-                    }
-                }
-                ui.end_row();
-            }
-        });
-
-    results_placeholder(ui);
-    ui.add_space(12.0);
-    if ui.button("Delete unit").clicked() {
-        ed.delete_selection();
-    }
-}
-
-/// Specification form; mutually exclusive choices use radio buttons
-/// (proposal section 3).
-fn spec_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
-    match spec {
-        UnitSpec::Product => {
-            ui.label(RichText::new("No specification.").weak());
-            ui.end_row();
-        }
-        UnitSpec::Feed {
-            temperature_k,
-            pressure_pa,
-            molar_flow_mol_s,
-        } => {
-            opt_field(ui, "Temperature", temperature_k, Quantity::Temperature, u);
-            opt_field(ui, "Pressure", pressure_pa, Quantity::Pressure, u);
-            opt_field(ui, "Molar flow", molar_flow_mol_s, Quantity::MolarFlow, u);
-        }
-        UnitSpec::Mixer { outlet_pressure } => {
-            let current = matches!(outlet_pressure, MixerPressure::Specified(_)) as usize;
-            match choice(ui, "Outlet p", current, &["Lowest inlet", "Specified"]) {
-                Some(0) => *outlet_pressure = MixerPressure::LowestInlet,
-                Some(_) => *outlet_pressure = MixerPressure::Specified(None),
-                None => {}
-            }
-            if let MixerPressure::Specified(p) = outlet_pressure {
-                opt_field(ui, "Outlet pressure", p, Quantity::Pressure, u);
-            }
-            note_row(ui, "Adiabatic.");
-        }
-        UnitSpec::HeatExchange {
-            thermal,
-            pressure_drop_pa,
-        } => {
-            let current = matches!(thermal, ThermalSpec::Duty(_)) as usize;
-            match choice(ui, "Specify", current, &["Outlet T", "Duty"]) {
-                Some(0) => *thermal = ThermalSpec::OutletTemperature(None),
-                Some(_) => *thermal = ThermalSpec::Duty(None),
-                None => {}
-            }
-            match thermal {
-                ThermalSpec::OutletTemperature(t) => {
-                    opt_field(ui, "Outlet temperature", t, Quantity::Temperature, u)
-                }
-                ThermalSpec::Duty(q) => opt_field(ui, "Duty (+ into unit)", q, Quantity::Duty, u),
-            }
-            value_field(
-                ui,
-                "Pressure drop",
-                pressure_drop_pa,
-                Quantity::PressureDrop,
-                u,
-            );
-        }
-        UnitSpec::Valve { pressure } => {
-            let current = matches!(pressure, PressureSpec::PressureDrop(_)) as usize;
-            match choice(ui, "Specify", current, &["Outlet p", "Pressure drop"]) {
-                Some(0) => *pressure = PressureSpec::OutletPressure(None),
-                Some(_) => *pressure = PressureSpec::PressureDrop(None),
-                None => {}
-            }
-            match pressure {
-                PressureSpec::OutletPressure(p) => {
-                    opt_field(ui, "Outlet pressure", p, Quantity::Pressure, u)
-                }
-                PressureSpec::PressureDrop(dp) => {
-                    opt_field(ui, "Pressure drop", dp, Quantity::PressureDrop, u)
-                }
-            }
-            note_row(ui, "Isenthalpic.");
-        }
-        UnitSpec::Separator {
-            thermal,
-            pressure_drop_pa,
-        } => {
-            let current = match thermal {
-                SeparatorThermal::Adiabatic => 0,
-                SeparatorThermal::OutletTemperature(_) => 1,
-                SeparatorThermal::Duty(_) => 2,
-            };
-            match choice(ui, "Thermal", current, &["Adiabatic", "Outlet T", "Duty"]) {
-                Some(0) => *thermal = SeparatorThermal::Adiabatic,
-                Some(1) => *thermal = SeparatorThermal::OutletTemperature(None),
-                Some(_) => *thermal = SeparatorThermal::Duty(None),
-                None => {}
-            }
-            match thermal {
-                SeparatorThermal::Adiabatic => {}
-                SeparatorThermal::OutletTemperature(t) => {
-                    opt_field(ui, "Outlet temperature", t, Quantity::Temperature, u)
-                }
-                SeparatorThermal::Duty(q) => {
-                    opt_field(ui, "Duty (+ into unit)", q, Quantity::Duty, u)
-                }
-            }
-            value_field(
-                ui,
-                "Pressure drop",
-                pressure_drop_pa,
-                Quantity::PressureDrop,
-                u,
-            );
-        }
-        UnitSpec::Splitter { fraction_to_first } => {
-            opt_field(
-                ui,
-                "Fraction to out 1",
-                fraction_to_first,
-                Quantity::Fraction,
-                u,
-            );
-            note_row(ui, "Out 2 receives the rest; same state in both.");
-        }
-        UnitSpec::HeatExchanger {
-            thermal,
-            hot_pressure_drop_pa,
-            cold_pressure_drop_pa,
-        } => {
-            let current = match thermal {
-                ExchangerSpec::HotOutletTemperature(_) => 0,
-                ExchangerSpec::ColdOutletTemperature(_) => 1,
-                ExchangerSpec::Duty(_) => 2,
-            };
-            match choice(ui, "Specify", current, &["Hot out T", "Cold out T", "Duty"]) {
-                Some(0) => *thermal = ExchangerSpec::HotOutletTemperature(None),
-                Some(1) => *thermal = ExchangerSpec::ColdOutletTemperature(None),
-                Some(_) => *thermal = ExchangerSpec::Duty(None),
-                None => {}
-            }
-            match thermal {
-                ExchangerSpec::HotOutletTemperature(t) => {
-                    opt_field(ui, "Hot outlet temperature", t, Quantity::Temperature, u)
-                }
-                ExchangerSpec::ColdOutletTemperature(t) => {
-                    opt_field(ui, "Cold outlet temperature", t, Quantity::Temperature, u)
-                }
-                ExchangerSpec::Duty(q) => opt_field(ui, "Duty (hot to cold)", q, Quantity::Duty, u),
-            }
-            value_field(
-                ui,
-                "Hot-side pressure drop",
-                hot_pressure_drop_pa,
-                Quantity::PressureDrop,
-                u,
-            );
-            value_field(
-                ui,
-                "Cold-side pressure drop",
-                cold_pressure_drop_pa,
-                Quantity::PressureDrop,
-                u,
-            );
-        }
-        UnitSpec::Pressurize {
-            pressure,
-            efficiency,
-        } => {
-            let current = matches!(pressure, PressureRise::PressureIncrease(_)) as usize;
-            match choice(ui, "Specify", current, &["Outlet p", "Pressure increase"]) {
-                Some(0) => *pressure = PressureRise::OutletPressure(None),
-                Some(_) => *pressure = PressureRise::PressureIncrease(None),
-                None => {}
-            }
-            match pressure {
-                PressureRise::OutletPressure(p) => {
-                    opt_field(ui, "Outlet pressure", p, Quantity::Pressure, u)
-                }
-                PressureRise::PressureIncrease(dp) => {
-                    opt_field(ui, "Pressure increase", dp, Quantity::PressureDrop, u)
-                }
-            }
-            value_field(ui, "Efficiency", efficiency, Quantity::Fraction, u);
-            note_row(ui, ROTATING_DEFERRED);
-        }
-        UnitSpec::Expand {
-            pressure,
-            efficiency,
-        } => {
-            let current = matches!(pressure, PressureSpec::PressureDrop(_)) as usize;
-            match choice(ui, "Specify", current, &["Outlet p", "Pressure drop"]) {
-                Some(0) => *pressure = PressureSpec::OutletPressure(None),
-                Some(_) => *pressure = PressureSpec::PressureDrop(None),
-                None => {}
-            }
-            match pressure {
-                PressureSpec::OutletPressure(p) => {
-                    opt_field(ui, "Outlet pressure", p, Quantity::Pressure, u)
-                }
-                PressureSpec::PressureDrop(dp) => {
-                    opt_field(ui, "Pressure drop", dp, Quantity::PressureDrop, u)
-                }
-            }
-            value_field(
-                ui,
-                "Isentropic efficiency",
-                efficiency,
-                Quantity::Fraction,
-                u,
-            );
-            note_row(ui, ROTATING_DEFERRED);
-        }
-    }
-}
-
-/// Pumps, compressors, and expanders need a PS flash (proposal section 2.3).
-const ROTATING_DEFERRED: &str = "Calculation deferred: needs a PS flash and efficiency model.";
-
-/// A row of radio buttons; returns the newly chosen index if it changed.
-fn choice(ui: &mut Ui, label: &str, current: usize, options: &[&str]) -> Option<usize> {
-    ui.label(label);
-    let mut picked = current;
-    ui.horizontal_wrapped(|ui| {
-        for (i, text) in options.iter().enumerate() {
-            ui.radio_value(&mut picked, i, *text);
-        }
-    });
-    ui.end_row();
-    (picked != current).then_some(picked)
-}
-
-fn note_row(ui: &mut Ui, text: &str) {
-    ui.label("");
-    ui.label(RichText::new(text).small().weak());
-    ui.end_row();
-}
-
-fn drag_value<'a>(shown: &'a mut f64, q: Quantity, u: DisplayUnits) -> DragValue<'a> {
-    DragValue::new(shown)
-        .speed(u.drag_speed(q))
-        .range(u.display_min(q)..=u.display_max(q))
-        .max_decimals(6)
-        .suffix(format!(" {}", u.symbol(q)))
-}
-
-/// An optional SI value edited in display units. Unset values are
-/// highlighted and offer an "Enter value" button.
-fn opt_field(ui: &mut Ui, label: &str, value: &mut Option<f64>, q: Quantity, u: DisplayUnits) {
-    ui.label(label);
-    ui.horizontal(|ui| match value {
-        Some(si) => {
-            let mut shown = u.si_to_display(q, *si);
-            if ui.add(drag_value(&mut shown, q, u)).changed() {
-                *si = u.display_to_si(q, shown);
-            }
-            if ui.small_button("×").on_hover_text("Clear").clicked() {
-                *value = None;
-            }
-        }
-        None => {
-            let warning = Theme::from_visuals(ui.visuals()).warning;
-            ui.label(RichText::new("required").italics().color(warning));
-            if ui
-                .small_button("Enter value")
-                .on_hover_text("Enter a value (starts from standard conditions)")
-                .clicked()
-            {
-                *value = Some(starting_value(q));
-            }
-        }
-    });
-    ui.end_row();
-}
-
-/// A value that always has a default (for example a pressure drop of zero).
-fn value_field(ui: &mut Ui, label: &str, si: &mut f64, q: Quantity, u: DisplayUnits) {
-    ui.label(label);
-    let mut shown = u.si_to_display(q, *si);
-    if ui.add(drag_value(&mut shown, q, u)).changed() {
-        *si = u.display_to_si(q, shown);
-    }
-    ui.end_row();
-}
-
-fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
-    let Some(stream) = ed.fs.stream(id).cloned() else {
-        return;
-    };
-    let mut name = stream.name.clone();
-    ui.horizontal(|ui| {
-        let label = ui.label("Stream");
-        if ui
-            .add(egui::TextEdit::singleline(&mut name).desired_width(110.0))
-            .labelled_by(label.id)
-            .changed()
-        {
-            ed.fs.rename_stream(id, name);
-        }
-        ui.label(RichText::new("(Material stream)").weak());
-    });
-    let (from_unit, from) = endpoint(ed, stream.from);
-    let (to_unit, to) = endpoint(ed, stream.to);
-    egui::Grid::new(("stream", id))
-        .num_columns(2)
-        .show(ui, |ui| {
-            ui.label("From");
-            if ui.link(from).clicked() {
-                ed.selection = Some(Selection::Unit(from_unit));
-            }
-            ui.end_row();
-            ui.label("To");
-            if ui.link(to).clicked() {
-                ed.selection = Some(Selection::Unit(to_unit));
-            }
-            ui.end_row();
-        });
-    results_placeholder(ui);
-    ui.add_space(12.0);
-    if ui.button("Delete stream").clicked() {
-        ed.delete_selection();
-    }
-}
-
-fn endpoint(ed: &Editor, port: PortRef) -> (UnitId, String) {
-    let unit_name = ed
-        .fs
-        .unit(port.unit)
-        .map(|u| u.name.as_str())
-        .unwrap_or("?");
-    let port_name = ed.fs.port_spec(port).map(|p| p.name).unwrap_or("?");
-    (port.unit, format!("{unit_name} · {port_name}"))
-}
-
-fn results_placeholder(ui: &mut Ui) {
-    ui.add_space(8.0);
-    ui.strong("Results");
-    egui::Frame::group(ui.style()).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        ui.label(RichText::new("Not solved — no values.").weak());
-        ui.label(RichText::new(ENGINE_PENDING).small().weak());
-    });
-}
-
-fn bottom_panel(ui: &mut Ui, ed: &mut Editor, tab: &mut BottomTab) {
-    let items = ed.fs.diagnostics();
-    ui.horizontal(|ui| {
-        ui.selectable_value(
-            tab,
-            BottomTab::Messages,
-            format!("Messages ({})", items.len()),
-        );
-        ui.selectable_value(tab, BottomTab::StreamTable, "Stream table");
-        if let Some(status) = &ed.status {
-            ui.separator();
-            ui.colored_label(Theme::from_visuals(ui.visuals()).warning, status);
-            if ui.small_button("×").clicked() {
-                ed.status = None;
-            }
-        }
-    });
-    ui.separator();
-    match tab {
-        BottomTab::Messages => messages(ui, ed, items),
-        BottomTab::StreamTable => stream_table(ui, ed),
-    }
-}
-
-fn messages(ui: &mut Ui, ed: &mut Editor, items: Vec<flowsheet_core::Diagnostic>) {
-    ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-        if items.is_empty() {
-            ui.label(
-                RichText::new("No open items: topology and specifications are complete.").weak(),
-            );
-        }
-        for d in items {
-            let target = match d.kind {
-                DiagnosticKind::UnconnectedPort(p) => Some(p.unit),
-                DiagnosticKind::MissingSpecification(u, _)
-                | DiagnosticKind::InvalidSpecification(u, _) => Some(u),
-                DiagnosticKind::RecycleUnsupported(ref c) => c.first().copied(),
-                DiagnosticKind::NoFeed => None,
-            };
-            let text = format!("! {}", d.message);
-            match target {
-                Some(unit) => {
-                    if ui.link(text).clicked() {
-                        ed.selection = Some(Selection::Unit(unit));
-                    }
-                }
-                None => {
-                    ui.label(text);
-                }
-            }
-        }
-    });
-}
-
-/// Streams as columns, properties as rows (proposal section 4.2). Values stay
-/// empty until a solve exists.
-fn stream_table(ui: &mut Ui, ed: &mut Editor) {
-    let streams: Vec<_> = ed.fs.streams().cloned().collect();
-    if streams.is_empty() {
-        ui.label(RichText::new("No streams yet.").weak());
-        return;
-    }
-    let u = ed.units;
-    let rows = [
-        ("Temperature", u.symbol(Quantity::Temperature)),
-        ("Pressure", u.symbol(Quantity::Pressure)),
-        ("Molar flow", u.symbol(Quantity::MolarFlow)),
-        ("Vapor fraction", "–"),
-    ];
-    ScrollArea::both().auto_shrink(false).show(ui, |ui| {
-        egui::Grid::new("stream_table")
-            .striped(true)
-            .min_col_width(70.0)
-            .show(ui, |ui| {
-                ui.label("");
-                ui.label("");
-                for s in &streams {
-                    let selected = ed.selection == Some(Selection::Stream(s.id));
-                    if ui
-                        .selectable_label(selected, RichText::new(&s.name).strong())
-                        .clicked()
-                    {
-                        ed.selection = Some(Selection::Stream(s.id));
-                    }
-                }
-                ui.end_row();
-                for (label, unit) in [("From", ""), ("To", "")] {
-                    ui.label(label);
-                    ui.label(unit);
-                    for s in &streams {
-                        let port = if label == "From" { s.from } else { s.to };
-                        let name = ed
-                            .fs
-                            .unit(port.unit)
-                            .map(|u| u.name.as_str())
-                            .unwrap_or("?");
-                        ui.label(RichText::new(name).weak());
-                    }
-                    ui.end_row();
-                }
-                for (label, unit) in rows {
-                    ui.label(label);
-                    ui.label(RichText::new(unit).weak());
-                    for _ in &streams {
-                        ui.label(RichText::new("—").weak());
-                    }
-                    ui.end_row();
-                }
-            });
-    });
 }

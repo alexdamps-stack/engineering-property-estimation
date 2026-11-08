@@ -6,6 +6,7 @@ use crate::{
 use property_packages::{CubicPackage, EquilibriumState};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::ops::ControlFlow;
 use thermo_types::{Composition, CompositionBasis, Phase};
 
 /// Feed fractions include identities and basis; they must match package order.
@@ -100,6 +101,20 @@ pub struct SolveError {
     pub unit: Option<UnitId>,
     pub message: String,
     pub diagnostics: Vec<Diagnostic>,
+    /// The caller stopped the solve through [`Flowsheet::solve_with_progress`];
+    /// no numerical failure occurred and no result is returned.
+    pub cancelled: bool,
+}
+
+/// Progress of a running solve, reported before each unit is calculated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SolveProgress {
+    /// Units already calculated.
+    pub completed: usize,
+    /// Units in the calculation order.
+    pub total: usize,
+    /// The unit about to be calculated.
+    pub unit: UnitId,
 }
 
 impl fmt::Display for SolveError {
@@ -124,6 +139,7 @@ impl Flowsheet {
                     .collect::<Vec<_>>()
                     .join("\n"),
                 diagnostics,
+                cancelled: false,
             });
         }
         let mut incoming: BTreeMap<_, usize> = self.units().map(|u| (u.id, 0)).collect();
@@ -155,11 +171,25 @@ impl Flowsheet {
         package: &CubicPackage,
         feeds: &FeedCompositions,
     ) -> Result<Calculation, SolveError> {
+        self.solve_with_progress(package, feeds, |_| ControlFlow::Continue(()))
+    }
+
+    /// [`Self::solve`] with a callback before each unit calculation. Returning
+    /// [`ControlFlow::Break`] stops the solve between units and returns a
+    /// [`SolveError`] with `cancelled` set; no partial result is returned.
+    /// The callback cannot interrupt a property calculation in progress.
+    pub fn solve_with_progress(
+        &self,
+        package: &CubicPackage,
+        feeds: &FeedCompositions,
+        mut progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
+    ) -> Result<Calculation, SolveError> {
         let order = self.calculation_order()?;
         let fail = |id: UnitId, message: String| SolveError {
             unit: Some(id),
             message: format!("{}: {message}", self.unit(id).expect("unit exists").name),
             diagnostics: Vec::new(),
+            cancelled: false,
         };
         // Complete preflight before invoking any property calculation.
         for u in self.units() {
@@ -202,6 +232,7 @@ impl Flowsheet {
                 unit: None,
                 message: "composition supplied for an unknown or non-feed unit".into(),
                 diagnostics: Vec::new(),
+                cancelled: false,
             });
         }
         let mut report = Calculation {
@@ -212,7 +243,21 @@ impl Flowsheet {
             streams: BTreeMap::new(),
             units: BTreeMap::new(),
         };
-        for id in order {
+        let total = order.len();
+        for (completed, id) in order.into_iter().enumerate() {
+            let step = SolveProgress {
+                completed,
+                total,
+                unit: id,
+            };
+            if progress(step).is_break() {
+                return Err(SolveError {
+                    unit: None,
+                    message: "Calculation cancelled; no results were produced.".into(),
+                    diagnostics: Vec::new(),
+                    cancelled: true,
+                });
+            }
             let u = self.unit(id).expect("checked topology");
             let mut inlets = Vec::new();
             for (i, p) in u.kind.ports().iter().enumerate() {

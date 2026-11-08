@@ -150,6 +150,25 @@ impl UnitKind {
         }
     }
 
+    /// Inverse of [`Self::tag`]: the series number of a generated tag, or
+    /// `None` for a user-chosen name.
+    pub(crate) fn tag_number(self, name: &str) -> Option<u64> {
+        let n = match self {
+            UnitKind::Feed | UnitKind::Product => name
+                .strip_prefix(self.tag_series())?
+                .strip_prefix(' ')?
+                .parse::<u64>()
+                .ok()?,
+            _ => name
+                .strip_prefix(self.tag_series())?
+                .strip_prefix('-')?
+                .parse::<u64>()
+                .ok()?
+                .checked_sub(99)?,
+        };
+        (n > 0 && self.tag(n) == name).then_some(n)
+    }
+
     /// Material ports of this kind. Port indices in [`PortRef`] refer to
     /// positions in this slice. Energy streams are not modelled yet.
     pub fn ports(self) -> &'static [PortSpec] {
