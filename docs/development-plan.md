@@ -4,6 +4,11 @@ Date: November 1, 2026; revised November 7, 2026 after a plan and test review. P
 
 ## Repository setup note
 
+Current A7 implementation: see [NRTL and liquid properties](a7-status.md) for the
+directed NRTL model, gamma–phi package with an ideal-gas vapor, pinned
+methanol/water data, caloric coupling, solvers, independent Clapeyron
+references, supported domain and remaining gates.
+
 Current A5 implementation: see [PH flash and energy verification](a5-status.md)
 for the bracketed TP-based PH solver, pure-fluid saturation lever rule,
 independent references, supported domain and remaining review gates.

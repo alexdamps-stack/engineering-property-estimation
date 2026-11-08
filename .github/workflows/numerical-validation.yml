@@ -50,3 +50,5 @@ jobs:
         run: cargo run -p thermo-cli --release --locked -- examples/homogeneous-natural-gas.json
       - name: Reproducible binary case
         run: cargo run -p thermo-cli --release --locked -- examples/homogeneous-binary.json
+      - name: Reproducible NRTL methanol/water case
+        run: cargo run -p thermo-cli --release --locked -- examples/nrtl-tp-flash-methanol-water.json

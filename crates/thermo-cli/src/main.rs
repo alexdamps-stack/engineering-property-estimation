@@ -1,4 +1,7 @@
-//! Reproducible homogeneous cubic calculations and two-phase TP/PH flashes.
+//! Reproducible homogeneous cubic calculations, two-phase TP/PH flashes and (A7)
+//! NRTL gamma-phi bubble/dew points and TP/PH flashes.
+mod activity;
+
 use serde::Deserialize;
 use serde_json::{Value, json};
 use thermo_data::ComponentDatabase;
@@ -22,13 +25,19 @@ struct Case {
     /// Required only for PH flash, on the reported model caloric reference.
     #[serde(default)]
     enthalpy_j_per_mol: Option<f64>,
-    pressure_pa: f64,
+    /// Absolute pressure; an output (omit it) for bubble-pressure and dew-pressure.
+    #[serde(default)]
+    pressure_pa: Option<f64>,
     model: String,
     /// Required for homogeneous evaluation; rejected for a flash.
     #[serde(default)]
     root: Option<String>,
-    kij: Vec<Vec<f64>>,
-    interaction_source: String,
+    /// Cubic models only: complete symmetric kij and its source. Rejected for NRTL-IG,
+    /// whose directed NRTL interactions come only from the embedded dataset.
+    #[serde(default)]
+    kij: Option<Vec<Vec<f64>>>,
+    #[serde(default)]
+    interaction_source: Option<String>,
 }
 
 fn state_json(s: &HomogeneousState) -> Value {
@@ -77,7 +86,8 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
     let variant = match case.model.as_str() {
         "PR" => CubicVariant::PengRobinson,
         "PR-BM" => CubicVariant::PengRobinsonBostonMathias,
-        _ => return Err("model must be PR or PR-BM".into()),
+        "NRTL-IG" => return activity::calculate(case),
+        _ => return Err("model must be PR, PR-BM or NRTL-IG".into()),
     };
     let calculation = case.calculation.as_deref().unwrap_or("homogeneous");
     let flash = match calculation {
@@ -111,10 +121,11 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
         &db,
         &composition,
         variant,
-        case.kij,
-        case.interaction_source,
+        case.kij.ok_or("cubic models require kij")?,
+        case.interaction_source
+            .ok_or("cubic models require interaction_source")?,
     )?;
-    let p = Pressure::new(case.pressure_pa)?;
+    let p = Pressure::new(case.pressure_pa.ok_or("pressure_pa is required")?)?;
     let fractions: Vec<f64> = composition.entries().iter().map(|(_, x)| *x).collect();
     if calculation == "ph-flash" {
         if case.temperature_k.is_some() {
@@ -208,7 +219,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     if args.first().is_some_and(|a| a == "--help" || a == "-h") {
         println!(
-            "Usage: thermo-cli [case.json]\nDefault: embedded dry natural-gas PR-BM homogeneous example.\nSchema/examples: examples/homogeneous-*.json, examples/tp-flash-*.json, examples/ph-flash-*.json.\ncalculation: homogeneous (requires root), tp-flash (requires temperature_k) or ph-flash (requires enthalpy_j_per_mol; temperature is an output). Flashes support at most two phases."
+            "Usage: thermo-cli [case.json]\nDefault: embedded dry natural-gas PR-BM homogeneous example.\nSchema/examples: examples/homogeneous-*.json, examples/tp-flash-*.json, examples/ph-flash-*.json.\ncalculation: homogeneous (requires root), tp-flash (requires temperature_k) or ph-flash (requires enthalpy_j_per_mol; temperature is an output). Flashes support at most two phases.
+model NRTL-IG (NRTL liquid, ideal-gas vapor; embedded methanol/water data, no kij): tp-flash, ph-flash, bubble-pressure, dew-pressure (temperature_k), bubble-temperature, dew-temperature. See examples/nrtl-*.json."
         );
         return Ok(());
     }
@@ -247,7 +259,7 @@ mod tests {
         case.model = "typo".into();
         assert!(calculate(case).is_err());
         let mut case: Case = serde_json::from_str(input).unwrap();
-        case.pressure_pa = -1.0;
+        case.pressure_pa = Some(-1.0);
         assert!(calculate(case).is_err());
         assert!(
             serde_json::from_str::<Case>(&input.replace("\"pressure_pa\"", "\"gauge_pressure\""))

@@ -176,3 +176,23 @@ were changed to obtain agreement.
 The live check reproduced the same maximum deviations as the committed
 fixture. Hosted GitHub Actions and an independent code review have not been
 executed in this local session.
+
+## A7 NRTL and gamma–phi check
+
+`check.jl` also verifies `fixtures/nrtl-v1.json` (input, generator and manifest
+hashes), regenerates it live with `generate_nrtl.jl` and runs
+`cargo test -p thermo-solvers --test nrtl_clapeyron` with
+`THERMO_NRTL_REFERENCE`. Clapeyron's `NRTL` and `aspenNRTL` supply g^E and
+activity coefficients. Its `PolExpSat`/`PolExpLiquid` evaluate the transcribed
+CoolProp ancillaries, and `ReidIdeal` evaluates the NASA7 ideal gas.
+Temperature derivatives use ForwardDiff through those functions.
+
+Clapeyron 0.6.30's native gamma–phi VLE (`GammaPhi` with a `FluidCorrelation`
+fluid) fails with a missing `a_res` method. The generator therefore solves the
+modified-Raoult equations (`y_i p = x_i γ_i p_i^sat`, ideal-gas vapor, no
+Poynting factor) in 256-bit BigFloat. Pure liquids use Clausius–Clapeyron,
+matching the engine's declared formulation. Tolerances were fixed in the
+generator before comparison. One budget was corrected before the fixture was
+adopted: phase molar volume went from 1e-12 to 1e-9 relative, matching the
+composition budget it depends on. The pure density correlation keeps 1e-12.
+Details are in [A7 checks](a7-checks.md).

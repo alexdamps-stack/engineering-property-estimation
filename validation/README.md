@@ -44,3 +44,20 @@ Record the reference implementation and version, model formulation, composition,
 Report implementation verification, model-to-model comparisons, and experimental validation separately. Historical prototype test counts are not current repository results. Ordinary CI runs the offline numerical comparisons; the monthly/manual numerical-validation workflow adds a fixed-seed release sweep. Neither regenerates expected values.
 
 Run `powershell -NoProfile -ExecutionPolicy Bypass -File validation/check-preparation.ps1` from the repository root for offline artifact-integrity checks. The explicitly invoked `prepare-source-data.ps1 -OutputDirectory <directory>` downloads pinned sources and transcribes selected records; it does not implement or evaluate any model. Review regeneration before adopting changes. Exact commands, hashes, checks and limitations are in [preparation checks](preparation-checks.md) and [reference qualification](../docs/reference-qualification.md). These files are provisional and do not finalize A1 integration or A2 acceptance.
+
+## A7 NRTL / gamma–phi references
+
+[`fixtures/nrtl-v1.json`](fixtures/nrtl-v1.json) comes from
+[`julia/generate_nrtl.jl`](julia/generate_nrtl.jl) in the same locked Julia
+environment. It holds 30 methanol/water and 9 directed-ternary activity states,
+10 pure-liquid states, 36 bubble/dew points, 8 TP flashes and 16 PH targets.
+`check.jl` verifies its provenance and compares a live candidate with the Rust
+engine through `THERMO_NRTL_REFERENCE`. Ordinary tests compare the committed
+fixture offline. Explicit regeneration:
+
+```sh
+julia --project=validation/julia validation/julia/generate_nrtl.jl --output candidate.json
+```
+
+The source data are transcribed only by `python3 -I validation/prepare-nrtl-source-data.py
+--output-directory <dir>`. See [A7 status](../docs/a7-status.md) and [checks](a7-checks.md).
