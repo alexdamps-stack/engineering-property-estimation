@@ -339,6 +339,88 @@ fn component_order_and_zero_fraction_do_not_change_boundaries() {
     ));
 }
 
+fn synthetic(ids: &[&str], z: &[f64]) -> CubicModel {
+    let n = ids.len();
+    model(&serde_json::json!({
+        "ids": ids,
+        "z": z,
+        "variant": "PR",
+        "kij": vec![vec![0.0; n]; n],
+    }))
+}
+
+/// Issue #91: dilute mixtures far below the critical region have small |x − y|
+/// only because they are dilute; they must not be rejected as near-critical.
+#[test]
+fn dilute_bubble_and_dew_points_are_not_near_critical() {
+    let t = Temperature::new(250.).unwrap();
+    let o = SaturationOptions::default();
+    let pure = saturation_pressure(&synthetic(&["propane"], &[1.]), t, Kind::Dew, o)
+        .unwrap()
+        .pressure_pa;
+    for (ids, z, kind) in [
+        (["ethane", "propane"], [0.01, 0.99], Kind::Dew),
+        (["ethane", "propane"], [0.02, 0.98], Kind::Dew),
+        (["ethane", "propane"], [0.01, 0.99], Kind::Bubble),
+        (["nitrogen", "propane"], [1e-4, 1. - 1e-4], Kind::Bubble),
+        (["nitrogen", "propane"], [1e-4, 1. - 1e-4], Kind::Dew),
+    ] {
+        let r = saturation_pressure(&synthetic(&ids, &z), t, kind, o)
+            .unwrap_or_else(|e| panic!("{ids:?} {z:?} {kind:?}: {e}"));
+        assert!(r.max_ln_fugacity_residual < 1e-9);
+        assert!(r.vapor.molar_volume / r.liquid.molar_volume > 10.);
+        // The light component is enriched in the vapor; the boundary stays close
+        // to, and on the correct side of, the pure-propane vapor pressure.
+        assert!(r.vapor_composition[0] > r.liquid_composition[0]);
+        assert!(r.pressure_pa > pure, "{ids:?} {kind:?}");
+        assert!(r.pressure_pa < 1.5 * pure || kind == Kind::Bubble);
+        assert!(r.phase_stability.iter().all(|s| s.stable_in_trials));
+    }
+    // A dilute bubble trace is not cut short as near-critical.
+    let trace = trace_phase_envelope(
+        &synthetic(&["nitrogen", "propane"], &[1e-4, 1. - 1e-4]),
+        Kind::Bubble,
+        10.,
+        20,
+        SaturationOptions {
+            minimum_temperature_k: 230.,
+            maximum_temperature_k: 270.,
+            ..o
+        },
+    )
+    .unwrap();
+    assert!(
+        matches!(trace.stop, EnvelopeStop::RequestedRangeComplete),
+        "{:?}",
+        trace.stop
+    );
+    assert_eq!(trace.points.len(), 5);
+}
+
+/// Issue #120: a float quotient just above an integer must not compute the last
+/// envelope point twice at the maximum temperature.
+#[test]
+fn envelope_samples_the_maximum_temperature_once() {
+    let m = synthetic(&["propane"], &[1.]);
+    for (lo, hi, step, count) in [
+        (200., 200.3, 0.1, 4),
+        (300., 310., 5., 3),
+        (300., 312., 5., 4),
+    ] {
+        let o = SaturationOptions {
+            minimum_temperature_k: lo,
+            maximum_temperature_k: hi,
+            ..Default::default()
+        };
+        let trace = trace_phase_envelope(&m, Kind::Bubble, step, 100, o).unwrap();
+        assert!(matches!(trace.stop, EnvelopeStop::RequestedRangeComplete));
+        let t: Vec<f64> = trace.points.iter().map(|p| p.temperature_k).collect();
+        assert_eq!(t.len(), count, "{t:?}");
+        assert!(t.windows(2).all(|w| w[1] - w[0] > 1e-6), "{t:?}");
+        assert_eq!(*t.last().unwrap(), hi);
+    }
+}
+
 #[test]
 fn near_unit_pure_fractions_are_canonicalized_in_both_saturation_paths() {
     for index in [12, 28, 0, 16] {

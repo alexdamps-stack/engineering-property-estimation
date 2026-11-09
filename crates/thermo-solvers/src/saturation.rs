@@ -21,16 +21,44 @@ pub struct PureSaturation {
     pub iterations: usize,
 }
 
-/// Saturation pressure of a pure model (exactly one fraction equal to one). The
-/// solve is bracketed by the spinodal pressures, where ln φ^L − ln φ^V is strictly
-/// decreasing in p (its ln p derivative is Z^L − Z^V < 0).
+/// Index of the only active (positive-fraction) component, if exactly one is active.
+pub(crate) fn single_active_component(fractions: &[f64]) -> Option<usize> {
+    let mut active = fractions.iter().enumerate().filter(|(_, x)| **x > 0.0);
+    match (active.next(), active.next()) {
+        (Some((index, _)), None) => Some(index),
+        _ => None,
+    }
+}
+
+/// `with_fractions` accepts a unit-sum error up to 1e-10 without normalising, so a
+/// single active component may be stored as 1 − ε. Returns the model with that
+/// fraction set exactly to one (inactive slots retained) when it is not already,
+/// so that callers take the pure-fluid path.
+pub(crate) fn canonical_single_component(model: &CubicModel) -> Result<Option<CubicModel>, Error> {
+    let fractions = model.fractions();
+    match single_active_component(fractions) {
+        Some(index) if fractions[index] != 1.0 => {
+            let mut canonical = vec![0.0; fractions.len()];
+            canonical[index] = 1.0;
+            Ok(Some(model.with_fractions(&canonical)?))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Saturation pressure of a pure model (exactly one active component; a fraction
+/// of 1 − ε is canonicalised to one). The solve is bracketed by the spinodal
+/// pressures, where ln φ^L − ln φ^V is strictly decreasing in p (its ln p
+/// derivative is Z^L − Z^V < 0).
 pub fn pure_saturation_pressure(
     model: &CubicModel,
     temperature: Temperature,
     max_iterations: usize,
 ) -> Result<PureSaturation, Error> {
-    let x = model.fractions();
-    let Some(index) = x.iter().position(|v| *v == 1.0) else {
+    if let Some(canonical) = canonical_single_component(model)? {
+        return pure_saturation_pressure(&canonical, temperature, max_iterations);
+    }
+    let Some(index) = single_active_component(model.fractions()) else {
         return Err(Error::UnsupportedCapability(
             "pure saturation requires exactly one component with mole fraction 1".into(),
         ));
