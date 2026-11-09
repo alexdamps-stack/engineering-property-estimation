@@ -91,6 +91,12 @@ a bad file leaves the current project unchanged. Floats round-trip exactly
 (`serde_json` `float_roundtrip`), so save → load → save is byte-identical.
 New units after a reload never reuse an identifier or a generated tag.
 
+*Later changes:* A10 introduced format version 2 (optional
+`results.recycle`); version 1 is still read (#90). Saving is atomic (temporary
+file, sync, rename; #100) and refuses non-finite numbers (#101). Loading also
+requires the package selection to build and stored stream results to have one
+mole fraction per component (#96, #112).
+
 **Invalidation.** A unit fingerprint (64-bit FNV-1a over a canonical
 description) covers:
 
@@ -186,7 +192,8 @@ The §4.1 acceptance script is automated at two levels:
    - a valve pressure above its inlet fails at the valve and leaves the old
      valve result stale;
    - cancellation returns nothing;
-   - format version 2 is rejected.
+   - format version 2 is rejected (since #90: the version after the current
+     one, i.e. 3, is rejected).
 2. `crates/thermo-desktop/tests/ui.rs` drives the same steps through the
    interface: *Solve* button, F5, the *Cancel* button, the New-project dialog
    with *Create* and *Enter composition*, and save and reopen with

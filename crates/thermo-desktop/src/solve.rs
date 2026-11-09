@@ -8,10 +8,9 @@ use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
 use eframe::egui::Context;
 use flowsheet_project::{
-    Fingerprint, Fingerprints, PackageSelection, Project, Provenance, ResultSet, SolveFailure,
-    solve_project,
+    Fingerprint, Fingerprints, PackageSelection, PreparedPackage, Project, Provenance, ResultSet,
+    SolveFailure, solve_project,
 };
-use property_packages::CubicPackage;
 
 /// The built package for one selection, rebuilt only when the selection changes.
 #[derive(Default)]
@@ -20,7 +19,7 @@ pub(crate) struct PackageCache {
 }
 
 pub(crate) struct CachedPackage {
-    pub built: Result<CubicPackage, String>,
+    pub built: Result<PreparedPackage, String>,
     pub fingerprint: Option<Fingerprint>,
     pub provenance: Option<Provenance>,
 }
@@ -28,10 +27,13 @@ pub(crate) struct CachedPackage {
 impl PackageCache {
     pub(crate) fn get(&mut self, selection: &PackageSelection) -> &CachedPackage {
         if self.entry.as_ref().is_none_or(|(s, _)| s != selection) {
+            // One model build per selection; provenance and fingerprint
+            // come from the prepared package.
+            let built = selection.prepare().map_err(|e| e.to_string());
             let cached = CachedPackage {
-                built: selection.build().map_err(|e| e.to_string()),
-                fingerprint: Fingerprints::package(selection),
-                provenance: selection.provenance().ok(),
+                fingerprint: built.as_ref().ok().map(PreparedPackage::fingerprint),
+                provenance: built.as_ref().ok().map(|p| p.provenance().clone()),
+                built,
             };
             self.entry = Some((selection.clone(), cached));
         }
@@ -59,7 +61,7 @@ pub(crate) struct SolveJob {
 impl SolveJob {
     pub(crate) fn spawn(
         project: Project,
-        package: CubicPackage,
+        package: PreparedPackage,
         inputs: Fingerprints,
         repaint: Option<Context>,
     ) -> Self {

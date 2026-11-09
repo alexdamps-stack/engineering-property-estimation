@@ -11,7 +11,7 @@ use flowsheet_project::{
 };
 
 fn solve(project: &Project) -> ResultSet {
-    let package = project.package.build().unwrap();
+    let package = project.package.prepare().unwrap();
     solve_project(project, &package, |_| ControlFlow::Continue(()), 0).unwrap()
 }
 
@@ -236,7 +236,7 @@ fn results_of_another_package_or_provenance_are_stale() {
 #[test]
 fn failed_and_cancelled_solves_return_no_results() {
     let mut project = demonstration(CubicVariantChoice::PengRobinsonBostonMathias);
-    let package = project.package.build().unwrap();
+    let package = project.package.prepare().unwrap();
     let valve = unit(&project, UnitKind::Valve);
     project.flowsheet.set_spec(
         valve,
@@ -284,11 +284,15 @@ fn malformed_and_foreign_files_are_rejected() {
         Project::from_json(&text.replacen(from, to, 1))
     };
     assert_eq!(
-        edit("\"format_version\": 1", "\"format_version\": 2").unwrap_err(),
-        ProjectError::UnsupportedVersion(Some(2))
+        edit("\"format_version\": 2", "\"format_version\": 3").unwrap_err(),
+        ProjectError::UnsupportedVersion(Some(3))
     );
     assert_eq!(
-        edit("\"format_version\": 1", "\"format\": 1").unwrap_err(),
+        edit("\"format_version\": 2", "\"format_version\": 0").unwrap_err(),
+        ProjectError::UnsupportedVersion(Some(0))
+    );
+    assert_eq!(
+        edit("\"format_version\": 2", "\"format\": 2").unwrap_err(),
         ProjectError::UnsupportedVersion(None)
     );
     assert!(matches!(
@@ -333,5 +337,236 @@ fn reloaded_projects_continue_identifiers_and_tags() {
     assert_eq!(
         loaded.results.as_ref().unwrap().unit_currency(p, &fps),
         Currency::Missing
+    );
+}
+
+#[test]
+fn version_2_is_written_and_version_1_files_still_load() {
+    assert_eq!(flowsheet_project::FORMAT_VERSION, 2);
+    let mut project = demonstration(CubicVariantChoice::PengRobinson);
+    project.results = Some(solve(&project));
+    let text = project.to_json().unwrap();
+    assert!(text.contains("\"format_version\": 2"));
+
+    // A version-1 file (same schema) is read and written back as version 2.
+    let v1 = text.replacen("\"format_version\": 2", "\"format_version\": 1", 1);
+    let loaded = Project::from_json(&v1).unwrap();
+    assert_eq!(loaded.results, project.results);
+    assert_eq!(loaded.to_json().unwrap(), text);
+
+    // The committed A10 example is a version-1 input-only project.
+    let example = include_str!("../../../examples/recycle.flowsheet.json");
+    assert!(example.contains("\"format_version\": 1"));
+    let loaded = Project::from_json(example).unwrap();
+    assert!(loaded.to_json().unwrap().contains("\"format_version\": 2"));
+}
+
+fn directory_entries(dir: &std::path::Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn saving_replaces_the_file_atomically_and_failures_keep_the_original() {
+    let dir = scratch("atomic");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("p.flowsheet.json");
+    let mut project = demonstration(CubicVariantChoice::PengRobinson);
+    project.save(&path).unwrap();
+    let original = std::fs::read_to_string(&path).unwrap();
+
+    // Overwriting an existing file works and leaves no temporary files.
+    project.display_units = flowsheet_project::DisplayUnitSet::Si;
+    project.save(&path).unwrap();
+    let replaced = std::fs::read_to_string(&path).unwrap();
+    assert_ne!(replaced, original);
+    assert_eq!(
+        directory_entries(&dir),
+        vec!["p.flowsheet.json".to_string()]
+    );
+
+    // A save that fails before writing leaves the file untouched.
+    let mut broken = project.clone();
+    let feed = unit(&broken, UnitKind::Feed);
+    broken.feeds.get_mut(&feed).unwrap()[0] = f64::NAN;
+    assert!(matches!(broken.save(&path), Err(ProjectError::Invalid(_))));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), replaced);
+
+    // A save whose final rename fails cleans up its temporary file.
+    let blocked = dir.join("blocked");
+    std::fs::create_dir_all(blocked.join("occupied")).unwrap();
+    assert!(matches!(project.save(&blocked), Err(ProjectError::Io(_))));
+    assert!(blocked.join("occupied").is_dir());
+    assert_eq!(
+        directory_entries(&dir),
+        vec!["blocked".to_string(), "p.flowsheet.json".to_string()]
+    );
+
+    // Windows refuses to replace a read-only file: the original survives.
+    #[cfg(windows)]
+    {
+        let mut perms = std::fs::metadata(&path).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&path, perms.clone()).unwrap();
+        project.display_units = flowsheet_project::DisplayUnitSet::ProcessMetric;
+        let result = project.save(&path);
+        #[allow(clippy::permissions_set_readonly_false)]
+        perms.set_readonly(false);
+        std::fs::set_permissions(&path, perms).unwrap();
+        assert!(matches!(result, Err(ProjectError::Io(_))), "{result:?}");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), replaced);
+        assert_eq!(
+            directory_entries(&dir),
+            vec!["blocked".to_string(), "p.flowsheet.json".to_string()]
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn non_finite_numbers_are_rejected_when_saving() {
+    let base = demonstration(CubicVariantChoice::PengRobinson);
+    let invalid = |p: &Project| matches!(p.to_json(), Err(ProjectError::Invalid(_)));
+    assert!(base.to_json().is_ok());
+
+    let mut p = base.clone();
+    let cooler = unit(&p, UnitKind::Cooler);
+    let UnitSpec::HeatExchange { thermal, .. } = p.flowsheet.unit(cooler).unwrap().spec else {
+        panic!("cooler spec");
+    };
+    p.flowsheet.set_spec(
+        cooler,
+        UnitSpec::HeatExchange {
+            thermal,
+            pressure_drop_pa: f64::INFINITY,
+        },
+    );
+    assert!(invalid(&p));
+
+    let mut p = base.clone();
+    let valve = unit(&p, UnitKind::Valve);
+    p.flowsheet.set_spec(
+        valve,
+        UnitSpec::Valve {
+            pressure: PressureSpec::OutletPressure(Some(f64::NAN)),
+        },
+    );
+    assert!(invalid(&p));
+
+    let mut p = base.clone();
+    let feed = unit(&p, UnitKind::Feed);
+    p.feeds.get_mut(&feed).unwrap()[1] = f64::NEG_INFINITY;
+    assert!(invalid(&p));
+
+    let mut p = base.clone();
+    p.layout.insert(feed, [f32::NAN, 0.0]);
+    assert!(invalid(&p));
+
+    let mut p = base.clone();
+    p.package.kij[0][1] = f64::NAN;
+    assert!(invalid(&p));
+
+    let mut p = base.clone();
+    let mut r = solve(&p);
+    r.units.values_mut().next().unwrap().duty_w = f64::NAN;
+    p.results = Some(r);
+    assert!(invalid(&p));
+
+    let mut p = base.clone();
+    let mut r = solve(&p);
+    let s = r.streams.values_mut().next().unwrap();
+    s.state.as_mut().unwrap().mole_fractions[0] = f64::INFINITY;
+    p.results = Some(r);
+    assert!(invalid(&p));
+}
+
+#[test]
+fn solving_with_a_package_of_another_selection_fails() {
+    let project = demonstration(CubicVariantChoice::PengRobinsonBostonMathias);
+    let mut other = project.package.clone();
+    other.variant = CubicVariantChoice::PengRobinson;
+    let stale = other.prepare().unwrap();
+    let f = solve_project(&project, &stale, |_| ControlFlow::Continue(()), 0).unwrap_err();
+    assert!(!f.cancelled);
+    assert!(
+        f.message.contains("different package selection"),
+        "{}",
+        f.message
+    );
+
+    let mut options = project.package.clone();
+    options.ph_maximum_temperature_k = 550.0;
+    let f = solve_project(
+        &project,
+        &options.prepare().unwrap(),
+        |_| ControlFlow::Continue(()),
+        0,
+    )
+    .unwrap_err();
+    assert!(f.message.contains("different package selection"));
+
+    // The prepared package carries the same identity as the selection.
+    let own = project.package.prepare().unwrap();
+    assert_eq!(
+        Some(own.fingerprint()),
+        Fingerprints::package(&project.package)
+    );
+    assert_eq!(own.provenance(), &project.package.provenance().unwrap());
+    let r = solve_project(&project, &own, |_| ControlFlow::Continue(()), 0).unwrap();
+    let fps = project.fingerprints();
+    assert!(
+        project
+            .flowsheet
+            .units()
+            .all(|u| r.unit_currency(u.id, &fps) == Currency::Current)
+    );
+}
+
+#[test]
+fn stored_results_must_match_the_component_count() {
+    let mut project = demonstration(CubicVariantChoice::PengRobinson);
+    project.results = Some(solve(&project));
+    let text = project.to_json().unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let streams = value["results"]["streams"].as_object_mut().unwrap();
+    let state = streams.values_mut().next().unwrap()["state"]
+        .as_object_mut()
+        .unwrap();
+    state["mole_fractions"].as_array_mut().unwrap().pop();
+    let err = Project::from_json(&value.to_string()).unwrap_err();
+    assert!(
+        matches!(&err, ProjectError::Invalid(m) if m.contains("mole fractions")),
+        "{err}"
+    );
+
+    let mut value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let streams = value["results"]["streams"].as_object_mut().unwrap();
+    let phase = &mut streams.values_mut().next().unwrap()["state"]["phases"][0];
+    phase["mole_fractions"]
+        .as_array_mut()
+        .unwrap()
+        .push(0.0.into());
+    assert!(matches!(
+        Project::from_json(&value.to_string()),
+        Err(ProjectError::Invalid(_))
+    ));
+}
+
+#[test]
+fn packages_without_components_are_rejected_on_load() {
+    let project = demonstration(CubicVariantChoice::PengRobinson);
+    let mut value: serde_json::Value = serde_json::from_str(&project.to_json().unwrap()).unwrap();
+    value["package"]["components"] = serde_json::json!([]);
+    value["package"]["kij"] = serde_json::json!([]);
+    value["feeds"] = serde_json::json!([]);
+    let err = Project::from_json(&value.to_string()).unwrap_err();
+    assert!(
+        matches!(&err, ProjectError::Package(m) if m.contains("at least one component")),
+        "{err}"
     );
 }
