@@ -164,3 +164,72 @@ impl CubicPackage {
         })
     }
 }
+
+impl CubicPackage {
+    /// Bubble/dew pressure in the package's temperature interval and explicitly
+    /// bounded A13 dry-fluid domain. Specified fractions belong to the material phase.
+    pub fn saturation_pressure(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        kind: thermo_solvers::CubicSaturationKind,
+        bounds: thermo_solvers::SaturationOptions,
+    ) -> Result<thermo_solvers::SaturationPoint, CalculationError> {
+        self.validate_options()?;
+        let bounds = self.saturation_bounds(bounds)?;
+        thermo_solvers::saturation_pressure(
+            &self.model.with_fractions(fractions)?,
+            Temperature::new(temperature_k)?,
+            kind,
+            bounds,
+        )
+    }
+    pub fn saturation_temperature(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        kind: thermo_solvers::CubicSaturationKind,
+        bounds: thermo_solvers::SaturationOptions,
+    ) -> Result<thermo_solvers::SaturationPoint, CalculationError> {
+        self.validate_options()?;
+        let bounds = self.saturation_bounds(bounds)?;
+        thermo_solvers::saturation_temperature(
+            &self.model.with_fractions(fractions)?,
+            Pressure::new(pressure_pa)?,
+            kind,
+            bounds,
+        )
+    }
+    pub fn phase_envelope(
+        &self,
+        fractions: &[f64],
+        kind: thermo_solvers::CubicSaturationKind,
+        step_k: f64,
+        maximum_points: usize,
+        bounds: thermo_solvers::SaturationOptions,
+    ) -> Result<thermo_solvers::PhaseEnvelope, CalculationError> {
+        self.validate_options()?;
+        let bounds = self.saturation_bounds(bounds)?;
+        thermo_solvers::trace_phase_envelope(
+            &self.model.with_fractions(fractions)?,
+            kind,
+            step_k,
+            maximum_points,
+            bounds,
+        )
+    }
+    fn saturation_bounds(
+        &self,
+        bounds: thermo_solvers::SaturationOptions,
+    ) -> Result<thermo_solvers::SaturationOptions, CalculationError> {
+        bounds.validate()?;
+        if bounds.minimum_temperature_k < self.options.minimum_temperature_k
+            || bounds.maximum_temperature_k > self.options.maximum_temperature_k
+        {
+            return Err(CalculationError::OutsideValidityDomain(
+                "A13 search bounds outside package temperature interval".into(),
+            ));
+        }
+        Ok(bounds)
+    }
+}

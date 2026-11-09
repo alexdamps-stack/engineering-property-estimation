@@ -1,5 +1,23 @@
 # Parallel work plan
 
+## A11-A13 reconciliation - 2026-11-09
+
+The first-wave plans and scoped acceptance records below remain historical.
+The current completion/merge gates are:
+
+| Package | Delivered scope and record | Remaining gate / deferred extensions |
+|---|---|---|
+| A11, [PR #85](https://github.com/alexdamps-stack/engineering-property-estimation/pull/85) at `c54d3d2` | [Status and measurements](a11-status.md): one exact-PR fixed-natural-gas table, 280-420 K and 1-80 bar; separate value/derivative targets, speedup, explicit direct/error fallback | Merged in PR #85 after final CI/review; variable composition, PR-BM, other packages and flowsheet integration deferred; finite-lattice/TPD qualification and C^1 edge limits remain |
+| A12, merged PR #84 | [Status](a12-status.md): versioned C ABI/.NET boundary and real DWSIM 9.0.4 Automation separator cross-check | DWSIM property-package/CAPE-OPEN/GUI hosts and Excel remain follow-ups; cross-model integration tolerances are not engine reference budgets |
+| A13, PR #86 | [Status](a13-status.md): 62 independent Clapeyron points, dry PR/PR-BM bubble/dew p/T, natural-gas dew point and bounded sampled envelope with near-critical stop; pure-fraction correction independently cleared | Final-head CI/merge pending; no critical-point estimate, retrograde continuation, wet VLLE or global-stability proof |
+
+The [testing strategy](testing-strategy.md) and [approved registry](../validation/tolerances.json)
+now expose the unchanged A13 quantity budgets. A11 compares interpolation against
+the qualified direct model; it does not generate an independent engine reference.
+A13 does not enable A14-A16 unit specifications or project-format changes by itself.
+A13 is rebased on merged A11/A12 main; both the `property-tables` and
+`thermo-bridge` lock entries and the A13 package-test dependency are retained. No historical acceptance is broadened.
+
 ## A3/A4 scoped review — 2026-11-08
 
 The [A3/A4 acceptance review](a3-a4-acceptance.md) records separate PR and

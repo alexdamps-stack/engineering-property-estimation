@@ -1,0 +1,23 @@
+{
+  "id": "a13-bubble-envelope-propane",
+  "calculation": "bubble-envelope",
+  "components": [
+    "propane"
+  ],
+  "mole_fractions": [
+    1.0
+  ],
+  "model": "PR-BM",
+  "kij": [
+    [
+      0
+    ]
+  ],
+  "interaction_source": "Explicit synthetic zero-kij approximation; not fitted VLE data",
+  "saturation_temperature_bounds_k": [
+    300.0,
+    360.0
+  ],
+  "envelope_step_k": 5.0,
+  "envelope_maximum_points": 20
+}

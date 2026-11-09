@@ -4,6 +4,28 @@ Date: November 1, 2026; revised November 7, 2026 after a plan and test review, a
 
 ## Repository setup note
 
+Current A11-A13 reconciliation (November 9, 2026):
+
+- **A11:** [PR #85](https://github.com/alexdamps-stack/engineering-property-estimation/pull/85) implements the bounded exact-PR fixed-natural-gas
+  table experiment; its [status record](a11-status.md) is pinned to the reviewed docs
+  correction `c54d3d2` and was merged in PR #85 after final CI/review. The qualified rectangle is
+  280-420 K, 1-80 bar, with measured value/derivative errors and speedup,
+  explicit fallback, finite-lattice stability qualification and C^1 cell-edge
+  limits. Variable composition, PR-BM, other packages and flowsheet use remain
+  deferred.
+- **A12:** merged [PR #84](https://github.com/alexdamps-stack/engineering-property-estimation/pull/84)
+  demonstrates a DWSIM 9.0.4 Automation separator cross-check through the
+  versioned C ABI/.NET bridge; see [A12 status](a12-status.md). A DWSIM property
+  package/CAPE-OPEN replacement and Excel integration remain follow-ups.
+- **A13:** [PR #86](https://github.com/alexdamps-stack/engineering-property-estimation/pull/86)
+  implements independently checked bounded dry cubic bubble/dew pressure and
+  temperature, natural-gas hydrocarbon dew points and sampled envelope segments;
+  see [A13 status](a13-status.md). Independent review cleared the pure-fraction
+  correction; final-head CI and merge are pending. Critical-point estimation,
+  retrograde continuation, wet-gas VLLE and global stability proof remain outside
+  qualification. The [budget registry](../validation/tolerances.json) now records
+  the unchanged 62-point A13 reference budgets.
+
 Current A7 implementation: see [NRTL and liquid properties](a7-status.md) for the
 directed NRTL model, gamma–phi package with an ideal-gas vapor, pinned
 methanol/water data, caloric coupling, solvers, independent Clapeyron
@@ -39,7 +61,7 @@ Requirements taken from the most recent user contributions:
 - Follow the discussed DWSIM concept of separating property packages from the simulator.
 - Investigate spline-based property evaluation as a later performance improvement.
 
-Open integration question: The Rust discussion also mentioned using the software in DWSIM. Whether a concrete DWSIM integration is required in addition to the standalone interface remains unresolved. Define the internal Rust API first; design a foreign-language interface only after resolving that requirement.
+The DWSIM integration scope is now resolved for A12: a versioned C ABI/.NET bridge independently checks a DWSIM Automation separator, as recorded in [A12 status](a12-status.md) and merged PR #84. Replacing DWSIM's property package or exposing a GUI/CAPE-OPEN host remains separate work; Excel stays deferred.
 
 ## 2. Inventory and limits of the evidence
 
@@ -119,9 +141,9 @@ The A1 calculation contract must also define:
 | A8 | P1 | Steady-state flowsheet engine | A5 | The headless demonstration and mixer/separator balances, heater energy balance, isenthalpic valve, and applicable flow-scaling tests pass through the qualified engine |
 | A9 | P1 | Native interface and flowsheet editor | API prototype after A3; calculation acceptance after A8 | A user can create, calculate, modify, save, and reload the demonstration; persistence/recalculation is consistent, input changes invalidate affected results, and failures remain visible |
 | A10 | P1 | Recycles and larger networks | A8, A9 | A defined recycle case converges reproducibly; cancellation and failure paths are checked — implemented with bounded tear-stream direct substitution, project/desktop support and larger-network tests ([A10 record](a10-status.md)). Follow-up for the refrigeration cycle (section 5.1): closed loops without a fresh feed, with a circulating-flow specification at the tear stream, and bounded Wegstein acceleration, with explicit nonconvergence and oscillation diagnostics |
-| A11 | P2 | Tables and splines | Stable direct models and profiling | Speedup and error are measured over an approved domain; outside it, evaluation uses the direct model or returns a clear error |
-| A12 | P2 | External integration | Stable API and clarified target scope | A concrete DWSIM or later Excel use case is demonstrated through a suitable interface |
-| A13 | P1 | Saturation points and phase envelope | A4 | Bubble- and dew-point pressure and temperature for the demonstration mixtures pass independent references, including the hydrocarbon dew point of the natural-gas case; a phase-envelope trace reports its supported range and stops with a diagnostic near the critical point instead of returning unverified values |
+| A11 | P2 | Tables and splines | Stable direct models and profiling | Speedup and error are measured over an approved domain; outside it, evaluation uses the direct model or returns a clear error. Implementation and measurements: [PR #85](https://github.com/alexdamps-stack/engineering-property-estimation/pull/85) / [status](a11-status.md); merged in PR #85 within the fixed exact-PR domain. |
+| A12 | P2 | External integration | Stable API and clarified target scope | A concrete DWSIM or later Excel use case is demonstrated through a suitable interface. Demonstrated and merged in PR #84; see [A12 status](a12-status.md) for the bridge scope and remaining hosts. |
+| A13 | P1 | Saturation points and phase envelope | A4 | Bubble- and dew-point pressure and temperature for the demonstration mixtures pass independent references, including the hydrocarbon dew point of the natural-gas case; a phase-envelope trace reports its supported range and stops with a diagnostic near the critical point instead of returning unverified values. Implemented and independently reviewed in PR #86; see [A13 status](a13-status.md) for bounded qualification, unchanged budgets and final CI/merge gate. |
 | A14 | P1 | PS flash and rotating equipment | A5, A8, A9 | A PS flash for the cubic package passes uniquely recoverable TP→PS round trips, pure-component and narrow-boiling two-phase cases (phase fraction solved at saturation temperature, as for PH) and failure paths against formulation-matched independent references; pump, compressor and expander calculate from an outlet pressure or pressure ratio and an isentropic efficiency, report shaft power in the energy balance and pass component/energy closure; inlet-phase rules (vapor into a pump, liquid into a compressor) and two-phase expander outlets are explicit; the units are usable in the editor and saved in a migrated project format; GERG PS follows as a separate qualified path |
 | A15 | P1 | Extended unit specifications | A8, A9; vapor-fraction specifications after A13 | Mixers and splitters accept any number of ports; feeds accept mass and standard-volume flows with named reference conditions; the heat exchanger accepts minimum-approach or UA specifications with an internal zone/pinch check; heaters and separators accept an outlet vapor fraction; each specification set passes balance, specification-conflict and failure tests and is persisted with a format migration |
 | A16 | P1 | NRTL package in the flowsheet | A7, A8, A9 | The flowsheet and editor accept the A7 gamma–phi NRTL package as the single flowsheet package, with explicit directed parameters and their source; the project format stores the selection; the methanol/water acceptance process (section 5.1) passes formulation-matched independent references with closed balances; components or states outside the A7 domain fail explicitly instead of falling back to the cubic package |
@@ -213,7 +235,7 @@ The existing Windows/Linux CI will run ordinary numerical tests through its work
 
 **Interface:** The [flowsheet and interface proposal](flowsheet-and-ui.md) describes the flowsheet engine contract, unit-operation specifications, the main window, and the demonstration workflow for process engineers. Its section 5 records the A8 decisions and separates the remaining A9 framework gate. The [A8 engine](a8-status.md) executes the connected headless demonstration through the qualified cubic TP/PH package with balance and flow-scaling checks. A short Rust GUI prototype must assess the canvas, connections, property editor, background calculation, and Windows packaging. Select the framework based on that prototype; A9 selected `egui` after that assessment ([A9 status](a9-status.md)). The calculation model must not depend on the GUI framework. Separation of simulation and property packages follows the documented [DWSIM simulation concept](https://dwsim.org/help/main/06-simulation.html).
 
-**Splines:** Profile direct calculations first. Use a fixed mixture in a clearly bounded single-phase domain for the first tabulation experiment. Measure value and derivative errors separately; exclude phase boundaries and critical regions. Interpolated state properties must account for thermodynamic consistency. Variable composition, memory demand, and reliable fallback rules require separate work. The earlier question about Dyad does not establish an already selected technical approach.
+**Splines:** The [A11 experiment](a11-status.md) in PR #85 records profiling, fixed targets, measured speedup/error and bounded fallback; PR #85 is merged after final CI/review. Its C^1 surface permits small second-derivative jumps at cell edges, and qualification is lattice/finite-TPD evidence. The following gates remain for extensions: profile direct calculations first. Use a fixed mixture in a clearly bounded single-phase domain for the first tabulation experiment. Measure value and derivative errors separately; exclude phase boundaries and critical regions. Interpolated state properties must account for thermodynamic consistency. Variable composition, memory demand, and reliable fallback rules require separate work. The earlier question about Dyad does not establish an already selected technical approach.
 
 ## 9. Indicative schedule
 
@@ -244,7 +266,7 @@ Current block (November 8, 2026): functional unit operations, as set out in sect
 2. A14: record the PS flash formulation, reference states and independent reference source; generate PS round-trip and isentropic compression/expansion references independently of the Rust engine, including pure propane in the two-phase region; implement cubic PS flash and run the Clapeyron standard check.
 3. A14: implement pump, compressor and expander specifications (outlet pressure or ratio, isentropic efficiency), shaft power and energy balance; enable them in the editor and migrate the project format. Add NRTL PS for the methanol/water pump.
 4. A10 follow-up: bounded Wegstein acceleration and closed loops with a circulating-flow specification in `flowsheet-core`, on top of the implemented A10 tear-stream solver; expose the circulating-flow specification in the editor.
-5. A13: bubble- and dew-point solvers for the demonstration mixtures, pure propane, and the natural-gas hydrocarbon dew point.
+5. A13: finish final-head CI/review and merge of PR #86; the bounded demonstration-mixture/pure-propane saturation and natural-gas hydrocarbon-dew implementation is recorded in [A13 status](a13-status.md). A15 integration remains separate.
 6. A16: NRTL package adapter in `flowsheet-core` and `flowsheet-project`, package selection in the editor, and the methanol/water flash separation.
 7. A15: n-port mixer/splitter, mass and standard-volume feed bases and exchanger approach/UA specifications after A14 merges; vapor-fraction specifications after A13.
 

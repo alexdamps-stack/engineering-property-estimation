@@ -161,8 +161,11 @@ Set property tolerances before implementation using reference quality and condit
 | PH / process temperature | PR, PR-BM / teqp, Cantera + SciPy | 2e-6 K | 0 | 28 PH + 14 process states | Independent energy root/coexistence solve |
 | PH / process h | same | 2e-5 J/mol | 2e-9 | same | Same ideal offsets and AD departures |
 | PH / process fraction and composition | same | 2e-8 | 0 / 1e-7 | same | Fraction / composition budgets respectively |
-| Bubble/dew p and T | PR, PR-BM | deferred | deferred | A13 (#66) | Matched references and conditioning required before acceptance |
-| Phase envelope | PR, PR-BM | deferred | deferred | A13 (#66) | Critical-stop domain and budget remain A13 work |
+| Bubble/dew temperature | PR, PR-BM / native Clapeyron 0.6.30 | 2e-6 K | 0 | 32 p/T cases + 30 envelope pressure samples, `a13-v1.json` | Bounded dry demo mixtures and propane; [A13 status](a13-status.md) |
+| Bubble/dew pressure / sampled envelope pressure | same | 0.02 Pa | 2e-8 | same | Explicit branch bounds; verified prefix only, near-critical diagnostic stop |
+| Saturation phase composition | same | 2e-8 | 1e-7 | same | Both incipient/material compositions; unchanged pre-comparison budget |
+| Saturation phase molar volume | same | 1e-12 m^3/mol | 2e-8 | same | Both phase volumes; guards exclude coalescing states |
+| Critical-point / retrograde envelope continuation | PR, PR-BM | deferred | deferred | A13 follow-up | Outside bounded qualification; no extrapolated values or accuracy claim |
 | Homogeneous properties and derivatives | GERG-2008 / NIST AGA8 C++ 2.01 | 2e-8 in each reported SI unit | 2e-10 | 273 derivative states / 269 admissible property states, `gerg-v1.json` | Matched native ideal reference; fixed numerical comparison budget |
 | Molar density | GERG / NIST + SciPy | 2e-7 mol/m³ | 2e-9 | 42 TP roots, `gerg-density-v1.json` | Independent bracket/refinement |
 | TP pressure | GERG / NIST + SciPy | 1e-5 Pa | 2e-9 | 42 TP roots | Independent pressure refinement |
@@ -184,7 +187,7 @@ Set property tolerances before implementation using reference quality and condit
 | Molar volume | PR, PR-BM / Clapeyron 0.6.30 | 1e-12 m³/mol | 2e-9 | 60 homogeneous + phase states of 28 PH cases | Independent cubic roots, BigFloat at dilute bound |
 
 The approved machine-readable [registry](../validation/tolerances.json) preserves
-all exact cubic, TP, PH, process, Clapeyron and GERG budgets from their generators
+all exact cubic, TP, PH, process, Clapeyron, bounded A13 and GERG budgets from their generators
 and fixtures, including GERG TP root, fugacity and equilibrium quantities.
 `python validation/consolidate-tolerances.py` rejects registry/fixture drift.
 The original proposals are retired to `tolerances.preparation-history.json`
@@ -204,6 +207,14 @@ fixtures plus 2048 fixed-seed permutation/scaling/identity cases per platform in
 release mode. It never regenerates expected values.
 
 Generated cases must record a fixed random seed, generator version, domain, and sampling method. Preserve failing generated inputs as small regression fixtures. Reports identify the code commit, toolchain/platform, case, model/data versions, expected and actual results, residuals, tolerances, phase outcome, and solver status/iterations where applicable. Report failures and unsupported states explicitly; exclude neither silently from success rates.
+
+A11's [fixed-mixture experiment](a11-status.md) in PR #85 reports interpolation
+error against the already qualified direct Rust model, rather than an independent
+engine reference. Its separate value/derivative targets, timing evidence, C^1
+cell-edge discontinuities in second derivatives and finite-lattice qualification
+remain scoped to exact PR, the fixed natural gas and 280-420 K / 1-80 bar.
+A12's [DWSIM integration gates](a12-status.md) are cross-model transport/mapping
+checks, not replacements for the tighter engine reference budgets above.
 
 ## 6. CI and development gates
 

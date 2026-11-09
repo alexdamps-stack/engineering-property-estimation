@@ -1,0 +1,2311 @@
+{
+  "schema": "a13-inputs-v1",
+  "scope": "Explicit synthetic zero-kij dry demonstration mixtures and pure propane; no fitted experimental accuracy claim",
+  "cases": [
+    {
+      "id": "binary-bubble-pressure-PR",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 250.0
+    },
+    {
+      "id": "binary-bubble-temperature-PR",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 3000000.0
+    },
+    {
+      "id": "binary-dew-pressure-PR",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 250.0
+    },
+    {
+      "id": "binary-dew-temperature-PR",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 3000000.0
+    },
+    {
+      "id": "ng-dry-bubble-pressure-PR",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 200.0
+    },
+    {
+      "id": "ng-dry-bubble-temperature-PR",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 5500000.0
+    },
+    {
+      "id": "ng-dry-dew-pressure-PR",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 210.0
+    },
+    {
+      "id": "ng-dry-dew-temperature-PR",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 1500000.0
+    },
+    {
+      "id": "ng-process-bubble-pressure-PR",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.85,
+        0.075,
+        0.04666666666666667,
+        0.018333333333333333,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 200.0
+    },
+    {
+      "id": "ng-process-bubble-temperature-PR",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.85,
+        0.075,
+        0.04666666666666667,
+        0.018333333333333333,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 5500000.0
+    },
+    {
+      "id": "ng-process-dew-pressure-PR",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.85,
+        0.075,
+        0.04666666666666667,
+        0.018333333333333333,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 210.0
+    },
+    {
+      "id": "ng-process-dew-temperature-PR",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.85,
+        0.075,
+        0.04666666666666667,
+        0.018333333333333333,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 1500000.0
+    },
+    {
+      "id": "propane-bubble-pressure-PR",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 300.0
+    },
+    {
+      "id": "propane-bubble-temperature-PR",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 1000000.0
+    },
+    {
+      "id": "propane-dew-pressure-PR",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 300.0
+    },
+    {
+      "id": "propane-dew-temperature-PR",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 1000000.0
+    },
+    {
+      "id": "binary-bubble-pressure-PR-BM",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 250.0
+    },
+    {
+      "id": "binary-bubble-temperature-PR-BM",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 3000000.0
+    },
+    {
+      "id": "binary-dew-pressure-PR-BM",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 250.0
+    },
+    {
+      "id": "binary-dew-temperature-PR-BM",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 3000000.0
+    },
+    {
+      "id": "ng-dry-bubble-pressure-PR-BM",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 200.0
+    },
+    {
+      "id": "ng-dry-bubble-temperature-PR-BM",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 5500000.0
+    },
+    {
+      "id": "ng-dry-dew-pressure-PR-BM",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 210.0
+    },
+    {
+      "id": "ng-dry-dew-temperature-PR-BM",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 1500000.0
+    },
+    {
+      "id": "ng-process-bubble-pressure-PR-BM",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.85,
+        0.075,
+        0.04666666666666667,
+        0.018333333333333333,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 200.0
+    },
+    {
+      "id": "ng-process-bubble-temperature-PR-BM",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.85,
+        0.075,
+        0.04666666666666667,
+        0.018333333333333333,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 5500000.0
+    },
+    {
+      "id": "ng-process-dew-pressure-PR-BM",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.85,
+        0.075,
+        0.04666666666666667,
+        0.018333333333333333,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 210.0
+    },
+    {
+      "id": "ng-process-dew-temperature-PR-BM",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.85,
+        0.075,
+        0.04666666666666667,
+        0.018333333333333333,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 1500000.0
+    },
+    {
+      "id": "propane-bubble-pressure-PR-BM",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 300.0
+    },
+    {
+      "id": "propane-bubble-temperature-PR-BM",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 1000000.0
+    },
+    {
+      "id": "propane-dew-pressure-PR-BM",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 300.0
+    },
+    {
+      "id": "propane-dew-temperature-PR-BM",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 1000000.0
+    },
+    {
+      "id": "trace-binary-bubble-250",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 250.0,
+      "trace_group": "binary-bubble"
+    },
+    {
+      "id": "trace-binary-bubble-255",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 255.0,
+      "trace_group": "binary-bubble"
+    },
+    {
+      "id": "trace-binary-bubble-260",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 260.0,
+      "trace_group": "binary-bubble"
+    },
+    {
+      "id": "trace-binary-bubble-265",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 265.0,
+      "trace_group": "binary-bubble"
+    },
+    {
+      "id": "trace-binary-bubble-270",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 270.0,
+      "trace_group": "binary-bubble"
+    },
+    {
+      "id": "trace-binary-bubble-275",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 275.0,
+      "trace_group": "binary-bubble"
+    },
+    {
+      "id": "trace-binary-bubble-280",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 280.0,
+      "trace_group": "binary-bubble"
+    },
+    {
+      "id": "trace-binary-bubble-285",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 285.0,
+      "trace_group": "binary-bubble"
+    },
+    {
+      "id": "trace-binary-bubble-290",
+      "ids": [
+        "methane",
+        "propane"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 290.0,
+      "trace_group": "binary-bubble"
+    },
+    {
+      "id": "trace-propane-bubble-300",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 300.0,
+      "trace_group": "propane-bubble"
+    },
+    {
+      "id": "trace-propane-bubble-305",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 305.0,
+      "trace_group": "propane-bubble"
+    },
+    {
+      "id": "trace-propane-bubble-310",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 310.0,
+      "trace_group": "propane-bubble"
+    },
+    {
+      "id": "trace-propane-bubble-315",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 315.0,
+      "trace_group": "propane-bubble"
+    },
+    {
+      "id": "trace-propane-bubble-320",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 320.0,
+      "trace_group": "propane-bubble"
+    },
+    {
+      "id": "trace-propane-bubble-325",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 325.0,
+      "trace_group": "propane-bubble"
+    },
+    {
+      "id": "trace-propane-bubble-330",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 330.0,
+      "trace_group": "propane-bubble"
+    },
+    {
+      "id": "trace-propane-bubble-335",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 335.0,
+      "trace_group": "propane-bubble"
+    },
+    {
+      "id": "trace-propane-bubble-340",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 340.0,
+      "trace_group": "propane-bubble"
+    },
+    {
+      "id": "trace-propane-bubble-345",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 345.0,
+      "trace_group": "propane-bubble"
+    },
+    {
+      "id": "trace-propane-bubble-350",
+      "ids": [
+        "propane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 350.0,
+      "trace_group": "propane-bubble"
+    },
+    {
+      "id": "trace-ng-dew-200",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 200.0,
+      "trace_group": "ng-dew"
+    },
+    {
+      "id": "trace-ng-dew-205",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 205.0,
+      "trace_group": "ng-dew"
+    },
+    {
+      "id": "trace-ng-dew-210",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 210.0,
+      "trace_group": "ng-dew"
+    },
+    {
+      "id": "trace-ng-dew-215",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 215.0,
+      "trace_group": "ng-dew"
+    },
+    {
+      "id": "trace-ng-dew-220",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 220.0,
+      "trace_group": "ng-dew"
+    },
+    {
+      "id": "trace-ng-dew-225",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 225.0,
+      "trace_group": "ng-dew"
+    },
+    {
+      "id": "trace-ng-bubble-200",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 200.0,
+      "trace_group": "ng-bubble"
+    },
+    {
+      "id": "trace-ng-bubble-202",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 202.0,
+      "trace_group": "ng-bubble"
+    },
+    {
+      "id": "trace-ng-bubble-204",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 204.0,
+      "trace_group": "ng-bubble"
+    },
+    {
+      "id": "trace-ng-bubble-206",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane",
+        "nitrogen",
+        "carbon-dioxide"
+      ],
+      "z": [
+        0.88,
+        0.06,
+        0.03,
+        0.02,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 206.0,
+      "trace_group": "ng-bubble"
+    }
+  ]
+}

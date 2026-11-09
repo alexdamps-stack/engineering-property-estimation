@@ -12,3 +12,6 @@ workspace = true
 thermo-types = { path = "../thermo-types" }
 thermo-models = { path = "../thermo-models" }
 thermo-solvers = { path = "../thermo-solvers" }
+
+[dev-dependencies]
+thermo-data = { path = "../thermo-data" }

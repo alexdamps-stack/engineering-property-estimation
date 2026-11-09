@@ -1,0 +1,67 @@
+{
+  "id": "a13-dew-envelope-natural-gas",
+  "calculation": "dew-envelope",
+  "components": [
+    "methane",
+    "ethane",
+    "propane",
+    "nitrogen",
+    "carbon-dioxide"
+  ],
+  "mole_fractions": [
+    0.88,
+    0.06,
+    0.03,
+    0.02,
+    0.01
+  ],
+  "model": "PR-BM",
+  "kij": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "interaction_source": "Explicit synthetic zero-kij approximation; not fitted VLE data",
+  "saturation_temperature_bounds_k": [
+    200.0,
+    225.0
+  ],
+  "envelope_step_k": 5.0,
+  "envelope_maximum_points": 10,
+  "saturation_pressure_bounds_pa": [
+    10000.0,
+    4000000.0
+  ]
+}
