@@ -16,7 +16,13 @@ pub const GERG_CALORIC_REFERENCE: &str =
     "GERG native ideal h=s=0 at 298.15 K, 101325 Pa (rounded NIST constants)";
 
 #[derive(Deserialize)]
+struct Provenance {
+    revision: String,
+}
+
+#[derive(Deserialize)]
 struct Dataset {
+    provenance: Provenance,
     components: Vec<String>,
     tables: Tables,
 }
@@ -51,12 +57,141 @@ struct Tables {
     n0i: Vec<Vec<f64>>,
 }
 
+/// Number of native GERG components; tables are 1-based with an unused index 0.
+const GERG_COMPONENTS: usize = 21;
+
+fn load_dataset() -> Result<Dataset, String> {
+    let data: Dataset = serde_json::from_str(include_str!("../../../data/gerg-2008.json"))
+        .map_err(|e| format!("GERG parameter file: {e}"))?;
+    if data.provenance.revision != GERG_DATA_REVISION {
+        return Err(format!(
+            "GERG data revision {} does not match GERG_DATA_REVISION {GERG_DATA_REVISION}",
+            data.provenance.revision
+        ));
+    }
+    validate_tables(&data)?;
+    Ok(data)
+}
+
+/// Shape and finiteness checks for every index the evaluator dereferences, so a
+/// malformed regeneration is reported as an error rather than an index panic.
+fn validate_tables(data: &Dataset) -> Result<(), String> {
+    const N: usize = GERG_COMPONENTS + 1;
+    let p = &data.tables;
+    let bad = |what: &str| Err(format!("malformed GERG table {what}"));
+    if data.components.len() != GERG_COMPONENTS {
+        return bad("components");
+    }
+    for (name, len) in [
+        ("Tc", p.Tc.len()),
+        ("MMiGERG", p.MMiGERG.len()),
+        ("kpol", p.kpol.len()),
+        ("kexp", p.kexp.len()),
+        ("coik", p.coik.len()),
+        ("doik", p.doik.len()),
+        ("noik", p.noik.len()),
+        ("toik", p.toik.len()),
+    ] {
+        if len != N {
+            return bad(name);
+        }
+    }
+    for (name, m) in [
+        ("btij", &p.btij),
+        ("bvij", &p.bvij),
+        ("gtij", &p.gtij),
+        ("gvij", &p.gvij),
+        ("fij", &p.fij),
+    ] {
+        if m.len() != N
+            || m.iter().any(|r| r.len() != N)
+            || m.iter().flatten().any(|v| !v.is_finite())
+        {
+            return bad(name);
+        }
+    }
+    if p.mNumb.len() != N || p.mNumb.iter().any(|r| r.len() != N) {
+        return bad("mNumb");
+    }
+    for (name, m) in [("th0i", &p.th0i), ("n0i", &p.n0i)] {
+        if m.len() != N || m.iter().any(|r| r.len() < 8) {
+            return bad(name);
+        }
+    }
+    for i in 1..N {
+        // Terms are indexed 1..=kpol+kexp, so each row needs kpol+kexp+1 entries.
+        let terms = p.kpol[i] + p.kexp[i];
+        if [
+            p.coik[i].len(),
+            p.doik[i].len(),
+            p.noik[i].len(),
+            p.toik[i].len(),
+        ]
+        .iter()
+        .any(|len| *len <= terms)
+        {
+            return bad(&format!("pure terms of component {i}: kpol+kexp={terms}"));
+        }
+        if !(p.MMiGERG[i].is_finite() && p.MMiGERG[i] > 0.0 && p.Tc[i].is_finite()) {
+            return bad("MMiGERG/Tc");
+        }
+        // The reducing-function denominators b*x_i + x_j require b > 0.
+        if (i..N).any(|j| !(p.btij[i][j] > 0.0 && p.bvij[i][j] > 0.0)) {
+            return bad("btij/bvij must be positive");
+        }
+    }
+    let pairs = p.kpolij.len();
+    if p.kexpij.len() != pairs
+        || [
+            p.cijk.len(),
+            p.eijk.len(),
+            p.gijk.len(),
+            p.nijk.len(),
+            p.tijk.len(),
+            p.dijk.len(),
+        ]
+        .iter()
+        .any(|len| *len != pairs)
+    {
+        return bad("departure function count");
+    }
+    for m in 1..pairs {
+        let terms = p.kpolij[m] + p.kexpij[m];
+        if [
+            p.cijk[m].len(),
+            p.eijk[m].len(),
+            p.gijk[m].len(),
+            p.nijk[m].len(),
+            p.tijk[m].len(),
+            p.dijk[m].len(),
+        ]
+        .iter()
+        .any(|len| *len <= terms)
+        {
+            return bad(&format!("departure function {m}: kpolij+kexpij={terms}"));
+        }
+    }
+    for i in 1..N {
+        for j in i + 1..N {
+            let m = p.mNumb[i][j];
+            if m >= 0 && (m == 0 || m as usize >= pairs) {
+                return bad(&format!("mNumb[{i}][{j}]={m}"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn dataset_checked() -> Result<&'static Dataset, Error> {
+    static DATA: OnceLock<Result<Dataset, String>> = OnceLock::new();
+    DATA.get_or_init(load_dataset)
+        .as_ref()
+        .map_err(|e| Error::MissingParameter(e.clone()))
+}
+
+/// Only called after a successful `GergModel::new`, which validated the dataset.
 fn dataset() -> &'static Dataset {
-    static DATA: OnceLock<Dataset> = OnceLock::new();
-    DATA.get_or_init(|| {
-        serde_json::from_str(include_str!("../../../data/gerg-2008.json"))
-            .expect("checked embedded GERG parameters")
-    })
+    dataset_checked().expect("GERG dataset validated when the model was constructed")
 }
 
 /// Dimensionless Helmholtz derivatives scaled by powers of delta and tau.
@@ -148,7 +283,7 @@ impl GergModel {
                 "GERG requires mole fractions".into(),
             ));
         }
-        let data = dataset();
+        let data = dataset_checked()?;
         let p = &data.tables;
         let mut x = [0.0; 22];
         let mut component_indices = Vec::new();
@@ -180,6 +315,21 @@ impl GergModel {
                     (p.bvij[i][j], p.gvij[i][j], &mut vr, &mut grad_v),
                     (p.btij[i][j], p.gtij[i][j], &mut tr, &mut grad_t),
                 ] {
+                    if x[i] == 0.0 || x[j] == 0.0 {
+                        // q = x_i x_j (x_i + x_j)/(b x_i + x_j) vanishes, but the
+                        // denominator underflows to zero for a subnormal x_i with
+                        // x_j = 0 and b < 1 (0/0). Use the analytic gradient limits:
+                        // x_j = 0: dq/dx_i = 0, dq/dx_j = x_i/b;
+                        // x_i = 0: dq/dx_i = x_j, dq/dx_j = 0.
+                        // i == j cannot reach here: both zero is skipped above.
+                        if x[j] == 0.0 {
+                            gradient[j] += factor * g * x[i] / b;
+                        } else {
+                            gradient[i] += factor * g * x[j];
+                        }
+                        continue;
+                    }
+                    // Both fractions are nonzero, so the denominator is at least x_j > 0.
                     let denominator = b * x[i] + x[j];
                     let quotient = numerator / denominator;
                     *value += factor * g * quotient;
@@ -191,20 +341,29 @@ impl GergModel {
                 }
             }
         }
+        let reducing_density = 1000.0 / vr;
+        if !(tr.is_finite() && tr > 0.0 && reducing_density.is_finite() && reducing_density > 0.0)
+            || grad_t.iter().chain(&grad_v).any(|v| !v.is_finite())
+        {
+            return Err(Error::NumericalFailure(
+                "GERG reducing functions are not finite and positive for this composition".into(),
+            ));
+        }
         Ok(Self {
             fractions: x,
             component_indices,
             input_fractions: composition.entries().iter().map(|(_, x)| *x).collect(),
             reducing_temperature: tr,
-            reducing_density: 1000.0 / vr,
+            reducing_density,
             reducing_temperature_gradient: grad_t,
             reducing_volume_gradient: grad_v,
             molar_mass: mass,
         })
     }
 
+    /// Empty only if the embedded dataset failed validation; `new` reports why.
     pub fn supported_components() -> &'static [String] {
-        &dataset().components
+        dataset_checked().map_or(&[], |d| &d.components)
     }
     pub fn component_ids(&self) -> Vec<&str> {
         self.component_indices
@@ -483,5 +642,49 @@ impl GergModel {
             data_revision: GERG_DATA_REVISION,
             caloric_reference: GERG_CALORIC_REFERENCE,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parsed() -> Dataset {
+        serde_json::from_str(include_str!("../../../data/gerg-2008.json")).unwrap()
+    }
+
+    #[test]
+    fn embedded_tables_and_revision_are_validated() {
+        assert!(load_dataset().is_ok());
+        assert_eq!(parsed().provenance.revision, GERG_DATA_REVISION);
+    }
+
+    #[test]
+    fn malformed_tables_are_errors_not_panics() {
+        let mut short_pure = parsed();
+        let terms = short_pure.tables.kpol[1] + short_pure.tables.kexp[1];
+        short_pure.tables.noik[1].truncate(terms);
+        assert!(validate_tables(&short_pure).is_err());
+
+        let mut short_departure = parsed();
+        short_departure.tables.dijk[1].truncate(1);
+        assert!(validate_tables(&short_departure).is_err());
+
+        let mut bad_pair_index = parsed();
+        let pairs = bad_pair_index.tables.kpolij.len() as i32;
+        bad_pair_index.tables.mNumb[1][2] = pairs;
+        assert!(validate_tables(&bad_pair_index).is_err());
+
+        let mut short_matrix = parsed();
+        short_matrix.tables.btij[3].pop();
+        assert!(validate_tables(&short_matrix).is_err());
+
+        let mut missing_component = parsed();
+        missing_component.components.pop();
+        assert!(validate_tables(&missing_component).is_err());
+
+        let mut zero_beta = parsed();
+        zero_beta.tables.btij[1][2] = 0.0;
+        assert!(validate_tables(&zero_beta).is_err());
     }
 }
