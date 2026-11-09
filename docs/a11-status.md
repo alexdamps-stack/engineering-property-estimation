@@ -147,10 +147,13 @@ or `Source::DirectModel`, never a mix.
 
 - `Error`: `TableError::OutsideApprovedDomain { T, p, domain }` ("… outside the
   approved table domain (280..=420 K, 100000..=8000000 Pa); use the direct model"),
-  `EnthalpyOutsideApprovedDomain { p, h, min, max }` for PH, `CompositionMismatch`
-  for any other composition (per-entry tolerance 1e-12).
+  for PH `PressureOutsideApprovedDomain { p, domain }` (temperature is a PH
+  output, so none is reported) and `EnthalpyOutsideApprovedDomain { p, h, min, max }`,
+  `CompositionMismatch` for any other composition (per-entry tolerance 1e-12). A
+  table PH inversion that does not converge returns `non-convergence`.
 - `DirectModel`: the stability-checked direct `tp_flash` / `ph_flash` (default
-  options) at the requested state and composition. A single-phase result is
+  options) at the requested state and composition; for PH this also covers a
+  table inversion that did not converge. A single-phase result is
   returned as `Source::DirectModel`; a split returns
   `DirectResultNotSinglePhase { phases }` (e.g. 200 K, 30 bar → 2 phases).
   Direct solver errors propagate unchanged.

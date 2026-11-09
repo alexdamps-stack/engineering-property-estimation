@@ -52,13 +52,20 @@ namespace ThermoCore.Bridge
         private static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
         private static bool loaded;
 
+        private const string LibraryFileName = Library + ".dll";
+
         /// <summary>
         /// Loads thermocore_bridge.dll from an explicit path (so the host's DLL
-        /// search order is irrelevant) and refuses any other ABI version.
+        /// search order is irrelevant) and refuses any other ABI version. The
+        /// file must be named thermocore_bridge.dll: the P/Invoke declarations
+        /// bind by that module name, so a file with another name would not be
+        /// the module they resolve to.
         /// </summary>
         public static void Load(string dllPath)
         {
             string full = Path.GetFullPath(dllPath);
+            if (!string.Equals(Path.GetFileName(full), LibraryFileName, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("ThermoCore bridge library must be named " + LibraryFileName + ": " + full, "dllPath");
             if (!File.Exists(full))
                 throw new FileNotFoundException("ThermoCore bridge library not found", full);
             if (LoadLibrary(full) == IntPtr.Zero)
@@ -69,8 +76,10 @@ namespace ThermoCore.Bridge
             loaded = true;
         }
 
+        /// <summary>ABI version of the loaded library; requires Load(path) first.</summary>
         public static uint AbiVersion()
         {
+            EnsureLoaded();
             return tc_bridge_abi_version();
         }
 
@@ -154,6 +163,36 @@ namespace ThermoCore.Bridge
                         { "mole_fractions", moleFractions },
                         { "temperature_K", temperatureK },
                         { "pressure_Pa", pressurePa },
+                    } },
+            };
+        }
+
+        /// <summary>
+        /// Builds a v1 PH-flash request; pressure in Pa absolute, enthalpy in J/mol
+        /// on the bridge's caloric reference (the "enthalpy_J_per_mol" of a result).
+        /// Temperature is an output and is not sent.
+        /// </summary>
+        public static Dictionary<string, object> PhFlashRequest(string requestId, string model,
+            IList<string> components, double[][] kij, string interactionSource,
+            double[] moleFractions, double pressurePa, double enthalpyJPerMol)
+        {
+            return new Dictionary<string, object>
+            {
+                { "schema", RequestSchema },
+                { "request_id", requestId },
+                { "calculation", "ph-flash" },
+                { "package", new Dictionary<string, object>
+                    {
+                        { "model", model },
+                        { "components", components },
+                        { "kij", kij },
+                        { "interaction_source", interactionSource },
+                    } },
+                { "state", new Dictionary<string, object>
+                    {
+                        { "mole_fractions", moleFractions },
+                        { "pressure_Pa", pressurePa },
+                        { "enthalpy_J_per_mol", enthalpyJPerMol },
                     } },
             };
         }

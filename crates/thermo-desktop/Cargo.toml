@@ -17,7 +17,7 @@ flowsheet-project = { path = "../flowsheet-project" }
 property-packages = { path = "../property-packages" }
 thermo-types = { path = "../thermo-types" }
 rfd = "0.18"
-serde_json = "1"
+serde_json = { workspace = true }
 
 [dev-dependencies]
 egui_kittest = { version = "0.37.0", features = ["eframe", "snapshot", "wgpu"] }
