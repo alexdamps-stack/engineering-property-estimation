@@ -1,0 +1,33 @@
+name: Clapeyron check
+
+# Single definition of the independent Clapeyron job, called from ci.yml
+# (push to main / pull requests) and numerical-validation.yml (monthly/manual).
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  clapeyron:
+    name: Independent Clapeyron numerical check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      JULIA_NUM_PRECOMPILE_TASKS: 2
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install pinned Rust toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9 # v2
+        with:
+          version: '1.11.7'
+      - uses: julia-actions/cache@d10a6fd8f31b12404a54613ebad242900567f2b9 # v2
+      - name: Instantiate locked Julia reference environment
+        run: julia --project=validation/julia -e 'using Pkg; Pkg.instantiate()'
+      - name: Compare current Rust calculations and committed fixtures with live Clapeyron
+        run: julia --project=validation/julia validation/julia/check.jl
+      - name: Verify GERG phase EOS and equilibrium residuals with Clapeyron
+        run: julia --compile=min --project=validation/julia validation/julia/check-gerg.jl
