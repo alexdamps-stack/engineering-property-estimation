@@ -7,6 +7,12 @@
 //! outline. The splitter and the feed/product flags are project symbols,
 //! because the sheets have no equivalent. Arrowheads are closed and filled with a 15° half angle as in ISO 128. The dark
 //! scheme mirrors a CAD model space; the light scheme a plotted sheet.
+//!
+//! Open item (issue #123, item 5): the outlines are hand-redrawn
+//! approximations of the reference symbols, not the traced SVG geometry in
+//! `docs/design-reference/iso-10628/symbols/` that AGENTS.md asks new
+//! graphics to reuse. Replacing them is a separate change; see
+//! `docs/flowsheet-and-ui.md`, section 4.7.
 
 use std::f32::consts::PI;
 

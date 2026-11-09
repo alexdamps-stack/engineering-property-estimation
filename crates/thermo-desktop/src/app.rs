@@ -206,10 +206,19 @@ impl FlowsheetApp {
             if ctx.input(|i| i.key_pressed(Key::F5)) {
                 self.editor.start_solve(Some(ctx.clone()));
             }
-            if self.editor.is_solving() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            // Esc closes an open dialog; it must not also cancel the solve.
+            if !self.dialog_open()
+                && self.editor.is_solving()
+                && ctx.input(|i| i.key_pressed(Key::Escape))
+            {
                 self.editor.cancel_solve();
             }
         }
+    }
+
+    /// Whether a modal dialog (unsaved changes or new project) is open.
+    fn dialog_open(&self) -> bool {
+        self.confirm.is_some() || self.new_project.is_some()
     }
 
     fn update_title(&mut self, ctx: &egui::Context) {
@@ -253,6 +262,7 @@ impl eframe::App for FlowsheetApp {
         Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
         Panel::top("toolbar").show(ui, |ui| self.toolbar(ui));
         Panel::bottom("status_bar").show(ui, |ui| status_bar(ui, &mut self.editor));
+        let dialog_open = self.dialog_open();
         let tab = &mut self.bottom_tab;
         let ed = &mut self.editor;
         Panel::bottom("bottom_panel")
@@ -268,7 +278,7 @@ impl eframe::App for FlowsheetApp {
             .resizable(true)
             .default_size(320.0)
             .show(ui, |ui| open_dialog = panels::properties(ui, ed));
-        egui::CentralPanel::no_frame().show(ui, |ui| canvas::show(ui, ed));
+        egui::CentralPanel::no_frame().show(ui, |ui| canvas::show(ui, ed, dialog_open));
         if open_dialog {
             self.request(Pending::NewProject);
         }
