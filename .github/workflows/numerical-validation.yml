@@ -51,24 +51,29 @@ jobs:
         run: python -m pip install -r validation/reference-requirements.txt
       # Each generator writes only a temporary candidate; the comparison never
       # replaces committed fixtures. Recorded interpreter/package versions are
-      # reported, not compared.
+      # reported, not compared. Every generator runs even after an earlier
+      # mismatch so one run reports all fixtures.
       - name: Reproduce A3 homogeneous cubic references
         run: |
           python validation/generate-references.py --output "$RUNNER_TEMP/cubic-v1.json"
           python validation/compare-reference-candidate.py "$RUNNER_TEMP/cubic-v1.json" validation/fixtures/cubic-v1.json
       - name: Reproduce A4 flash and saturation references
+        if: ${{ !cancelled() }}
         run: |
           python validation/generate-flash-references.py --output "$RUNNER_TEMP/flash-v1.json"
           python validation/compare-reference-candidate.py "$RUNNER_TEMP/flash-v1.json" validation/fixtures/flash-v1.json
       - name: Reproduce A5 PH references
+        if: ${{ !cancelled() }}
         run: |
           python validation/generate-ph-references.py --output "$RUNNER_TEMP/ph-v1.json"
           python validation/compare-reference-candidate.py "$RUNNER_TEMP/ph-v1.json" validation/fixtures/ph-v1.json
       - name: Reproduce A2 process references
+        if: ${{ !cancelled() }}
         run: |
           python validation/generate-process-references.py --output "$RUNNER_TEMP/process-v1.json"
           python validation/compare-reference-candidate.py "$RUNNER_TEMP/process-v1.json" validation/fixtures/process-v1.json
       - name: Reproduce dilute-limit Helmholtz Decimal reference
+        if: ${{ !cancelled() }}
         run: |
           python validation/generate-helmholtz-reference.py --output "$RUNNER_TEMP/helmholtz-dilute-v1.json"
           python validation/compare-reference-candidate.py "$RUNNER_TEMP/helmholtz-dilute-v1.json" validation/fixtures/helmholtz-dilute-v1.json

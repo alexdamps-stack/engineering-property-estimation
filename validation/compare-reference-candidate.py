@@ -1,8 +1,12 @@
 """Compare a freshly generated reference candidate with its committed fixture.
 
 Never writes or replaces fixtures. Structure, strings, input hashes and integer
-or exact inputs must match. Numbers must agree within a reproduction tolerance
-(default: exact), applied as |candidate - committed| <= atol + rtol*|committed|.
+or exact inputs must match. Numbers must agree within a reproduction tolerance,
+|candidate - committed| <= atol + rtol*|committed|. The defaults (rtol 1e-12,
+atol 1e-15) absorb last-bit floating-point differences between machines and
+library builds (observed: up to ~7e-18 absolute in cubic-v1.json) while staying
+more than three orders of magnitude tighter than the tightest declared
+comparison budget (relative 2e-9).
 The recorded interpreter/package versions ("python", "packages") describe the
 environment the committed fixture was generated in; differences there are
 reported but do not by themselves fail the comparison.
@@ -51,8 +55,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("candidate", type=Path)
     parser.add_argument("committed", type=Path)
-    parser.add_argument("--rtol", type=float, default=0.0)
-    parser.add_argument("--atol", type=float, default=0.0)
+    parser.add_argument("--rtol", type=float, default=1e-12)
+    parser.add_argument("--atol", type=float, default=1e-15)
     args = parser.parse_args()
     candidate = json.loads(args.candidate.read_text(encoding="utf-8"))
     committed = json.loads(args.committed.read_text(encoding="utf-8"))
