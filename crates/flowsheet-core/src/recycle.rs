@@ -1,9 +1,10 @@
 //! Explicit tear streams and bounded direct substitution for cyclic networks.
+use crate::engine::molar_thermal_scale;
 use crate::{
     Calculation, Diagnostic, DiagnosticKind, FeedCompositions, Flowsheet, MaterialStream,
     PortDirection, PortRef, SolveError, SolveProgress, StreamId, UnitKind, UnitSpec,
 };
-use property_packages::CubicPackage;
+use property_packages::{CubicPackage, EquilibriumState};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
 
@@ -12,7 +13,9 @@ use std::ops::ControlFlow;
 pub struct RecycleOptions {
     pub maximum_iterations: usize,
     /// Maximum scaled mismatch in component flows, energy flow, T, p, h and x.
-    /// Denominators are max(|old|, |new|, 1 SI unit); x uses absolute error.
+    /// Denominators are max(|old|, |new|, 1 SI unit); energy flow and h also
+    /// use the larger thermal scale n·cp·T (cp·T) as a floor, so the target
+    /// does not depend on the caloric reference point. x uses absolute error.
     pub tolerance: f64,
 }
 
@@ -90,8 +93,10 @@ impl Flowsheet {
     }
 
     /// Solves acyclic networks normally, or automatically tears loops and starts
-    /// them at zero flow with the first feed's flashed state. Each call starts
-    /// afresh. For process-specific starting states use [`Self::solve_recycles`].
+    /// mixer-inlet tears at zero flow with the first feed's flashed state; other
+    /// tears start with the flow and flashed state of the nearest upstream feed.
+    /// Each call starts afresh. For process-specific starting states use
+    /// [`Self::solve_recycles`].
     pub fn solve_network_with_progress(
         &self,
         package: &CubicPackage,
@@ -120,30 +125,51 @@ impl Flowsheet {
             e.cancelled = true;
             return Err(e);
         }
-        let UnitSpec::Feed {
-            temperature_k: Some(t),
-            pressure_pa: Some(p),
-            ..
-        } = feed.spec
-        else {
-            unreachable!("preflight specification")
+        let mut flashed = BTreeMap::new();
+        let mut feed_state = |id: crate::UnitId| -> Result<(f64, EquilibriumState), SolveError> {
+            if let Some(found) = flashed.get(&id) {
+                return Ok(Clone::clone(found));
+            }
+            let UnitSpec::Feed {
+                temperature_k: Some(t),
+                pressure_pa: Some(p),
+                molar_flow_mol_s: Some(n),
+            } = self.unit(id).expect("feed unit").spec
+            else {
+                unreachable!("preflight specification")
+            };
+            let z: Vec<_> = feeds[&id].entries().iter().map(|(_, x)| *x).collect();
+            let state = package
+                .tp(&z, t, p)
+                .map_err(|e| error(format!("Recycle initialization: {e}")))?;
+            flashed.insert(id, (n, state.clone()));
+            Ok((n, state))
         };
-        let z: Vec<_> = feeds[&feed.id].entries().iter().map(|(_, x)| *x).collect();
-        let state = package
-            .tp(&z, t, p)
-            .map_err(|e| error(format!("Recycle initialization: {e}")))?;
-        let guesses = ids
-            .into_iter()
-            .map(|id| {
-                (
-                    id,
+        let (_, first) = feed_state(feed.id)?;
+        let mut guesses = BTreeMap::new();
+        for id in ids {
+            let stream = self.stream(id).expect("tear stream");
+            // A mixer tear starts empty: its fresh inlet carries the first pass.
+            // Other units would only pass an empty tear through, so they start
+            // with the flow and flashed state of the nearest upstream feed.
+            let upstream = (self.unit(stream.to.unit).expect("unit").kind != UnitKind::Mixer)
+                .then(|| self.upstream_feed(stream.from.unit))
+                .flatten();
+            let guess = match upstream {
+                Some(feed) => {
+                    let (n, state) = feed_state(feed)?;
                     MaterialStream {
-                        molar_flow_mol_s: 0.0,
-                        state: Some(state.clone()),
-                    },
-                )
-            })
-            .collect();
+                        molar_flow_mol_s: n,
+                        state: Some(state),
+                    }
+                }
+                None => MaterialStream {
+                    molar_flow_mol_s: 0.0,
+                    state: Some(first.clone()),
+                },
+            };
+            guesses.insert(id, guess);
+        }
         self.solve_recycles(
             package,
             feeds,
@@ -264,6 +290,24 @@ impl Flowsheet {
         )))
     }
 
+    /// Nearest feed upstream of `unit` (breadth-first against the stream
+    /// direction, ties broken by stream identifier), if any.
+    fn upstream_feed(&self, unit: crate::UnitId) -> Option<crate::UnitId> {
+        let mut seen = BTreeSet::from([unit]);
+        let mut queue = std::collections::VecDeque::from([unit]);
+        while let Some(id) = queue.pop_front() {
+            if self.unit(id)?.kind == UnitKind::Feed {
+                return Some(id);
+            }
+            for s in self.streams().filter(|s| s.to.unit == id) {
+                if seen.insert(s.from.unit) {
+                    queue.push_back(s.from.unit);
+                }
+            }
+        }
+        None
+    }
+
     fn tear_order(&self, tears: &BTreeSet<StreamId>) -> Result<Vec<crate::UnitId>, SolveError> {
         let diagnostics = self.recycle_diagnostics();
         if !diagnostics.is_empty() {
@@ -345,10 +389,20 @@ impl Flowsheet {
 
 fn mismatch(a: &MaterialStream, b: &MaterialStream, count: usize) -> f64 {
     fn scaled(a: f64, b: f64) -> f64 {
-        (a - b).abs() / a.abs().max(b.abs()).max(1.0)
+        scaled_by(a, b, 0.0)
     }
-    let mut r = scaled(a.molar_flow_mol_s, b.molar_flow_mol_s)
-        .max(scaled(a.enthalpy_flow_w(), b.enthalpy_flow_w()));
+    /// Like `scaled`, with an additional reference-independent floor.
+    fn scaled_by(a: f64, b: f64, floor: f64) -> f64 {
+        (a - b).abs() / a.abs().max(b.abs()).max(floor).max(1.0)
+    }
+    // Enthalpy depends on the caloric reference point, so |h| can be near zero
+    // for an ordinary stream. The thermal scale n cp T (cp T per mole) keeps
+    // the enthalpy targets physically relative; flows, T, p and x are unchanged.
+    let mut r = scaled(a.molar_flow_mol_s, b.molar_flow_mol_s).max(scaled_by(
+        a.enthalpy_flow_w(),
+        b.enthalpy_flow_w(),
+        a.thermal_scale_w().max(b.thermal_scale_w()),
+    ));
     for (x, y) in a
         .component_flows_mol_s(count)
         .into_iter()
@@ -364,7 +418,11 @@ fn mismatch(a: &MaterialStream, b: &MaterialStream, count: usize) -> f64 {
             r = r
                 .max(scaled(a.temperature_k, b.temperature_k))
                 .max(scaled(a.pressure_pa, b.pressure_pa))
-                .max(scaled(a.enthalpy(), b.enthalpy()));
+                .max(scaled_by(
+                    a.enthalpy(),
+                    b.enthalpy(),
+                    molar_thermal_scale(a).max(molar_thermal_scale(b)),
+                ));
             for (x, y) in a.mole_fractions.iter().zip(&b.mole_fractions) {
                 r = r.max((x - y).abs());
             }

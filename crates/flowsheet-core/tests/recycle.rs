@@ -70,6 +70,112 @@ fn start(pkg: &CubicPackage, flow: f64, temperature: f64) -> MaterialStream {
     }
 }
 
+/// Feed → exchanger cold side → heater → exchanger hot side → product. The
+/// only cycle (exchanger ↔ heater) has no mixer.
+fn feed_effluent_exchanger(
+    variant: CubicVariant,
+) -> (Flowsheet, CubicPackage, FeedCompositions, [UnitId; 4]) {
+    let (_, pkg, feeds) = support::demonstration(variant, 1.0);
+    let mut fs = Flowsheet::new();
+    let feed = fs.add_unit(UnitKind::Feed);
+    let ex = fs.add_unit(UnitKind::HeatExchanger);
+    let heat = fs.add_unit(UnitKind::Heater);
+    let product = fs.add_unit(UnitKind::Product);
+    fs.set_spec(
+        feed,
+        UnitSpec::Feed {
+            temperature_k: Some(330.0),
+            pressure_pa: Some(5e6),
+            molar_flow_mol_s: Some(100.0),
+        },
+    );
+    fs.set_spec(
+        ex,
+        UnitSpec::HeatExchanger {
+            thermal: ExchangerSpec::HotOutletTemperature(Some(345.0)),
+            hot_pressure_drop_pa: 0.0,
+            cold_pressure_drop_pa: 0.0,
+        },
+    );
+    fs.set_spec(
+        heat,
+        UnitSpec::HeatExchange {
+            thermal: ThermalSpec::OutletTemperature(Some(380.0)),
+            pressure_drop_pa: 0.0,
+        },
+    );
+    for (from, fp, to, tp) in [
+        (feed, 0, ex, 1),
+        (ex, 3, heat, 0),
+        (heat, 1, ex, 0),
+        (ex, 2, product, 0),
+    ] {
+        fs.connect(PortRef::new(from, fp), PortRef::new(to, tp))
+            .unwrap();
+    }
+    (
+        fs,
+        pkg,
+        [(feed, feeds.values().next().unwrap().clone())].into(),
+        [feed, ex, heat, product],
+    )
+}
+
+#[test]
+fn feed_effluent_exchanger_loop_without_a_mixer_converges() {
+    for variant in [
+        CubicVariant::PengRobinson,
+        CubicVariant::PengRobinsonBostonMathias,
+    ] {
+        let (fs, pkg, feeds, [_, ex, heat, product]) = feed_effluent_exchanger(variant);
+        let tears = fs.automatic_tears();
+        assert_eq!(tears.len(), 1);
+        let tear = *tears.first().unwrap();
+        assert_ne!(
+            fs.unit(fs.stream(tear).unwrap().to.unit).unwrap().kind,
+            UnitKind::Mixer
+        );
+        let automatic = fs.solve_network(&pkg, &feeds).unwrap();
+        // Starting the tear empty relies on zero-flow pass-through instead.
+        let empty = fs
+            .solve_recycles(
+                &pkg,
+                &feeds,
+                &[(tear, start(&pkg, 0.0, 330.0))].into(),
+                RecycleOptions::default(),
+                |_| ControlFlow::Continue(()),
+            )
+            .unwrap();
+        let inlet = start(&pkg, 100.0, 330.0);
+        let hot_out = start(&pkg, 100.0, 345.0);
+        let heater_out = start(&pkg, 100.0, 380.0);
+        for report in [&automatic, &empty] {
+            let closure = report.recycle.as_ref().unwrap();
+            assert!(closure.max_scaled_residual <= 1e-10);
+            let out = &report.streams[&fs.stream_at(PortRef::new(product, 0)).unwrap().id];
+            assert!((out.molar_flow_mol_s / 100.0 - 1.0).abs() < 1e-12);
+            assert!((out.state.as_ref().unwrap().temperature_k - 345.0).abs() < 2e-6);
+            // Overall energy: the heater supplies what the product carries out.
+            let expected = hot_out.enthalpy_flow_w() - inlet.enthalpy_flow_w();
+            assert!((report.units[&heat].duty_w / expected - 1.0).abs() < 2e-8);
+            let transferred = report.units[&ex].transferred_duty_w.unwrap();
+            let released = heater_out.enthalpy_flow_w() - hot_out.enthalpy_flow_w();
+            assert!((transferred / released - 1.0).abs() < 2e-8);
+            for u in report.units.values() {
+                assert!(u.warnings.is_empty(), "{:?}", u.warnings);
+                if let Some(b) = &u.balance {
+                    assert!(b.max_scaled_component_residual <= 1e-8);
+                    assert!(b.scaled_energy_residual.abs() <= 2e-9);
+                }
+            }
+        }
+        assert!(
+            automatic.recycle.as_ref().unwrap().iterations
+                <= empty.recycle.as_ref().unwrap().iterations
+        );
+    }
+}
+
 #[test]
 fn recycle_matches_analytic_flow_component_and_energy_solution_reproducibly() {
     for variant in [
