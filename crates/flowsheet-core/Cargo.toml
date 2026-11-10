@@ -3,6 +3,7 @@ name = "flowsheet-core"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 description = "Streams, unit operations, balances, and calculation order."
 
 [lints]

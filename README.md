@@ -106,4 +106,4 @@ Numerical tests compare homogeneous PR and PR-BM separately against teqp and NAS
 
 ## Access and licensing
 
-This project is intended for a private GitHub repository. No open-source license has been selected, and workspace packages are marked `publish = false`. Access to linked historical ChatGPT conversations depends on the reader's account permissions.
+This project is public and released under the [MIT License](LICENSE). Third-party data, symbols and fonts keep their own licenses, recorded next to them (for example `data/source-extracts/` and `docs/design-reference/iso-10628/`). Workspace packages remain `publish = false`. Access to linked historical ChatGPT conversations depends on the reader's account permissions.

@@ -3,6 +3,7 @@ name = "flowsheet-project"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 description = "Versioned project files, package selection, result snapshots and invalidation."
 
 [lints]

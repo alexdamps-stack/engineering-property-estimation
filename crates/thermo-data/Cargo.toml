@@ -3,6 +3,7 @@ name = "thermo-data"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 description = "Versioned component and interaction parameters with provenance."
 
 [lints]

@@ -3,6 +3,7 @@ name = "thermo-desktop"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 description = "Native flowsheet editor with background calculation and project files."
 
 [lints]
