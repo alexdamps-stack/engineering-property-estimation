@@ -3,6 +3,7 @@ name = "thermo-bridge"
 version = "0.1.0"
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 description = "Versioned C ABI (JSON v1) over the qualified cubic TP/PH package for external hosts such as DWSIM."
 
 [lib]
