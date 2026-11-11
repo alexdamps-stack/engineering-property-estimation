@@ -130,7 +130,7 @@ function main()
     output = Dict("schema"=>"clapeyron-reference-v1", "julia_version"=>string(VERSION),
         "clapeyron_version"=>string(pkgversion(Clapeyron)),
         "clapeyron_commit"=>"3440a15ba224664cac5b24441ac8adacbaf326f9",
-        "input_sha256"=>Dict(relpath(p,ROOT)=>bytes2hex(sha256(read(p))) for p in [SOURCE,ph_input,homogeneous_input]),
+        "input_sha256"=>Dict(replace(relpath(p,ROOT),'\\'=>'/')=>bytes2hex(sha256(read(p))) for p in [SOURCE,ph_input,homogeneous_input]),
         "generator_sha256"=>bytes2hex(sha256(read(@__FILE__))),
         "manifest_sha256"=>bytes2hex(sha256(read(joinpath(@__DIR__,"Manifest.toml")))),
         "formulation"=>"Exact PR factors; PRAlpha or BMAlpha; vdW1fRule; explicit symmetric kij and l=0; NoTranslation; R=8.31446261815324; NASA7 low Cp coefficients via ReidIdeal; pure ideal h=s=0 at 298.15 K, 1 bar",

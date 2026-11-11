@@ -1,8 +1,9 @@
 name: Rust CI
 
+# Pushes to main plus pull requests: a PR branch push runs once (pull_request), not twice.
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -11,27 +12,25 @@ permissions:
 
 jobs:
   clapeyron:
-    name: Independent Clapeyron numerical check
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    uses: ./.github/workflows/clapeyron.yml
+
+  dwsim-bridge:
+    name: DWSIM bridge CLR client checks (no DWSIM)
+    runs-on: windows-latest
+    timeout-minutes: 30
     env:
-      JULIA_NUM_PRECOMPILE_TASKS: 2
       CARGO_TERM_COLOR: always
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install pinned Rust toolchain
         run: rustup show
-      - uses: Swatinem/rust-cache@v2
-      - uses: julia-actions/setup-julia@v2
+      - name: Cache Cargo registry and build output
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
-          version: '1.11.7'
-      - uses: julia-actions/cache@v2
-      - name: Instantiate locked Julia reference environment
-        run: julia --project=validation/julia -e 'using Pkg; Pkg.instantiate()'
-      - name: Compare current Rust calculations with live Clapeyron
-        run: julia --project=validation/julia validation/julia/check.jl
-      - name: Verify GERG phase EOS and equilibrium residuals with Clapeyron
-        run: julia --compile=min --project=validation/julia validation/julia/check-gerg.jl
+          key: dwsim-bridge
+      - name: Build bridge, compile .NET Framework client with csc and run CLR checks
+        shell: pwsh
+        run: ./integrations/dwsim/run-checks.ps1
 
   workspace:
     name: Workspace (${{ matrix.os }})
@@ -44,11 +43,11 @@ jobs:
       CARGO_TERM_COLOR: always
       RUSTDOCFLAGS: -D warnings
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install pinned Rust toolchain
         run: rustup show
       - name: Cache Cargo registry and build output
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Install software Vulkan driver for headless UI rendering
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
@@ -70,11 +69,11 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install pinned Rust toolchain
         run: rustup show
       - name: Cache Cargo registry and build output
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: windows-package
       - name: Install Inno Setup 6 if missing
@@ -82,7 +81,7 @@ jobs:
         run: |
           if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue) -and
               -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
-            choco install innosetup --no-progress -y
+            choco install innosetup --version 6.7.1 --no-progress -y
           }
       - name: Build executable, portable ZIP and installer
         shell: pwsh
@@ -99,7 +98,7 @@ jobs:
         run: ./packaging/windows/smoke-test.ps1 -Setup target\windows-package\PropertyEstimationFlowsheet-0.0.0-x64-setup.exe
       - name: Upload installer, ZIP and reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-package
           path: |
