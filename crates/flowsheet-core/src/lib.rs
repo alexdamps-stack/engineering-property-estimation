@@ -12,7 +12,8 @@
 //! positions, zoom, selection) belongs to the consuming application.
 //!
 //! Every mutation increments [`Flowsheet::revision`]. [`Calculation::is_current`]
-//! compares the full topology/input snapshot and immutable package identity,
+//! compares the solve-relevant topology/specification snapshot (not names or
+//! the revision counter), the feed compositions and immutable package identity,
 //! so results from an older or independently edited project are not current.
 
 mod engine;

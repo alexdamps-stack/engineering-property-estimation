@@ -279,7 +279,17 @@ fn exchanger_conserves_energy_for_all_specifications() {
                 .unwrap();
         }
         let r = fs.solve(&pkg, &feeds).unwrap();
+        // The transferred heat is internal and recorded separately (#119).
         assert_eq!(r.units[&ex].duty_w, 0.0);
+        let transferred = r.units[&ex].transferred_duty_w.unwrap();
+        assert!(transferred > 0.0);
+        let hot_in = &r.streams[&fs.stream_at(PortRef::new(ex, 0)).unwrap().id];
+        let hot_out = &r.streams[&fs.stream_at(PortRef::new(ex, 2)).unwrap().id];
+        let released = hot_in.enthalpy_flow_w() - hot_out.enthalpy_flow_w();
+        assert!((released / transferred - 1.0).abs() < 1e-8);
+        if let ExchangerSpec::Duty(Some(q)) = thermal {
+            assert_eq!(transferred, q);
+        }
         let balance = r.units[&ex].balance.as_ref().unwrap();
         assert!(
             balance.max_scaled_component_residual < 1e-9
@@ -290,17 +300,9 @@ fn exchanger_conserves_energy_for_all_specifications() {
 
 #[test]
 fn invalid_specs_zero_flow_domain_and_unsupported_units_fail_explicitly() {
+    // A zero-flow heater inlet is passed through (#89); see
+    // `zero_flow_streams_pass_through_downstream_units`.
     let cases = [
-        (
-            UnitKind::Heater,
-            UnitSpec::HeatExchange {
-                thermal: ThermalSpec::Duty(Some(1.0)),
-                pressure_drop_pa: 0.0,
-            },
-            330.0,
-            0.0,
-            "positive inlet flow",
-        ),
         (
             UnitKind::Heater,
             UnitSpec::HeatExchange {
@@ -772,4 +774,290 @@ fn progress_reports_every_unit_in_order_and_cancellation_returns_nothing() {
         .solve_with_progress(&pkg, &feeds, |_| panic!("no unit may start"))
         .unwrap_err();
     assert!(!error.cancelled);
+}
+
+/// Replaces the product on `port` of `u` with `units` in series, ending in a
+/// new product. Returns the inserted unit identifiers.
+fn chain(
+    fs: &mut Flowsheet,
+    u: UnitId,
+    port: usize,
+    units: &[(UnitKind, UnitSpec)],
+) -> Vec<UnitId> {
+    let old = fs.stream_at(PortRef::new(u, port)).unwrap().to.unit;
+    fs.remove_unit(old);
+    let mut from = PortRef::new(u, port);
+    let mut ids = vec![];
+    for &(kind, spec) in units {
+        let id = fs.add_unit(kind);
+        assert!(fs.set_spec(id, spec));
+        fs.connect(from, PortRef::new(id, 0)).unwrap();
+        from = PortRef::new(id, 1);
+        ids.push(id);
+    }
+    let product = fs.add_unit(UnitKind::Product);
+    fs.connect(from, PortRef::new(product, 0)).unwrap();
+    ids
+}
+
+fn valve_and_heater() -> [(UnitKind, UnitSpec); 2] {
+    [
+        (
+            UnitKind::Valve,
+            UnitSpec::Valve {
+                pressure: PressureSpec::PressureDrop(Some(1e5)),
+            },
+        ),
+        (
+            UnitKind::Heater,
+            UnitSpec::HeatExchange {
+                thermal: ThermalSpec::Duty(Some(5e3)),
+                pressure_drop_pa: 0.0,
+            },
+        ),
+    ]
+}
+
+fn assert_empty_pass_through(fs: &Flowsheet, r: &Calculation, id: UnitId) {
+    for (i, p) in fs.unit(id).unwrap().kind.ports().iter().enumerate() {
+        if p.direction == PortDirection::Outlet {
+            let s = &r.streams[&fs.stream_at(PortRef::new(id, i)).unwrap().id];
+            assert_eq!(s.molar_flow_mol_s, 0.0);
+            assert!(s.state.is_none());
+        }
+    }
+    let u = &r.units[&id];
+    assert_eq!(u.duty_w, 0.0);
+    assert_eq!(u.warnings.len(), 1, "{:?}", u.warnings);
+    assert!(u.warnings[0].contains("Zero"), "{}", u.warnings[0]);
+    let b = u.balance.as_ref().unwrap();
+    assert_eq!(b.max_scaled_component_residual, 0.0);
+    assert_eq!(b.energy_residual_w, 0.0);
+}
+
+#[test]
+fn zero_flow_streams_pass_through_downstream_units() {
+    // All-vapour feed: the separator liquid line is empty; the valve, heater
+    // and a second separator downstream report it instead of failing (#89).
+    let (mut fs, pkg, feeds, sep) = single(
+        UnitKind::Separator,
+        UnitSpec::Separator {
+            thermal: SeparatorThermal::Adiabatic,
+            pressure_drop_pa: 0.0,
+        },
+        330.0,
+        10.0,
+    );
+    let mut line = valve_and_heater().to_vec();
+    line.push((UnitKind::Separator, UnitKind::Separator.default_spec()));
+    let ids = chain(&mut fs, sep, 2, &line);
+    // `chain` connected the second separator's vapour port; add its liquid.
+    let liquid_product = fs.add_unit(UnitKind::Product);
+    fs.connect(PortRef::new(ids[2], 2), PortRef::new(liquid_product, 0))
+        .unwrap();
+    let r = fs.solve(&pkg, &feeds).unwrap();
+    let liquid = &r.streams[&fs.stream_at(PortRef::new(sep, 2)).unwrap().id];
+    assert!(liquid.state.is_none() && liquid.molar_flow_mol_s == 0.0);
+    for id in ids {
+        assert_empty_pass_through(&fs, &r, id);
+    }
+
+    // Splitter endpoints: the empty branch passes through a valve and heater,
+    // the full branch is calculated normally.
+    for fraction in [0.0, 1.0] {
+        let (mut fs, pkg, feeds, split) = single(
+            UnitKind::Splitter,
+            UnitSpec::Splitter {
+                fraction_to_first: Some(fraction),
+            },
+            330.0,
+            10.0,
+        );
+        let first = chain(&mut fs, split, 1, &valve_and_heater());
+        let second = chain(&mut fs, split, 2, &valve_and_heater());
+        let r = fs.solve(&pkg, &feeds).unwrap();
+        let (empty, full) = if fraction == 0.0 {
+            (first, second)
+        } else {
+            (second, first)
+        };
+        for id in empty {
+            assert_empty_pass_through(&fs, &r, id);
+        }
+        let heater = full[1];
+        assert!(r.units[&heater].warnings.is_empty());
+        assert_eq!(r.units[&heater].duty_w, 5e3);
+        let out = &r.streams[&fs.stream_at(PortRef::new(heater, 1)).unwrap().id];
+        assert_eq!(out.molar_flow_mol_s, 10.0);
+    }
+
+    // An exchanger with an empty side transfers no heat; the flowing side
+    // keeps its enthalpy and takes its own pressure drop.
+    for fraction in [0.0, 1.0] {
+        let (mut fs, pkg, feeds, split) = single(
+            UnitKind::Splitter,
+            UnitSpec::Splitter {
+                fraction_to_first: Some(fraction),
+            },
+            330.0,
+            10.0,
+        );
+        let ends: Vec<_> = fs
+            .units()
+            .filter(|u| u.kind == UnitKind::Product)
+            .map(|u| u.id)
+            .collect();
+        for id in ends {
+            fs.remove_unit(id);
+        }
+        let ex = fs.add_unit(UnitKind::HeatExchanger);
+        fs.set_spec(
+            ex,
+            UnitSpec::HeatExchanger {
+                thermal: ExchangerSpec::Duty(Some(1e3)),
+                hot_pressure_drop_pa: 1e5,
+                cold_pressure_drop_pa: 2e5,
+            },
+        );
+        for i in 0..2 {
+            fs.connect(PortRef::new(split, i + 1), PortRef::new(ex, i))
+                .unwrap();
+            let product = fs.add_unit(UnitKind::Product);
+            fs.connect(PortRef::new(ex, i + 2), PortRef::new(product, 0))
+                .unwrap();
+        }
+        let r = fs.solve(&pkg, &feeds).unwrap();
+        let u = &r.units[&ex];
+        assert_eq!((u.duty_w, u.transferred_duty_w), (0.0, Some(0.0)));
+        assert_eq!(u.warnings.len(), 1);
+        // fraction 0: the hot side (first outlet) is empty.
+        let (empty, full, drop) = if fraction == 0.0 {
+            (2, 3, 2e5)
+        } else {
+            (3, 2, 1e5)
+        };
+        let empty = &r.streams[&fs.stream_at(PortRef::new(ex, empty)).unwrap().id];
+        assert!(empty.state.is_none() && empty.molar_flow_mol_s == 0.0);
+        let full = &r.streams[&fs.stream_at(PortRef::new(ex, full)).unwrap().id];
+        let inlet = r.streams[&fs.stream_at(PortRef::new(split, 0)).unwrap().id]
+            .state
+            .clone()
+            .unwrap();
+        let state = full.state.as_ref().unwrap();
+        assert_eq!(full.molar_flow_mol_s, 10.0);
+        assert_eq!(state.pressure_pa, 5e6 - drop);
+        assert!((state.enthalpy() - inlet.enthalpy()).abs() <= 1e-9 * inlet.enthalpy().abs());
+        assert!(u.balance.as_ref().unwrap().scaled_energy_residual.abs() < 1e-9);
+    }
+}
+
+#[test]
+fn heater_and_cooler_direction_contradictions_are_reported() {
+    // Contradictory duty signs are rejected before any property calculation.
+    for (kind, q) in [(UnitKind::Heater, -1e3), (UnitKind::Cooler, 1e3)] {
+        let (fs, pkg, feeds, u) = single(
+            kind,
+            UnitSpec::HeatExchange {
+                thermal: ThermalSpec::Duty(Some(q)),
+                pressure_drop_pa: 0.0,
+            },
+            330.0,
+            10.0,
+        );
+        assert_eq!(fs.unit_status(u), Some(UnitStatus::Underspecified));
+        let e = fs
+            .solve_with_progress(&pkg, &feeds, |_| panic!("no unit may start"))
+            .unwrap_err();
+        assert!(e.diagnostics.iter().any(|d| d.kind
+            == DiagnosticKind::InvalidSpecification(
+                u,
+                SpecIssue {
+                    field: "duty",
+                    problem: SpecProblem::ContradictsUnitKind,
+                }
+            )));
+        assert!(
+            e.message.contains("contradicts the unit kind"),
+            "{}",
+            e.message
+        );
+    }
+    // An outlet temperature on the wrong side of the inlet temperature needs
+    // the inlet state; the unit is solved and carries a warning.
+    for (kind, t, warning) in [
+        (UnitKind::Heater, 300.0, Some("Heater removes heat")),
+        (UnitKind::Cooler, 350.0, Some("Cooler adds heat")),
+        (UnitKind::Heater, 350.0, None),
+        (UnitKind::Cooler, 300.0, None),
+    ] {
+        let (fs, pkg, feeds, u) = single(
+            kind,
+            UnitSpec::HeatExchange {
+                thermal: ThermalSpec::OutletTemperature(Some(t)),
+                pressure_drop_pa: 0.0,
+            },
+            330.0,
+            10.0,
+        );
+        let r = fs.solve(&pkg, &feeds).unwrap();
+        let warnings = &r.units[&u].warnings;
+        match warning {
+            Some(w) => {
+                assert_eq!(warnings.len(), 1);
+                assert!(warnings[0].contains(w), "{}", warnings[0]);
+            }
+            None => assert!(warnings.is_empty(), "{warnings:?}"),
+        }
+    }
+}
+
+#[test]
+fn renaming_or_revision_changes_alone_keep_results_current() {
+    let (mut fs, pkg, feeds) = support::demonstration(CubicVariant::PengRobinson, 1.0);
+    let r = fs.solve(&pkg, &feeds).unwrap();
+    let valve = unit(&fs, UnitKind::Valve);
+    let stream = fs.streams().next().unwrap().id;
+    let revision = fs.revision();
+    assert!(fs.rename_unit(valve, "PV-1"));
+    assert!(fs.rename_stream(stream, "renamed"));
+    assert!(fs.revision() > revision);
+    assert!(r.is_current(&fs, &feeds, &pkg));
+    fs.set_spec(
+        valve,
+        UnitSpec::Valve {
+            pressure: PressureSpec::OutletPressure(Some(1.4e6)),
+        },
+    );
+    assert!(!r.is_current(&fs, &feeds, &pkg));
+}
+
+#[test]
+fn energy_balance_is_scaled_by_the_larger_of_enthalpy_flow_and_n_cp_t() {
+    let (fs, pkg, feeds) = support::demonstration(CubicVariant::PengRobinson, 1.0);
+    let r = fs.solve(&pkg, &feeds).unwrap();
+    for u in fs.units() {
+        let Some(b) = &r.units[&u.id].balance else {
+            continue;
+        };
+        let mut enthalpy = r.units[&u.id].duty_w.abs();
+        let mut thermal = 0.0;
+        for i in 0..u.kind.ports().len() {
+            let s = &r.streams[&fs.stream_at(PortRef::new(u.id, i)).unwrap().id];
+            enthalpy += s.enthalpy_flow_w().abs();
+            thermal += s.thermal_scale_w();
+            if let Some(state) = &s.state {
+                let cp: f64 = state
+                    .phases
+                    .iter()
+                    .map(|p| p.phase_fraction * p.state.cp)
+                    .sum();
+                let expected = s.molar_flow_mol_s * cp * state.temperature_k;
+                assert!((s.thermal_scale_w() - expected).abs() <= 1e-12 * expected.abs());
+                assert!(expected > 0.0 || s.molar_flow_mol_s == 0.0);
+            }
+        }
+        let scale = enthalpy.max(thermal).max(1.0);
+        let expected = b.energy_residual_w / scale;
+        assert!((b.scaled_energy_residual - expected).abs() <= 1e-12 * expected.abs());
+    }
 }
