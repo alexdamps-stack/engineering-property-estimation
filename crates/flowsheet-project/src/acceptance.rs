@@ -60,9 +60,17 @@ fn relative(a: f64, b: f64) -> f64 {
 }
 
 /// Largest relative difference of stream temperatures, pressures, flows,
-/// enthalpies, compositions and unit duties between two result sets.
+/// enthalpies, compositions and unit duties between two result sets. Both
+/// sets must cover the same units and streams.
 fn max_difference(a: &ResultSet, b: &ResultSet) -> Result<f64, String> {
-    check(a.streams.len() == b.streams.len(), "same stream results")?;
+    check(
+        a.streams.keys().eq(b.streams.keys()),
+        "same stream results after reload",
+    )?;
+    check(
+        a.units.keys().eq(b.units.keys()),
+        "same unit results after reload",
+    )?;
     let mut worst = 0.0_f64;
     for (id, x) in &a.streams {
         let y = b.streams.get(id).ok_or("stream missing after reload")?;
@@ -105,7 +113,7 @@ pub fn run_acceptance(dir: &Path) -> Result<AcceptanceReport, String> {
         project.input_issues().is_empty(),
         "complete feed compositions",
     )?;
-    let package = project.package.build().map_err(e)?;
+    let package = project.package.prepare().map_err(e)?;
     let first = solve_project(
         &project,
         &package,
@@ -211,10 +219,13 @@ pub fn run_acceptance(dir: &Path) -> Result<AcceptanceReport, String> {
         loaded
             .flowsheet
             .units()
-            .all(|u| loaded_results.unit_currency(u.id, &fps) == Currency::Current),
-        "reloaded results are current",
+            .all(|u| loaded_results.unit_currency(u.id, &fps) == Currency::Current)
+            && loaded.flowsheet.streams().all(|s| {
+                loaded_results.stream_currency(&loaded.flowsheet, s.id, &fps) == Currency::Current
+            }),
+        "reloaded unit and stream results are current",
     )?;
-    let package_loaded = loaded.package.build().map_err(e)?;
+    let package_loaded = loaded.package.prepare().map_err(e)?;
     let third = solve_project(
         &loaded,
         &package_loaded,
@@ -280,15 +291,17 @@ pub fn run_acceptance(dir: &Path) -> Result<AcceptanceReport, String> {
     steps.push("cancellation after two units returns no result".into());
 
     // 7. Unknown format versions are rejected.
-    let newer = saved.replacen("\"format_version\": 1", "\"format_version\": 2", 1);
+    let current = format!("\"format_version\": {}", crate::FORMAT_VERSION);
+    let next = crate::FORMAT_VERSION + 1;
+    let newer = saved.replacen(&current, &format!("\"format_version\": {next}"), 1);
     check(
         matches!(
             crate::Project::from_json(&newer),
-            Err(ProjectError::UnsupportedVersion(Some(2)))
+            Err(ProjectError::UnsupportedVersion(Some(v))) if v == next
         ),
-        "format version 2 is rejected",
+        "a newer format version is rejected",
     )?;
-    steps.push("format version 2 rejected".into());
+    steps.push(format!("format version {next} rejected"));
     let _ = std::fs::remove_file(&path);
 
     Ok(AcceptanceReport {
@@ -307,4 +320,32 @@ fn unit(project: &crate::Project, kind: UnitKind) -> Result<UnitId, String> {
         .find(|u| u.kind == kind)
         .map(|u| u.id)
         .ok_or_else(|| format!("no {kind} in demonstration"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn max_difference_detects_entries_present_only_in_either_set() {
+        let project = demonstration(CubicVariantChoice::PengRobinson);
+        let package = project.package.prepare().unwrap();
+        let a = solve_project(&project, &package, |_| ControlFlow::Continue(()), 0).unwrap();
+        assert_eq!(max_difference(&a, &a.clone()).unwrap(), 0.0);
+
+        let (&uid, unit) = a.units.iter().next().unwrap();
+        let &sid = a.streams.keys().next().unwrap();
+        let mut b = a.clone();
+        b.units
+            .insert(flowsheet_core::UnitId(uid.0 + 1000), unit.clone());
+        assert!(max_difference(&a, &b).is_err());
+        assert!(max_difference(&b, &a).is_err());
+
+        // Same count, different identifiers.
+        let mut b = a.clone();
+        let moved = b.streams.remove(&sid).unwrap();
+        b.streams
+            .insert(flowsheet_core::StreamId(sid.0 + 1000), moved);
+        assert!(max_difference(&a, &b).is_err());
+    }
 }

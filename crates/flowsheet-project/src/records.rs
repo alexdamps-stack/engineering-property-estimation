@@ -1,7 +1,8 @@
 //! Serializable mirrors of the `flowsheet-core` topology and specifications.
 //!
 //! The engine types stay free of serialization concerns; these records define
-//! the stable JSON spelling of project format version 1.
+//! the stable JSON spelling of project format versions 1 and 2 (which share
+//! the same input records).
 
 use flowsheet_core::{
     ExchangerSpec, MixerPressure, PressureRise, PressureSpec, SeparatorThermal, ThermalSpec,
@@ -137,6 +138,65 @@ pub(crate) enum SpecRecord {
         pressure: PressureRecord,
         efficiency: f64,
     },
+}
+
+impl SpecRecord {
+    /// Every number set in the specification (unset values are skipped).
+    pub(crate) fn numbers(&self) -> Vec<f64> {
+        let pressure = |p: &PressureRecord| match *p {
+            PressureRecord::OutletPressurePa(v)
+            | PressureRecord::PressureDropPa(v)
+            | PressureRecord::PressureIncreasePa(v) => v,
+        };
+        let thermal = |t: &ThermalRecord| match *t {
+            ThermalRecord::Adiabatic => None,
+            ThermalRecord::OutletTemperatureK(v) | ThermalRecord::DutyW(v) => v,
+        };
+        let values: Vec<Option<f64>> = match self {
+            SpecRecord::Feed {
+                temperature_k,
+                pressure_pa,
+                molar_flow_mol_s,
+            } => vec![*temperature_k, *pressure_pa, *molar_flow_mol_s],
+            SpecRecord::Product => vec![],
+            SpecRecord::Mixer { outlet_pressure } => match outlet_pressure {
+                MixerPressureRecord::LowestInlet => vec![],
+                MixerPressureRecord::SpecifiedPa(p) => vec![*p],
+            },
+            SpecRecord::HeatExchange {
+                thermal: t,
+                pressure_drop_pa,
+            }
+            | SpecRecord::Separator {
+                thermal: t,
+                pressure_drop_pa,
+            } => vec![thermal(t), Some(*pressure_drop_pa)],
+            SpecRecord::Valve { pressure: p } => vec![pressure(p)],
+            SpecRecord::Splitter { fraction_to_first } => vec![*fraction_to_first],
+            SpecRecord::HeatExchanger {
+                thermal: t,
+                hot_pressure_drop_pa,
+                cold_pressure_drop_pa,
+            } => vec![
+                match *t {
+                    ExchangerRecord::HotOutletTemperatureK(v)
+                    | ExchangerRecord::ColdOutletTemperatureK(v)
+                    | ExchangerRecord::DutyW(v) => v,
+                },
+                Some(*hot_pressure_drop_pa),
+                Some(*cold_pressure_drop_pa),
+            ],
+            SpecRecord::Pressurize {
+                pressure: p,
+                efficiency,
+            }
+            | SpecRecord::Expand {
+                pressure: p,
+                efficiency,
+            } => vec![pressure(p), Some(*efficiency)],
+        };
+        values.into_iter().flatten().collect()
+    }
 }
 
 impl From<UnitSpec> for SpecRecord {

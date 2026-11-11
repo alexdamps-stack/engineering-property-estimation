@@ -23,7 +23,8 @@ impl fmt::Display for ProjectError {
             ProjectError::Format(e) => write!(f, "not a valid project file: {e}"),
             ProjectError::UnsupportedVersion(Some(v)) => write!(
                 f,
-                "project format version {v} is not supported (this program reads version {})",
+                "project format version {v} is not supported (this program reads versions {} to {})",
+                crate::OLDEST_READABLE_FORMAT_VERSION,
                 crate::FORMAT_VERSION
             ),
             ProjectError::UnsupportedVersion(None) => {

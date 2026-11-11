@@ -99,8 +99,12 @@ unaffected feeds and independent branches retain their currency. There is no
 recursive cycle hashing. Feed composition and connection changes are covered.
 
 Successful results store iteration count and per-tear closure evidence in an
-optional `recycle` field. Existing version-1 project files remain readable;
-older applications cannot read this new result field. The engine provenance is
+optional `recycle` field. Projects are therefore written as format version 2
+(#90); version-1 files remain readable and are saved back as version 2.
+Older (A9) applications read only version 1 and report a version-2 file as an
+unsupported format version rather than failing on the unknown field. The
+committed `examples/recycle.flowsheet.json` is deliberately left at version 1
+and is loaded by a test. The engine provenance is
 `flowsheet-core a10-tears-v1`, so results from the previous engine load stale.
 Failed or cancelled solves do not replace stored results; input fingerprints
 keep obsolete values visibly stale.

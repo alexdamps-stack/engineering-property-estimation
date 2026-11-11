@@ -7,18 +7,25 @@ use std::path::Path;
 use flowsheet_core::{
     FeedCompositions, Flowsheet, PortRef, SolveProgress, Stream, StreamId, Unit, UnitId, UnitKind,
 };
-use property_packages::CubicPackage;
 use serde::{Deserialize, Serialize};
 use thermo_types::{
     COMPOSITION_SUM_TOLERANCE, ComponentId, Composition, CompositionBasis, NormalizationPolicy,
 };
 
 use crate::records::{KindRecord, SpecRecord};
-use crate::{Fingerprints, PackageSelection, ProjectError, ResultSet};
+use crate::{Fingerprints, PackageSelection, PreparedPackage, ProjectError, ResultSet};
 
-/// Project file format version written by this program. Files declaring
-/// any other version are rejected; there is no silent migration.
-pub const FORMAT_VERSION: u64 = 1;
+/// Project file format version written by this program.
+///
+/// Version 2 adds the optional `results.recycle` closure evidence (A10).
+/// Version 1 files have the same schema without that requirement and are
+/// still read; they are written back as version 2. Files declaring any other
+/// version are rejected, so older programs that only read version 1 report
+/// an unsupported version instead of an unknown field.
+pub const FORMAT_VERSION: u64 = 2;
+
+/// Oldest project file format version this program reads.
+pub const OLDEST_READABLE_FORMAT_VERSION: u64 = 1;
 
 /// Feed mole fractions in package component order, per feed unit.
 pub type FeedFractions = BTreeMap<UnitId, Vec<f64>>;
@@ -148,7 +155,13 @@ impl Project {
 
     /// Serializes to the versioned JSON project format. Results for units
     /// and streams that no longer exist are omitted.
+    ///
+    /// JSON has no NaN or infinity (serde would write `null`, which then
+    /// fails to load or silently reads as "unset"), so any non-finite
+    /// number in the package, specifications, feeds, layout or results is
+    /// rejected with [`ProjectError::Invalid`].
     pub fn to_json(&self) -> Result<String, ProjectError> {
+        self.check_finite()?;
         let fs = &self.flowsheet;
         let port = |p: PortRef| PortRecord {
             unit: p.unit.0,
@@ -158,6 +171,9 @@ impl Project {
             r.retain_existing(fs);
             r
         });
+        if let Some(what) = results.as_ref().and_then(ResultSet::first_non_finite) {
+            return Err(non_finite(&what));
+        }
         let file = ProjectFile {
             format_version: FORMAT_VERSION,
             generator: concat!("thermo-desktop ", env!("CARGO_PKG_VERSION")).into(),
@@ -210,8 +226,48 @@ impl Project {
         Ok(text)
     }
 
+    /// Non-finite input numbers, which JSON cannot represent. Results are
+    /// checked in [`Self::to_json`] after obsolete entries are dropped.
+    fn check_finite(&self) -> Result<(), ProjectError> {
+        let p = &self.package;
+        if p.kij.iter().flatten().any(|v| !v.is_finite()) {
+            return Err(non_finite("package interaction matrix"));
+        }
+        if !p.ph_minimum_temperature_k.is_finite() || !p.ph_maximum_temperature_k.is_finite() {
+            return Err(non_finite("package PH search interval"));
+        }
+        for u in self.flowsheet.units() {
+            if SpecRecord::from(u.spec)
+                .numbers()
+                .iter()
+                .any(|v| !v.is_finite())
+            {
+                return Err(non_finite(&format!("specification of {}", u.name)));
+            }
+        }
+        for (id, x) in &self.feeds {
+            if self.flowsheet.unit(*id).is_some() && x.iter().any(|v| !v.is_finite()) {
+                return Err(non_finite(&format!("feed composition of {id}")));
+            }
+        }
+        for (id, [x, y]) in &self.layout {
+            if self.flowsheet.unit(*id).is_some() && !(x.is_finite() && y.is_finite()) {
+                return Err(non_finite(&format!("layout position of {id}")));
+            }
+        }
+        Ok(())
+    }
+
     /// Parses the versioned JSON project format. The version is checked
     /// before the content, so files from newer programs fail clearly.
+    /// Versions [`OLDEST_READABLE_FORMAT_VERSION`] to [`FORMAT_VERSION`]
+    /// are read.
+    ///
+    /// The package selection must build ([`ProjectError::Package`]
+    /// otherwise), and stored results must have one mole fraction per
+    /// package component ([`ProjectError::Invalid`] otherwise). Mismatched
+    /// results are rejected rather than dropped, so a hand-edited component
+    /// list cannot silently discard or misattribute stored values.
     pub fn from_json(text: &str) -> Result<Self, ProjectError> {
         let value: serde_json::Value =
             serde_json::from_str(text).map_err(|e| ProjectError::Format(e.to_string()))?;
@@ -219,11 +275,23 @@ impl Project {
             .get("format_version")
             .and_then(serde_json::Value::as_u64)
         {
-            Some(FORMAT_VERSION) => {}
+            Some(v) if (OLDEST_READABLE_FORMAT_VERSION..=FORMAT_VERSION).contains(&v) => {}
             other => return Err(ProjectError::UnsupportedVersion(other)),
         }
         let file: ProjectFile =
             serde_json::from_value(value).map_err(|e| ProjectError::Format(e.to_string()))?;
+        // Fails clearly for, e.g., an empty component list or a kij matrix
+        // of the wrong size, which the editor would otherwise index.
+        file.package.build()?;
+        if let Some(problem) = file
+            .results
+            .as_ref()
+            .and_then(|r| r.first_component_mismatch(file.package.components.len()))
+        {
+            return Err(ProjectError::Invalid(format!(
+                "{problem}; recalculate or remove the stored results"
+            )));
+        }
 
         let mut units = Vec::new();
         for u in file.units {
@@ -287,10 +355,11 @@ impl Project {
         })
     }
 
-    /// Writes the project file.
+    /// Writes the project file atomically (see [`write_atomically`]): an
+    /// interrupted or failed save leaves any existing file unchanged.
     pub fn save(&self, path: &Path) -> Result<(), ProjectError> {
         let text = self.to_json()?;
-        std::fs::write(path, text).map_err(|e| ProjectError::Io(e.to_string()))
+        write_atomically(path, text.as_bytes())
     }
 
     /// Reads a project file.
@@ -313,6 +382,62 @@ impl Project {
     pub fn feed_compositions(&self) -> Result<FeedCompositions, Vec<InputIssue>> {
         feed_compositions(&self.flowsheet, &self.feeds, &self.package)
     }
+}
+
+fn non_finite(what: &str) -> ProjectError {
+    ProjectError::Invalid(format!(
+        "{what} contains a number that is not finite (NaN or infinity), which a project file cannot store"
+    ))
+}
+
+/// Replaces the file at `path` with `contents` atomically.
+///
+/// The contents are written to a new temporary file in the same directory,
+/// flushed and synced to disk, then renamed over the target (on Windows the
+/// rename replaces an existing file). If any step fails the temporary file is
+/// removed and an existing target is left untouched.
+pub fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), ProjectError> {
+    use std::io::Write;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    let io = |e: std::io::Error| ProjectError::Io(format!("{}: {e}", path.display()));
+    let name = path
+        .file_name()
+        .ok_or_else(|| ProjectError::Io(format!("{} is not a file path", path.display())))?;
+    let dir = match path.parent() {
+        Some(d) if !d.as_os_str().is_empty() => d,
+        _ => Path::new("."),
+    };
+    let mut temp_name = std::ffi::OsString::from(".");
+    temp_name.push(name);
+    temp_name.push(format!(
+        ".{}-{}.tmp",
+        std::process::id(),
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
+    let temp = dir.join(temp_name);
+    let written = (|| {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)?;
+        file.write_all(contents)?;
+        file.flush()?;
+        file.sync_all()?;
+        drop(file);
+        std::fs::rename(&temp, path)
+    })();
+    if let Err(e) = written {
+        let _ = std::fs::remove_file(&temp);
+        return Err(io(e));
+    }
+    // Persist the rename itself where the platform allows syncing a directory.
+    #[cfg(unix)]
+    if let Ok(d) = std::fs::File::open(dir) {
+        let _ = d.sync_all();
+    }
+    Ok(())
 }
 
 /// Feed composition problems of a flowsheet with the given package.
@@ -385,24 +510,35 @@ pub(crate) fn feed_compositions(
     Ok(out)
 }
 
-/// Solves a project with an already built package (see
-/// [`PackageSelection::build`]). `progress` is called before each unit;
+/// Solves a project with a package prepared from its selection (see
+/// [`PackageSelection::prepare`]). `progress` is called before each unit;
 /// returning [`ControlFlow::Break`] cancels between units.
+///
+/// The package must have been prepared from exactly `project.package`
+/// (same variant, components, interactions, source and PH interval);
+/// otherwise the solve fails without calculating, because the results would
+/// be stamped with the project's selection but computed with another one.
+/// Nothing is built here, so reusing one prepared package per selection
+/// avoids rebuilding the model on every solve.
 ///
 /// The returned results carry the fingerprints of exactly the solved inputs.
 /// A failure returns no results; the caller keeps any earlier results, whose
 /// fingerprints show them stale where inputs changed.
 pub fn solve_project(
     project: &Project,
-    package: &CubicPackage,
+    package: &PreparedPackage,
     progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
     solved_at_unix_s: u64,
 ) -> Result<ResultSet, SolveFailure> {
-    let provenance = project.package.provenance().map_err(|e| SolveFailure {
-        unit: None,
-        message: e.to_string(),
-        cancelled: false,
-    })?;
+    if package.selection() != &project.package {
+        return Err(SolveFailure {
+            unit: None,
+            message: "The property package was prepared for a different package selection \
+                      than the project's; prepare it again from the project's selection."
+                .into(),
+            cancelled: false,
+        });
+    }
     let feeds = project.feed_compositions().map_err(|issues| SolveFailure {
         unit: issues.first().map(|i| i.unit),
         message: issues
@@ -412,10 +548,14 @@ pub fn solve_project(
             .join("\n"),
         cancelled: false,
     })?;
-    let fingerprints = project.fingerprints();
+    let fingerprints = Fingerprints::compute_with(
+        &project.flowsheet,
+        &project.feeds,
+        Some(package.fingerprint()),
+    );
     let calc = project
         .flowsheet
-        .solve_network_with_progress(package, &feeds, progress)
+        .solve_network_with_progress(package.package(), &feeds, progress)
         .map_err(|e| SolveFailure {
             unit: e.unit,
             message: e.message,
@@ -425,7 +565,7 @@ pub fn solve_project(
         &calc,
         &project.flowsheet,
         &fingerprints,
-        provenance,
+        package.provenance().clone(),
         solved_at_unix_s,
     ))
 }

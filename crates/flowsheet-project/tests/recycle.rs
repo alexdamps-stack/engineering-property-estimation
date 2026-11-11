@@ -7,7 +7,7 @@ use std::ops::ControlFlow;
 fn solve(project: &Project) -> flowsheet_project::ResultSet {
     solve_project(
         project,
-        &project.package.build().unwrap(),
+        &project.package.prepare().unwrap(),
         |_| ControlFlow::Continue(()),
         0,
     )
@@ -144,7 +144,7 @@ fn cyclic_fingerprints_cover_feed_composition_connections_and_keep_other_branche
 #[test]
 fn project_cancellation_and_failed_loop_return_no_new_results() {
     let project = recycle_demonstration(CubicVariantChoice::PengRobinson);
-    let pkg = project.package.build().unwrap();
+    let pkg = project.package.prepare().unwrap();
     let error = solve_project(
         &project,
         &pkg,
