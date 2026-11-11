@@ -280,15 +280,15 @@ pub fn run_acceptance(dir: &Path) -> Result<AcceptanceReport, String> {
     steps.push("cancellation after two units returns no result".into());
 
     // 7. Unknown format versions are rejected.
-    let newer = saved.replacen("\"format_version\": 1", "\"format_version\": 2", 1);
+    let newer = saved.replacen("\"format_version\": 2", "\"format_version\": 3", 1);
     check(
         matches!(
             crate::Project::from_json(&newer),
-            Err(ProjectError::UnsupportedVersion(Some(2)))
+            Err(ProjectError::UnsupportedVersion(Some(3)))
         ),
-        "format version 2 is rejected",
+        "format version 3 is rejected",
     )?;
-    steps.push("format version 2 rejected".into());
+    steps.push("format version 3 rejected".into());
     let _ = std::fs::remove_file(&path);
 
     Ok(AcceptanceReport {

@@ -111,6 +111,9 @@ pub fn ph_flash(
     target_enthalpy: f64,
     options: PhFlashOptions,
 ) -> Result<PhFlash, Error> {
+    options.tp.validate()?;
+    let pure_model = crate::saturation::canonical_pure_model(model)?;
+    let model = pure_model.as_ref().unwrap_or(model);
     if !target_enthalpy.is_finite() {
         return Err(thermo_types::InputError::NonFinite("target enthalpy").into());
     }

@@ -1,6 +1,6 @@
 //! GERG PH equilibrium with native calorics and pure-fluid saturation lever rule.
 use crate::equilibrium_model::EquilibriumModel;
-use crate::gerg_flash::{GergEquilibrium, validate, validate_flash_options};
+use crate::gerg_flash::{GergEquilibrium, validate};
 use crate::{FlashOptions, FlashPhase, PhFlash, PureSaturation, gerg_outer_roots, gerg_tp_flash};
 use thermo_models::{GergModel, RootSelection};
 use thermo_types::{
@@ -75,7 +75,7 @@ pub fn gerg_ph_flash(
         return Err(Error::UnsupportedCapability("GERG PH requires ordered 230..=350 K bounds, positive iterations and energy tolerance <=1e-6".into()));
     }
     validate(model, Temperature::new(lo)?, p)?;
-    validate_flash_options(options.tp)?;
+    options.tp.validate()?;
     let adapter = GergEquilibrium::new(model)?;
     if let Some(tc) = model.pure_critical_temperature() {
         let top = hi.min(0.95 * tc);

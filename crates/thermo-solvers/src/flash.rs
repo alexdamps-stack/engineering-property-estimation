@@ -41,6 +41,23 @@ impl Default for FlashOptions {
     }
 }
 
+impl FlashOptions {
+    /// Validate options even when a pure or stable feed needs no phase split.
+    pub fn validate(self) -> Result<(), Error> {
+        self.stability.validate()?;
+        if self.max_iterations == 0
+            || !self.tolerance.is_finite()
+            || self.tolerance <= 0.0
+            || self.tolerance > 1e-7
+        {
+            return Err(Error::UnsupportedCapability(
+                "TP flash requires positive iterations and fugacity tolerance <=1e-7".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FlashPhase {
     /// Label only: two phases by molar volume; single phase by the documented heuristic.
@@ -113,6 +130,7 @@ pub(crate) fn tp_flash_impl<M: EquilibriumModel>(
     pressure: Pressure,
     options: FlashOptions,
 ) -> Result<TpFlash, Error> {
+    options.validate()?;
     let z = model.fractions().to_vec();
     let n = z.len();
     let active: Vec<usize> = (0..n).filter(|i| z[*i] > 0.0).collect();

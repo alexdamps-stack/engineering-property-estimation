@@ -29,7 +29,7 @@ fn badge_center(r: Rect, scale: f32) -> Pos2 {
 }
 
 /// Shows the canvas filling the available space of `ui`.
-pub fn show(ui: &mut Ui, ed: &mut Editor) {
+pub fn show(ui: &mut Ui, ed: &mut Editor, modal_open: bool) {
     let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
     let canvas = response.rect;
     ed.canvas_rect = canvas;
@@ -41,7 +41,9 @@ pub fn show(ui: &mut Ui, ed: &mut Editor) {
     }
 
     handle_view_input(ui, &response, ed, canvas);
-    handle_edit_input(ui, &response, ed, canvas);
+    if !modal_open {
+        handle_edit_input(ui, &response, ed, canvas);
+    }
 
     let fps = ed.fingerprints();
     let issues = ed.input_issues();
@@ -521,13 +523,9 @@ fn handle_edit_input(ui: &Ui, response: &Response, ed: &mut Editor, canvas: Rect
         };
     }
 
-    if !ui.ctx().egui_wants_keyboard_input() {
-        let (delete, escape) = ui.input(|i| {
-            (
-                i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace),
-                i.key_pressed(Key::Escape),
-            )
-        });
+    if response.hovered() && !ui.ctx().egui_wants_keyboard_input() {
+        let (delete, escape) =
+            ui.input(|i| (i.key_pressed(Key::Delete), i.key_pressed(Key::Escape)));
         if delete {
             ed.delete_selection();
         }

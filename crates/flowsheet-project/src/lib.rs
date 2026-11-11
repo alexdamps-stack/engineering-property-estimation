@@ -51,4 +51,4 @@ pub use time::format_utc;
 /// Revision of the flowsheet engine numerics recorded in result provenance.
 /// Change it whenever `flowsheet-core` unit-operation equations, balances or
 /// routing conventions change, so that stored results load as stale.
-pub const ENGINE_REVISION: &str = "flowsheet-core a10-tears-v1";
+pub const ENGINE_REVISION: &str = "flowsheet-core a10-tears-v2";

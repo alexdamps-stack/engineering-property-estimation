@@ -40,8 +40,10 @@ translation, and explicit synthetic zero kij. Broader bounds are search
 limits, not experimental accuracy or qualification claims. GERG and NRTL
 saturation are not extended by A13.
 
-Near-critical guards require vapor/liquid molar-volume ratio >= 1.5 and,
-for mixtures, maximum absolute composition separation >= 0.03. Pure propane
+Near-critical guards require vapor/liquid molar-volume ratio >= 1.5. The
+original absolute composition-separation guard was removed in the #91 fix:
+small absolute composition differences also occur in dilute mixtures far
+from criticality and cannot establish critical coalescence. Pure propane
 reuses the existing spinodal-bracketed fugacity solver and its T/Tc <= 0.95
 limit; temperature is found by a bounded bisection of that pressure function.
 These conservative guards do not locate or estimate the critical point.

@@ -87,7 +87,9 @@ calculation API, subprocess or Python dependency.
 - **CLI.** `"calculation": "tp-flash"` runs the flash; the `root` field is then
   rejected. `"homogeneous"` (default) keeps the A3 behavior. The output covers
   phases, labels, fractions, compositions, all properties, convergence
-  evidence, every TPD trial and the diagnostics. See
+  evidence, completed TPD trials and the diagnostics. Since the #88 fix,
+  the trial search can stop once a nontrivial negative TPD proves instability;
+  inconclusive trials cannot establish stability. See
   `examples/tp-flash-*.json`.
 
 The A1 residual targets are met with tighter internal values:

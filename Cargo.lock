@@ -1240,6 +1240,7 @@ dependencies = [
  "property-packages",
  "serde",
  "serde_json",
+ "tempfile",
  "thermo-data",
  "thermo-models",
  "thermo-solvers",

@@ -340,6 +340,53 @@ fn component_order_and_zero_fraction_do_not_change_boundaries() {
 }
 
 #[test]
+fn dilute_boundaries_are_not_mistaken_for_critical_coalescence() {
+    for variant in ["PR", "PR-BM"] {
+        for (solute, amount, kind) in [
+            ("ethane", 0.01, Kind::Dew),
+            ("ethane", 0.02, Kind::Dew),
+            ("nitrogen", 0.0001, Kind::Bubble),
+        ] {
+            let c = serde_json::json!({
+                "ids": [solute, "propane"], "z": [amount, 1.0-amount],
+                "variant": variant, "kij": [[0.0, 0.0], [0.0, 0.0]]
+            });
+            let m = model(&c);
+            let point = saturation_pressure(
+                &m,
+                Temperature::new(250.0).unwrap(),
+                kind,
+                SaturationOptions::default(),
+            )
+            .unwrap();
+            assert!(point.max_ln_fugacity_residual < 1e-9);
+            assert!(point.vapor.molar_volume / point.liquid.molar_volume > 1.5);
+            for composition in [&point.liquid_composition, &point.vapor_composition] {
+                assert!((composition.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+            }
+            let trace = trace_phase_envelope(
+                &m,
+                kind,
+                1.0,
+                3,
+                SaturationOptions {
+                    minimum_temperature_k: 249.0,
+                    maximum_temperature_k: 251.0,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert_eq!(
+                trace.points.len(),
+                3,
+                "{variant} {solute} {amount}: {:?}",
+                trace.stop
+            );
+        }
+    }
+}
+
+#[test]
 fn near_unit_pure_fractions_are_canonicalized_in_both_saturation_paths() {
     for index in [12, 28, 0, 16] {
         let base = model(&inputs()["cases"][index]);

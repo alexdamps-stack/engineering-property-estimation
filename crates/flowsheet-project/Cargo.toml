@@ -18,3 +18,4 @@ thermo-solvers = { path = "../thermo-solvers" }
 thermo-types = { path = "../thermo-types" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
+tempfile = "3.27"

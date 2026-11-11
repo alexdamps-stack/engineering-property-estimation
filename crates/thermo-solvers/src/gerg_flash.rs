@@ -248,34 +248,6 @@ impl EquilibriumModel for GergEquilibrium {
     }
 }
 
-pub(crate) fn validate_options(options: StabilityOptions) -> Result<(), Error> {
-    if options.max_iterations == 0
-        || !options.tolerance.is_finite()
-        || options.tolerance <= 0.0
-        || options.tolerance > 1e-7
-        || !options.tm_threshold.is_finite()
-        || options.tm_threshold >= 0.0
-        || options.tm_threshold < -1e-6
-    {
-        return Err(Error::UnsupportedCapability("GERG stability requires positive iterations/tolerance <=1e-7 and a negative TPD threshold >=-1e-6".into()));
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_flash_options(options: FlashOptions) -> Result<(), Error> {
-    validate_options(options.stability)?;
-    if options.max_iterations == 0
-        || !options.tolerance.is_finite()
-        || options.tolerance <= 0.0
-        || options.tolerance > 1e-7
-    {
-        return Err(Error::UnsupportedCapability(
-            "GERG TP flash requires positive iterations and fugacity tolerance <=1e-7".into(),
-        ));
-    }
-    Ok(())
-}
-
 /// Finite-trial stability on GERG exterior density branches in the dry-gas domain.
 pub fn gerg_assess_stability(
     model: &GergModel,
@@ -284,7 +256,7 @@ pub fn gerg_assess_stability(
     options: StabilityOptions,
 ) -> Result<StabilityAssessment, Error> {
     validate(model, t, p)?;
-    validate_options(options)?;
+    options.validate()?;
     crate::stability::assess_stability_impl(&GergEquilibrium::new(model)?, t, p, options)
 }
 
@@ -296,7 +268,7 @@ pub fn gerg_tp_flash(
     options: FlashOptions,
 ) -> Result<TpFlash, Error> {
     validate(model, t, p)?;
-    validate_flash_options(options)?;
+    options.validate()?;
     if model.pure_critical_temperature().is_some() {
         let roots = gerg_outer_roots(model, t, p)?;
         if roots.len() > 1 {

@@ -30,7 +30,11 @@ The committed JSON contains inputs, not reference answers.
 - `solve_network` / `solve_network_with_progress` discover cycles deterministically
   and remove one edge from each remaining cycle, preferring mixer inlets. This
   does not minimize the number of tears. Acyclic graphs use the original path.
-- Automatic starts use zero recycle flow with the first feed's flashed state.
+- Automatic starts originally used zero recycle flow with the first feed's
+  flashed state. Since the #87 fix, each tear uses a feed reachable upstream
+  along material connections, preserving exchanger-side separation;
+  mixer tears retain zero initial flow, while other tears start with that feed's
+  flow. A direct source outlet-temperature specification refines the state.
   `solve_recycles` accepts explicit tear-stream initial states and
   `RecycleOptions`. Unknown tears, incomplete cycle cuts, invalid flows,
   missing inputs, invalid options and unsupported equipment fail explicitly.
@@ -99,8 +103,9 @@ unaffected feeds and independent branches retain their currency. There is no
 recursive cycle hashing. Feed composition and connection changes are covered.
 
 Successful results store iteration count and per-tear closure evidence in an
-optional `recycle` field. Existing version-1 project files remain readable;
-older applications cannot read this new result field. The engine provenance is
+optional `recycle` field. At the A10 milestone, version-1 project files remained readable;
+older applications could not read this new result field. Current writers use format
+version 2 and readers accept versions 1 and 2 (see `flowsheet-and-ui.md`). The engine provenance was
 `flowsheet-core a10-tears-v1`, so results from the previous engine load stale.
 Failed or cancelled solves do not replace stored results; input fingerprints
 keep obsolete values visibly stale.
@@ -139,8 +144,8 @@ after the full workspace run.
 Direct substitution need not converge for arbitrary loops. There is no
 Wegstein/Newton recycle acceleration, optimal tear selection, or desktop tear
 configuration form. The explicit API supplies process-specific starting states
-and iteration limits when the automatic zero-flow start is unsuitable.
-Disconnected loops without a flowing source may fail on an empty thermal inlet.
+and iteration limits when the automatic starting state is unsuitable.
+Automatic initialization rejects loops without an upstream reachable feed.
 Pressure-loss loops still need a supported pressure-raising operation; drawing
 a pump or compressor does not implement it. No new flash domain, equilibrium
 stability claim, or equipment capability is introduced by A10.
