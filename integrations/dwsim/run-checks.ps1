@@ -27,7 +27,7 @@ if (-not (Test-Path $csc)) { throw "csc.exe for .NET Framework 4.x not found at 
 Push-Location $root
 try {
     Write-Host "== cargo build (release): thermo-bridge, thermo-cli"
-    & cargo build --release -p thermo-bridge -p thermo-cli
+    & cargo build --release --locked -p thermo-bridge -p thermo-cli
     if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 } finally { Pop-Location }
 $dll = Join-Path $root "target\release\thermocore_bridge.dll"
