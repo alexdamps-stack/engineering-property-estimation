@@ -1,7 +1,7 @@
 //! Bounded PR/PR-BM bubble/dew boundaries; no critical-point or retrograde continuation.
 use crate::{
     SATURATION_MAX_REDUCED_TEMPERATURE, StabilityAssessment, StabilityOptions, assess_stability,
-    pure_saturation_pressure,
+    pure_saturation_pressure, saturation::single_active_component,
 };
 use thermo_models::{CubicModel, HomogeneousState, RootSelection};
 use thermo_types::{CalculationError as Error, Pressure, Temperature};
@@ -79,7 +79,7 @@ pub fn saturation_pressure(
     kind: CubicSaturationKind,
     options: SaturationOptions,
 ) -> Result<SaturationPoint, Error> {
-    solve(model, temperature.value(), true, kind, options)
+    solve(model, temperature.value(), true, kind, options).map_err(|r| r.error)
 }
 pub fn saturation_temperature(
     model: &CubicModel,
@@ -87,8 +87,61 @@ pub fn saturation_temperature(
     kind: CubicSaturationKind,
     options: SaturationOptions,
 ) -> Result<SaturationPoint, Error> {
-    solve(model, pressure.value(), false, kind, options)
+    solve(model, pressure.value(), false, kind, options).map_err(|r| r.error)
 }
+
+/// Why a boundary was not returned, ordered from least to most specific. When no
+/// verified root exists, the most specific rejection over all seeds is reported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum RejectionKind {
+    /// Input, bound or model-evaluation error, or an inner solver failure.
+    Other,
+    /// Newton converged but the 1e-9 fugacity re-check failed.
+    FugacityRecheck,
+    /// Trivial/coalescing roots, singular boundary equations or T/Tc above the
+    /// supported pure-saturation limit.
+    NearCritical,
+    /// A selected phase root is metastable relative to another root.
+    MetastablePhase,
+    /// Boundary phases unstable in finite TPD trials (third phase or LLE).
+    UnstableBoundaryPhases,
+}
+
+#[derive(Debug, Clone)]
+struct Rejection {
+    kind: RejectionKind,
+    error: Error,
+}
+
+impl Rejection {
+    fn new(kind: RejectionKind, error: Error) -> Self {
+        Self { kind, error }
+    }
+    fn near_critical(message: &str) -> Self {
+        Self::new(
+            RejectionKind::NearCritical,
+            Error::OutsideValidityDomain(message.into()),
+        )
+    }
+}
+
+impl From<Error> for Rejection {
+    fn from(error: Error) -> Self {
+        Self::new(RejectionKind::Other, error)
+    }
+}
+
+/// Keep the most specific rejection; the first seen wins among equals.
+fn keep_most_specific(best: &mut Option<Rejection>, candidate: Rejection) {
+    if best.as_ref().is_none_or(|b| candidate.kind > b.kind) {
+        *best = Some(candidate);
+    }
+}
+
+/// max_i |ln K_i| below this marks trivial/coalescing phases. Unlike an absolute
+/// |x_i − y_i| test, it does not reject dilute mixtures whose phase compositions
+/// differ little only because the feed is dilute.
+const NEAR_CRITICAL_LN_K: f64 = 0.03;
 
 fn solve(
     model: &CubicModel,
@@ -96,7 +149,7 @@ fn solve(
     pressure_unknown: bool,
     kind: CubicSaturationKind,
     o: SaturationOptions,
-) -> Result<SaturationPoint, Error> {
+) -> Result<SaturationPoint, Rejection> {
     o.validate()?;
     if model
         .component_ids()
@@ -112,7 +165,8 @@ fn solve(
     {
         return Err(Error::UnsupportedCapability(
             "A13 qualified dry hydrocarbon/N2/CO2 cubic domain only".into(),
-        ));
+        )
+        .into());
     }
     let (lo, hi) = if pressure_unknown {
         (o.minimum_pressure_pa.ln(), o.maximum_pressure_pa.ln())
@@ -127,14 +181,10 @@ fn solve(
     if !fixed.is_finite() || fixed < flo || fixed > fhi {
         return Err(Error::OutsideValidityDomain(
             "A13 fixed coordinate outside requested supported range".into(),
-        ));
+        )
+        .into());
     }
-    let mut active_components = model
-        .fractions()
-        .iter()
-        .enumerate()
-        .filter(|(_, x)| **x > 0.0);
-    if let (Some((index, _)), None) = (active_components.next(), active_components.next()) {
+    if let Some(index) = single_active_component(model.fractions()) {
         // with_fractions accepts a small unit-sum error without normalizing.
         // Canonicalize the single active component for both pure saturation
         // paths and their returned phase states, retaining inactive slots.
@@ -142,33 +192,37 @@ fn solve(
         fractions[index] = 1.0;
         let pure_model = model.with_fractions(&fractions)?;
         let model = &pure_model;
+        let tc = model.components()[index].critical_temperature();
         let (t, p, it) = if pressure_unknown {
-            let r = pure_saturation_pressure(model, Temperature::new(fixed)?, o.max_iterations)?;
+            if fixed / tc > SATURATION_MAX_REDUCED_TEMPERATURE {
+                return Err(Rejection::near_critical(&format!(
+                    "A13 near-critical diagnostic: pure saturation supported for T/Tc <= {SATURATION_MAX_REDUCED_TEMPERATURE}"
+                )));
+            }
+            let r = pure_saturation_pressure(model, temperature(fixed)?, o.max_iterations)?;
             (fixed, r.pressure_pa, r.iterations)
         } else {
             let mut a = o.minimum_temperature_k;
-            let mut b = o.maximum_temperature_k.min(
-                SATURATION_MAX_REDUCED_TEMPERATURE
-                    * model.components()[index].critical_temperature(),
-            );
+            let mut b = o
+                .maximum_temperature_k
+                .min(SATURATION_MAX_REDUCED_TEMPERATURE * tc);
             if b <= a {
-                return Err(Error::OutsideValidityDomain(
-                    "A13 near-critical diagnostic: no supported pure-temperature interval".into(),
+                return Err(Rejection::near_critical(
+                    "A13 near-critical diagnostic: no supported pure-temperature interval",
                 ));
             }
-            let p_a = pure_saturation_pressure(model, Temperature::new(a)?, 200)?.pressure_pa;
-            let p_b = pure_saturation_pressure(model, Temperature::new(b)?, 200)?.pressure_pa;
+            let p_a = pure_saturation_pressure(model, temperature(a)?, 200)?.pressure_pa;
+            let p_b = pure_saturation_pressure(model, temperature(b)?, 200)?.pressure_pa;
             if fixed < p_a || fixed > p_b {
-                return Err(Error::OutsideValidityDomain(
-                    "A13 pure saturation not bracketed; near-critical or outside requested range"
-                        .into(),
+                return Err(Rejection::near_critical(
+                    "A13 pure saturation not bracketed; near-critical or outside requested range",
                 ));
             }
             let mut count = 0;
             for i in 1..=o.max_iterations {
                 count = i;
                 let mid = (a + b) / 2.0;
-                let r = pure_saturation_pressure(model, Temperature::new(mid)?, 200)?;
+                let r = pure_saturation_pressure(model, temperature(mid)?, 200)?;
                 if r.pressure_pa < fixed {
                     a = mid;
                 } else {
@@ -179,16 +233,17 @@ fn solve(
                 }
             }
             if b - a >= 1e-9 {
-                return Err(Error::NonConvergence(
-                    "A13 pure temperature iteration limit".into(),
-                ));
+                return Err(
+                    Error::NonConvergence("A13 pure temperature iteration limit".into()).into(),
+                );
             }
             ((a + b) / 2.0, fixed, count)
         };
         if p < o.minimum_pressure_pa || p > o.maximum_pressure_pa {
             return Err(Error::OutsideValidityDomain(
                 "A13 saturation pressure outside requested range".into(),
-            ));
+            )
+            .into());
         }
         return point(
             model,
@@ -207,7 +262,7 @@ fn solve(
         .filter_map(|(i, x)| (*x > 0.0).then_some(i))
         .collect();
     let mut solutions: Vec<SaturationPoint> = Vec::new();
-    let mut near_critical = false;
+    let mut rejection: Option<Rejection> = None;
     for seed in 0..=12 {
         let u = lo + (hi - lo) * seed as f64 / 12.0;
         let (t, p) = if pressure_unknown {
@@ -215,7 +270,7 @@ fn solve(
         } else {
             (u.exp(), fixed)
         };
-        let k = crate::wilson_k(model, Temperature::new(t)?, Pressure::new(p)?);
+        let k = crate::wilson_k(model, temperature(t)?, pressure(p)?);
         let mut q = vec![u];
         q.extend(active.iter().map(|i| k[*i].ln()));
         for iteration in 1..=o.max_iterations {
@@ -238,8 +293,7 @@ fn solve(
                             solutions.push(s);
                         }
                     }
-                    Err(Error::OutsideValidityDomain(_)) => near_critical = true,
-                    _ => {}
+                    Err(r) => keep_most_specific(&mut rejection, r),
                 }
                 break;
             }
@@ -264,7 +318,12 @@ fn solve(
                 break;
             }
             let Some(step) = linear(jac, r.iter().map(|v| -v).collect()) else {
-                near_critical = true;
+                keep_most_specific(
+                    &mut rejection,
+                    Rejection::near_critical(
+                        "A13 near-critical diagnostic: singular boundary equations; no verified point returned",
+                    ),
+                );
                 break;
             };
             let mut accepted = false;
@@ -290,11 +349,21 @@ fn solve(
         }
     }
     match solutions.len() {
-        1=>Ok(solutions.remove(0)),
-        0 if near_critical=>Err(Error::OutsideValidityDomain("A13 near-critical diagnostic: trivial/coalescing roots or singular boundary equations; no verified point returned".into())),
-        0=>Err(Error::NonConvergence("A13 no verified boundary inside requested bounds; iteration limit, absent bracket or unsupported branch".into())),
-        _=>Err(Error::UnsupportedCapability("A13 multiple saturation branches in requested interval; narrow bounds; retrograde branch selection unsupported".into())),
+        1 => Ok(solutions.remove(0)),
+        // Report the most specific reason a converged root was rejected.
+        0 => Err(rejection.unwrap_or_else(|| {
+            Error::NonConvergence("A13 no verified boundary inside requested bounds; iteration limit, absent bracket or unsupported branch".into()).into()
+        })),
+        _ => Err(Error::UnsupportedCapability("A13 multiple saturation branches in requested interval; narrow bounds; retrograde branch selection unsupported".into()).into()),
     }
+}
+
+fn temperature(value: f64) -> Result<Temperature, Error> {
+    Ok(Temperature::new(value)?)
+}
+
+fn pressure(value: f64) -> Result<Pressure, Error> {
+    Ok(Pressure::new(value)?)
 }
 type ResidualEvaluation = (Vec<f64>, Vec<f64>, Vec<f64>);
 
@@ -357,26 +426,26 @@ fn point(
     x: Vec<f64>,
     y: Vec<f64>,
     iterations: usize,
-) -> Result<SaturationPoint, Error> {
-    let tm = Temperature::new(t)?;
-    let pr = Pressure::new(p)?;
+) -> Result<SaturationPoint, Rejection> {
+    let tm = temperature(t)?;
+    let pr = pressure(p)?;
     let lm = model.with_fractions(&x)?;
     let vm = model.with_fractions(&y)?;
     let l = lm.evaluate(tm, pr, RootSelection::SmallestVolume)?;
     let v = vm.evaluate(tm, pr, RootSelection::LargestVolume)?;
+    // K → 1 test on the active components (a pure fluid has K = 1 by definition).
+    let max_ln_k = x
+        .iter()
+        .zip(&y)
+        .filter(|(a, b)| **a > 0.0 && **b > 0.0)
+        .map(|(a, b)| (b / a).ln().abs())
+        .fold(0.0, f64::max);
     if v.molar_volume / l.molar_volume < 1.5
-        || (x
-            .iter()
-            .zip(&y)
-            .map(|(a, b)| (a - b).abs())
-            .fold(0.0, f64::max)
-            < 0.03
-            && model.fractions().iter().filter(|v| **v > 0.0).count() > 1)
+        || (max_ln_k < NEAR_CRITICAL_LN_K && single_active_component(model.fractions()).is_none())
     {
-        return Err(Error::OutsideValidityDomain(
-            "A13 near-critical diagnostic: phase volume ratio <1.5 or composition separation <0.03"
-                .into(),
-        ));
+        return Err(Rejection::near_critical(&format!(
+            "A13 near-critical diagnostic: phase volume ratio <1.5 or max |ln K| <{NEAR_CRITICAL_LN_K}"
+        )));
     }
     let residual = x
         .iter()
@@ -388,7 +457,10 @@ fn point(
         })
         .fold(0.0, f64::max);
     if residual > 1e-9 {
-        return Err(Error::NonConvergence("A13 fugacity equality failed".into()));
+        return Err(Rejection::new(
+            RejectionKind::FugacityRecheck,
+            Error::NonConvergence("A13 fugacity equality failed".into()),
+        ));
     }
     // TPD uses the minimum-Gibbs root. Ensure it assesses the selected phase,
     // rather than silently assessing a different root at the same composition.
@@ -401,8 +473,11 @@ fn point(
             .map(|((w, a), b)| w * (a - b))
             .sum();
         if excess > 1e-8 {
-            return Err(Error::UnsupportedCapability(
-                "A13 selected phase is metastable relative to another root".into(),
+            return Err(Rejection::new(
+                RejectionKind::MetastablePhase,
+                Error::UnsupportedCapability(
+                    "A13 selected phase is metastable relative to another root".into(),
+                ),
             ));
         }
     }
@@ -412,8 +487,11 @@ fn point(
     ];
     for phase in &phase_stability {
         if !phase.stable_in_trials {
-            return Err(Error::UnsupportedCapability(
-                "A13 boundary phases unstable in finite TPD trials".into(),
+            return Err(Rejection::new(
+                RejectionKind::UnstableBoundaryPhases,
+                Error::UnsupportedCapability(
+                    "A13 boundary phases unstable in finite TPD trials".into(),
+                ),
             ));
         }
     }
@@ -506,14 +584,20 @@ pub fn trace_phase_envelope(
             "A13 trace point budget cannot cover requested range".into(),
         ));
     }
-    let required = intervals as usize + 1;
-    for i in 0..required {
-        let t = (o.minimum_temperature_k + i as f64 * step_k).min(o.maximum_temperature_k);
-        match saturation_pressure(model, Temperature::new(t)?, kind, o) {
+    // Interior samples strictly below the maximum, then the maximum exactly once.
+    // `ceil` of a float quotient can otherwise yield a last interior sample equal to
+    // (or within roundoff of) the maximum, which would be computed twice.
+    let mut temperatures: Vec<f64> = (0..intervals as usize)
+        .map(|i| o.minimum_temperature_k + i as f64 * step_k)
+        .filter(|t| o.maximum_temperature_k - t > 1e-9 * step_k.max(1.0))
+        .collect();
+    temperatures.push(o.maximum_temperature_k);
+    for t in temperatures {
+        match solve(model, t, true, kind, o) {
             Ok(p) => result.points.push(p),
-            Err(e) => {
-                let message = e.to_string();
-                result.stop = if message.contains("near-critical") {
+            Err(rejection) => {
+                let message = rejection.error.to_string();
+                result.stop = if rejection.kind == RejectionKind::NearCritical {
                     EnvelopeStop::NearCritical {
                         temperature_k: t,
                         diagnostic: message,

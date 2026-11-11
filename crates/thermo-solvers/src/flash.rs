@@ -3,9 +3,7 @@
 //! decrease check, and post-split stability of each phase.
 use crate::equilibrium_model::EquilibriumModel;
 use crate::rachford_rice::{RACHFORD_RICE_MAX_ITERATIONS, rachford_rice_negative};
-use crate::stability::{
-    StabilityAssessment, StabilityOptions, TrialOutcome, assess_stability_impl, normalized,
-};
+use crate::stability::{StabilityAssessment, StabilityOptions, assess_stability_impl, normalized};
 use thermo_models::{CubicModel, FugacityState, HomogeneousState, RootSelection};
 use thermo_types::{
     CalculationError as Error, Diagnostic, DiagnosticSeverity, Phase, Pressure, Temperature,
@@ -162,7 +160,7 @@ pub(crate) fn tp_flash_impl<M: EquilibriumModel>(
     let trial = feed_stability
         .trials
         .iter()
-        .filter(|t| t.outcome != TrialOutcome::TrivialSolution)
+        .filter(|t| t.outcome.locates_stationary_point())
         .min_by(|a, b| {
             a.tangent_plane_distance
                 .total_cmp(&b.tangent_plane_distance)
@@ -188,7 +186,8 @@ pub(crate) fn tp_flash_impl<M: EquilibriumModel>(
     let mut converged = None;
     for iteration in 1..=options.max_iterations {
         let k: Vec<f64> = ln_k.iter().map(|l| l.exp()).collect();
-        let rr = rachford_rice_negative(&z_active, &k, RACHFORD_RICE_MAX_ITERATIONS)?;
+        let rr = rachford_rice_negative(&z_active, &k, RACHFORD_RICE_MAX_ITERATIONS)
+            .map_err(|e| iterate_error(iteration, e))?;
         let (x, y) = (
             expand(&active, &rr.liquid, n),
             expand(&active, &rr.vapor, n),
@@ -356,6 +355,21 @@ pub(crate) fn tp_flash_impl<M: EquilibriumModel>(
     })
 }
 
+/// Inside the split iteration, K values are iterates rather than user input: a
+/// one-sided or nonfinite K set from Rachford–Rice is a numerical failure of the
+/// split, not an unsupported capability or invalid input.
+fn iterate_error(iteration: usize, error: Error) -> Error {
+    match error {
+        Error::UnsupportedCapability(message) => Error::NumericalFailure(format!(
+            "phase-split iterate at iteration {iteration}: {message}"
+        )),
+        Error::InvalidInput(input) => Error::NumericalFailure(format!(
+            "phase-split iterate at iteration {iteration} produced invalid K values: {input}"
+        )),
+        other => other,
+    }
+}
+
 fn expand(active: &[usize], values: &[f64], n: usize) -> Vec<f64> {
     let mut full = vec![0.0; n];
     for (p, &i) in active.iter().enumerate() {
@@ -514,6 +528,19 @@ mod tests {
         .unwrap();
         assert!((candidate[0] - 3.0).abs() < 1e-9);
         assert!((candidate[1] - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn rachford_rice_failures_inside_the_split_are_numerical() {
+        let z = [0.5, 0.5];
+        let one_sided = rachford_rice_negative(&z, &[2.0, 1.5], RACHFORD_RICE_MAX_ITERATIONS)
+            .map_err(|e| iterate_error(7, e));
+        assert!(matches!(one_sided, Err(Error::NumericalFailure(m)) if m.contains("iteration 7")));
+        let overflow =
+            rachford_rice_negative(&z, &[f64::INFINITY, 0.5], 10).map_err(|e| iterate_error(3, e));
+        assert!(matches!(overflow, Err(Error::NumericalFailure(_))));
+        let limit = iterate_error(1, Error::NonConvergence("RR limit".into()));
+        assert!(matches!(limit, Error::NonConvergence(_)));
     }
 
     #[test]

@@ -114,6 +114,11 @@ pub fn ph_flash(
     if !target_enthalpy.is_finite() {
         return Err(thermo_types::InputError::NonFinite("target enthalpy").into());
     }
+    // A single active component stored as 1 − ε must take the pure lever-rule path;
+    // bisection alone cannot resolve the enthalpy jump at the saturation temperature.
+    if let Some(canonical) = crate::saturation::canonical_single_component(model)? {
+        return ph_flash(&canonical, pressure, target_enthalpy, options);
+    }
     let mut lo = options.minimum_temperature_k;
     let mut hi = options.maximum_temperature_k;
     if !lo.is_finite()
@@ -138,7 +143,7 @@ pub fn ph_flash(
     // Validate pressure and the inner solver before the separate saturation path.
     let low = tp_flash(model, Temperature::new(lo)?, pressure, options.tp)?;
     let high = tp_flash(model, Temperature::new(hi)?, pressure, options.tp)?;
-    if let Some(index) = model.fractions().iter().position(|x| *x == 1.0) {
+    if let Some(index) = crate::saturation::single_active_component(model.fractions()) {
         let top = hi.min(0.95 * model.components()[index].critical_temperature());
         if top >= lo
             && let Some(sat) =

@@ -49,6 +49,21 @@ pub enum TrialOutcome {
     /// Limit reached after a TPD below the threshold was found: instability is shown,
     /// but the stationary point was not located.
     IterationLimitAfterNegativeTpd,
+    /// Limit reached without a TPD below the threshold: inconclusive. The assessment
+    /// returns `NonConvergence` unless another trial proved instability.
+    IterationLimitInconclusive,
+    /// Stopped once the iterate came within 1e-6 (mole fraction) of the nontrivial
+    /// stationary point already located by the trial at this index of `trials`; it
+    /// carries no new information and is not used to initialise a split.
+    DuplicateOf(usize),
+}
+
+impl TrialOutcome {
+    /// True for a trial whose composition is a usable nontrivial stationary point
+    /// (or a negative-TPD iterate) for classifying the feed and initialising a split.
+    pub fn locates_stationary_point(self) -> bool {
+        matches!(self, Self::Converged | Self::IterationLimitAfterNegativeTpd)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -102,6 +117,11 @@ pub fn wilson_k(model: &CubicModel, temperature: Temperature, pressure: Pressure
 /// successive-substitution search for a TPD stationary point using the minimum-Gibbs
 /// root at the trial composition. Trial set: Wilson vapor-like, Wilson liquid-like
 /// and (optionally) one near-pure trial per active component.
+///
+/// The first trial that proves instability (tm below the threshold) ends the
+/// assessment; later trials are not run. A trial that exhausts its iteration limit
+/// without a negative TPD is inconclusive: the assessment returns `NonConvergence`
+/// only when no trial proved instability.
 pub fn assess_stability(
     model: &CubicModel,
     temperature: Temperature,
@@ -179,16 +199,33 @@ pub(crate) fn assess_stability_impl<M: EquilibriumModel>(
             initialization,
             w0,
             options,
+            &assessment.trials,
         )?;
-        if trial.tangent_plane_distance < options.tm_threshold
-            && trial.outcome != TrialOutcome::TrivialSolution
-        {
-            assessment.stable_in_trials = false;
-        }
+        let proves_instability = trial.tangent_plane_distance < options.tm_threshold
+            && trial.outcome.locates_stationary_point();
         assessment.trials.push(trial);
+        if proves_instability {
+            assessment.stable_in_trials = false;
+            // Instability is proven; a slower remaining trial must not discard it.
+            return Ok(assessment);
+        }
+    }
+    if let Some(slow) = assessment
+        .trials
+        .iter()
+        .find(|t| t.outcome == TrialOutcome::IterationLimitInconclusive)
+    {
+        return Err(Error::NonConvergence(format!(
+            "TPD trial {:?} exhausted {} iterations without a negative TPD; stability undetermined",
+            slow.initialization, options.max_iterations
+        )));
     }
     Ok(assessment)
 }
+
+/// Mole-fraction distance below which a trial iterate is taken to have reached an
+/// earlier trial's stationary point (same scale as the trivial-solution test).
+const DUPLICATE_DISTANCE: f64 = 1e-6;
 
 #[allow(clippy::too_many_arguments)]
 fn run_trial<M: EquilibriumModel>(
@@ -201,6 +238,7 @@ fn run_trial<M: EquilibriumModel>(
     initialization: TrialInitialization,
     w0: Vec<f64>,
     options: StabilityOptions,
+    earlier: &[TrialResult],
 ) -> Result<TrialResult, Error> {
     let n = z.len();
     let mut ln_w: Vec<f64> = w0.iter().map(|w| w.ln()).collect();
@@ -237,6 +275,24 @@ fn run_trial<M: EquilibriumModel>(
             best = Some((tm, w.clone(), fug.compressibility));
         }
         let trivial = trivial_distance <= 1e-6;
+        if !trivial && change <= DUPLICATE_DISTANCE {
+            let duplicate = earlier.iter().position(|t| {
+                t.outcome == TrialOutcome::Converged
+                    && active
+                        .iter()
+                        .all(|&i| (t.composition[i] - w[i]).abs() <= DUPLICATE_DISTANCE)
+            });
+            if let Some(index) = duplicate {
+                return Ok(TrialResult {
+                    initialization,
+                    outcome: TrialOutcome::DuplicateOf(index),
+                    tangent_plane_distance: tm,
+                    composition: w,
+                    compressibility: fug.compressibility,
+                    iterations: iteration,
+                });
+            }
+        }
         if change <= options.tolerance || (trivial && change <= 1e-8) {
             return Ok(TrialResult {
                 initialization,
@@ -252,20 +308,23 @@ fn run_trial<M: EquilibriumModel>(
             });
         }
     }
-    match best {
-        Some((tm, composition, compressibility)) if tm < options.tm_threshold => Ok(TrialResult {
-            initialization,
-            outcome: TrialOutcome::IterationLimitAfterNegativeTpd,
-            tangent_plane_distance: tm,
-            composition,
-            compressibility,
-            iterations: options.max_iterations,
-        }),
-        _ => Err(Error::NonConvergence(format!(
-            "TPD trial {initialization:?} exhausted {} iterations without a negative TPD; stability undetermined",
-            options.max_iterations
-        ))),
-    }
+    let Some((tm, composition, compressibility)) = best else {
+        return Err(Error::NonConvergence(format!(
+            "TPD trial {initialization:?} has a zero iteration limit; stability undetermined"
+        )));
+    };
+    Ok(TrialResult {
+        initialization,
+        outcome: if tm < options.tm_threshold {
+            TrialOutcome::IterationLimitAfterNegativeTpd
+        } else {
+            TrialOutcome::IterationLimitInconclusive
+        },
+        tangent_plane_distance: tm,
+        composition,
+        compressibility,
+        iterations: options.max_iterations,
+    })
 }
 
 fn model_fractions_of(active: &[usize], big_w: &[f64], total: f64, n: usize) -> Vec<f64> {

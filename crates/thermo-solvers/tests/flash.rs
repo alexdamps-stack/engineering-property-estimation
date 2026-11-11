@@ -495,3 +495,81 @@ fn stability_trials_report_evidence_not_proof() {
     };
     assert_eq!(assess_stability(&m, t, p, no_pure).unwrap().trials.len(), 2);
 }
+
+/// Issue #88: the Wilson-vapor trial proves instability quickly while the
+/// Wilson-liquid trial creeps toward the trivial point beyond the iteration limit.
+/// The slow trial must not discard the proven instability.
+#[test]
+fn slow_tpd_trial_does_not_discard_proven_instability() {
+    let m = model(
+        &["methane", "propane"],
+        &[0.5, 0.5],
+        CubicVariant::PengRobinson,
+        zeros(2),
+    );
+    for pressure in [7.0795e6, 7.08e6, 7.1e6] {
+        let (t, p) = tp(295.0, pressure);
+        let s = assess_stability(&m, t, p, StabilityOptions::default()).unwrap();
+        assert!(!s.stable_in_trials, "{pressure}");
+        // The assessment stops at the first trial that proves instability.
+        let last = s.trials.last().unwrap();
+        assert!(last.outcome.locates_stationary_point());
+        assert!(last.tangent_plane_distance < s.options.tm_threshold);
+        let r = tp_flash(&m, t, p, FlashOptions::default()).unwrap();
+        assert_eq!(r.phases.len(), 2, "{pressure}");
+        let beta = r.vapor_fraction().unwrap();
+        assert!(beta > 0.0 && beta < 1.0);
+        assert!(r.max_ln_fugacity_residual <= 1e-10);
+        assert!(r.reduced_gibbs_change < 0.0);
+    }
+}
+
+/// Issue #120: a trial that reaches an earlier trial's stationary point stops
+/// early and is reported as a duplicate; inconclusive trials still fail.
+#[test]
+fn duplicate_trials_are_reported_and_inconclusive_limits_still_fail() {
+    let m = model(
+        &["methane", "propane"],
+        &[0.5, 0.5],
+        CubicVariant::PengRobinson,
+        zeros(2),
+    );
+    let mut duplicates = 0;
+    for (temperature, pressure) in [(330.0, 2e6), (200.0, 4e6), (260.0, 5e5), (290.0, 1e6)] {
+        let (t, p) = tp(temperature, pressure);
+        let s = assess_stability(&m, t, p, StabilityOptions::default()).unwrap();
+        assert!(s.stable_in_trials);
+        for (index, trial) in s.trials.iter().enumerate() {
+            if let TrialOutcome::DuplicateOf(original) = trial.outcome {
+                duplicates += 1;
+                assert!(original < index);
+                assert_eq!(s.trials[original].outcome, TrialOutcome::Converged);
+                for (a, b) in trial
+                    .composition
+                    .iter()
+                    .zip(&s.trials[original].composition)
+                {
+                    assert!((a - b).abs() <= 1e-6);
+                }
+            }
+        }
+    }
+    assert!(
+        duplicates >= 3,
+        "expected near-pure trials to repeat Wilson stationary points"
+    );
+    // No trial negative and every trial inconclusive: stability stays undetermined.
+    let (t, p) = tp(330.0, 2e6);
+    assert!(matches!(
+        assess_stability(
+            &m,
+            t,
+            p,
+            StabilityOptions {
+                max_iterations: 1,
+                ..Default::default()
+            }
+        ),
+        Err(CalculationError::NonConvergence(_))
+    ));
+}
