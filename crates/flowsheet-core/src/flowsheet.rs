@@ -185,6 +185,25 @@ impl Flowsheet {
             .find(|s| s.from == port || s.to == port)
     }
 
+    /// Whether both flowsheets define the same calculation: identical unit
+    /// identifiers, kinds and specifications, and identical stream identifiers
+    /// and connections. Names, the revision counter and tag counters do not
+    /// affect a solve and are ignored, so a rename does not make results stale.
+    pub fn same_calculation_inputs(&self, other: &Flowsheet) -> bool {
+        self.units.len() == other.units.len()
+            && self.streams.len() == other.streams.len()
+            && self
+                .units
+                .values()
+                .zip(other.units.values())
+                .all(|(a, b)| a.id == b.id && a.kind == b.kind && a.spec == b.spec)
+            && self
+                .streams
+                .values()
+                .zip(other.streams.values())
+                .all(|(a, b)| a.id == b.id && a.from == b.from && a.to == b.to)
+    }
+
     /// Adds a unit with a generated tag and default specification.
     pub fn add_unit(&mut self, kind: UnitKind) -> UnitId {
         self.next_unit += 1;
@@ -349,7 +368,7 @@ impl Flowsheet {
         let unit = self.units.get(&id)?;
         let open_port =
             (0..unit.kind.ports().len()).any(|i| self.stream_at(PortRef::new(id, i)).is_none());
-        Some(if open_port || !unit.spec.issues().is_empty() {
+        Some(if open_port || !unit.issues().is_empty() {
             UnitStatus::Underspecified
         } else {
             UnitStatus::Ready
@@ -391,7 +410,6 @@ impl Flowsheet {
                 }
             }
             let (missing, invalid): (Vec<SpecIssue>, Vec<SpecIssue>) = unit
-                .spec
                 .issues()
                 .into_iter()
                 .partition(|i| i.problem == SpecProblem::Missing);
@@ -609,6 +627,36 @@ mod tests {
         assert_eq!(fs.revision(), r2);
         assert!(fs.rename_unit(feed, "Natural gas"));
         assert!(fs.revision() > r2);
+    }
+
+    #[test]
+    fn calculation_inputs_ignore_names_and_revision() {
+        let mut fs = Flowsheet::new();
+        let feed = fs.add_unit(UnitKind::Feed);
+        let product = fs.add_unit(UnitKind::Product);
+        let s = fs.connect(out(feed), PortRef::new(product, 0)).unwrap();
+        let before = fs.clone();
+        assert!(fs.rename_unit(feed, "Natural gas"));
+        assert!(fs.rename_stream(s, "gas"));
+        assert_ne!(fs.revision(), before.revision());
+        assert!(fs.same_calculation_inputs(&before));
+        fs.set_spec(
+            feed,
+            UnitSpec::Feed {
+                temperature_k: Some(300.0),
+                pressure_pa: None,
+                molar_flow_mol_s: None,
+            },
+        );
+        assert!(!fs.same_calculation_inputs(&before));
+        let mut rewired = before.clone();
+        rewired.disconnect(s);
+        assert!(!rewired.same_calculation_inputs(&before));
+        rewired
+            .connect(out(feed), PortRef::new(product, 0))
+            .unwrap();
+        // A new stream identifier keys different results.
+        assert!(!rewired.same_calculation_inputs(&before));
     }
 
     #[test]
