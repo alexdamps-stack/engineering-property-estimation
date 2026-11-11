@@ -8,6 +8,14 @@ edition = "2024"
 publish = false
 license = "MIT"
 
+[workspace.dependencies]
+# Declared once so JSON float parsing does not depend on feature unification:
+# `float_roundtrip` parses every decimal to the exactly rounded f64 (the default
+# parser can be 1 ulp off). Every crate uses `serde_json = { workspace = true }`.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
+# crates/thermo-bridge/Cargo.toml restates these lints (only `unsafe_code`
+# differs); its tests/workspace_lints.rs fails if the two drift apart.
 [workspace.lints.rust]
 unsafe_code = "forbid"
 

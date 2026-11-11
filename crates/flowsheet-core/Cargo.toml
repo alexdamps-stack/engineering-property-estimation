@@ -17,4 +17,4 @@ thermo-types = { path = "../thermo-types" }
 thermo-data = { path = "../thermo-data" }
 thermo-models = { path = "../thermo-models" }
 thermo-solvers = { path = "../thermo-solvers" }
-serde_json = "1"
+serde_json = { workspace = true }

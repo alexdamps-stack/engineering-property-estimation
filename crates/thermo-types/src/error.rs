@@ -27,7 +27,23 @@ pub enum InputError {
 
 impl fmt::Display for InputError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid calculation input: {self:?}")
+        f.write_str("invalid calculation input: ")?;
+        match self {
+            Self::NonFinite(what) => write!(f, "{what} is not finite"),
+            Self::NotPositive(what) => write!(f, "{what} must be strictly positive"),
+            Self::Negative(what) => write!(f, "{what} must not be negative"),
+            Self::InvalidIdentifier => f.write_str("empty or malformed identifier"),
+            Self::EmptyComposition => f.write_str("the composition is empty"),
+            Self::ZeroTotal => f.write_str("every component amount is zero"),
+            Self::DuplicateComponent => f.write_str("component identifiers are not unique"),
+            Self::NotNormalized => f.write_str("fractions do not sum to one within tolerance"),
+            Self::ComponentMismatch => {
+                f.write_str("parameter identities or order do not match the composition")
+            }
+            Self::NumericalRange => {
+                f.write_str("a positive contribution underflowed to zero during conversion")
+            }
+        }
     }
 }
 

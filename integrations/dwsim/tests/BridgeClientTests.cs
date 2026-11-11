@@ -44,6 +44,16 @@ internal static class BridgeClientTests
             Console.Error.WriteLine("usage: BridgeClientTests <thermocore_bridge.dll> <request.json> <cli-molar-vapor-fraction>");
             return 2;
         }
+        // Before Load nothing may bind through the DLL search order.
+        bool unloadedRejected = false;
+        try { ThermoCoreBridge.AbiVersion(); }
+        catch (InvalidOperationException) { unloadedRejected = true; }
+        Check(unloadedRejected, "AbiVersion before Load is rejected");
+        bool wrongNameRejected = false;
+        try { ThermoCoreBridge.Load(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[0])), "other_bridge.dll")); }
+        catch (ArgumentException) { wrongNameRejected = true; }
+        Check(wrongNameRejected, "Load requires the file name thermocore_bridge.dll");
+
         ThermoCoreBridge.Load(args[0]);
         double cliBeta = double.Parse(args[2], CultureInfo.InvariantCulture);
         Check(ThermoCoreBridge.AbiVersion() == 1, "ABI version 1");
@@ -82,6 +92,20 @@ internal static class BridgeClientTests
             Check(ThermoCoreBridge.Num(ph["mass_density_kg_per_m3"]) > 0, ph["label"] + " density in kg/m3 > 0");
         }
         Check(Math.Abs(sum - 1.0) < 1e-12, "phase fractions sum to one");
+
+        // PH round trip: the TP result's enthalpy_J_per_mol feeds the PH builder.
+        var tpPackage = ThermoCoreBridge.Obj(request["package"]);
+        var components = new List<string>();
+        foreach (object c in (System.Collections.ArrayList)tpPackage["components"]) components.Add((string)c);
+        var kij = new List<double[]>();
+        foreach (object row in (System.Collections.ArrayList)tpPackage["kij"]) kij.Add(ThermoCoreBridge.Nums(row));
+        var phResult = ThermoCoreBridge.Calculate(ThermoCoreBridge.PhFlashRequest(
+            "ph-round-trip", (string)tpPackage["model"], components, kij.ToArray(),
+            (string)tpPackage["interaction_source"],
+            ThermoCoreBridge.Nums(ThermoCoreBridge.Obj(request["state"])["mole_fractions"]),
+            ThermoCoreBridge.Num(r["pressure_Pa"]), ThermoCoreBridge.Num(r["enthalpy_J_per_mol"])));
+        Check((string)phResult["calculation"] == "ph-flash" && Math.Abs(ThermoCoreBridge.Num(phResult["temperature_K"]) - 220.0) < 1e-6,
+            "PH request builder recovers 220 K from the TP enthalpy_J_per_mol: " + ThermoCoreBridge.Num(phResult["temperature_K"]).ToString("R", CultureInfo.InvariantCulture));
 
         // Typed failures surface as exceptions with the stable kind.
         string e;
