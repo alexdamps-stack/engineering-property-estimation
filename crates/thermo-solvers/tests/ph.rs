@@ -81,6 +81,61 @@ fn unique_tp_ph_round_trips_including_zero_enthalpy() {
     }
 }
 
+/// Issue #92: a single active component stored as 1 − ε must take the pure
+/// lever-rule path instead of bisecting across the enthalpy jump at Tsat.
+#[test]
+fn near_unit_single_fraction_uses_the_pure_lever_rule() {
+    for v in variants() {
+        let exact = model(&["propane"], &[1.0], v);
+        let pressure = p(1e6);
+        // Saturation temperature at 1 MPa by bisection on the pure saturation pressure.
+        let (mut lo, mut hi) = (250.0, 340.0);
+        for _ in 0..100 {
+            let mid = 0.5 * (lo + hi);
+            if pure_saturation_pressure(&exact, t(mid), 200)
+                .unwrap()
+                .pressure_pa
+                < 1e6
+            {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        let tsat = 0.5 * (lo + hi);
+        let liquid = exact
+            .evaluate(t(tsat), pressure, RootSelection::SmallestVolume)
+            .unwrap();
+        let vapor = exact
+            .evaluate(t(tsat), pressure, RootSelection::LargestVolume)
+            .unwrap();
+        let target = 0.5 * (liquid.enthalpy + vapor.enthalpy);
+        let expected = ph_flash(&exact, pressure, target, PhFlashOptions::default()).unwrap();
+        assert!(expected.pure_saturation.is_some());
+        for amount in [1.0 - 5e-11, 1.0 + 5e-11] {
+            let near = exact.with_fractions(&[amount]).unwrap();
+            let r = ph_flash(&near, pressure, target, PhFlashOptions::default()).unwrap();
+            assert!(r.pure_saturation.is_some());
+            assert_eq!(r.phases.len(), 2);
+            assert_eq!(r.temperature_k, expected.temperature_k);
+            close(r.phases[0].phase_fraction, 0.5, 1e-6);
+            assert!(r.scaled_energy_residual.abs() <= 1e-10);
+            for phase in &r.phases {
+                assert_eq!(phase.composition, vec![1.0]);
+            }
+            let s = pure_saturation_pressure(&near, t(tsat), 200).unwrap();
+            close(s.pressure_pa, 1e6, 1e-3);
+        }
+        // Inactive slots are retained when canonicalising.
+        let padded = model(&["methane", "propane"], &[0.0, 1.0], v)
+            .with_fractions(&[0.0, 1.0 - 5e-11])
+            .unwrap();
+        let r = ph_flash(&padded, pressure, target, PhFlashOptions::default()).unwrap();
+        assert!(r.pure_saturation.is_some());
+        assert_eq!(r.phases[0].composition, vec![0.0, 1.0]);
+    }
+}
+
 #[test]
 fn pure_saturation_lever_rule_and_bubble_dew_endpoints() {
     for v in variants() {
