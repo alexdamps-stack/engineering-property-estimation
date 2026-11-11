@@ -21,7 +21,22 @@ pub struct PureSaturation {
     pub iterations: usize,
 }
 
-/// Saturation pressure of a pure model (exactly one fraction equal to one). The
+/// Canonicalize the single active fraction, retaining all inactive slots.
+pub(crate) fn canonical_pure_model(model: &CubicModel) -> Result<Option<CubicModel>, Error> {
+    let mut active = model
+        .fractions()
+        .iter()
+        .enumerate()
+        .filter(|(_, x)| **x > 0.0);
+    if let (Some((index, _)), None) = (active.next(), active.next()) {
+        let mut fractions = vec![0.0; model.fractions().len()];
+        fractions[index] = 1.0;
+        return model.with_fractions(&fractions).map(Some);
+    }
+    Ok(None)
+}
+
+/// Saturation pressure of a pure model (exactly one active component). The
 /// solve is bracketed by the spinodal pressures, where ln φ^L − ln φ^V is strictly
 /// decreasing in p (its ln p derivative is Z^L − Z^V < 0).
 pub fn pure_saturation_pressure(
@@ -29,12 +44,13 @@ pub fn pure_saturation_pressure(
     temperature: Temperature,
     max_iterations: usize,
 ) -> Result<PureSaturation, Error> {
-    let x = model.fractions();
-    let Some(index) = x.iter().position(|v| *v == 1.0) else {
+    let Some(pure_model) = canonical_pure_model(model)? else {
         return Err(Error::UnsupportedCapability(
-            "pure saturation requires exactly one component with mole fraction 1".into(),
+            "pure saturation requires exactly one active component".into(),
         ));
     };
+    let model = &pure_model;
+    let index = model.fractions().iter().position(|v| *v == 1.0).unwrap();
     let t = temperature.value();
     let tc = model.components()[index].critical_temperature();
     if t / tc > SATURATION_MAX_REDUCED_TEMPERATURE {

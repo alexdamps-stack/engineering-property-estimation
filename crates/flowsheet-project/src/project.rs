@@ -1,6 +1,7 @@
 //! In-memory project, its JSON file format, and solving.
 
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::ops::ControlFlow;
 use std::path::Path;
 
@@ -17,8 +18,8 @@ use crate::records::{KindRecord, SpecRecord};
 use crate::{Fingerprints, PackageSelection, ProjectError, ResultSet};
 
 /// Project file format version written by this program. Files declaring
-/// any other version are rejected; there is no silent migration.
-pub const FORMAT_VERSION: u64 = 1;
+/// versions 1 and 2 are readable; unknown versions are rejected before decoding.
+pub const FORMAT_VERSION: u64 = 2;
 
 /// Feed mole fractions in package component order, per feed unit.
 pub type FeedFractions = BTreeMap<UnitId, Vec<f64>>;
@@ -219,7 +220,7 @@ impl Project {
             .get("format_version")
             .and_then(serde_json::Value::as_u64)
         {
-            Some(FORMAT_VERSION) => {}
+            Some(1 | FORMAT_VERSION) => {}
             other => return Err(ProjectError::UnsupportedVersion(other)),
         }
         let file: ProjectFile =
@@ -246,6 +247,18 @@ impl Project {
             Flowsheet::restore(units, streams).map_err(|e| ProjectError::Invalid(e.to_string()))?;
 
         let n = file.package.components.len();
+        if let Some(results) = &file.results {
+            for (id, stream) in &results.streams {
+                if let Some(state) = &stream.state
+                    && (state.mole_fractions.len() != n
+                        || state.phases.iter().any(|p| p.mole_fractions.len() != n))
+                {
+                    return Err(ProjectError::Invalid(format!(
+                        "result for stream {id} has composition dimensions inconsistent with {n} components"
+                    )));
+                }
+            }
+        }
         let mut feeds = FeedFractions::new();
         for f in file.feeds {
             let id = UnitId(f.unit);
@@ -290,7 +303,21 @@ impl Project {
     /// Writes the project file.
     pub fn save(&self, path: &Path) -> Result<(), ProjectError> {
         let text = self.to_json()?;
-        std::fs::write(path, text).map_err(|e| ProjectError::Io(e.to_string()))
+        // Persist replaces the destination atomically on Unix and Windows.
+        // Until then, every fallible write touches only a sibling temporary file.
+        let write = || -> std::io::Result<()> {
+            let parent = path
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(Path::new("."));
+            let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+            temporary.write_all(text.as_bytes())?;
+            temporary.flush()?;
+            temporary.as_file().sync_all()?;
+            temporary.persist(path).map_err(|e| e.error)?;
+            Ok(())
+        };
+        write().map_err(|e| ProjectError::Io(e.to_string()))
     }
 
     /// Reads a project file.

@@ -138,6 +138,248 @@ fn heater_temperature_duty_and_pressure_drop_obey_energy_balance() {
 }
 
 #[test]
+fn absent_separator_outlet_propagates_through_thermal_units_and_splitter() {
+    for liquid_feed in [false, true] {
+        let (mut fs, pkg, mut feeds, separator) = single(
+            UnitKind::Separator,
+            UnitSpec::Separator {
+                thermal: SeparatorThermal::Adiabatic,
+                pressure_drop_pa: 0.0,
+            },
+            if liquid_feed { 240.0 } else { 330.0 },
+            10.0,
+        );
+        if liquid_feed {
+            *feeds.values_mut().next().unwrap() = support::composition(&[0.0, 0.0, 1.0, 0.0, 0.0]);
+        }
+        let absent_port = if liquid_feed { 1 } else { 2 };
+        let end = fs
+            .stream_at(PortRef::new(separator, absent_port))
+            .unwrap()
+            .to
+            .unit;
+        fs.remove_unit(end);
+        let valve = fs.add_unit(UnitKind::Valve);
+        fs.set_spec(
+            valve,
+            UnitSpec::Valve {
+                pressure: PressureSpec::OutletPressure(Some(1e6)),
+            },
+        );
+        let heater = fs.add_unit(UnitKind::Heater);
+        fs.set_spec(
+            heater,
+            UnitSpec::HeatExchange {
+                thermal: ThermalSpec::OutletTemperature(Some(350.0)),
+                pressure_drop_pa: 0.0,
+            },
+        );
+        let secondary = fs.add_unit(UnitKind::Separator);
+        fs.set_spec(
+            secondary,
+            UnitSpec::Separator {
+                thermal: SeparatorThermal::Duty(Some(0.0)),
+                pressure_drop_pa: 0.0,
+            },
+        );
+        let splitter = fs.add_unit(UnitKind::Splitter);
+        fs.set_spec(
+            splitter,
+            UnitSpec::Splitter {
+                fraction_to_first: Some(0.0),
+            },
+        );
+        for (from, fp, to, tp) in [
+            (separator, absent_port, valve, 0),
+            (valve, 1, heater, 0),
+            (heater, 1, secondary, 0),
+            (secondary, 1, splitter, 0),
+        ] {
+            fs.connect(PortRef::new(from, fp), PortRef::new(to, tp))
+                .unwrap();
+        }
+        for (from, port) in [(secondary, 2), (splitter, 1), (splitter, 2)] {
+            let p = fs.add_unit(UnitKind::Product);
+            fs.connect(PortRef::new(from, port), PortRef::new(p, 0))
+                .unwrap();
+        }
+        let report = fs.solve(&pkg, &feeds).unwrap();
+        for u in [valve, heater, secondary] {
+            assert_eq!(report.units[&u].duty_w, 0.0);
+            assert!(!report.units[&u].warnings.is_empty());
+            let b = report.units[&u].balance.as_ref().unwrap();
+            assert_eq!(b.energy_residual_w, 0.0);
+            assert_eq!(b.max_scaled_component_residual, 0.0);
+        }
+        for s in fs
+            .streams()
+            .filter(|s| [valve, heater, secondary, splitter].contains(&s.from.unit))
+        {
+            assert_eq!(report.streams[&s.id].molar_flow_mol_s, 0.0);
+            assert!(report.streams[&s.id].state.is_none());
+        }
+        fs.set_spec(
+            heater,
+            UnitSpec::HeatExchange {
+                thermal: ThermalSpec::Duty(Some(1.0)),
+                pressure_drop_pa: 0.0,
+            },
+        );
+        assert!(
+            fs.solve(&pkg, &feeds)
+                .unwrap_err()
+                .message
+                .contains("nonzero specified duty")
+        );
+    }
+}
+
+#[test]
+fn splitter_endpoint_empty_branch_can_feed_a_heater() {
+    for fraction in [0.0, 1.0] {
+        let (mut fs, pkg, feeds, splitter) = single(
+            UnitKind::Splitter,
+            UnitSpec::Splitter {
+                fraction_to_first: Some(fraction),
+            },
+            330.0,
+            10.0,
+        );
+        let port = if fraction == 0.0 { 1 } else { 2 };
+        let product = fs.stream_at(PortRef::new(splitter, port)).unwrap().to.unit;
+        fs.remove_unit(product);
+        let heater = fs.add_unit(UnitKind::Heater);
+        let product = fs.add_unit(UnitKind::Product);
+        fs.connect(PortRef::new(splitter, port), PortRef::new(heater, 0))
+            .unwrap();
+        fs.connect(PortRef::new(heater, 1), PortRef::new(product, 0))
+            .unwrap();
+        for thermal in [
+            ThermalSpec::OutletTemperature(Some(350.0)),
+            ThermalSpec::Duty(Some(0.0)),
+        ] {
+            fs.set_spec(
+                heater,
+                UnitSpec::HeatExchange {
+                    thermal,
+                    pressure_drop_pa: 0.0,
+                },
+            );
+            let report = fs.solve(&pkg, &feeds).unwrap();
+            let outlet = &report.streams[&fs.stream_at(PortRef::new(heater, 1)).unwrap().id];
+            assert_eq!(outlet.molar_flow_mol_s, 0.0);
+            assert!(outlet.state.is_none());
+            assert_eq!(report.units[&heater].duty_w, 0.0);
+            assert!(!report.units[&heater].warnings.is_empty());
+        }
+    }
+}
+
+#[test]
+fn exchanger_with_empty_sides_transfers_no_heat_and_preserves_active_enthalpy() {
+    for empty_hot in [false, true] {
+        for both_empty in [false, true] {
+            let (_, pkg, initial_feeds) =
+                support::demonstration(CubicVariant::PengRobinsonBostonMathias, 1.0);
+            let mut fs = Flowsheet::new();
+            let hx = fs.add_unit(UnitKind::HeatExchanger);
+            fs.set_spec(
+                hx,
+                UnitSpec::HeatExchanger {
+                    thermal: ExchangerSpec::Duty(Some(0.0)),
+                    hot_pressure_drop_pa: 1e5,
+                    cold_pressure_drop_pa: 2e5,
+                },
+            );
+            let mut feeds = FeedCompositions::new();
+            for side in 0..2 {
+                let feed = fs.add_unit(UnitKind::Feed);
+                let absent = both_empty || (side == 0) == empty_hot;
+                fs.set_spec(
+                    feed,
+                    UnitSpec::Feed {
+                        temperature_k: Some(if side == 0 { 350.0 } else { 330.0 }),
+                        pressure_pa: Some(5e6),
+                        molar_flow_mol_s: Some(if absent { 0.0 } else { 10.0 }),
+                    },
+                );
+                feeds.insert(feed, initial_feeds.values().next().unwrap().clone());
+                fs.connect(PortRef::new(feed, 0), PortRef::new(hx, side))
+                    .unwrap();
+                let product = fs.add_unit(UnitKind::Product);
+                fs.connect(PortRef::new(hx, side + 2), PortRef::new(product, 0))
+                    .unwrap();
+            }
+            let report = fs.solve(&pkg, &feeds).unwrap();
+            assert!(!report.units[&hx].warnings.is_empty());
+            assert_eq!(report.units[&hx].duty_w, 0.0);
+            for side in 0..2 {
+                let inlet = &report.streams[&fs.stream_at(PortRef::new(hx, side)).unwrap().id];
+                let outlet = &report.streams[&fs.stream_at(PortRef::new(hx, side + 2)).unwrap().id];
+                assert_eq!(inlet.molar_flow_mol_s, outlet.molar_flow_mol_s);
+                if inlet.molar_flow_mol_s == 0.0 {
+                    assert!(outlet.state.is_none());
+                } else {
+                    let a = inlet.state.as_ref().unwrap();
+                    let b = outlet.state.as_ref().unwrap();
+                    assert!((a.enthalpy() - b.enthalpy()).abs() < 1e-5);
+                    assert_eq!(b.pressure_pa, 5e6 - if side == 0 { 1e5 } else { 2e5 });
+                }
+            }
+            // An outlet-temperature specification on absent material is
+            // inactive; on the flowing side it cannot demand heat transfer.
+            fs.set_spec(
+                hx,
+                UnitSpec::HeatExchanger {
+                    thermal: if empty_hot {
+                        ExchangerSpec::HotOutletTemperature(Some(350.0))
+                    } else {
+                        ExchangerSpec::ColdOutletTemperature(Some(330.0))
+                    },
+                    hot_pressure_drop_pa: 0.0,
+                    cold_pressure_drop_pa: 0.0,
+                },
+            );
+            fs.solve(&pkg, &feeds).unwrap();
+            if !both_empty {
+                fs.set_spec(
+                    hx,
+                    UnitSpec::HeatExchanger {
+                        thermal: if empty_hot {
+                            ExchangerSpec::ColdOutletTemperature(Some(340.0))
+                        } else {
+                            ExchangerSpec::HotOutletTemperature(Some(340.0))
+                        },
+                        hot_pressure_drop_pa: 0.0,
+                        cold_pressure_drop_pa: 0.0,
+                    },
+                );
+                assert!(
+                    fs.solve(&pkg, &feeds)
+                        .unwrap_err()
+                        .message
+                        .contains("both exchanger sides")
+                );
+            }
+            fs.set_spec(
+                hx,
+                UnitSpec::HeatExchanger {
+                    thermal: ExchangerSpec::Duty(Some(1.0)),
+                    hot_pressure_drop_pa: 0.0,
+                    cold_pressure_drop_pa: 0.0,
+                },
+            );
+            assert!(
+                fs.solve(&pkg, &feeds)
+                    .unwrap_err()
+                    .message
+                    .contains("both exchanger sides")
+            );
+        }
+    }
+}
+
+#[test]
 fn separator_thermal_modes_and_empty_outlet_have_closed_balances() {
     for thermal in [
         SeparatorThermal::Adiabatic,

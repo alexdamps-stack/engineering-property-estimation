@@ -284,11 +284,11 @@ fn malformed_and_foreign_files_are_rejected() {
         Project::from_json(&text.replacen(from, to, 1))
     };
     assert_eq!(
-        edit("\"format_version\": 1", "\"format_version\": 2").unwrap_err(),
-        ProjectError::UnsupportedVersion(Some(2))
+        edit("\"format_version\": 2", "\"format_version\": 3").unwrap_err(),
+        ProjectError::UnsupportedVersion(Some(3))
     );
     assert_eq!(
-        edit("\"format_version\": 1", "\"format\": 1").unwrap_err(),
+        edit("\"format_version\": 2", "\"format\": 2").unwrap_err(),
         ProjectError::UnsupportedVersion(None)
     );
     assert!(matches!(
@@ -334,4 +334,171 @@ fn reloaded_projects_continue_identifiers_and_tags() {
         loaded.results.as_ref().unwrap().unit_currency(p, &fps),
         Currency::Missing
     );
+}
+
+#[test]
+fn reads_v1_writes_v2_and_rejects_unknown_versions_before_content() {
+    let mut project = demonstration(CubicVariantChoice::PengRobinson);
+    project.results = Some(solve(&project));
+    let mut value: serde_json::Value = serde_json::from_str(&project.to_json().unwrap()).unwrap();
+    assert_eq!(value["format_version"], 2);
+    value["format_version"] = 1.into();
+    // Pre-recycle v1 files omitted this optional field.
+    value["results"].as_object_mut().unwrap().remove("recycle");
+    let loaded = Project::from_json(&value.to_string()).unwrap();
+    assert!(loaded.to_json().unwrap().contains("\"format_version\": 2"));
+    assert!(loaded.results.unwrap().recycle.is_none());
+    assert_eq!(
+        Project::from_json(r#"{"format_version":99,"units":"invalid"}"#).unwrap_err(),
+        ProjectError::UnsupportedVersion(Some(99))
+    );
+}
+
+#[test]
+fn rejects_inconsistent_overall_and_phase_result_dimensions() {
+    let mut project = demonstration(CubicVariantChoice::PengRobinson);
+    project.results = Some(solve(&project));
+    for phase in [false, true] {
+        for too_long in [false, true] {
+            let mut edited = project.clone();
+            let state = edited
+                .results
+                .as_mut()
+                .unwrap()
+                .streams
+                .values_mut()
+                .find_map(|s| s.state.as_mut())
+                .unwrap();
+            let fractions = if phase {
+                &mut state.phases[0].mole_fractions
+            } else {
+                &mut state.mole_fractions
+            };
+            if too_long {
+                fractions.push(0.0);
+            } else {
+                fractions.pop();
+            }
+            assert!(matches!(
+                Project::from_json(&edited.to_json().unwrap()),
+                Err(ProjectError::Invalid(_))
+            ));
+        }
+    }
+}
+
+#[test]
+fn atomic_save_replaces_file_and_cleans_up_on_failed_replace() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("project.json");
+    let project = demonstration(CubicVariantChoice::PengRobinson);
+    project.save(&path).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        project.to_json().unwrap()
+    );
+    std::fs::write(&path, "old content").unwrap();
+    project.save(&path).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        project.to_json().unwrap()
+    );
+    // A directory cannot be replaced by a project file. Its existing content
+    // and the successful save remain intact, and no temporary file leaks.
+    let blocked = directory.path().join("blocked");
+    std::fs::create_dir(&blocked).unwrap();
+    std::fs::write(blocked.join("original"), "preserve me").unwrap();
+    assert!(matches!(project.save(&blocked), Err(ProjectError::Io(_))));
+    assert_eq!(
+        std::fs::read_to_string(blocked.join("original")).unwrap(),
+        "preserve me"
+    );
+    assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 2);
+}
+
+#[cfg(windows)]
+#[test]
+fn failed_atomic_save_preserves_locked_original() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("locked.json");
+    std::fs::write(&path, "original content").unwrap();
+    let _lock = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(1)
+        .open(&path)
+        .unwrap();
+    let project = demonstration(CubicVariantChoice::PengRobinson);
+    assert!(matches!(project.save(&path), Err(ProjectError::Io(_))));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "original content");
+    assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
+}
+
+#[test]
+fn atomic_save_accepts_a_bare_relative_filename() {
+    // Do not change cwd: other tests may be running concurrently.
+    let cleanup = tempfile::NamedTempFile::new_in(".")
+        .unwrap()
+        .into_temp_path();
+    let relative = PathBuf::from(cleanup.file_name().unwrap());
+    let project = demonstration(CubicVariantChoice::PengRobinson);
+    project.save(&relative).unwrap();
+    assert_eq!(
+        Project::load(&relative).unwrap().to_json().unwrap(),
+        project.to_json().unwrap()
+    );
+    project.save(&relative).unwrap();
+    drop(cleanup);
+}
+
+#[test]
+fn previous_engine_results_load_as_stale() {
+    let mut project = demonstration(CubicVariantChoice::PengRobinson);
+    let mut results = solve(&project);
+    results.provenance.engine = "flowsheet-core a10-tears-v1".into();
+    // Recreate the historical package checksum with the previous engine
+    // identity, while keeping every physical input unchanged.
+    let text = serde_json::to_string(&(&project.package, &results.provenance)).unwrap();
+    let mut checksum = 0xcbf2_9ce4_8422_2325_u64;
+    for field in ["package", &text] {
+        for byte in (field.len() as u64)
+            .to_le_bytes()
+            .iter()
+            .chain(field.as_bytes())
+        {
+            checksum ^= u64::from(*byte);
+            checksum = checksum.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    let old = Fingerprints::compute_with(
+        &project.flowsheet,
+        &project.feeds,
+        Some(Fingerprint(checksum)),
+    );
+    for (id, result) in &mut results.units {
+        result.fingerprint = old.units[id];
+    }
+    for (id, result) in &mut results.streams {
+        result.fingerprint = old.stream(&project.flowsheet, *id).unwrap();
+    }
+    project.results = Some(results);
+    let project = Project::from_json(&project.to_json().unwrap()).unwrap();
+    let results = project.results.as_ref().unwrap();
+    assert_eq!(results.provenance.engine, "flowsheet-core a10-tears-v1");
+    assert_ne!(
+        results.provenance.engine,
+        flowsheet_project::ENGINE_REVISION
+    );
+    let current = project.fingerprints();
+    assert!(
+        project
+            .flowsheet
+            .units()
+            .all(|u| results.unit_currency(u.id, &current) == Currency::Stale)
+    );
+    assert!(project.flowsheet.streams().all(|s| results.stream_currency(
+        &project.flowsheet,
+        s.id,
+        &current
+    ) == Currency::Stale));
 }

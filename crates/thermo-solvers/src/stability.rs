@@ -30,6 +30,25 @@ impl Default for StabilityOptions {
     }
 }
 
+impl StabilityOptions {
+    /// Validate the convergence contract shared by cubic and GERG stability.
+    pub fn validate(self) -> Result<(), Error> {
+        if self.max_iterations == 0
+            || !self.tolerance.is_finite()
+            || self.tolerance <= 0.0
+            || self.tolerance > 1e-7
+            || !self.tm_threshold.is_finite()
+            || self.tm_threshold >= 0.0
+            || self.tm_threshold < -1e-6
+        {
+            return Err(Error::UnsupportedCapability(
+                "stability requires positive iterations/tolerance <=1e-7 and a negative TPD threshold >=-1e-6".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrialInitialization {
     /// W_i = z_i K_i with Wilson K.
@@ -69,6 +88,8 @@ pub struct StabilityAssessment {
     pub stable_in_trials: bool,
     /// Minimum-Gibbs root of the tested composition.
     pub feed_compressibility: f64,
+    /// Completed trials, stopping once a negative nontrivial TPD proves instability.
+    /// A stable assessment requires all requested trials to complete.
     pub trials: Vec<TrialResult>,
     pub options: StabilityOptions,
 }
@@ -102,6 +123,7 @@ pub fn wilson_k(model: &CubicModel, temperature: Temperature, pressure: Pressure
 /// successive-substitution search for a TPD stationary point using the minimum-Gibbs
 /// root at the trial composition. Trial set: Wilson vapor-like, Wilson liquid-like
 /// and (optionally) one near-pure trial per active component.
+/// An instability witness ends the search; inconclusive trials cannot establish stability.
 pub fn assess_stability(
     model: &CubicModel,
     temperature: Temperature,
@@ -117,6 +139,7 @@ pub(crate) fn assess_stability_impl<M: EquilibriumModel>(
     pressure: Pressure,
     options: StabilityOptions,
 ) -> Result<StabilityAssessment, Error> {
+    options.validate()?;
     let z = model.fractions();
     let active: Vec<usize> = (0..z.len()).filter(|i| z[*i] > 0.0).collect();
     let feed = model.ln_fugacity(temperature, pressure, RootSelection::MinimumGibbs)?;
@@ -168,8 +191,9 @@ pub(crate) fn assess_stability_impl<M: EquilibriumModel>(
             ));
         }
     }
+    let mut inconclusive = None;
     for (initialization, w0) in starts {
-        let trial = run_trial(
+        let trial = match run_trial(
             model,
             temperature,
             pressure,
@@ -179,15 +203,31 @@ pub(crate) fn assess_stability_impl<M: EquilibriumModel>(
             initialization,
             w0,
             options,
-        )?;
+        ) {
+            Ok(trial) => trial,
+            Err(error @ Error::NonConvergence(_)) => {
+                inconclusive = Some(error);
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
         if trial.tangent_plane_distance < options.tm_threshold
             && trial.outcome != TrialOutcome::TrivialSolution
         {
             assessment.stable_in_trials = false;
         }
         assessment.trials.push(trial);
+        // One negative nontrivial TPD is sufficient evidence of instability.
+        // A later inconclusive trial must not discard that evidence.
+        if !assessment.stable_in_trials {
+            return Ok(assessment);
+        }
     }
-    Ok(assessment)
+    // Stability needs every requested trial; instability needs just one witness.
+    match inconclusive {
+        Some(error) => Err(error),
+        None => Ok(assessment),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

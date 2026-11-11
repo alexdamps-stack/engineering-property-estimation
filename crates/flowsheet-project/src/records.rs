@@ -1,7 +1,7 @@
 //! Serializable mirrors of the `flowsheet-core` topology and specifications.
 //!
 //! The engine types stay free of serialization concerns; these records define
-//! the stable JSON spelling of project format version 1.
+//! the stable JSON spelling shared by project format versions 1 and 2.
 
 use flowsheet_core::{
     ExchangerSpec, MixerPressure, PressureRise, PressureSpec, SeparatorThermal, ThermalSpec,

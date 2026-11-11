@@ -253,6 +253,7 @@ impl eframe::App for FlowsheetApp {
         Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
         Panel::top("toolbar").show(ui, |ui| self.toolbar(ui));
         Panel::bottom("status_bar").show(ui, |ui| status_bar(ui, &mut self.editor));
+        let modal_open = self.new_project.is_some() || self.confirm.is_some();
         let tab = &mut self.bottom_tab;
         let ed = &mut self.editor;
         Panel::bottom("bottom_panel")
@@ -268,7 +269,8 @@ impl eframe::App for FlowsheetApp {
             .resizable(true)
             .default_size(320.0)
             .show(ui, |ui| open_dialog = panels::properties(ui, ed));
-        egui::CentralPanel::no_frame().show(ui, |ui| canvas::show(ui, ed));
+        egui::CentralPanel::no_frame()
+            .show(ui, |ui| canvas::show(ui, ed, modal_open || open_dialog));
         if open_dialog {
             self.request(Pending::NewProject);
         }

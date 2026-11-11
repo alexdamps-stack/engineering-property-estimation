@@ -4,7 +4,7 @@ use crate::{
     PortDirection, PortRef, SolveError, SolveProgress, StreamId, UnitKind, UnitSpec,
 };
 use property_packages::CubicPackage;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::ops::ControlFlow;
 
 /// Bounded direct substitution. There is no convergence claim for arbitrary loops.
@@ -90,7 +90,7 @@ impl Flowsheet {
     }
 
     /// Solves acyclic networks normally, or automatically tears loops and starts
-    /// them at zero flow with the first feed's flashed state. Each call starts
+    /// mixer tears at zero flow, and other tears from a reachable feed. Each call starts
     /// afresh. For process-specific starting states use [`Self::solve_recycles`].
     pub fn solve_network_with_progress(
         &self,
@@ -104,46 +104,88 @@ impl Flowsheet {
         }
         self.tear_order(&ids)?;
         self.validate_inputs(package, feeds)?;
-        let feed = self
-            .units()
-            .find(|u| u.kind == UnitKind::Feed)
-            .expect("preflight feed");
-        if progress(SolveProgress {
-            iteration: 0,
-            completed: 0,
-            total: self.units().count(),
-            unit: feed.id,
-        })
-        .is_break()
-        {
-            let mut e = error("Calculation cancelled; no results were produced.");
-            e.cancelled = true;
-            return Err(e);
-        }
-        let UnitSpec::Feed {
-            temperature_k: Some(t),
-            pressure_pa: Some(p),
-            ..
-        } = feed.spec
-        else {
-            unreachable!("preflight specification")
-        };
-        let z: Vec<_> = feeds[&feed.id].entries().iter().map(|(_, x)| *x).collect();
-        let state = package
-            .tp(&z, t, p)
-            .map_err(|e| error(format!("Recycle initialization: {e}")))?;
-        let guesses = ids
-            .into_iter()
-            .map(|id| {
-                (
-                    id,
-                    MaterialStream {
-                        molar_flow_mol_s: 0.0,
-                        state: Some(state.clone()),
-                    },
-                )
+        let mut guesses = BTreeMap::new();
+        for id in ids {
+            let tear = self.stream(id).expect("tear stream");
+            // Follow material paths, not unit-level dependencies: the two
+            // exchanger sides exchange energy but never composition or flow.
+            // Track outlet ports separately when a path revisits an exchanger.
+            let mut queue = VecDeque::from([tear.from]);
+            let mut visited = BTreeSet::new();
+            let mut feed = None;
+            while let Some(outlet) = queue.pop_front() {
+                if !visited.insert((outlet.unit, outlet.port)) {
+                    continue;
+                }
+                let u = self.unit(outlet.unit).expect("unit");
+                if u.kind == UnitKind::Feed {
+                    feed = Some(u);
+                    break;
+                }
+                for (index, port) in u.kind.ports().iter().enumerate() {
+                    if port.direction != PortDirection::Inlet
+                        || (u.kind == UnitKind::HeatExchanger && index + 2 != outlet.port)
+                    {
+                        continue;
+                    }
+                    let stream = self
+                        .stream_at(PortRef::new(u.id, index))
+                        .expect("checked inlet");
+                    queue.push_back(stream.from);
+                }
+            }
+            let feed = feed.ok_or_else(|| error(format!("{id}: recycle initialization requires a materially reachable feed; supply explicit tear states")))?;
+            if progress(SolveProgress {
+                iteration: 0,
+                completed: 0,
+                total: self.units().count(),
+                unit: feed.id,
             })
-            .collect();
+            .is_break()
+            {
+                let mut e = error("Calculation cancelled; no results were produced.");
+                e.cancelled = true;
+                return Err(e);
+            }
+            let UnitSpec::Feed {
+                temperature_k: Some(mut t),
+                pressure_pa: Some(p),
+                molar_flow_mol_s: Some(n),
+            } = feed.spec
+            else {
+                unreachable!("preflight specification")
+            };
+            // A temperature-specified source supplies a much better hot-side
+            // guess than the cold feed in a feed/effluent exchanger loop.
+            match self.unit(tear.from.unit).expect("unit").spec {
+                UnitSpec::HeatExchange {
+                    thermal: crate::ThermalSpec::OutletTemperature(Some(value)),
+                    ..
+                }
+                | UnitSpec::Separator {
+                    thermal: crate::SeparatorThermal::OutletTemperature(Some(value)),
+                    ..
+                } => t = value,
+                _ => {}
+            }
+            let z: Vec<_> = feeds[&feed.id].entries().iter().map(|(_, x)| *x).collect();
+            let state = package
+                .tp(&z, t, p)
+                .map_err(|e| error(format!("{id}: recycle initialization: {e}")))?;
+            guesses.insert(
+                id,
+                MaterialStream {
+                    molar_flow_mol_s: if self.unit(tear.to.unit).expect("unit").kind
+                        == UnitKind::Mixer
+                    {
+                        0.0
+                    } else {
+                        n
+                    },
+                    state: Some(state),
+                },
+            );
+        }
         self.solve_recycles(
             package,
             feeds,

@@ -24,6 +24,64 @@ fn model(ids: &[&str], x: &[f64]) -> GergModel {
 }
 
 #[test]
+fn invalid_shared_options_are_rejected_for_gerg_pure_shortcuts() {
+    let m = model(&["propane"], &[1.0]);
+    let t = Temperature::new(300.0).unwrap();
+    let p = Pressure::new(1e6).unwrap();
+    for stability in [
+        StabilityOptions {
+            tm_threshold: f64::NAN,
+            ..Default::default()
+        },
+        StabilityOptions {
+            tolerance: f64::INFINITY,
+            ..Default::default()
+        },
+        StabilityOptions {
+            max_iterations: 0,
+            ..Default::default()
+        },
+    ] {
+        assert!(matches!(
+            gerg_assess_stability(&m, t, p, stability),
+            Err(Error::UnsupportedCapability(_))
+        ));
+        let options = FlashOptions {
+            stability,
+            ..Default::default()
+        };
+        assert!(matches!(
+            gerg_tp_flash(&m, t, p, options),
+            Err(Error::UnsupportedCapability(_))
+        ));
+        assert!(matches!(
+            gerg_ph_flash(
+                &m,
+                p,
+                0.0,
+                GergPhFlashOptions {
+                    tp: options,
+                    ..Default::default()
+                }
+            ),
+            Err(Error::UnsupportedCapability(_))
+        ));
+    }
+    assert!(matches!(
+        gerg_tp_flash(
+            &m,
+            t,
+            p,
+            FlashOptions {
+                tolerance: f64::NAN,
+                ..Default::default()
+            }
+        ),
+        Err(Error::UnsupportedCapability(_))
+    ));
+}
+
+#[test]
 fn regular_binary_and_natural_gas_flash() {
     for (ids, x, t, p, phases) in [
         (vec!["methane", "propane"], vec![0.5, 0.5], 250., 3e6, 2),

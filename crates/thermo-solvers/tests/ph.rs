@@ -116,6 +116,69 @@ fn pure_saturation_lever_rule_and_bubble_dew_endpoints() {
 }
 
 #[test]
+fn near_unit_pure_fractions_use_canonical_saturation_and_ph_states() {
+    for variant in variants() {
+        for (ids, canonical) in [
+            (vec!["propane"], vec![1.0]),
+            (vec!["propane", "nitrogen"], vec![1.0, 0.0]),
+            (vec!["nitrogen", "propane"], vec![0.0, 1.0]),
+        ] {
+            let exact = model(&ids, &canonical, variant);
+            let index = canonical.iter().position(|x| *x == 1.0).unwrap();
+            let expected_sat = pure_saturation_pressure(&exact, t(300.0), 200).unwrap();
+            let pressure = p(1e6);
+            // Determine the coexistence interval with the already canonical A13 path.
+            let sat = saturation_temperature(
+                &exact,
+                pressure,
+                CubicSaturationKind::Bubble,
+                SaturationOptions::default(),
+            )
+            .unwrap();
+            let liquid = exact
+                .evaluate(
+                    t(sat.temperature_k),
+                    pressure,
+                    RootSelection::SmallestVolume,
+                )
+                .unwrap();
+            let vapor = exact
+                .evaluate(t(sat.temperature_k), pressure, RootSelection::LargestVolume)
+                .unwrap();
+            for amount in [1.0 - 5e-11, 1.0 + 5e-11] {
+                let mut fractions = canonical.clone();
+                fractions[index] = amount;
+                let near = exact.with_fractions(&fractions).unwrap();
+                let actual_sat = pure_saturation_pressure(&near, t(300.0), 200).unwrap();
+                assert_eq!(actual_sat.pressure_pa, expected_sat.pressure_pa);
+                assert_eq!(
+                    actual_sat.liquid_molar_volume,
+                    expected_sat.liquid_molar_volume
+                );
+                assert_eq!(
+                    actual_sat.vapor_molar_volume,
+                    expected_sat.vapor_molar_volume
+                );
+                for beta in [0.0, 0.5, 1.0] {
+                    let h = (1.0 - beta) * liquid.enthalpy + beta * vapor.enthalpy;
+                    let expected =
+                        ph_flash(&exact, pressure, h, PhFlashOptions::default()).unwrap();
+                    let actual = ph_flash(&near, pressure, h, PhFlashOptions::default()).unwrap();
+                    assert!(actual.pure_saturation.is_some());
+                    assert_eq!(actual.temperature_k, expected.temperature_k);
+                    close(actual.phases[0].phase_fraction, beta, 2e-9);
+                    assert!(actual.scaled_energy_residual.abs() <= 1e-10);
+                    for (a, b) in actual.phases.iter().zip(&expected.phases) {
+                        assert_eq!(a.composition, canonical);
+                        assert_eq!(a.state.enthalpy, b.state.enthalpy);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn narrow_boiling_mixture_and_component_permutation() {
     for v in variants() {
         // 0.1% ethane in propane: finite but narrow coexistence temperature range.
@@ -234,7 +297,7 @@ fn failures_are_explicit_and_iterations_are_bounded() {
     let options = PhFlashOptions {
         tp: FlashOptions {
             stability: StabilityOptions {
-                max_iterations: 0,
+                max_iterations: 1,
                 ..Default::default()
             },
             ..Default::default()

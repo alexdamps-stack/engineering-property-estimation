@@ -435,3 +435,174 @@ fn small_absolute_tear_changes_cannot_bypass_connected_component_balances() {
     assert!(report.recycle.as_ref().unwrap().iterations >= 20);
     assert!((report.streams[&tear].molar_flow_mol_s / 1e-14 - 1.0).abs() < 3e-8);
 }
+
+#[test]
+fn feed_effluent_exchanger_loop_without_a_mixer_converges_for_either_tear() {
+    for variant in [
+        CubicVariant::PengRobinson,
+        CubicVariant::PengRobinsonBostonMathias,
+    ] {
+        for reverse_connections in [false, true] {
+            let (_, pkg, initial_feeds) = support::demonstration(variant, 1.0);
+            let mut fs = Flowsheet::new();
+            // The lowest-ID feed belongs to a different process branch.
+            let unrelated = fs.add_unit(UnitKind::Feed);
+            let unrelated_product = fs.add_unit(UnitKind::Product);
+            fs.set_spec(
+                unrelated,
+                UnitSpec::Feed {
+                    temperature_k: Some(250.0),
+                    pressure_pa: Some(5e6),
+                    molar_flow_mol_s: Some(10.0),
+                },
+            );
+            fs.connect(
+                PortRef::new(unrelated, 0),
+                PortRef::new(unrelated_product, 0),
+            )
+            .unwrap();
+            let feed = fs.add_unit(UnitKind::Feed);
+            let hx = fs.add_unit(UnitKind::HeatExchanger);
+            let heater = fs.add_unit(UnitKind::Heater);
+            let product = fs.add_unit(UnitKind::Product);
+            fs.set_spec(
+                feed,
+                UnitSpec::Feed {
+                    temperature_k: Some(330.0),
+                    pressure_pa: Some(5e6),
+                    molar_flow_mol_s: Some(10.0),
+                },
+            );
+            fs.set_spec(
+                hx,
+                UnitSpec::HeatExchanger {
+                    thermal: ExchangerSpec::Duty(Some(1000.0)),
+                    hot_pressure_drop_pa: 0.0,
+                    cold_pressure_drop_pa: 0.0,
+                },
+            );
+            fs.set_spec(
+                heater,
+                UnitSpec::HeatExchange {
+                    thermal: ThermalSpec::OutletTemperature(Some(350.0)),
+                    pressure_drop_pa: 0.0,
+                },
+            );
+            let mut edges = vec![
+                (feed, 0, hx, 1),
+                (hx, 3, heater, 0),
+                (heater, 1, hx, 0),
+                (hx, 2, product, 0),
+            ];
+            if reverse_connections {
+                edges.reverse();
+            }
+            for (from, fp, to, tp) in edges {
+                fs.connect(PortRef::new(from, fp), PortRef::new(to, tp))
+                    .unwrap();
+            }
+            let feeds = [
+                (feed, initial_feeds.values().next().unwrap().clone()),
+                (
+                    unrelated,
+                    support::composition(&[0.70, 0.15, 0.13, 0.01, 0.01]),
+                ),
+            ]
+            .into();
+            let report = fs.solve_network(&pkg, &feeds).unwrap();
+            assert!(report.recycle.as_ref().unwrap().max_scaled_residual <= 1e-10);
+            for s in report.streams.values() {
+                assert!((s.molar_flow_mol_s - 10.0).abs() < 1e-9);
+            }
+            for u in report.units.values() {
+                if let Some(b) = &u.balance {
+                    assert!(b.max_scaled_component_residual <= 1e-8);
+                    assert!(b.scaled_energy_residual.abs() <= 2e-9);
+                }
+            }
+            let outlet = &report.streams[&fs.stream_at(PortRef::new(product, 0)).unwrap().id];
+            let inlet = pkg.tp(&[0.88, 0.06, 0.03, 0.02, 0.01], 330.0, 5e6).unwrap();
+            assert!(
+                (10.0 * (outlet.state.as_ref().unwrap().enthalpy() - inlet.enthalpy())
+                    - report.units[&heater].duty_w)
+                    .abs()
+                    < 1e-5
+            );
+        }
+    }
+}
+
+#[test]
+fn exchanger_sides_do_not_create_a_material_feed_for_a_closed_loop() {
+    for variant in [
+        CubicVariant::PengRobinson,
+        CubicVariant::PengRobinsonBostonMathias,
+    ] {
+        for reverse_connections in [false, true] {
+            for loop_side in [0, 1] {
+                let (_, pkg, initial_feeds) = support::demonstration(variant, 1.0);
+                let mut fs = Flowsheet::new();
+                let feed = fs.add_unit(UnitKind::Feed);
+                let hx = fs.add_unit(UnitKind::HeatExchanger);
+                let heater = fs.add_unit(UnitKind::Heater);
+                let product = fs.add_unit(UnitKind::Product);
+                fs.set_spec(
+                    feed,
+                    UnitSpec::Feed {
+                        temperature_k: Some(if loop_side == 0 { 330.0 } else { 360.0 }),
+                        pressure_pa: Some(5e6),
+                        molar_flow_mol_s: Some(10.0),
+                    },
+                );
+                fs.set_spec(
+                    hx,
+                    UnitSpec::HeatExchanger {
+                        thermal: ExchangerSpec::Duty(Some(0.0)),
+                        hot_pressure_drop_pa: 0.0,
+                        cold_pressure_drop_pa: 0.0,
+                    },
+                );
+                fs.set_spec(
+                    heater,
+                    UnitSpec::HeatExchange {
+                        thermal: ThermalSpec::OutletTemperature(Some(350.0)),
+                        pressure_drop_pa: 0.0,
+                    },
+                );
+                let flowing_side = 1 - loop_side;
+                let mut edges = vec![
+                    (feed, 0, hx, flowing_side),
+                    (hx, flowing_side + 2, product, 0),
+                    (hx, loop_side + 2, heater, 0),
+                    (heater, 1, hx, loop_side),
+                ];
+                if reverse_connections {
+                    edges.reverse();
+                }
+                for (from, fp, to, tp) in edges {
+                    fs.connect(PortRef::new(from, fp), PortRef::new(to, tp))
+                        .unwrap();
+                }
+                let feeds = [(feed, initial_feeds.values().next().unwrap().clone())].into();
+                let error = fs.solve_network(&pkg, &feeds).unwrap_err();
+                assert!(
+                    error.message.contains("materially reachable feed"),
+                    "{}",
+                    error.message
+                );
+                assert!(error.message.contains("explicit tear states"));
+                // A closed material loop can be solved only when the caller
+                // supplies its independent circulation flow and starting state.
+                let tear = *fs.automatic_tears().first().unwrap();
+                let explicit = [(tear, start(&pkg, 7.0, 350.0))].into();
+                let report = fs
+                    .solve_recycles(&pkg, &feeds, &explicit, RecycleOptions::default(), |_| {
+                        ControlFlow::Continue(())
+                    })
+                    .unwrap();
+                let loop_stream = fs.stream_at(PortRef::new(hx, loop_side + 2)).unwrap().id;
+                assert!((report.streams[&loop_stream].molar_flow_mol_s - 7.0).abs() < 1e-10);
+            }
+        }
+    }
+}

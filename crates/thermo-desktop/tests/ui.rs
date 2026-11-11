@@ -543,7 +543,7 @@ fn demonstration_is_solved_modified_saved_and_reopened() {
             .all(|(_, s)| *s == ItemStatus::Solved)
     );
     let saved = std::fs::read_to_string(&path).unwrap();
-    assert!(saved.contains("\"format_version\": 1"));
+    assert!(saved.contains("\"format_version\": 2"));
     assert!(saved.contains("\"outlet_pressure_pa\": 2000000.0"));
 }
 
@@ -706,4 +706,113 @@ fn canvas_frame_time_with_100_units() {
         h.state().editor().fs.units().count(),
         h.state().editor().fs.streams().count()
     );
+}
+
+#[test]
+fn selecting_invalid_specification_does_not_rewrite_it() {
+    let mut app = FlowsheetApp::with_demonstration();
+    let cooler = app
+        .editor()
+        .fs
+        .units()
+        .find(|u| u.kind == UnitKind::Cooler)
+        .unwrap()
+        .id;
+    let spec = UnitSpec::HeatExchange {
+        thermal: flowsheet_core::ThermalSpec::OutletTemperature(Some(300.0)),
+        pressure_drop_pa: -5000.0,
+    };
+    app.editor_mut().fs.set_spec(cooler, spec);
+    app.editor_mut().selection = Some(Selection::Unit(cooler));
+    let before = app.editor_mut().to_project().unwrap().to_json().unwrap();
+    let mut h = harness(app, egui::Theme::Dark);
+    h.run();
+    assert_eq!(h.state().editor().fs.unit(cooler).unwrap().spec, spec);
+    assert_eq!(
+        h.state_mut()
+            .editor_mut()
+            .to_project()
+            .unwrap()
+            .to_json()
+            .unwrap(),
+        before
+    );
+}
+
+#[test]
+fn delete_is_scoped_to_canvas_and_backspace_never_deletes() {
+    let mut h = harness(
+        two_units(UnitKind::Feed, UnitKind::Product),
+        egui::Theme::Dark,
+    );
+    let feed = unit_of_kind(&h, UnitKind::Feed);
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(feed));
+    h.event(Event::PointerMoved(Pos2::ZERO));
+    h.step();
+    key(&mut h, Key::Delete);
+    assert!(h.state().editor().fs.unit(feed).is_some());
+    let canvas = h.state().editor().canvas_rect.center();
+    h.event(Event::PointerMoved(canvas));
+    h.step();
+    key(&mut h, Key::Backspace);
+    assert!(h.state().editor().fs.unit(feed).is_some());
+    key(&mut h, Key::Delete);
+    assert!(h.state().editor().fs.unit(feed).is_none());
+}
+
+#[test]
+fn delete_does_not_modify_selection_behind_project_modals() {
+    for unsaved in [false, true] {
+        let mut h = harness(FlowsheetApp::default(), egui::Theme::Dark);
+        if unsaved {
+            h.get_by_label("Valve").click();
+            h.run();
+        }
+        h.get_by_label("New").click();
+        h.run();
+        // Preserve a canvas selection behind either New or Unsaved changes.
+        let unit = h.state_mut().editor_mut().fs.add_unit(UnitKind::Valve);
+        h.state_mut().editor_mut().selection = Some(Selection::Unit(unit));
+        let canvas = h.state().editor().canvas_rect.center();
+        h.event(Event::PointerMoved(canvas));
+        h.step();
+        key(&mut h, Key::Delete);
+        assert!(h.state().editor().fs.unit(unit).is_some());
+    }
+}
+
+#[test]
+fn malformed_in_memory_results_do_not_panic_in_properties_table_or_export() {
+    let mut app = FlowsheetApp::with_demonstration();
+    solve_now(&mut app);
+    let stream = *app
+        .editor()
+        .results
+        .as_ref()
+        .unwrap()
+        .streams
+        .keys()
+        .next()
+        .unwrap();
+    for r in app
+        .editor_mut()
+        .results
+        .as_mut()
+        .unwrap()
+        .streams
+        .values_mut()
+    {
+        if let Some(state) = &mut r.state {
+            state.mole_fractions.clear();
+            for p in &mut state.phases {
+                p.mole_fractions.clear();
+            }
+        }
+    }
+    app.editor_mut().selection = Some(Selection::Stream(stream));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Stream table").click();
+    h.run();
+    let tsv = thermo_desktop::panels::stream_table_tsv(h.state_mut().editor_mut());
+    assert!(tsv.contains("x methane"));
 }

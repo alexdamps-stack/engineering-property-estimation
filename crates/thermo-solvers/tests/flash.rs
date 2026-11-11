@@ -495,3 +495,94 @@ fn stability_trials_report_evidence_not_proof() {
     };
     assert_eq!(assess_stability(&m, t, p, no_pure).unwrap().trials.len(), 2);
 }
+
+#[test]
+fn negative_tpd_survives_another_slow_trial() {
+    for ids in [["methane", "propane"], ["propane", "methane"]] {
+        let m = model(&ids, &[0.5, 0.5], CubicVariant::PengRobinson, zeros(2));
+        for pressure in [7.0795e6, 7.08e6, 7.1e6] {
+            let (t, p) = tp(295.0, pressure);
+            let stability = assess_stability(&m, t, p, StabilityOptions::default()).unwrap();
+            assert!(!stability.stable_in_trials);
+            assert!(stability.most_negative().unwrap().tangent_plane_distance < -1e-8);
+            let split = tp_flash(&m, t, p, FlashOptions::default()).unwrap();
+            assert_eq!(split.phases.len(), 2);
+            assert!(split.max_ln_fugacity_residual <= 1e-10);
+            assert!(split.max_component_balance_residual < 1e-12);
+            assert!(split.reduced_gibbs_change < 0.0);
+            assert!(split.phase_stability.iter().all(|s| s.stable_in_trials));
+        }
+    }
+}
+
+#[test]
+fn invalid_options_are_rejected_before_stable_or_pure_shortcuts() {
+    let binary = model(
+        &["methane", "propane"],
+        &[0.5, 0.5],
+        CubicVariant::PengRobinson,
+        zeros(2),
+    );
+    let pure = model(&["propane"], &[1.0], CubicVariant::PengRobinson, zeros(1));
+    for m in [&binary, &pure] {
+        let (t, p) = tp(250.0, 3e6);
+        let mut invalid = vec![StabilityOptions {
+            max_iterations: 0,
+            ..Default::default()
+        }];
+        for tolerance in [f64::NAN, f64::INFINITY, 0.0, -1e-10, 1e-6] {
+            invalid.push(StabilityOptions {
+                tolerance,
+                ..Default::default()
+            });
+        }
+        for tm_threshold in [f64::NAN, f64::NEG_INFINITY, 0.0, 1e-8, -1e-5] {
+            invalid.push(StabilityOptions {
+                tm_threshold,
+                ..Default::default()
+            });
+        }
+        for stability in invalid {
+            assert!(matches!(
+                assess_stability(m, t, p, stability),
+                Err(CalculationError::UnsupportedCapability(_))
+            ));
+            let options = FlashOptions {
+                stability,
+                ..Default::default()
+            };
+            assert!(matches!(
+                tp_flash(m, t, p, options),
+                Err(CalculationError::UnsupportedCapability(_))
+            ));
+            assert!(matches!(
+                ph_flash(
+                    m,
+                    p,
+                    0.0,
+                    PhFlashOptions {
+                        tp: options,
+                        ..Default::default()
+                    }
+                ),
+                Err(CalculationError::UnsupportedCapability(_))
+            ));
+        }
+        let mut invalid = vec![FlashOptions {
+            max_iterations: 0,
+            ..Default::default()
+        }];
+        for tolerance in [f64::NAN, f64::INFINITY, 0.0, -1e-10, 1e-6] {
+            invalid.push(FlashOptions {
+                tolerance,
+                ..Default::default()
+            });
+        }
+        for options in invalid {
+            assert!(matches!(
+                tp_flash(m, t, p, options),
+                Err(CalculationError::UnsupportedCapability(_))
+            ));
+        }
+    }
+}

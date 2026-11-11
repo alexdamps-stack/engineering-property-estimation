@@ -506,6 +506,7 @@ fn drag_value<'a>(shown: &'a mut f64, q: Quantity, u: DisplayUnits) -> DragValue
     DragValue::new(shown)
         .speed(u.drag_speed(q))
         .range(u.display_min(q)..=u.display_max(q))
+        .clamp_existing_to_range(false)
         .max_decimals(6)
         .suffix(format!(" {}", u.symbol(q)))
 }
@@ -776,9 +777,19 @@ fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
                 ui.end_row();
                 for (i, c) in components.iter().enumerate() {
                     ui.label(format!("x {c}"));
-                    ui.label(value_text(format_value(s.mole_fractions[i]), stale));
+                    ui.label(value_text(
+                        s.mole_fractions
+                            .get(i)
+                            .map_or_else(|| "—".into(), |v| format_value(*v)),
+                        stale,
+                    ));
                     for p in &s.phases {
-                        ui.label(value_text(format_value(p.mole_fractions[i]), stale));
+                        ui.label(value_text(
+                            p.mole_fractions
+                                .get(i)
+                                .map_or_else(|| "—".into(), |v| format_value(*v)),
+                            stale,
+                        ));
                     }
                     ui.end_row();
                 }
@@ -1090,8 +1101,10 @@ pub fn stream_table_tsv(ed: &mut Editor) -> String {
         out.push_str(&format!("\nx {name}\tmol/mol"));
         for (_, c) in &cols {
             out.push('\t');
-            if let Some(s) = c.result.as_ref().and_then(|r| r.state.as_ref()) {
-                out.push_str(&s.mole_fractions[i].to_string());
+            if let Some(s) = c.result.as_ref().and_then(|r| r.state.as_ref())
+                && let Some(value) = s.mole_fractions.get(i)
+            {
+                out.push_str(&value.to_string());
             }
         }
     }
@@ -1192,7 +1205,10 @@ fn stream_table(ui: &mut Ui, ed: &mut Editor) {
                         let stale = c.status == Some(ItemStatus::Stale);
                         match c.result.as_ref().and_then(|r| r.state.as_ref()) {
                             Some(s) => {
-                                let text = format_value(s.mole_fractions[i]);
+                                let text = s
+                                    .mole_fractions
+                                    .get(i)
+                                    .map_or_else(|| "—".into(), |v| format_value(*v));
                                 ui.label(if stale {
                                     RichText::new(text).italics().weak()
                                 } else {

@@ -388,6 +388,43 @@ fn calculate_unit(
         molar_flow_mol_s: flow,
         state: Some(state),
     };
+    // No intensive state can be assigned to absent material. Temperature and
+    // pressure specifications are inactive, but a nonzero imposed duty cannot
+    // disappear without violating the energy balance.
+    let empty = || MaterialStream {
+        molar_flow_mol_s: 0.0,
+        state: None,
+    };
+    if inputs.first().is_some_and(|s| s.molar_flow_mol_s == 0.0) {
+        let (count, duty) = match spec {
+            UnitSpec::HeatExchange { thermal, .. } => (
+                1,
+                match thermal {
+                    ThermalSpec::Duty(Some(q)) => q,
+                    _ => 0.0,
+                },
+            ),
+            UnitSpec::Valve { .. } => (1, 0.0),
+            UnitSpec::Separator { thermal, .. } => (
+                2,
+                match thermal {
+                    SeparatorThermal::Duty(Some(q)) => q,
+                    _ => 0.0,
+                },
+            ),
+            _ => (0, 0.0),
+        };
+        if count > 0 {
+            if duty != 0.0 {
+                return Err("a nonzero specified duty requires positive inlet flow".into());
+            }
+            return Ok((
+                vec![empty(); count],
+                0.0,
+                vec!["Zero inlet flow: absent outlets have no thermodynamic state; temperature and pressure specifications are inactive.".into()],
+            ));
+        }
+    }
     match spec {
         UnitSpec::Feed {
             temperature_k: Some(t),
@@ -544,6 +581,47 @@ fn calculate_unit(
             hot_pressure_drop_pa,
             cold_pressure_drop_pa,
         } => {
+            if inputs.iter().any(|s| s.molar_flow_mol_s == 0.0) {
+                let q = match thermal {
+                    ExchangerSpec::Duty(Some(q)) => q,
+                    ExchangerSpec::HotOutletTemperature(Some(t))
+                        if inputs[0].molar_flow_mol_s > 0.0 =>
+                    {
+                        let a = state(&inputs[0])?;
+                        let p = pressure(a.pressure_pa, hot_pressure_drop_pa)?;
+                        inputs[0].molar_flow_mol_s * (a.enthalpy() - tp(a, p, t)?.enthalpy())
+                    }
+                    ExchangerSpec::ColdOutletTemperature(Some(t))
+                        if inputs[1].molar_flow_mol_s > 0.0 =>
+                    {
+                        let a = state(&inputs[1])?;
+                        let p = pressure(a.pressure_pa, cold_pressure_drop_pa)?;
+                        inputs[1].molar_flow_mol_s * (tp(a, p, t)?.enthalpy() - a.enthalpy())
+                    }
+                    _ => 0.0,
+                };
+                if q != 0.0 {
+                    return Err(
+                        "heat transfer requires positive inlet flow on both exchanger sides".into(),
+                    );
+                }
+                let mut outlets = Vec::new();
+                for (s, drop) in inputs
+                    .iter()
+                    .zip([hot_pressure_drop_pa, cold_pressure_drop_pa])
+                {
+                    outlets.push(if s.molar_flow_mol_s == 0.0 {
+                        empty()
+                    } else {
+                        let a = state(s)?;
+                        stream(
+                            s.molar_flow_mol_s,
+                            ph(a, pressure(a.pressure_pa, drop)?, a.enthalpy())?,
+                        )
+                    });
+                }
+                return Ok((outlets, 0.0, vec!["Zero inlet flow on an exchanger side: no heat is transferred; absent outlets have no thermodynamic state.".into()]));
+            }
             let hot = state(&inputs[0])?;
             let cold = state(&inputs[1])?;
             let nh = positive_flow(&inputs[0])?;

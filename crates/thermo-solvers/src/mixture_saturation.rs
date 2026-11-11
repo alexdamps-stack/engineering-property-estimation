@@ -364,18 +364,12 @@ fn point(
     let vm = model.with_fractions(&y)?;
     let l = lm.evaluate(tm, pr, RootSelection::SmallestVolume)?;
     let v = vm.evaluate(tm, pr, RootSelection::LargestVolume)?;
-    if v.molar_volume / l.molar_volume < 1.5
-        || (x
-            .iter()
-            .zip(&y)
-            .map(|(a, b)| (a - b).abs())
-            .fold(0.0, f64::max)
-            < 0.03
-            && model.fractions().iter().filter(|v| **v > 0.0).count() > 1)
-    {
+    // Small absolute composition differences also occur in dilute mixtures,
+    // far from criticality. Require distinct physical phase volumes instead;
+    // the trivial K=1 solution has coalescing roots and fails this check.
+    if v.molar_volume / l.molar_volume < 1.5 {
         return Err(Error::OutsideValidityDomain(
-            "A13 near-critical diagnostic: phase volume ratio <1.5 or composition separation <0.03"
-                .into(),
+            "A13 near-critical diagnostic: phase volume ratio <1.5".into(),
         ));
     }
     let residual = x
