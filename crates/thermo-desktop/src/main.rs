@@ -10,9 +10,11 @@
 //!   acceptance workflow (solve, invalidate, save, reload, recalculate,
 //!   failure and cancellation) without opening a window, writes a JSON
 //!   report and exits with status 0 on success and 1 on failure. Release
-//!   builds have no console on Windows, so the report file is the output.
+//!   builds have no console on Windows, so the report file is the output;
+//!   if it cannot be written the exit status is 1 even when the test passed.
 //! - `thermo-desktop --version` writes the version to the report path given
-//!   after it, or to standard output.
+//!   after it (exit status 1 if that file cannot be written), or to
+//!   standard output.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -38,8 +40,12 @@ fn self_test(report: PathBuf) -> ExitCode {
         ),
     };
     let text = serde_json::to_string_pretty(&json).unwrap_or_default();
-    if std::fs::write(&report, format!("{text}\n")).is_err() {
+    if let Err(e) = std::fs::write(&report, format!("{text}\n")) {
+        // Release builds have no console on Windows, so a report that cannot
+        // be written is lost: never report success in that case.
+        eprintln!("thermo-desktop: cannot write {}: {e}", report.display());
         println!("{text}");
+        return ExitCode::FAILURE;
     }
     code
 }
@@ -58,7 +64,10 @@ fn main() -> ExitCode {
             let text = format!("thermo-desktop {}\n", env!("CARGO_PKG_VERSION"));
             match args.get(1) {
                 Some(path) => {
-                    let _ = std::fs::write(path, text);
+                    if let Err(e) = std::fs::write(path, text) {
+                        eprintln!("thermo-desktop: cannot write {path}: {e}");
+                        return ExitCode::FAILURE;
+                    }
                 }
                 None => print!("{text}"),
             }

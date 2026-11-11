@@ -1,6 +1,7 @@
 //! Editor state: the project inputs (flowsheet, package, feed compositions),
 //! results and their currency, plus GUI-only layout, viewport and selection.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -64,6 +65,40 @@ pub struct Failure {
     pub inputs: Fingerprint,
 }
 
+/// Inputs the modified state depends on besides the saved text, so the
+/// project is serialized only when one of them changed rather than every
+/// frame. The flowsheet is represented by [`Flowsheet::revision`], which
+/// every mutation advances; a flowsheet replaced wholesale must go through
+/// [`Editor::load_project`] or [`Editor::clear`], which reset the caches.
+struct ModifiedCache {
+    revision: u64,
+    package: Option<PackageSelection>,
+    feeds: FeedFractions,
+    layout: HashMap<UnitId, Pos2>,
+    units: DisplayUnits,
+    results: Option<ResultSet>,
+    modified: bool,
+}
+
+impl ModifiedCache {
+    fn matches(&self, ed: &Editor) -> bool {
+        self.revision == ed.fs.revision()
+            && self.units == ed.units
+            && self.package == ed.package
+            && self.feeds == ed.feeds
+            && self.layout == ed.layout
+            && self.results == ed.results
+    }
+}
+
+/// Fingerprints together with the inputs they were computed from.
+struct FingerprintCache {
+    revision: u64,
+    package: Option<PackageSelection>,
+    feeds: FeedFractions,
+    fingerprints: Fingerprints,
+}
+
 /// Complete editor state.
 pub struct Editor {
     pub fs: Flowsheet,
@@ -96,8 +131,13 @@ pub struct Editor {
     pub(crate) package_cache: PackageCache,
     /// Combined input fingerprint of the last solve attempt (any outcome).
     pub(crate) last_attempt: Option<Fingerprint>,
-    /// Serialized project at the last save or open, to detect changes.
+    /// Serialized project at the last save or open, to detect changes. Set it
+    /// through [`Self::set_saved`] so the modified-state cache is dropped.
     pub(crate) saved: Option<String>,
+    /// Cached [`Self::is_modified`] answer and the inputs it was computed for.
+    modified_cache: RefCell<Option<ModifiedCache>>,
+    /// Cached [`Self::fingerprints`] and the inputs they were computed for.
+    fingerprint_cache: Option<FingerprintCache>,
 }
 
 impl Default for Editor {
@@ -122,6 +162,8 @@ impl Default for Editor {
             package_cache: PackageCache::default(),
             last_attempt: None,
             saved: None,
+            modified_cache: RefCell::new(None),
+            fingerprint_cache: None,
         }
     }
 }
@@ -209,12 +251,17 @@ impl Editor {
     }
 
     /// Deletes the selected unit (with its streams and composition) or stream.
+    /// A failure attributed to a deleted unit is dropped with it, so the
+    /// status bar does not keep reporting a failure nobody can inspect.
     pub fn delete_selection(&mut self) {
         match self.selection.take() {
             Some(Selection::Unit(id)) => {
                 self.fs.remove_unit(id);
                 self.layout.remove(&id);
                 self.feeds.remove(&id);
+                if self.failure.as_ref().is_some_and(|f| f.unit == Some(id)) {
+                    self.failure = None;
+                }
             }
             Some(Selection::Stream(id)) => {
                 self.fs.disconnect(id);
@@ -248,7 +295,7 @@ impl Editor {
             CubicVariantChoice::PengRobinsonBostonMathias,
         ));
         self.units = units;
-        self.saved = None;
+        self.set_saved(None);
     }
 
     /// Replaces the editor content with a project. The file path is kept by
@@ -311,7 +358,7 @@ impl Editor {
         let text = project.to_json().map_err(|e| e.to_string())?;
         std::fs::write(path, &text).map_err(|e| format!("Saving failed: {e}"))?;
         self.path = Some(path.to_path_buf());
-        self.saved = Some(text);
+        self.set_saved(Some(text));
         self.status = Some(format!("Saved {}.", path.display()));
         Ok(())
     }
@@ -321,7 +368,8 @@ impl Editor {
         let project = Project::load(path).map_err(|e| format!("Cannot open: {e}."))?;
         self.load_project(project);
         self.path = Some(path.to_path_buf());
-        self.saved = self.to_project().and_then(|p| p.to_json().ok());
+        let saved = self.to_project().and_then(|p| p.to_json().ok());
+        self.set_saved(saved);
         let stale = self.count_stale();
         self.status = Some(if stale > 0 {
             format!(
@@ -334,22 +382,63 @@ impl Editor {
         Ok(())
     }
 
+    /// Records the serialized project at the last save or open and drops the
+    /// cached modified state.
+    pub(crate) fn set_saved(&mut self, saved: Option<String>) {
+        self.saved = saved;
+        self.modified_cache.get_mut().take();
+    }
+
     /// Whether the project changed since it was last saved or opened.
+    ///
+    /// The answer is cached and recomputed (by serializing the project) only
+    /// when the flowsheet revision or another project input changed, so
+    /// calling this every frame is cheap.
     pub fn is_modified(&self) -> bool {
-        match (&self.saved, self.to_project()) {
+        if let Some(cache) = self.modified_cache.borrow().as_ref()
+            && cache.matches(self)
+        {
+            return cache.modified;
+        }
+        let modified = match (&self.saved, self.to_project()) {
             (_, None) => self.fs.units().next().is_some(),
             (None, Some(_)) => true,
             (Some(saved), Some(p)) => p.to_json().ok().as_ref() != Some(saved),
-        }
+        };
+        *self.modified_cache.borrow_mut() = Some(ModifiedCache {
+            revision: self.fs.revision(),
+            package: self.package.clone(),
+            feeds: self.feeds.clone(),
+            layout: self.layout.clone(),
+            units: self.units,
+            results: self.results.clone(),
+            modified,
+        });
+        modified
     }
 
-    /// Current input fingerprints (none without a package).
+    /// Current input fingerprints (none without a package). Cached on the
+    /// flowsheet revision, the feed compositions and the package.
     pub fn fingerprints(&mut self) -> Fingerprints {
+        if let Some(c) = &self.fingerprint_cache
+            && c.revision == self.fs.revision()
+            && c.package == self.package
+            && c.feeds == self.feeds
+        {
+            return c.fingerprints.clone();
+        }
         let package_fp = match &self.package {
             Some(p) => self.package_cache.get(p).fingerprint,
             None => None,
         };
-        Fingerprints::compute_with(&self.fs, &self.feeds, package_fp)
+        let fingerprints = Fingerprints::compute_with(&self.fs, &self.feeds, package_fp);
+        self.fingerprint_cache = Some(FingerprintCache {
+            revision: self.fs.revision(),
+            package: self.package.clone(),
+            feeds: self.feeds.clone(),
+            fingerprints: fingerprints.clone(),
+        });
+        fingerprints
     }
 
     /// Feed composition problems (missing package, missing or invalid fractions).
@@ -466,10 +555,17 @@ impl Editor {
 
     /// Cancels a running solve. The result, if it still arrives, is discarded
     /// and earlier results keep their currency.
+    ///
+    /// The cancelled inputs stay recorded as the last attempt on purpose:
+    /// clearing it would make auto-solve restart the very calculation the
+    /// user just stopped on the next frame. Auto-solve resumes with the next
+    /// input change; F5 (or Solve) retries the unchanged inputs at once.
     pub fn cancel_solve(&mut self) {
         if let Some(job) = self.job.take() {
             job.cancel();
-            self.status = Some("Calculation cancelled; no results were changed.".into());
+            self.status = Some(
+                "Calculation cancelled; no results were changed. Press F5 to solve again.".into(),
+            );
         }
     }
 
@@ -684,6 +780,108 @@ mod tests {
         ed.cancel_solve();
         assert!(!ed.is_solving());
         assert!(ed.status.as_deref().unwrap().contains("cancelled"));
+    }
+
+    #[test]
+    fn cancelled_auto_solve_is_not_restarted_until_inputs_change() {
+        let mut ed = Editor::default();
+        ed.load_demonstration();
+        ed.auto_solve = true;
+        ed.auto_solve_if_due(None);
+        assert!(ed.is_solving());
+        ed.cancel_solve();
+        ed.auto_solve_if_due(None);
+        assert!(!ed.is_solving(), "cancel must not restart at once");
+        assert!(ed.status.as_deref().unwrap().contains("F5"));
+        let valve = ed
+            .fs
+            .units()
+            .find(|u| u.kind == UnitKind::Valve)
+            .unwrap()
+            .id;
+        ed.fs.set_spec(
+            valve,
+            flowsheet_core::UnitSpec::Valve {
+                pressure: flowsheet_core::PressureSpec::OutletPressure(Some(2.0e6)),
+            },
+        );
+        ed.auto_solve_if_due(None);
+        assert!(ed.is_solving(), "an input change solves again");
+        ed.cancel_solve();
+    }
+
+    #[test]
+    fn deleting_the_failed_unit_clears_the_failure() {
+        let mut ed = Editor::default();
+        ed.load_demonstration();
+        let valve = ed
+            .fs
+            .units()
+            .find(|u| u.kind == UnitKind::Valve)
+            .unwrap()
+            .id;
+        ed.fs.set_spec(
+            valve,
+            flowsheet_core::UnitSpec::Valve {
+                pressure: flowsheet_core::PressureSpec::OutletPressure(Some(6.0e6)),
+            },
+        );
+        ed.start_solve(None);
+        ed.wait_for_solve();
+        assert_eq!(ed.failure.as_ref().and_then(|f| f.unit), Some(valve));
+        // Deleting another unit keeps the failure.
+        let product = ed
+            .fs
+            .units()
+            .find(|u| u.kind == UnitKind::Product)
+            .unwrap()
+            .id;
+        ed.selection = Some(Selection::Unit(product));
+        ed.delete_selection();
+        assert!(ed.failure.is_some());
+        ed.selection = Some(Selection::Unit(valve));
+        ed.delete_selection();
+        assert!(ed.failure.is_none());
+    }
+
+    #[test]
+    fn modified_state_and_fingerprints_follow_every_kind_of_edit() {
+        let dir =
+            std::env::temp_dir().join(format!("thermo-desktop-modified-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("m.flowsheet.json");
+        let mut ed = Editor::default();
+        ed.load_demonstration();
+        assert!(ed.is_modified());
+        ed.save_to(&path).unwrap();
+        assert!(!ed.is_modified());
+        assert!(!ed.is_modified(), "cached answer is stable");
+
+        let feed = ed.fs.units().find(|u| u.kind == UnitKind::Feed).unwrap().id;
+        // Flowsheet edit (advances the revision).
+        ed.fs.rename_unit(feed, "F-1");
+        assert!(ed.is_modified());
+        ed.save_to(&path).unwrap();
+        assert!(!ed.is_modified());
+        // Layout edit (no revision change).
+        *ed.layout.get_mut(&feed).unwrap() += Vec2::new(10.0, 0.0);
+        assert!(ed.is_modified());
+        ed.save_to(&path).unwrap();
+        // Feed composition edit (no revision change) also changes fingerprints.
+        let before = ed.fingerprints();
+        assert_eq!(ed.fingerprints(), before);
+        ed.feeds.get_mut(&feed).unwrap().swap(0, 1);
+        assert!(ed.is_modified());
+        assert_ne!(ed.fingerprints(), before);
+        ed.save_to(&path).unwrap();
+        // Display units and results.
+        ed.units = DisplayUnits::Si;
+        assert!(ed.is_modified());
+        ed.save_to(&path).unwrap();
+        ed.start_solve(None);
+        ed.wait_for_solve();
+        assert!(ed.is_modified());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
