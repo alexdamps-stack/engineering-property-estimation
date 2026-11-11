@@ -59,6 +59,10 @@ interval (`WithinDeclaredDomain`) or outside one (`Extrapolated`). A pair
 interacts when both components are present. Explicit parameters without an
 interval report `Unassessed`. So does a liquid with no interacting pair (a
 single active component, where g^E = 0), because no interval applies.
+`Extrapolated` on any pair takes precedence over a pair without an interval.
+`ExcessState::inferred_regression_interval` flags a status that rests on an
+interval inferred rather than reported by the source; the methanol/water interval
+is inferred from the pure normal boiling points of the 1 atm data.
 
 **Gamma–phi package (`thermo-models::ActivityModel`).** The vapor model is a
 required `VaporModel` argument with no default. `IdealGas` is the only variant.

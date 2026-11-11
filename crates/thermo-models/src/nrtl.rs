@@ -8,7 +8,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 use thermo_data::{AlphaTerms, LiquidDatabase, TauTerms};
 use thermo_types::{
     COMPOSITION_SUM_TOLERANCE, CalculationError as Error, ComponentId, InputError,
-    MOLAR_GAS_CONSTANT as R, ModelMetadata, ValidityStatus,
+    MOLAR_GAS_CONSTANT as R, ModelMetadata, Temperature, ValidityStatus,
 };
 
 /// Value with first and second temperature derivatives.
@@ -102,8 +102,16 @@ pub struct NrtlParameters {
     tau: Vec<Vec<TauTerms>>,
     alpha: Vec<Vec<AlphaTerms>>,
     /// Per off-diagonal pair: regression temperature interval (K), when known.
-    regression: Vec<Vec<Option<[f64; 2]>>>,
+    regression: Vec<Vec<Option<RegressionInterval>>>,
     source: String,
+}
+
+/// Regression temperature interval of one pair and whether it was inferred
+/// (not reported by the parameter source).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct RegressionInterval {
+    bounds: [f64; 2],
+    inferred: bool,
 }
 
 const ZERO_TAU: TauTerms = TauTerms {
@@ -132,7 +140,7 @@ impl NrtlParameters {
         ids: Vec<ComponentId>,
         tau: Vec<Vec<TauTerms>>,
         alpha: Vec<Vec<AlphaTerms>>,
-        regression: Vec<Vec<Option<[f64; 2]>>>,
+        regression: Vec<Vec<Option<RegressionInterval>>>,
         source: String,
     ) -> Result<Self, Error> {
         let n = ids.len();
@@ -202,8 +210,12 @@ impl NrtlParameters {
                 tau[j][i] = b.tau_ji;
                 alpha[i][j] = b.alpha;
                 alpha[j][i] = b.alpha;
-                regression[i][j] = Some(b.regression_temperature_k);
-                regression[j][i] = Some(b.regression_temperature_k);
+                let interval = Some(RegressionInterval {
+                    bounds: b.regression_temperature_k,
+                    inferred: b.regression_interval_inferred,
+                });
+                regression[i][j] = interval;
+                regression[j][i] = interval;
                 sources.push(b.source);
             }
         }
@@ -275,9 +287,14 @@ pub struct ExcessState {
     pub excess_enthalpy: f64,
     pub excess_entropy: f64,
     pub excess_heat_capacity: f64,
-    /// Within the regression temperature interval of every active pair, extrapolated
-    /// otherwise, unassessed when explicit parameters carry no interval.
+    /// `Extrapolated` if T is outside the regression interval of any active pair;
+    /// otherwise `Unassessed` if any active pair carries no interval (explicit
+    /// parameters); otherwise `WithinDeclaredDomain`. With no active pair: `Unassessed`.
     pub validity: ValidityStatus,
+    /// True when `validity` rests on at least one regression interval that was
+    /// inferred (e.g. from pure normal boiling points) rather than reported by the
+    /// parameter source. A `WithinDeclaredDomain` status is then weaker than usual.
+    pub inferred_regression_interval: bool,
 }
 
 /// NRTL liquid excess model. Pressure independent; no volumetric excess.
@@ -360,7 +377,16 @@ impl NrtlModel {
         Ok((tau, g))
     }
 
-    /// Activity coefficients and excess properties. `x` must be finite, nonnegative and
+    /// Typed-temperature form of [`NrtlModel::excess`], consistent with the other
+    /// model entry points that take [`Temperature`].
+    pub fn excess_at(&self, temperature: Temperature, x: &[f64]) -> Result<ExcessState, Error> {
+        self.excess(temperature.value(), x)
+    }
+
+    /// Activity coefficients and excess properties at `temperature` in kelvin. The raw
+    /// `f64` form is kept for the existing solver call sites and is validated here
+    /// (finite, positive); prefer [`NrtlModel::excess_at`] in new code.
+    /// `x` must be finite, nonnegative and
     /// sum to one within 1e-10; zero entries give infinite-dilution ln γ.
     pub fn excess(&self, temperature: f64, x: &[f64]) -> Result<ExcessState, Error> {
         let n = self.parameters.ids.len();
@@ -421,6 +447,7 @@ impl NrtlModel {
         {
             return Err(Error::NumericalFailure("nonfinite NRTL result".into()));
         }
+        let (validity, inferred_regression_interval) = self.validity(t, x);
         Ok(ExcessState {
             temperature_k: t,
             ln_activity_coefficients: values,
@@ -430,31 +457,77 @@ impl NrtlModel {
             excess_enthalpy,
             excess_entropy,
             excess_heat_capacity,
-            validity: self.validity(t, x),
+            validity,
+            inferred_regression_interval,
         })
     }
 
-    /// Regression-interval status over interacting (both present) pairs. With no
-    /// interacting pair g^E = 0 and no interval applies, so the status is `Unassessed`.
-    fn validity(&self, t: f64, x: &[f64]) -> ValidityStatus {
+    /// Regression-interval status over interacting (both present) pairs, and whether
+    /// any interval consulted was inferred. With no interacting pair g^E = 0 and no
+    /// interval applies, so the status is `Unassessed`. Every pair is examined: an
+    /// `Extrapolated` pair dominates a pair without an interval, which dominates
+    /// `WithinDeclaredDomain`.
+    fn validity(&self, t: f64, x: &[f64]) -> (ValidityStatus, bool) {
         let n = x.len();
-        let mut status = None;
+        let (mut active, mut missing, mut extrapolated, mut inferred) =
+            (false, false, false, false);
         for i in 0..n {
             for j in i + 1..n {
                 if x[i] <= 0.0 || x[j] <= 0.0 {
                     continue;
                 }
+                active = true;
                 match self.parameters.regression[i][j] {
-                    None => return ValidityStatus::Unassessed,
-                    Some([lo, hi]) if !(lo..=hi).contains(&t) => {
-                        status = Some(ValidityStatus::Extrapolated)
-                    }
-                    Some(_) => {
-                        status.get_or_insert(ValidityStatus::WithinDeclaredDomain);
+                    None => missing = true,
+                    Some(interval) => {
+                        inferred |= interval.inferred;
+                        let [lo, hi] = interval.bounds;
+                        extrapolated |= !(lo..=hi).contains(&t);
                     }
                 }
             }
         }
-        status.unwrap_or(ValidityStatus::Unassessed)
+        let status = if extrapolated {
+            ValidityStatus::Extrapolated
+        } else if missing || !active {
+            ValidityStatus::Unassessed
+        } else {
+            ValidityStatus::WithinDeclaredDomain
+        };
+        (status, inferred)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extrapolated_pair_is_not_hidden_by_a_pair_without_interval() {
+        let ids: Vec<_> = ["a", "b", "c"]
+            .iter()
+            .map(|id| ComponentId::new(*id).unwrap())
+            .collect();
+        let tau = vec![vec![ZERO_TAU; 3]; 3];
+        let mut alpha = vec![vec![AlphaTerms { a0: 0.3, a1: 0.0 }; 3]; 3];
+        for (i, row) in alpha.iter_mut().enumerate() {
+            row[i] = ZERO_ALPHA;
+        }
+        let mut regression = vec![vec![None; 3]; 3];
+        // Pair (a,b) has no interval; pair (b,c) has one that excludes 350 K.
+        let interval = Some(RegressionInterval {
+            bounds: [300.0, 320.0],
+            inferred: false,
+        });
+        regression[1][2] = interval;
+        regression[2][1] = interval;
+        let parameters =
+            NrtlParameters::checked(ids, tau, alpha, regression, "synthetic".into()).unwrap();
+        let model = NrtlModel::new(parameters);
+        let state = model.excess(350.0, &[0.3, 0.3, 0.4]).unwrap();
+        assert_eq!(state.validity, ValidityStatus::Extrapolated);
+        // Within the (b,c) interval the missing (a,b) interval leaves it unassessed.
+        let state = model.excess(310.0, &[0.3, 0.3, 0.4]).unwrap();
+        assert_eq!(state.validity, ValidityStatus::Unassessed);
     }
 }
