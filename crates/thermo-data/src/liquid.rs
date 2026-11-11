@@ -56,6 +56,18 @@ struct BinaryRecord {
     regression_temperature: [f64; 2],
     #[serde(rename = "regression_pressure_Pa")]
     regression_pressure: f64,
+    regression_temperature_basis: String,
+}
+
+/// Basis phrase marking an interval that was not reported by the source but inferred
+/// from the pure-component normal boiling points of isobaric data.
+const INFERRED_INTERVAL_MARKER: &str = "between pure normal boiling points";
+
+impl BinaryRecord {
+    fn regression_interval_inferred(&self) -> bool {
+        self.regression_temperature_basis
+            .contains(INFERRED_INTERVAL_MARKER)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -180,6 +192,11 @@ pub struct NrtlBinary {
     pub alpha: AlphaTerms,
     /// Temperatures (K) spanned by the regression data; outside is extrapolation.
     pub regression_temperature_k: [f64; 2],
+    /// How `regression_temperature_k` was obtained, verbatim from the extract.
+    pub regression_temperature_basis: String,
+    /// True when the interval is inferred (e.g. from pure normal boiling points of
+    /// isobaric data) rather than reported by the source.
+    pub regression_interval_inferred: bool,
     pub regression_pressure_pa: f64,
     pub source: String,
 }
@@ -246,6 +263,7 @@ impl LiquidDatabase {
                 || !finite
                 || b.regression_temperature[0] >= b.regression_temperature[1]
                 || b.source.trim().is_empty()
+                || b.regression_temperature_basis.trim().is_empty()
             {
                 return Err(bad("NRTL binary"));
             }
@@ -283,6 +301,8 @@ impl LiquidDatabase {
                     tau_ji,
                     alpha: b.alpha_ij,
                     regression_temperature_k: b.regression_temperature,
+                    regression_temperature_basis: b.regression_temperature_basis.clone(),
+                    regression_interval_inferred: b.regression_interval_inferred(),
                     regression_pressure_pa: b.regression_pressure,
                     source: format!("{}: {}", b.source, b.source_row),
                 });
