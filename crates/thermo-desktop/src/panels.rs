@@ -229,6 +229,13 @@ fn feed_composition(ui: &mut Ui, ed: &mut Editor, id: UnitId) {
     };
     let theme = Theme::from_visuals(ui.visuals());
     let n = package.components.len();
+    if n == 0 {
+        ui.colored_label(
+            theme.warning,
+            "! The property package has no components; create a project with at least one component.",
+        );
+        return;
+    }
     let Some(x) = ed.feeds.get_mut(&id) else {
         ui.horizontal(|ui| {
             ui.label(RichText::new("required").italics().color(theme.warning));
@@ -237,10 +244,7 @@ fn feed_composition(ui: &mut Ui, ed: &mut Editor, id: UnitId) {
                 .on_hover_text("Start from equal mole fractions")
                 .clicked()
             {
-                let mut equal = vec![1.0 / n as f64; n];
-                let rest: f64 = equal[..n - 1].iter().sum();
-                equal[n - 1] = 1.0 - rest;
-                ed.feeds.insert(id, equal);
+                ed.feeds.insert(id, equal_fractions(n));
             }
         });
         return;
@@ -253,6 +257,7 @@ fn feed_composition(ui: &mut Ui, ed: &mut Editor, id: UnitId) {
                 ui.add(
                     DragValue::new(value)
                         .range(0.0..=1.0)
+                        .clamp_existing_to_range(false)
                         .speed(0.001)
                         .max_decimals(10),
                 )
@@ -506,6 +511,9 @@ fn drag_value<'a>(shown: &'a mut f64, q: Quantity, u: DisplayUnits) -> DragValue
     DragValue::new(shown)
         .speed(u.drag_speed(q))
         .range(u.display_min(q)..=u.display_max(q))
+        // Limits apply to user edits only: a stored out-of-range value (for
+        // example from a file) is shown as is and never rewritten on display.
+        .clamp_existing_to_range(false)
         .max_decimals(6)
         .suffix(format!(" {}", u.symbol(q)))
 }
@@ -776,9 +784,9 @@ fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
                 ui.end_row();
                 for (i, c) in components.iter().enumerate() {
                     ui.label(format!("x {c}"));
-                    ui.label(value_text(format_value(s.mole_fractions[i]), stale));
+                    ui.label(value_text(fraction_text(&s.mole_fractions, i), stale));
                     for p in &s.phases {
-                        ui.label(value_text(format_value(p.mole_fractions[i]), stale));
+                        ui.label(value_text(fraction_text(&p.mole_fractions, i), stale));
                     }
                     ui.end_row();
                 }
@@ -846,9 +854,11 @@ fn messages_of(ed: &mut Editor) -> Vec<Message> {
     if ed.results.as_ref().is_some_and(|r| r.recycle.is_some()) {
         let fps = ed.fingerprints();
         let current = ed.results.as_ref().is_some_and(|results| {
+            // Results of deleted units have no inputs left to compare.
             results
                 .units
                 .keys()
+                .filter(|id| ed.fs.unit(**id).is_some())
                 .all(|id| results.unit_currency(*id, &fps) == flowsheet_project::Currency::Current)
         });
         let r = ed
@@ -1059,7 +1069,7 @@ pub fn stream_table_tsv(ed: &mut Editor) -> String {
     let mut out = String::from("Stream\tUnit");
     for (_, c) in &cols {
         out.push('\t');
-        out.push_str(&c.name);
+        out.push_str(&tsv_cell(&c.name));
     }
     out.push_str("\nStatus\t");
     for (_, c) in &cols {
@@ -1087,11 +1097,16 @@ pub fn stream_table_tsv(ed: &mut Editor) -> String {
         }
     }
     for (i, name) in components.iter().enumerate() {
-        out.push_str(&format!("\nx {name}\tmol/mol"));
+        out.push_str(&format!("\nx {}\tmol/mol", tsv_cell(name)));
         for (_, c) in &cols {
             out.push('\t');
-            if let Some(s) = c.result.as_ref().and_then(|r| r.state.as_ref()) {
-                out.push_str(&s.mole_fractions[i].to_string());
+            if let Some(x) = c
+                .result
+                .as_ref()
+                .and_then(|r| r.state.as_ref())
+                .and_then(|s| s.mole_fractions.get(i))
+            {
+                out.push_str(&x.to_string());
             }
         }
     }
@@ -1192,7 +1207,7 @@ fn stream_table(ui: &mut Ui, ed: &mut Editor) {
                         let stale = c.status == Some(ItemStatus::Stale);
                         match c.result.as_ref().and_then(|r| r.state.as_ref()) {
                             Some(s) => {
-                                let text = format_value(s.mole_fractions[i]);
+                                let text = fraction_text(&s.mole_fractions, i);
                                 ui.label(if stale {
                                     RichText::new(text).italics().weak()
                                 } else {
@@ -1208,4 +1223,110 @@ fn stream_table(ui: &mut Ui, ed: &mut Editor) {
                 }
             });
     });
+}
+
+/// Equal mole fractions for `n > 0` components, summing to exactly one.
+fn equal_fractions(n: usize) -> Vec<f64> {
+    let mut equal = vec![1.0 / n as f64; n];
+    if let Some((last, rest)) = equal.split_last_mut() {
+        *last = 1.0 - rest.iter().sum::<f64>();
+    }
+    equal
+}
+
+/// Mole fraction `i` of a stored result as display text. Results that do not
+/// match the package component list (for example from a hand-edited file)
+/// show a dash instead of panicking.
+fn fraction_text(fractions: &[f64], i: usize) -> String {
+    fractions
+        .get(i)
+        .map_or_else(|| "—".to_string(), |x| format_value(*x))
+}
+
+/// A user-entered name as one tab-separated cell: tabs and line breaks would
+/// split the cell or the row, so they become spaces.
+fn tsv_cell(name: &str) -> String {
+    name.replace(['\t', '\n', '\r'], " ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use flowsheet_core::UnitKind;
+
+    #[test]
+    fn tsv_cells_keep_one_cell_per_name() {
+        assert_eq!(tsv_cell("a\tb\nc\r\nd"), "a b c  d");
+        assert_eq!(tsv_cell("plain"), "plain");
+    }
+
+    #[test]
+    fn copied_stream_table_survives_names_with_tabs_and_newlines() {
+        let mut ed = Editor::default();
+        ed.load_demonstration();
+        let id = ed.fs.streams().next().unwrap().id;
+        ed.fs.rename_stream(id, "bad\tname\nwith\rbreaks");
+        let tsv = stream_table_tsv(&mut ed);
+        let lines: Vec<&str> = tsv.lines().collect();
+        let columns = lines[0].split('\t').count();
+        assert_eq!(columns, 2 + ed.fs.streams().count());
+        assert!(lines[0].contains("bad name with breaks"));
+        assert!(lines.iter().all(|l| l.split('\t').count() == columns));
+    }
+
+    #[test]
+    fn out_of_range_mole_fractions_render_as_a_dash() {
+        assert_eq!(fraction_text(&[0.25, 0.75], 1), format_value(0.75));
+        assert_eq!(fraction_text(&[0.25], 3), "—");
+    }
+
+    #[test]
+    fn stream_table_with_results_shorter_than_the_component_list_does_not_panic() {
+        let mut ed = Editor::default();
+        ed.load_demonstration();
+        ed.start_solve(None);
+        ed.wait_for_solve();
+        // A package with one component more than the stored results, as in a
+        // hand-edited file whose results were left in place.
+        ed.package.as_mut().unwrap().components.push("extra".into());
+        let tsv = stream_table_tsv(&mut ed);
+        assert!(tsv.contains("\nx extra\tmol/mol"), "{tsv}");
+    }
+
+    #[test]
+    fn equal_fractions_sum_to_one_and_handle_zero_components() {
+        assert!(equal_fractions(0).is_empty());
+        assert_eq!(equal_fractions(1), vec![1.0]);
+        let x = equal_fractions(3);
+        assert_eq!(x.len(), 3);
+        assert_eq!(x.iter().sum::<f64>(), 1.0);
+    }
+
+    #[test]
+    fn recycle_message_ignores_results_of_deleted_units() {
+        let mut ed = Editor::default();
+        ed.load_project(flowsheet_project::recycle_demonstration(
+            CubicVariantChoice::PengRobinsonBostonMathias,
+        ));
+        ed.start_solve(None);
+        ed.wait_for_solve();
+        assert!(ed.failure.is_none(), "{:?}", ed.failure);
+        let recycle = |ed: &mut Editor| {
+            messages_of(ed)
+                .into_iter()
+                .find(|m| m.text.starts_with("Recycle"))
+                .map(|m| m.status)
+        };
+        assert_eq!(recycle(&mut ed), Some(ItemStatus::Solved));
+        // Delete a product sink: no remaining unit's inputs change.
+        let product = ed
+            .fs
+            .units()
+            .find(|u| u.kind == UnitKind::Product)
+            .unwrap()
+            .id;
+        ed.selection = Some(Selection::Unit(product));
+        ed.delete_selection();
+        assert_eq!(recycle(&mut ed), Some(ItemStatus::Solved));
+    }
 }

@@ -28,8 +28,11 @@ fn badge_center(r: Rect, scale: f32) -> Pos2 {
     r.right_top() + vec2(4.0, -4.0) * scale
 }
 
-/// Shows the canvas filling the available space of `ui`.
-pub fn show(ui: &mut Ui, ed: &mut Editor) {
+/// Shows the canvas filling the available space of `ui`. While `dialog_open`
+/// (a modal such as Unsaved changes or New project is shown) the canvas
+/// ignores keyboard shortcuts, so keys meant for the dialog never edit the
+/// flowsheet.
+pub fn show(ui: &mut Ui, ed: &mut Editor, dialog_open: bool) {
     let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
     let canvas = response.rect;
     ed.canvas_rect = canvas;
@@ -41,7 +44,7 @@ pub fn show(ui: &mut Ui, ed: &mut Editor) {
     }
 
     handle_view_input(ui, &response, ed, canvas);
-    handle_edit_input(ui, &response, ed, canvas);
+    handle_edit_input(ui, &response, ed, canvas, dialog_open);
 
     let fps = ed.fingerprints();
     let issues = ed.input_issues();
@@ -477,7 +480,13 @@ fn handle_view_input(ui: &Ui, response: &Response, ed: &mut Editor, canvas: Rect
     }
 }
 
-fn handle_edit_input(ui: &Ui, response: &Response, ed: &mut Editor, canvas: Rect) {
+fn handle_edit_input(
+    ui: &Ui,
+    response: &Response,
+    ed: &mut Editor,
+    canvas: Rect,
+    dialog_open: bool,
+) {
     let press_origin = ui.input(|i| i.pointer.press_origin());
 
     if response.drag_started_by(PointerButton::Middle) {
@@ -521,14 +530,14 @@ fn handle_edit_input(ui: &Ui, response: &Response, ed: &mut Editor, canvas: Rect
         };
     }
 
-    if !ui.ctx().egui_wants_keyboard_input() {
-        let (delete, escape) = ui.input(|i| {
-            (
-                i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace),
-                i.key_pressed(Key::Escape),
-            )
-        });
-        if delete {
+    if !dialog_open && !ui.ctx().egui_wants_keyboard_input() {
+        let (delete, escape) =
+            ui.input(|i| (i.key_pressed(Key::Delete), i.key_pressed(Key::Escape)));
+        // There is no undo yet, so deletion needs a deliberate key on the
+        // canvas: Delete only (not Backspace, which follows text edits in
+        // the properties panel), and only while the pointer is over the
+        // canvas.
+        if delete && response.hovered() {
             ed.delete_selection();
         }
         if escape {
