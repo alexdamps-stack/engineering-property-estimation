@@ -66,7 +66,10 @@ struct StateSpec {
     temperature_k: Option<f64>,
     #[serde(default, rename = "pressure_Pa")]
     pressure_pa: Option<f64>,
-    #[serde(default)]
+    /// `enthalpy_J_per_mol`, spelled like the response field so a TP result
+    /// can be fed back unchanged. The lower-case spelling of the first v1
+    /// draft is still accepted.
+    #[serde(default, rename = "enthalpy_J_per_mol", alias = "enthalpy_j_per_mol")]
     enthalpy_j_per_mol: Option<f64>,
 }
 
@@ -89,7 +92,7 @@ impl BridgeError {
 impl From<CalculationError> for BridgeError {
     fn from(e: CalculationError) -> Self {
         let (kind, message) = match e {
-            CalculationError::InvalidInput(i) => ("invalid-input", format!("{i:?}")),
+            CalculationError::InvalidInput(i) => ("invalid-input", i.to_string()),
             CalculationError::MissingParameter(m) => ("missing-parameter", m),
             CalculationError::UnsupportedCapability(m) => ("unsupported-capability", m),
             CalculationError::OutsideValidityDomain(m) => ("outside-validity-domain", m),
@@ -256,7 +259,7 @@ fn evaluate(r: Request) -> Result<Value, BridgeError> {
         "tp-flash" => {
             if s.enthalpy_j_per_mol.is_some() {
                 return Err(BridgeError::request(
-                    "enthalpy_j_per_mol is an output of tp-flash; omit it",
+                    "enthalpy_J_per_mol is an output of tp-flash; omit it",
                 ));
             }
             let t = s
@@ -277,7 +280,7 @@ fn evaluate(r: Request) -> Result<Value, BridgeError> {
                 .pressure_pa
                 .ok_or_else(|| BridgeError::request("ph-flash requires state.pressure_Pa"))?;
             let h = s.enthalpy_j_per_mol.ok_or_else(|| {
-                BridgeError::request("ph-flash requires state.enthalpy_j_per_mol")
+                BridgeError::request("ph-flash requires state.enthalpy_J_per_mol")
             })?;
             (package.ph(&fractions, p, h)?, Some(h))
         }
@@ -447,10 +450,17 @@ mod tests {
         let mut ph = natural_gas_tp();
         ph["calculation"] = json!("ph-flash");
         ph["state"].as_object_mut().unwrap().remove("temperature_K");
-        ph["state"]["enthalpy_j_per_mol"] = json!(h);
+        ph["state"]["enthalpy_J_per_mol"] = json!(h);
         let r = calculate(&ph.to_string());
         assert_eq!(r["status"], "ok", "{r}");
         assert!((r["result"]["temperature_K"].as_f64().unwrap() - 220.0).abs() < 1e-7);
+        // The draft lower-case field name is still accepted and gives the same state.
+        let state = ph["state"].as_object_mut().unwrap();
+        let h_value = state.remove("enthalpy_J_per_mol").unwrap();
+        state.insert("enthalpy_j_per_mol".into(), h_value);
+        let legacy = calculate(&ph.to_string());
+        assert_eq!(legacy["status"], "ok", "{legacy}");
+        assert_eq!(legacy["result"], r["result"]);
         assert!(
             r["result"]["convergence"]["scaled_energy_residual"]
                 .as_f64()
@@ -501,6 +511,10 @@ mod tests {
                 "invalid-input",
             ),
             (
+                Box::new(|v| v["state"]["enthalpy_J_per_mol"] = json!(0.0)),
+                "invalid-request",
+            ),
+            (
                 Box::new(|v| v["state"]["enthalpy_j_per_mol"] = json!(0.0)),
                 "invalid-request",
             ),
@@ -521,6 +535,17 @@ mod tests {
         let r = calculate("{not json");
         assert_eq!(r["error"]["kind"], "invalid-request");
         assert!(r["request_id"].is_null());
+    }
+
+    #[test]
+    fn input_errors_use_display_text_not_rust_debug() {
+        let mut v = natural_gas_tp();
+        v["state"]["pressure_Pa"] = json!(-1.0);
+        let r = calculate(&v.to_string());
+        assert_eq!(r["error"]["kind"], "invalid-input", "{r}");
+        let message = r["error"]["message"].as_str().unwrap();
+        assert!(message.contains("must be strictly positive"), "{message}");
+        assert!(!message.contains("NotPositive("), "{message}");
     }
 
     #[test]

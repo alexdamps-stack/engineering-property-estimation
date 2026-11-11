@@ -55,7 +55,9 @@ Request (`integrations/dwsim/requests/natural-gas-separator-tp.json`):
 ```
 
 - **SI only**, with the unit in every field name; pressure is absolute; enthalpy
-  (`enthalpy_j_per_mol`, PH input) is on the reported caloric reference.
+  (`enthalpy_J_per_mol`, PH input, spelled like the result field so a TP result
+  can be fed back unchanged; the draft spelling `enthalpy_j_per_mol` is still
+  accepted as an alias) is on the reported caloric reference.
 - **No physics defaults.** Unknown fields are rejected (`pressure_bar` fails).
   Component order, a complete symmetric `kij` and a non-empty interaction source
   are mandatory; mole fractions must sum to one within 1e-10.
@@ -140,9 +142,11 @@ Rust checks: `cargo test -p thermo-bridge` (4 unit tests, 3 C-ABI tests),
   Rust and CLR steps need no DWSIM.
 - The kij read uses a non-public DWSIM field (`m_pr.InteractionParameters`) and
   fails explicitly if a later DWSIM version changes it.
-- `float_roundtrip` is a workspace-unified serde_json feature: builds that
-  include `thermo-bridge` parse JSON floats exactly in every crate. Inputs then
-  differ from builds without it by at most one ulp; no workspace test changed.
+- `serde_json` is declared once in `[workspace.dependencies]` with
+  `float_roundtrip`, and every crate uses it from there (#99). JSON floats are
+  therefore parsed exactly in every build (`cargo test -p thermo-solvers`, the
+  Clapeyron check, `cargo run -p thermo-cli`, the desktop and the bridge), not
+  only when feature unification happens to pull in the bridge.
 - Licensing: DWSIM is GPL-3.0. Neither `thermocore_bridge.dll` nor
   `ThermoCore.Bridge.dll` references DWSIM; only the check program compiles
   against a DWSIM installation provided by the user, and it is not part of the

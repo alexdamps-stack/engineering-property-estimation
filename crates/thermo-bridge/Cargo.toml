@@ -12,7 +12,10 @@ crate-type = ["cdylib", "rlib"]
 
 # The workspace forbids unsafe code. The C ABI needs `#[unsafe(no_mangle)]` and
 # raw-pointer handling, so this crate denies unsafe code instead and allows it
-# only in the audited `ffi` module. All other lints follow the workspace.
+# only in the audited `ffi` module. `[lints] workspace = true` is not used:
+# Cargo cannot override a single workspace lint per crate, and `forbid` cannot
+# be relaxed by an inner `#[allow]`. All other lints restate [workspace.lints]
+# exactly; tests/workspace_lints.rs fails if they drift.
 [lints.rust]
 unsafe_code = "deny"
 
@@ -26,5 +29,4 @@ thermo-data = { path = "../thermo-data" }
 thermo-models = { path = "../thermo-models" }
 thermo-solvers = { path = "../thermo-solvers" }
 serde = { version = "1", features = ["derive"] }
-# Exact decimal round trip of f64 at the JSON boundary (default parsing can be 1 ULP off).
-serde_json = { version = "1", features = ["float_roundtrip"] }
+serde_json = { workspace = true }

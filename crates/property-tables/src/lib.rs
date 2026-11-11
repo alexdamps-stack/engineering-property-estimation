@@ -230,6 +230,12 @@ pub enum TableError {
         pressure_pa: f64,
         domain: String,
     },
+    /// PH pressure lies outside the approved pressure range (temperature is an
+    /// output of PH and therefore not reported).
+    PressureOutsideApprovedDomain {
+        pressure_pa: f64,
+        domain: String,
+    },
     /// PH target enthalpy lies outside the table's enthalpy range at this pressure.
     EnthalpyOutsideApprovedDomain {
         pressure_pa: f64,
@@ -264,6 +270,13 @@ impl fmt::Display for TableError {
             } => write!(
                 f,
                 "T={temperature_k} K, p={pressure_pa} Pa is outside the approved table domain ({domain}); use the direct model"
+            ),
+            Self::PressureOutsideApprovedDomain {
+                pressure_pa,
+                domain,
+            } => write!(
+                f,
+                "p={pressure_pa} Pa is outside the approved table pressure range ({domain}); use the direct model"
             ),
             Self::EnthalpyOutsideApprovedDomain {
                 pressure_pa,
@@ -447,8 +460,7 @@ impl GibbsTable {
         }
         let d = &self.domain;
         if !(d.minimum_pressure_pa..=d.maximum_pressure_pa).contains(&pressure_pa) {
-            return Err(TableError::OutsideApprovedDomain {
-                temperature_k: f64::NAN,
+            return Err(TableError::PressureOutsideApprovedDomain {
                 pressure_pa,
                 domain: d.describe(),
             });
@@ -689,16 +701,31 @@ impl TabulatedMixture {
     }
 
     /// PH at the tabulated composition: the table when p and h lie in the approved
-    /// domain, otherwise per policy a clear error or the direct PH flash.
+    /// domain, otherwise per policy a clear error or the direct PH flash. A table
+    /// inversion that does not converge is treated like a state outside the
+    /// domain: an error under [`OutsidePolicy::Error`], the direct PH flash under
+    /// [`OutsidePolicy::DirectModel`]. Input errors are never retried.
     pub fn ph(&self, pressure_pa: f64, enthalpy: f64) -> Result<Evaluation, TableError> {
-        match self.table.ph(pressure_pa, enthalpy) {
+        self.ph_from_table(self.table.ph(pressure_pa, enthalpy), pressure_pa, enthalpy)
+    }
+
+    /// Apply the outside policy to a table PH outcome.
+    fn ph_from_table(
+        &self,
+        table: Result<Properties, TableError>,
+        pressure_pa: f64,
+        enthalpy: f64,
+    ) -> Result<Evaluation, TableError> {
+        match table {
             Ok(properties) => Ok(Evaluation {
                 source: Source::Table,
                 properties,
             }),
             Err(
                 e @ (TableError::OutsideApprovedDomain { .. }
-                | TableError::EnthalpyOutsideApprovedDomain { .. }),
+                | TableError::PressureOutsideApprovedDomain { .. }
+                | TableError::EnthalpyOutsideApprovedDomain { .. }
+                | TableError::Calculation(CalculationError::NonConvergence(_))),
             ) => match self.policy {
                 OutsidePolicy::Error => Err(e),
                 OutsidePolicy::DirectModel => {
@@ -905,5 +932,80 @@ pub mod experiment {
                 .max(rel(a.speed_of_sound, b.speed_of_sound));
         }
         Ok(e)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A small qualified table (nodes only) over part of the A11 domain.
+    fn coarse(policy: OutsidePolicy) -> TabulatedMixture {
+        let domain = TableDomain {
+            minimum_temperature_k: 320.0,
+            maximum_temperature_k: 380.0,
+            minimum_pressure_pa: 1e6,
+            maximum_pressure_pa: 5e6,
+            temperature_nodes: 7,
+            pressure_nodes: 5,
+        };
+        let criteria = QualificationCriteria {
+            samples_per_cell: 1,
+            ..Default::default()
+        };
+        TabulatedMixture::new(experiment::model(), domain, criteria, policy).unwrap()
+    }
+
+    fn non_convergence() -> Result<Properties, TableError> {
+        Err(TableError::Calculation(CalculationError::NonConvergence(
+            "table PH inversion did not converge in 100 iterations".into(),
+        )))
+    }
+
+    #[test]
+    fn table_ph_non_convergence_follows_the_outside_policy() {
+        let fallback = coarse(OutsidePolicy::DirectModel);
+        let p = 3e6;
+        let h = fallback.table().evaluate(350.0, p).unwrap().enthalpy;
+
+        let e = fallback.ph_from_table(non_convergence(), p, h).unwrap();
+        assert_eq!(e.source, Source::DirectModel);
+        let flash = ph_flash(
+            fallback.model(),
+            Pressure::new(p).unwrap(),
+            h,
+            PhFlashOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(e.properties.temperature_k, flash.temperature_k);
+
+        let strict = fallback.with_policy(OutsidePolicy::Error);
+        assert!(matches!(
+            strict.ph_from_table(non_convergence(), p, h),
+            Err(TableError::Calculation(CalculationError::NonConvergence(_)))
+        ));
+        // Input errors are not retried by the direct model.
+        assert!(matches!(
+            fallback.ph_from_table(Err(InputError::NonFinite("x").into()), p, h),
+            Err(TableError::Calculation(CalculationError::InvalidInput(_)))
+        ));
+    }
+
+    #[test]
+    fn table_ph_pressure_outside_domain_reports_no_temperature() {
+        let strict = coarse(OutsidePolicy::Error);
+        let e = strict.table().ph(1.2e7, 0.0).unwrap_err();
+        assert!(
+            matches!(
+                e,
+                TableError::PressureOutsideApprovedDomain { pressure_pa, .. } if pressure_pa == 1.2e7
+            ),
+            "{e:?}"
+        );
+        assert!(!e.to_string().contains("NaN"), "{e}");
+        assert!(matches!(
+            strict.ph(1.2e7, 0.0),
+            Err(TableError::PressureOutsideApprovedDomain { .. })
+        ));
     }
 }

@@ -24,8 +24,12 @@ Outputs go to `target/a12-dwsim/`. The C# sources target the C# 5 compiler in
 Using the client from another .NET host:
 
 ```csharp
+// The file must be named thermocore_bridge.dll; call Load before any other member.
 ThermoCoreBridge.Load(@"path\to\thermocore_bridge.dll");   // checks ABI == 1
 var result = ThermoCoreBridge.Calculate(ThermoCoreBridge.TpFlashRequest(
     "id", "PR", components, kij, "source of kij", moleFractions, 220.0 /* K */, 1.5e6 /* Pa */));
 // throws ThermoCoreException { Kind = "unsupported-capability", ... } on failure
+var ph = ThermoCoreBridge.Calculate(ThermoCoreBridge.PhFlashRequest(
+    "id-ph", "PR", components, kij, "source of kij", moleFractions, 1.5e6 /* Pa */,
+    ThermoCoreBridge.Num(result["enthalpy_J_per_mol"]) /* J/mol */));
 ```
