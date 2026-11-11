@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(path) = std::env::args().nth(1) {
         project.save(std::path::Path::new(&path))?;
     }
-    let package = project.package.build()?;
+    let package = project.package.prepare()?;
     let results = solve_project(&project, &package, |_| ControlFlow::Continue(()), 0)
         .map_err(|e| e.message)?;
     println!("{}", serde_json::to_string_pretty(&results)?);

@@ -543,7 +543,10 @@ fn demonstration_is_solved_modified_saved_and_reopened() {
             .all(|(_, s)| *s == ItemStatus::Solved)
     );
     let saved = std::fs::read_to_string(&path).unwrap();
-    assert!(saved.contains("\"format_version\": 1"));
+    assert!(saved.contains(&format!(
+        "\"format_version\": {}",
+        flowsheet_project::FORMAT_VERSION
+    )));
     assert!(saved.contains("\"outlet_pressure_pa\": 2000000.0"));
 }
 

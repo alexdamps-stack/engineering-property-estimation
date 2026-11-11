@@ -39,9 +39,10 @@ pub use demonstration::{
 };
 pub use error::ProjectError;
 pub use fingerprint::{Fingerprint, Fingerprints};
-pub use package::{CubicVariantChoice, PackageSelection, Provenance};
+pub use package::{CubicVariantChoice, PackageSelection, PreparedPackage, Provenance};
 pub use project::{
-    DisplayUnitSet, FORMAT_VERSION, FeedFractions, InputIssue, Project, SolveFailure, solve_project,
+    DisplayUnitSet, FORMAT_VERSION, FeedFractions, InputIssue, OLDEST_READABLE_FORMAT_VERSION,
+    Project, SolveFailure, solve_project, write_atomically,
 };
 pub use results::{
     Currency, PhaseResult, RecycleResult, ResultSet, StateResult, StreamResult, UnitResult,
