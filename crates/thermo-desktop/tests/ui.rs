@@ -638,6 +638,85 @@ fn failed_solve_is_shown_at_the_unit_and_values_are_not_current() {
     h.get_by_label(&format!("✖ {message}"));
 }
 
+/// The demonstration feeds routed through a heat exchanger that moves 1 kW
+/// from the 350 K feed (hot side) to the 330 K feed (cold side).
+fn exchanger_app() -> (FlowsheetApp, UnitId) {
+    let mut project =
+        flowsheet_project::demonstration(flowsheet_project::CubicVariantChoice::PengRobinson);
+    let fs = &mut project.flowsheet;
+    let feed_at = |fs: &flowsheet_core::Flowsheet, t: f64| {
+        fs.units()
+            .find(|u| matches!(u.spec, UnitSpec::Feed { temperature_k: Some(x), .. } if x == t))
+            .unwrap()
+            .id
+    };
+    let (cold, hot) = (feed_at(fs, 330.0), feed_at(fs, 350.0));
+    let others: Vec<_> = fs
+        .units()
+        .filter(|u| u.kind != UnitKind::Feed)
+        .map(|u| u.id)
+        .collect();
+    for id in others {
+        fs.remove_unit(id);
+    }
+    let ex = fs.add_unit(UnitKind::HeatExchanger);
+    fs.set_spec(
+        ex,
+        UnitSpec::HeatExchanger {
+            thermal: flowsheet_core::ExchangerSpec::Duty(Some(1000.0)),
+            hot_pressure_drop_pa: 0.0,
+            cold_pressure_drop_pa: 0.0,
+        },
+    );
+    fs.connect(PortRef::new(hot, 0), PortRef::new(ex, 0))
+        .unwrap();
+    fs.connect(PortRef::new(cold, 0), PortRef::new(ex, 1))
+        .unwrap();
+    for port in [2, 3] {
+        let product = fs.add_unit(UnitKind::Product);
+        fs.connect(PortRef::new(ex, port), PortRef::new(product, 0))
+            .unwrap();
+    }
+    let mut app = FlowsheetApp::default();
+    app.editor_mut().load_project(project);
+    (app, ex)
+}
+
+#[test]
+fn exchanger_shows_transferred_duty_in_display_units() {
+    let (mut app, ex) = exchanger_app();
+    solve_now(&mut app);
+    let stored = &app.editor().results.as_ref().unwrap().units[&ex];
+    assert_eq!(
+        (stored.duty_w, stored.transferred_duty_w),
+        (0.0, Some(1000.0))
+    );
+    app.editor_mut().selection = Some(Selection::Unit(ex));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Transferred duty (hot to cold)");
+    let shown = thermo_desktop::units::format_quantity(
+        thermo_desktop::units::DisplayUnits::ProcessMetric,
+        thermo_desktop::units::Quantity::Duty,
+        1000.0,
+    );
+    assert!(shown.ends_with(" kW"), "{shown}");
+    h.get_by_label(&shown);
+
+    // A result without a stored transferred duty (read from a version-2
+    // file) asks for a recalculation instead of showing a number.
+    h.state_mut()
+        .editor_mut()
+        .results
+        .as_mut()
+        .unwrap()
+        .units
+        .get_mut(&ex)
+        .unwrap()
+        .transferred_duty_w = None;
+    h.run();
+    h.get_by_label("not stored — recalculate");
+}
+
 #[test]
 fn cancel_stops_a_running_solve_without_changing_results() {
     let mut h = harness(FlowsheetApp::with_demonstration(), egui::Theme::Dark);
