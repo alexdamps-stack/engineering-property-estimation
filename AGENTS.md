@@ -1,5 +1,12 @@
 # Guidance for AI contributors
 
+After completing codebase changes in the local Windows/Ubuntu environment,
+refresh the installed desktop prototype with
+`powershell -File scripts/update-local-app.ps1`, then run the same command with
+`-Check`. The updater verifies a candidate before publishing it and leaves open
+app windows running. Report failed or unavailable updates explicitly; do not
+claim the installed app contains the changes until the check passes.
+
 For PR/PR-BM or NRTL/gamma-phi model, caloric-data, or equilibrium-solver changes, run the
 Clapeyron standard check in addition to ordinary Rust checks:
 `julia --project=validation/julia validation/julia/check.jl` with Julia 1.11.7.

@@ -24,7 +24,8 @@ inputs, package, engine, model and data versions all match.
 
 Scope and limits
 ----------------
-- Acyclic flowsheets only; recycles are not supported yet.
+- Acyclic flowsheets and bounded tear-stream recycle solving are supported.
+  Recycle convergence is not guaranteed for arbitrary processes.
 - Pumps, compressors and expanders can be drawn but not calculated.
 - The binary interaction parameters of new projects are an explicit
   zero-kij approximation; no measured mixture accuracy is claimed.
@@ -33,6 +34,7 @@ Command line
 ------------
   thermo-desktop.exe [project.flowsheet.json]
   thermo-desktop.exe --demo
+  thermo-desktop.exe --recycle-demo
   thermo-desktop.exe --self-test report.json   (headless check; exit code 0 = passed)
   thermo-desktop.exe --version version.txt
 
