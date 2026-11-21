@@ -4,10 +4,10 @@
 use std::ops::ControlFlow;
 use std::path::PathBuf;
 
-use flowsheet_core::{PortRef, PressureSpec, UnitId, UnitKind, UnitSpec};
+use flowsheet_core::{MAX_IDENTIFIER, PortRef, PressureSpec, StreamId, UnitId, UnitKind, UnitSpec};
 use flowsheet_project::{
-    CubicVariantChoice, Currency, Fingerprint, Fingerprints, Project, ProjectError, ResultSet,
-    demonstration, run_acceptance, solve_project,
+    CubicVariantChoice, Currency, Fingerprint, Fingerprints, MAX_PROJECT_FILE_BYTES, MAX_STREAMS,
+    MAX_UNITS, Project, ProjectError, ResultSet, demonstration, run_acceptance, solve_project,
 };
 
 fn solve(project: &Project) -> ResultSet {
@@ -311,6 +311,90 @@ fn malformed_and_foreign_files_are_rejected() {
         Project::load(std::path::Path::new("does/not/exist.json")),
         Err(ProjectError::Io(_))
     ));
+}
+
+#[test]
+fn oversized_duplicated_and_out_of_range_content_is_rejected() {
+    let project = demonstration(CubicVariantChoice::PengRobinsonBostonMathias);
+    let value: serde_json::Value = serde_json::from_str(&project.to_json().unwrap()).unwrap();
+    let load = |edit: &dyn Fn(&mut serde_json::Value)| {
+        let mut v = value.clone();
+        edit(&mut v);
+        Project::from_json(&v.to_string())
+    };
+    let invalid = |r: Result<Project, ProjectError>, needle: &str| match r {
+        Err(ProjectError::Invalid(m)) => assert!(m.contains(needle), "{m}"),
+        other => panic!("expected Invalid containing {needle:?}, got {other:?}"),
+    };
+
+    // Duplicate layout entries are rejected like duplicate feeds (#140).
+    invalid(
+        load(&|v| {
+            let first = v["layout"][0].clone();
+            v["layout"].as_array_mut().unwrap().push(first);
+        }),
+        "appears twice",
+    );
+    // Identifiers that leave no room for allocation are rejected (#132).
+    for id in [0, MAX_IDENTIFIER + 1, u64::MAX] {
+        invalid(
+            load(&|v| v["units"][0]["id"] = id.into()),
+            "unit identifier",
+        );
+        invalid(
+            load(&|v| v["streams"][0]["id"] = id.into()),
+            "stream identifier",
+        );
+    }
+    // Collection and file size limits (#140).
+    invalid(
+        load(&|v| {
+            let unit = v["units"][0].clone();
+            let units = v["units"].as_array_mut().unwrap();
+            for i in 0..=MAX_UNITS as u64 {
+                let mut u = unit.clone();
+                u["id"] = (1_000_000 + i).into();
+                units.push(u);
+            }
+        }),
+        "units exceed",
+    );
+    invalid(
+        load(&|v| {
+            let stream = v["streams"][0].clone();
+            let streams = v["streams"].as_array_mut().unwrap();
+            streams.extend(std::iter::repeat_n(stream, MAX_STREAMS + 1));
+        }),
+        "streams exceed",
+    );
+    let mut huge = project.to_json().unwrap();
+    huge.push_str(&" ".repeat(MAX_PROJECT_FILE_BYTES as usize));
+    invalid(Project::from_json(&huge), "MiB limit");
+    let path = std::env::temp_dir().join(format!(
+        "flowsheet-project-oversized-{}.json",
+        std::process::id()
+    ));
+    std::fs::write(&path, &huge).unwrap();
+    let loaded = Project::load(&path);
+    std::fs::remove_file(&path).unwrap();
+    invalid(loaded, "MiB limit");
+}
+
+#[test]
+fn restored_identifiers_near_the_limit_still_allocate() {
+    // The largest accepted identifier leaves room for new units and streams.
+    let project = demonstration(CubicVariantChoice::PengRobinsonBostonMathias);
+    let mut value: serde_json::Value = serde_json::from_str(&project.to_json().unwrap()).unwrap();
+    value["streams"][0]["id"] = MAX_IDENTIFIER.into();
+    let mut loaded = Project::from_json(&value.to_string()).unwrap();
+    let feed = loaded.flowsheet.add_unit(UnitKind::Feed);
+    let product = loaded.flowsheet.add_unit(UnitKind::Product);
+    assert_eq!(
+        loaded
+            .flowsheet
+            .connect(PortRef::new(feed, 0), PortRef::new(product, 0)),
+        Ok(StreamId(MAX_IDENTIFIER + 1))
+    );
 }
 
 #[test]
