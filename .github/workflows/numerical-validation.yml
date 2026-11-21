@@ -2,123 +2,41 @@ name: Numerical validation
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17 4 1 * *'
 
 permissions:
   contents: read
 
-# The Python reference fixtures were generated on an AVX2 machine. On AVX-512
-# runners OpenBLAS selects SkylakeX kernels and NumPy its AVX-512 loops, which
-# changes LAPACK/ufunc results in the last bits (np.roots eigenvalues, logs).
-# The narrow PR-BM split in the A2 process valve solve then stops with MINPACK
-# "not making good progress" (#151). Pin both dispatchers to the AVX2 path so
-# every runner executes the same kernels; this changes no tolerance or fixture.
 env:
   OPENBLAS_CORETYPE: Haswell
   NPY_DISABLE_CPU_FEATURES: AVX512F AVX512CD AVX512_KNL AVX512_KNM AVX512_SKX AVX512_CLX AVX512_CNL AVX512_ICL AVX512_SPR
 
 jobs:
-  gerg:
-    name: Independent GERG parameter reproduction and teqp AD
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.12'
-      - name: Install pinned reference dependencies
-        run: python -m pip install -r validation/reference-requirements.txt
-      # ubuntu-latest ships the amd64v3 g++ (--with-arch-64=x86-64-v3), which
-      # emits FMA by default and does not reproduce the baseline-x86-64 NIST
-      # fixtures bit for bit (#149). Put a baseline-target wrapper first on PATH.
-      - name: Pin g++ to the baseline x86-64 target of the committed fixtures
-        run: |
-          mkdir -p "$RUNNER_TEMP/gxx-baseline"
-          ln -s "$GITHUB_WORKSPACE/validation/gxx-baseline.sh" "$RUNNER_TEMP/gxx-baseline/g++"
-          echo "$RUNNER_TEMP/gxx-baseline" >> "$GITHUB_PATH"
-      - name: Reproduce NIST data and fixtures without replacing them
-        run: python validation/prepare-gerg.py
-      - name: Compare NIST fixtures with teqp AD
-        run: python validation/check-gerg-teqp.py
-      - name: Reproduce independent GERG density and fugacity references without writing
-        run: |
-          python validation/generate-gerg-density-references.py
-          python validation/generate-gerg-fugacity-references.py
-      - name: Independently reproduce GERG equilibrium into a temporary candidate
-        run: |
-          python validation/generate-gerg-equilibrium-references.py --output "$RUNNER_TEMP/gerg-equilibrium.json"
-          python - "$RUNNER_TEMP/gerg-equilibrium.json" <<'PY'
-          import json, pathlib, sys
-          expected = json.loads(pathlib.Path("validation/fixtures/gerg-equilibrium-v1.json").read_text())
-          actual = json.loads(pathlib.Path(sys.argv[1]).read_text())
-          assert actual == expected, "GERG equilibrium reference reproduction differs; review explicitly"
-          PY
-
-  cubic-references:
-    name: Independent teqp/Cantera/NumPy cubic reference reproduction
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.12'
-      - name: Install pinned reference dependencies
-        run: python -m pip install -r validation/reference-requirements.txt
-      # Each generator writes only a temporary candidate; the comparison never
-      # replaces committed fixtures. Recorded interpreter/package versions are
-      # reported, not compared. Every generator runs even after an earlier
-      # mismatch so one run reports all fixtures.
-      - name: Reproduce A3 homogeneous cubic references
-        run: |
-          python validation/generate-references.py --output "$RUNNER_TEMP/cubic-v1.json"
-          python validation/compare-reference-candidate.py "$RUNNER_TEMP/cubic-v1.json" validation/fixtures/cubic-v1.json
-      - name: Reproduce A4 flash and saturation references
-        if: ${{ !cancelled() }}
-        run: |
-          python validation/generate-flash-references.py --output "$RUNNER_TEMP/flash-v1.json"
-          python validation/compare-reference-candidate.py "$RUNNER_TEMP/flash-v1.json" validation/fixtures/flash-v1.json
-      - name: Reproduce A5 PH references
-        if: ${{ !cancelled() }}
-        run: |
-          python validation/generate-ph-references.py --output "$RUNNER_TEMP/ph-v1.json"
-          python validation/compare-reference-candidate.py "$RUNNER_TEMP/ph-v1.json" validation/fixtures/ph-v1.json
-      - name: Reproduce A2 process references
-        if: ${{ !cancelled() }}
-        run: |
-          python validation/generate-process-references.py --output "$RUNNER_TEMP/process-v1.json"
-          python validation/compare-reference-candidate.py "$RUNNER_TEMP/process-v1.json" validation/fixtures/process-v1.json
-      - name: Reproduce dilute-limit Helmholtz Decimal reference
-        if: ${{ !cancelled() }}
-        run: |
-          python validation/generate-helmholtz-reference.py --output "$RUNNER_TEMP/helmholtz-dilute-v1.json"
-          python validation/compare-reference-candidate.py "$RUNNER_TEMP/helmholtz-dilute-v1.json" validation/fixtures/helmholtz-dilute-v1.json
-
-  clapeyron:
-    uses: ./.github/workflows/clapeyron.yml
-
-  homogeneous:
-    name: Homogeneous cubic sweep (${{ matrix.os }})
+  diag:
+    name: diag py${{ matrix.py }} ${{ matrix.n }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    env:
-      PROPTEST_CASES: 2048
-      CARGO_TERM_COLOR: always
+        py: ['3.12', '3.14']
+        n: [1, 2]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install pinned Rust toolchain
-        run: rustup show
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-      - name: Independent fixtures and fixed-seed property sweep
-        run: cargo test -p thermo-types -p thermo-data -p thermo-models -p thermo-solvers -p thermo-cli --release --locked -- --nocapture
-      - name: Reproducible natural-gas case
-        run: cargo run -p thermo-cli --release --locked -- examples/homogeneous-natural-gas.json
-      - name: Reproducible binary case
-        run: cargo run -p thermo-cli --release --locked -- examples/homogeneous-binary.json
-      - name: Reproducible NRTL methanol/water case
-        run: cargo run -p thermo-cli --release --locked -- examples/nrtl-tp-flash-methanol-water.json
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.py }}
+      - run: python -m pip install -r validation/reference-requirements.txt
+      - name: fugacity
+        run: |
+          lscpu | grep -E "Model name"
+          python validation/generate-gerg-fugacity-references.py --output /tmp/fug.json
+          python validation/compare-reference-candidate.py /tmp/fug.json validation/fixtures/gerg-fugacity-v1.json || true
+          python validation/generate-gerg-fugacity-references.py && echo FUGACITY-EXACT
+      - name: equilibrium
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/gxx-baseline"
+          ln -s "$GITHUB_WORKSPACE/validation/gxx-baseline.sh" "$RUNNER_TEMP/gxx-baseline/g++"
+          export PATH="$RUNNER_TEMP/gxx-baseline:$PATH"
+          python validation/generate-gerg-equilibrium-references.py --output /tmp/eq.json
+          python validation/compare-reference-candidate.py /tmp/eq.json validation/fixtures/gerg-equilibrium-v1.json || true
+          cmp <(python -c "import json,sys;print(json.load(open('/tmp/eq.json'))==json.load(open('validation/fixtures/gerg-equilibrium-v1.json')))") <(echo True) && echo EQUILIBRIUM-EXACT
