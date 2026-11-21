@@ -420,7 +420,10 @@ mod tests {
 
     fn rejected(from: &str, to: &str) -> String {
         let edited = EMBEDDED_EXTRACT.replacen(from, to, 1);
-        assert_ne!(edited, EMBEDDED_EXTRACT, "fixture edit {from:?} did not apply");
+        assert_ne!(
+            edited, EMBEDDED_EXTRACT,
+            "fixture edit {from:?} did not apply"
+        );
         match load(&edited) {
             Err(CalculationError::MissingParameter(m)) => m,
             other => panic!("{from:?} -> {to:?} should be rejected, got {other:?}"),
