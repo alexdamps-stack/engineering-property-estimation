@@ -1,9 +1,11 @@
 # Independent numerical validation
 
 The [approved A2 tolerance registry](tolerances.json) consolidates the exact
-cubic, flash, PH, process, Clapeyron and GERG budgets. Check registry/fixture
-agreement and process input/adapter hashes with
-`python validation/consolidate-tolerances.py`. The retired preparation proposals
+cubic, flash, PH, process, Clapeyron, A13, NRTL, Helmholtz and GERG budgets.
+Check registry/fixture agreement, registration of every committed fixture and
+process input/adapter hashes with `python validation/consolidate-tolerances.py`.
+The offline Rust Clapeyron, NRTL, A13 and A4 flash tests also recompute each
+fixture's recorded `input_sha256` and fail when an input file has changed. The retired preparation proposals
 in `tolerances.preparation-history.json` are historical only. Bubble/dew and
 envelope qualification remain deferred to A13.
 

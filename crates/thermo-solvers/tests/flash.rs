@@ -1,5 +1,7 @@
 //! A4 stability, TP flash and pure saturation against the offline independent
 //! fixture `validation/fixtures/flash-v1.json`, plus consistency and failure checks.
+mod common;
+
 use serde_json::Value;
 use thermo_data::ComponentDatabase;
 use thermo_models::{CubicModel, CubicVariant, RootSelection};
@@ -93,9 +95,13 @@ fn fixture_provenance_matches_embedded_data() {
     assert_eq!(f["packages"]["teqp"], "0.23.2");
     assert_eq!(f["flash"].as_array().unwrap().len(), 22);
     assert_eq!(f["saturation"].as_array().unwrap().len(), 30);
-    // The generator records the SHA-256 of the source extract it read; reviewers
-    // compare it with `validation/a4-checks.md` when regenerating.
-    assert_eq!(f["input_sha256"].as_str().unwrap().len(), 64);
+    // The generator records the SHA-256 of the source extract it read; a changed
+    // extract must not pass against these stale references.
+    common::assert_input_sha256(
+        "flash-v1.json",
+        "data/source-extracts/components.provisional.json",
+        f["input_sha256"].as_str().unwrap(),
+    );
 }
 
 #[test]
@@ -143,7 +149,13 @@ fn tp_flash_matches_independent_references() {
             beta_tol,
         );
         for (label, phase, key) in [("y", vapor, "vapor"), ("x", liquid, "liquid")] {
-            for (a, e) in phase.composition.iter().zip(floats(&case[key])) {
+            let expected = floats(&case[key]);
+            assert_eq!(
+                phase.composition.len(),
+                expected.len(),
+                "{id} {label}: component count"
+            );
+            for (a, e) in phase.composition.iter().zip(expected) {
                 close(&format!("{id} {label}"), *a, e, x_tol);
             }
         }

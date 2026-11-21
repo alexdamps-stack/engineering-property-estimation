@@ -1,5 +1,7 @@
 //! Mandatory offline Clapeyron checks. The live CI check supplies a freshly
 //! generated candidate through THERMO_CLAPEYRON_REFERENCE without replacing Git fixtures.
+mod common;
+
 use serde_json::Value;
 use thermo_data::ComponentDatabase;
 use thermo_models::{CubicModel, CubicVariant, HomogeneousState, RootSelection};
@@ -15,6 +17,7 @@ fn fixture() -> Value {
     assert_eq!(f["schema"], "clapeyron-reference-v1");
     assert_eq!(f["clapeyron_version"], "0.6.30");
     assert_eq!(f["julia_version"], "1.11.7");
+    common::assert_input_hashes("clapeyron-v1.json", &f);
     assert_eq!(f["ph"].as_array().unwrap().len(), 28);
     assert_eq!(f["homogeneous"].as_array().unwrap().len(), 60);
     assert_eq!(
