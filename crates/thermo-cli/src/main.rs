@@ -30,11 +30,7 @@ struct Case {
     #[serde(default, rename = "temperature_K", alias = "temperature_k")]
     temperature_k: Option<f64>,
     /// Required only for PH flash, on the reported model caloric reference.
-    #[serde(
-        default,
-        rename = "enthalpy_J_per_mol",
-        alias = "enthalpy_j_per_mol"
-    )]
+    #[serde(default, rename = "enthalpy_J_per_mol", alias = "enthalpy_j_per_mol")]
     enthalpy_j_per_mol: Option<f64>,
     /// Absolute pressure; an output (omit it) for bubble-pressure and dew-pressure.
     /// `pressure_Pa_absolute`, the output spelling, is also accepted.
@@ -95,11 +91,7 @@ struct GergCase {
     pressure_pa: Option<f64>,
     #[serde(default)]
     density_bracket_mol_per_m3: Option<[f64; 2]>,
-    #[serde(
-        default,
-        rename = "enthalpy_J_per_mol",
-        alias = "enthalpy_j_per_mol"
-    )]
+    #[serde(default, rename = "enthalpy_J_per_mol", alias = "enthalpy_j_per_mol")]
     enthalpy_j_per_mol: Option<f64>,
     #[serde(
         default,
