@@ -45,8 +45,10 @@ jobs:
       - name: Reproduce independent GERG density and fugacity references without writing
         run: |
           python validation/generate-gerg-density-references.py
+          python validation/generate-gerg-fugacity-references.py --output "$RUNNER_TEMP/gerg-fugacity-candidate.json"
           python validation/generate-gerg-fugacity-references.py
       - name: Independently reproduce GERG equilibrium into a temporary candidate
+        if: ${{ !cancelled() }}
         run: |
           python validation/generate-gerg-equilibrium-references.py --output "$RUNNER_TEMP/gerg-equilibrium.json"
           python - "$RUNNER_TEMP/gerg-equilibrium.json" <<'PY'
@@ -55,6 +57,14 @@ jobs:
           actual = json.loads(pathlib.Path(sys.argv[1]).read_text())
           assert actual == expected, "GERG equilibrium reference reproduction differs; review explicitly"
           PY
+      - name: Preserve GERG candidates for reproduction review
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gerg-reference-candidates
+          path: |
+            ${{ runner.temp }}/gerg-fugacity-candidate.json
+            ${{ runner.temp }}/gerg-equilibrium.json
 
   cubic-references:
     name: Independent teqp/Cantera/NumPy cubic reference reproduction
