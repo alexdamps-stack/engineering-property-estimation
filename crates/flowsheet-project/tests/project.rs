@@ -375,9 +375,7 @@ fn exchanger_project() -> (Project, UnitId) {
     let fs = &mut project.flowsheet;
     let feed_at = |fs: &flowsheet_core::Flowsheet, t: f64| {
         fs.units()
-            .find(|u| {
-                matches!(u.spec, UnitSpec::Feed { temperature_k: Some(x), .. } if x == t)
-            })
+            .find(|u| matches!(u.spec, UnitSpec::Feed { temperature_k: Some(x), .. } if x == t))
             .unwrap()
             .id
     };
