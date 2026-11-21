@@ -30,6 +30,39 @@ impl Default for StabilityOptions {
     }
 }
 
+/// Largest accepted TPD-trial convergence tolerance (max |Δ ln W_i|).
+pub const MAX_STABILITY_TOLERANCE: f64 = 1e-6;
+/// Most negative accepted TPD instability threshold. A more negative threshold
+/// would classify genuinely unstable feeds as stable.
+pub const MIN_TM_THRESHOLD: f64 = -1e-6;
+
+impl StabilityOptions {
+    /// Reject values that would disable or corrupt the TPD test: a non-finite,
+    /// non-positive or excessive tolerance and a non-finite, non-negative or
+    /// excessively negative threshold (`UnsupportedCapability`), and a zero
+    /// iteration limit (`NonConvergence`). A NaN threshold, for example, makes
+    /// every `tm < threshold` comparison false and hides instability.
+    pub fn validate(&self) -> Result<(), Error> {
+        if !self.tolerance.is_finite()
+            || self.tolerance <= 0.0
+            || self.tolerance > MAX_STABILITY_TOLERANCE
+            || !self.tm_threshold.is_finite()
+            || self.tm_threshold >= 0.0
+            || self.tm_threshold < MIN_TM_THRESHOLD
+        {
+            return Err(Error::UnsupportedCapability(format!(
+                "stability options require a finite tolerance in (0, {MAX_STABILITY_TOLERANCE:e}] and a finite negative TPD threshold in [{MIN_TM_THRESHOLD:e}, 0)"
+            )));
+        }
+        if self.max_iterations == 0 {
+            return Err(Error::NonConvergence(
+                "TPD trial iteration limit is zero".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrialInitialization {
     /// W_i = z_i K_i with Wilson K.
@@ -128,6 +161,7 @@ pub fn assess_stability(
     pressure: Pressure,
     options: StabilityOptions,
 ) -> Result<StabilityAssessment, Error> {
+    options.validate()?;
     assess_stability_impl(model, temperature, pressure, options)
 }
 

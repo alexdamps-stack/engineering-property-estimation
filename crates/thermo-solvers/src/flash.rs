@@ -39,6 +39,32 @@ impl Default for FlashOptions {
     }
 }
 
+/// Largest accepted phase-split fugacity tolerance.
+pub const MAX_FLASH_TOLERANCE: f64 = 1e-6;
+
+impl FlashOptions {
+    /// Validate the nested stability options, then reject a non-finite,
+    /// non-positive or excessive fugacity tolerance (`UnsupportedCapability`) and
+    /// a zero split iteration limit (`NonConvergence`).
+    pub fn validate(&self) -> Result<(), Error> {
+        self.stability.validate()?;
+        if !self.tolerance.is_finite()
+            || self.tolerance <= 0.0
+            || self.tolerance > MAX_FLASH_TOLERANCE
+        {
+            return Err(Error::UnsupportedCapability(format!(
+                "TP flash requires a finite fugacity tolerance in (0, {MAX_FLASH_TOLERANCE:e}]"
+            )));
+        }
+        if self.max_iterations == 0 {
+            return Err(Error::NonConvergence(
+                "TP flash iteration limit is zero".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FlashPhase {
     /// Label only: two phases by molar volume; single phase by the documented heuristic.
@@ -102,6 +128,7 @@ pub fn tp_flash(
     pressure: Pressure,
     options: FlashOptions,
 ) -> Result<TpFlash, Error> {
+    options.validate()?;
     tp_flash_impl(model, temperature, pressure, options)
 }
 

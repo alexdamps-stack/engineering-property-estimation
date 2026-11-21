@@ -573,3 +573,117 @@ fn duplicate_trials_are_reported_and_inconclusive_limits_still_fail() {
         Err(CalculationError::NonConvergence(_))
     ));
 }
+
+fn stability_with(edit: impl FnOnce(&mut StabilityOptions)) -> StabilityOptions {
+    let mut options = StabilityOptions::default();
+    edit(&mut options);
+    options
+}
+
+#[test]
+fn invalid_options_are_rejected_before_solving() {
+    let m = model(
+        &["methane", "propane"],
+        &[0.5, 0.5],
+        CubicVariant::PengRobinson,
+        zeros(2),
+    );
+    let pure = model(&["propane"], &[1.0], CubicVariant::PengRobinson, zeros(1));
+    let (t, p) = tp(250.0, 3e6);
+    // The default options split this feed; a NaN threshold must not hide that.
+    let split = tp_flash(&m, t, p, FlashOptions::default()).unwrap();
+    assert_eq!(split.phases.len(), 2);
+    assert!(!split.feed_stability.stable_in_trials);
+    let unsupported_stability = [
+        stability_with(|o| o.tm_threshold = f64::NAN),
+        stability_with(|o| o.tm_threshold = f64::NEG_INFINITY),
+        stability_with(|o| o.tm_threshold = 0.0),
+        stability_with(|o| o.tm_threshold = 1e-8),
+        stability_with(|o| o.tm_threshold = -1e-3),
+        stability_with(|o| o.tolerance = f64::NAN),
+        stability_with(|o| o.tolerance = f64::INFINITY),
+        stability_with(|o| o.tolerance = 0.0),
+        stability_with(|o| o.tolerance = -1e-10),
+        stability_with(|o| o.tolerance = 1e-3),
+    ];
+    for options in unsupported_stability {
+        assert!(matches!(
+            options.validate(),
+            Err(CalculationError::UnsupportedCapability(_))
+        ));
+        // Includes the single-component shortcut, which skips every TPD trial.
+        for feed in [&m, &pure] {
+            assert!(
+                matches!(
+                    assess_stability(feed, t, p, options),
+                    Err(CalculationError::UnsupportedCapability(_))
+                ),
+                "{options:?}"
+            );
+            let flash = FlashOptions {
+                stability: options,
+                ..FlashOptions::default()
+            };
+            assert!(
+                matches!(
+                    tp_flash(feed, t, p, flash),
+                    Err(CalculationError::UnsupportedCapability(_))
+                ),
+                "{options:?}"
+            );
+        }
+    }
+    let zero_stability_iterations = stability_with(|o| o.max_iterations = 0);
+    for feed in [&m, &pure] {
+        assert!(matches!(
+            assess_stability(feed, t, p, zero_stability_iterations),
+            Err(CalculationError::NonConvergence(_))
+        ));
+        let flash = FlashOptions {
+            stability: zero_stability_iterations,
+            ..FlashOptions::default()
+        };
+        assert!(matches!(
+            tp_flash(feed, t, p, flash),
+            Err(CalculationError::NonConvergence(_))
+        ));
+    }
+    for tolerance in [f64::NAN, f64::INFINITY, 0.0, -1e-10, 1e-3] {
+        let options = FlashOptions {
+            tolerance,
+            ..FlashOptions::default()
+        };
+        assert!(matches!(
+            options.validate(),
+            Err(CalculationError::UnsupportedCapability(_))
+        ));
+        for feed in [&m, &pure] {
+            assert!(matches!(
+                tp_flash(feed, t, p, options),
+                Err(CalculationError::UnsupportedCapability(_))
+            ));
+        }
+    }
+    let zero_flash_iterations = FlashOptions {
+        max_iterations: 0,
+        ..FlashOptions::default()
+    };
+    for feed in [&m, &pure] {
+        assert!(matches!(
+            tp_flash(feed, t, p, zero_flash_iterations),
+            Err(CalculationError::NonConvergence(_))
+        ));
+    }
+    // Defaults and the documented bounds remain accepted.
+    let boundary = FlashOptions {
+        tolerance: MAX_FLASH_TOLERANCE,
+        stability: StabilityOptions {
+            tolerance: MAX_STABILITY_TOLERANCE,
+            tm_threshold: MIN_TM_THRESHOLD,
+            ..StabilityOptions::default()
+        },
+        ..FlashOptions::default()
+    };
+    assert!(boundary.validate().is_ok());
+    assert!(FlashOptions::default().validate().is_ok());
+}
