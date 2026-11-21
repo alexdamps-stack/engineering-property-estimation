@@ -1,9 +1,12 @@
 //! Bounded PR/PR-BM bubble/dew boundaries; no critical-point or retrograde continuation.
 use crate::{
     SATURATION_MAX_REDUCED_TEMPERATURE, StabilityAssessment, StabilityOptions, assess_stability,
-    pure_saturation_pressure, saturation::single_active_component,
+    gerg_flash::QUALIFIED_DRY_COMPONENTS, pure_saturation_pressure,
+    saturation::single_active_component,
 };
-use thermo_models::{CubicModel, HomogeneousState, RootSelection};
+use thermo_models::{
+    CUBIC_PRESSURE_RANGE_PA, CUBIC_TEMPERATURE_RANGE_K, CubicModel, HomogeneousState, RootSelection,
+};
 use thermo_types::{CalculationError as Error, Pressure, Temperature};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,7 +28,7 @@ pub struct SaturationOptions {
 impl Default for SaturationOptions {
     fn default() -> Self {
         Self {
-            minimum_temperature_k: 200.0,
+            minimum_temperature_k: CUBIC_TEMPERATURE_RANGE_K[0],
             maximum_temperature_k: 350.0,
             minimum_pressure_pa: 10_000.0,
             maximum_pressure_pa: 10_000_000.0,
@@ -41,12 +44,14 @@ impl SaturationOptions {
             self.minimum_pressure_pa,
             self.maximum_pressure_pa,
         ];
+        let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
+        let [p_lo, p_hi] = CUBIC_PRESSURE_RANGE_PA;
         if values.iter().any(|v| !v.is_finite())
-            || self.minimum_temperature_k < 200.0
-            || self.maximum_temperature_k > 600.0
+            || self.minimum_temperature_k < t_lo
+            || self.maximum_temperature_k > t_hi
             || self.minimum_temperature_k >= self.maximum_temperature_k
-            || self.minimum_pressure_pa < 0.01
-            || self.maximum_pressure_pa > 100_000_000.0
+            || self.minimum_pressure_pa < p_lo
+            || self.maximum_pressure_pa > p_hi
             || self.minimum_pressure_pa >= self.maximum_pressure_pa
             || self.max_iterations == 0
             || self.max_iterations > 2000
@@ -155,13 +160,7 @@ fn solve(
         .component_ids()
         .iter()
         .zip(model.fractions())
-        .any(|(id, x)| {
-            *x > 0.0
-                && !matches!(
-                    *id,
-                    "methane" | "ethane" | "propane" | "nitrogen" | "carbon-dioxide"
-                )
-        })
+        .any(|(id, x)| *x > 0.0 && !QUALIFIED_DRY_COMPONENTS.contains(id))
     {
         return Err(Error::UnsupportedCapability(
             "A13 qualified dry hydrocarbon/N2/CO2 cubic domain only".into(),

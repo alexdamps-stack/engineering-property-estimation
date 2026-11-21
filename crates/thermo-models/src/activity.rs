@@ -199,7 +199,7 @@ impl ActivityModel {
 
     pub fn caloric_reference() -> CaloricReference {
         CaloricReference {
-            identifier: "ideal-pure-zero-298.15K-1bar-cp-integrated-v1".into(),
+            identifier: crate::IDEAL_GAS_CALORIC_REFERENCE_ID.into(),
             definition: "NASA7 cp integrals; pure ideal h=s=0 at 298.15 K, 100000 Pa; ideal mixing entropy; liquid pure states from the vapor-pressure correlation via Clausius-Clapeyron with an ideal-gas vapor and negligible liquid volume, plus NRTL excess; J/mol and J/(mol K)".into(),
         }
     }
@@ -297,7 +297,7 @@ impl ActivityModel {
         self.check_domain(temperature, pressure)?;
         let (t, p) = (temperature.value(), pressure.value());
         let x = &self.fractions;
-        let ex = self.nrtl.excess(t, x)?;
+        let ex = self.nrtl.excess_at(temperature, x)?;
         let (mut h, mut s, mut cp, mut v, mut mass) = (0.0, 0.0, 0.0, 0.0, 0.0);
         let mut ln_phi = Vec::with_capacity(x.len());
         for (i, xi) in x.iter().enumerate() {

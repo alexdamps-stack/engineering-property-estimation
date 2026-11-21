@@ -101,7 +101,9 @@ fn model(z: &[f64]) -> ActivityModel {
 
 fn check_excess(f: &Value, nrtl: &NrtlModel, case: &Value, context: &str) {
     let t = case["T"].as_f64().unwrap();
-    let ex = nrtl.excess(t, &numbers(&case["x"])).unwrap();
+    let ex = nrtl
+        .excess_at(Temperature::new(t).unwrap(), &numbers(&case["x"]))
+        .unwrap();
     let c = format!("{context} T={t} x={}", case["x"]);
     close_all(
         f,

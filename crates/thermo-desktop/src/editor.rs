@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use eframe::egui::{Pos2, Rect, Vec2, pos2};
 use flowsheet_core::{Flowsheet, PortRef, StreamId, UnitId, UnitKind, UnitStatus};
 use flowsheet_project::{
-    CubicVariantChoice, Currency, DisplayUnitSet, FeedFractions, Fingerprint, Fingerprints,
-    InputIssue, PackageSelection, Project, ResultSet,
+    CubicVariantChoice, Currency, FeedFractions, Fingerprint, Fingerprints, InputIssue,
+    PackageSelection, Project, ResultSet,
 };
 
 use crate::solve::{PackageCache, SolveJob, SolveOutcome};
@@ -323,10 +323,7 @@ impl Editor {
         self.package = Some(project.package);
         self.feeds = project.feeds;
         self.results = project.results;
-        self.units = match project.display_units {
-            DisplayUnitSet::ProcessMetric => DisplayUnits::ProcessMetric,
-            DisplayUnitSet::Si => DisplayUnits::Si,
-        };
+        self.units = project.display_units.into();
         self.fit_requested = true;
     }
 
@@ -342,10 +339,7 @@ impl Editor {
                 .filter(|(id, _)| self.fs.unit(**id).is_some())
                 .map(|(id, p)| (*id, [p.x, p.y]))
                 .collect(),
-            display_units: match self.units {
-                DisplayUnits::ProcessMetric => DisplayUnitSet::ProcessMetric,
-                DisplayUnits::Si => DisplayUnitSet::Si,
-            },
+            display_units: self.units.into(),
             results: self.results.clone(),
         })
     }
@@ -444,15 +438,7 @@ impl Editor {
     /// Feed composition problems (missing package, missing or invalid fractions).
     pub fn input_issues(&self) -> Vec<InputIssue> {
         match &self.package {
-            Some(package) => Project {
-                flowsheet: self.fs.clone(),
-                package: package.clone(),
-                feeds: self.feeds.clone(),
-                layout: Default::default(),
-                display_units: DisplayUnitSet::default(),
-                results: None,
-            }
-            .input_issues(),
+            Some(package) => flowsheet_project::input_issues(&self.fs, &self.feeds, package),
             None => Vec::new(),
         }
     }

@@ -80,7 +80,10 @@ fn saturation_json(
     model: &ActivityModel,
 ) -> Result<Value> {
     // NRTL validity of the saturated liquid (feed for bubble, incipient for dew).
-    let liquid_validity = model.nrtl().excess(s.temperature_k, &s.liquid)?.validity;
+    let liquid_validity = model
+        .nrtl()
+        .excess_at(Temperature::new(s.temperature_k)?, &s.liquid)?
+        .validity;
     Ok(json!({
         "case": case.id, "calculation": kind, "components": case.components,
         "temperature_K": s.temperature_k, "pressure_Pa_absolute": s.pressure_pa,

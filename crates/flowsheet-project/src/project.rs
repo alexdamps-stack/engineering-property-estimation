@@ -440,8 +440,9 @@ pub fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), ProjectError
     Ok(())
 }
 
-/// Feed composition problems of a flowsheet with the given package.
-pub(crate) fn input_issues(
+/// Feed composition problems of a flowsheet with the given package, without
+/// assembling a [`Project`] (as [`Project::input_issues`] does).
+pub fn input_issues(
     fs: &Flowsheet,
     feeds: &FeedFractions,
     package: &PackageSelection,

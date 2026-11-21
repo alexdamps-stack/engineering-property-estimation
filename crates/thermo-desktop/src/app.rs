@@ -11,6 +11,7 @@ use eframe::egui::{
 };
 use flowsheet_core::UnitKind;
 use flowsheet_project::{CubicVariantChoice, PackageSelection, format_utc};
+use property_packages::CUBIC_TEMPERATURE_RANGE_K;
 
 use crate::canvas;
 use crate::editor::{Editor, ItemStatus};
@@ -45,8 +46,8 @@ impl NewProjectDialog {
         Self {
             components,
             variant: CubicVariantChoice::PengRobinsonBostonMathias,
-            ph_minimum_temperature_k: 200.0,
-            ph_maximum_temperature_k: 600.0,
+            ph_minimum_temperature_k: CUBIC_TEMPERATURE_RANGE_K[0],
+            ph_maximum_temperature_k: CUBIC_TEMPERATURE_RANGE_K[1],
             error,
         }
     }
@@ -474,13 +475,13 @@ impl FlowsheetApp {
                 ui.label("PH search interval");
                 ui.add(
                     egui::DragValue::new(&mut dialog.ph_minimum_temperature_k)
-                        .range(200.0..=600.0)
+                        .range(CUBIC_TEMPERATURE_RANGE_K[0]..=CUBIC_TEMPERATURE_RANGE_K[1])
                         .suffix(" K"),
                 );
                 ui.label("to");
                 ui.add(
                     egui::DragValue::new(&mut dialog.ph_maximum_temperature_k)
-                        .range(200.0..=600.0)
+                        .range(CUBIC_TEMPERATURE_RANGE_K[0]..=CUBIC_TEMPERATURE_RANGE_K[1])
                         .suffix(" K"),
                 );
             });

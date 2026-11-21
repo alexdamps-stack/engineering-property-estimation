@@ -167,7 +167,7 @@ pub fn info() -> Value {
         "calculations": ["tp-flash", "ph-flash"],
         "units": {"temperature": "K", "pressure": "Pa (absolute)", "molar_enthalpy": "J/mol",
                   "molar_entropy": "J/(mol K)", "composition": "mole fraction"},
-        "temperature_envelope_K": [200.0, 600.0],
+        "temperature_envelope_K": property_packages::CUBIC_TEMPERATURE_RANGE_K,
         "max_phases": 2,
         "data": data,
         "components": components,
@@ -316,18 +316,6 @@ fn validity(v: ValidityStatus) -> &'static str {
     }
 }
 
-fn vapor_fraction(state: &EquilibriumState) -> Option<f64> {
-    match state.phases.as_slice() {
-        [single] => match single.phase {
-            Phase::Vapor => Some(1.0),
-            Phase::Liquid => Some(0.0),
-            Phase::Supercritical => None,
-        },
-        [vapor, _] => Some(vapor.phase_fraction),
-        _ => None,
-    }
-}
-
 fn result_json(
     calculation: &str,
     components: &[String],
@@ -375,7 +363,7 @@ fn result_json(
         "enthalpy_J_per_mol": state.enthalpy(),
         "entropy_J_per_mol_K": state.entropy(),
         "phase_count": state.phases.len(),
-        "molar_vapor_fraction": vapor_fraction(state),
+        "molar_vapor_fraction": state.vapor_fraction(),
         "phases": phases,
         "convergence": {
             "iterations": state.iterations,

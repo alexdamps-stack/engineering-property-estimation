@@ -75,15 +75,21 @@ impl TpFlash {
     /// Molar vapor fraction: the vapor-labelled phase fraction for a split, or 1/0 for
     /// a single phase labelled vapor/liquid. None for a supercritical single phase.
     pub fn vapor_fraction(&self) -> Option<f64> {
-        match self.phases.as_slice() {
-            [single] => match single.phase {
-                Phase::Vapor => Some(1.0),
-                Phase::Liquid => Some(0.0),
-                Phase::Supercritical => None,
-            },
-            [vapor, _] => Some(vapor.phase_fraction),
-            _ => None,
-        }
+        vapor_fraction_of(&self.phases)
+    }
+}
+
+/// Molar vapor fraction of flash phases in solver order (see
+/// [`TpFlash::vapor_fraction`]), also used for property-package equilibrium states.
+pub fn vapor_fraction_of(phases: &[FlashPhase]) -> Option<f64> {
+    match phases {
+        [single] => match single.phase {
+            Phase::Vapor => Some(1.0),
+            Phase::Liquid => Some(0.0),
+            Phase::Supercritical => None,
+        },
+        [vapor, _] => Some(vapor.phase_fraction),
+        _ => None,
     }
 }
 

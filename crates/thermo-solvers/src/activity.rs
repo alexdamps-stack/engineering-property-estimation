@@ -193,6 +193,11 @@ fn pures(model: &ActivityModel, t: f64) -> Result<Vec<PureLiquidState>, Error> {
     model.pure_liquids(Temperature::new(t)?)
 }
 
+/// NRTL excess state at a solver temperature iterate in K.
+fn excess(model: &ActivityModel, t: f64, x: &[f64]) -> Result<ExcessState, Error> {
+    model.nrtl().excess_at(Temperature::new(t)?, x)
+}
+
 fn check_pressure(p: f64) -> Result<(), Error> {
     let [lo, hi] = thermo_models::ACTIVITY_PRESSURE_RANGE_PA;
     if !(lo..=hi).contains(&p) {
@@ -231,7 +236,7 @@ fn bubble_at(
     x: &[f64],
     pure: &[PureLiquidState],
 ) -> Result<(f64, Vec<f64>), Error> {
-    let ex = model.nrtl().excess(t, x)?;
+    let ex = excess(model, t, x)?;
     let partial: Vec<f64> = (0..x.len())
         .map(|i| {
             if x[i] > 0.0 {
@@ -280,7 +285,7 @@ fn residual(
     y: &[f64],
     pure: &[PureLiquidState],
 ) -> Result<f64, Error> {
-    let ex = model.nrtl().excess(t, x)?;
+    let ex = excess(model, t, x)?;
     residual_with(&ex.ln_activity_coefficients, pure, p, x, y)
 }
 
@@ -339,7 +344,7 @@ fn dew_at(
     let mut ln_gamma: Vec<f64> = vec![0.0; n];
     for iteration in 1..=options.max_iterations {
         let (p, x) = incipient(&ln_gamma);
-        let ex = model.nrtl().excess(t, &x)?;
+        let ex = excess(model, t, &x)?;
         let r = (0..n)
             .filter(|i| y[*i] > 0.0)
             .map(|i| (ex.ln_activity_coefficients[i] - ln_gamma[i]).abs())
@@ -351,7 +356,7 @@ fn dew_at(
         if r <= options.tolerance {
             // Final consistent pressure and liquid from the converged γ.
             let (pressure, liquid) = incipient(&ln_gamma);
-            let excess = model.nrtl().excess(t, &liquid)?;
+            let excess = excess(model, t, &liquid)?;
             let residual =
                 residual_with(&excess.ln_activity_coefficients, pure, pressure, &liquid, y)?;
             return Ok(DewPoint {
@@ -432,7 +437,7 @@ pub fn activity_bubble_temperature(
     check_pressure(p)?;
     let x = model.fractions().to_vec();
     let f = |t: f64| -> Result<(f64, f64), Error> {
-        let ex = model.nrtl().excess(t, &x)?;
+        let ex = excess(model, t, &x)?;
         let pure = pures(model, t)?;
         let (mut sum, mut slope) = (0.0, 0.0);
         for i in 0..x.len() {
@@ -527,9 +532,8 @@ pub fn liquid_stability(
     options: ActivityOptions,
 ) -> Result<LiquidStability, Error> {
     options.validate()?;
-    let t = temperature.value();
     let nrtl = model.nrtl();
-    let ex = nrtl.excess(t, x)?;
+    let ex = nrtl.excess_at(temperature, x)?;
     let act = active(x);
     let n = x.len();
     let mut result = LiquidStability {
@@ -567,7 +571,7 @@ pub fn liquid_stability(
             for (q, &i) in act.iter().enumerate() {
                 w[i] = big[q] / total;
             }
-            let g = nrtl.excess(t, &w)?.ln_activity_coefficients;
+            let g = nrtl.excess_at(temperature, &w)?.ln_activity_coefficients;
             let mut tm = 1.0;
             let mut change: f64 = 0.0;
             let mut distance: f64 = 0.0;
@@ -719,7 +723,7 @@ fn tp_flash(
     }
     let z_active: Vec<f64> = act.iter().map(|&i| z[i]).collect();
     let ln_ps: Vec<f64> = pure.iter().map(|s| s.vapor_pressure.ln()).collect();
-    let mut gamma = model.nrtl().excess(t, &z)?.ln_activity_coefficients;
+    let mut gamma = excess(model, t, &z)?.ln_activity_coefficients;
     let mut converged = None;
     for iteration in 1..=options.max_iterations {
         let k: Vec<f64> = act
@@ -734,7 +738,7 @@ fn tp_flash(
             y[i] = rr.vapor[q];
         }
         let (x, y) = (normalize(x), normalize(y));
-        let next = model.nrtl().excess(t, &x)?.ln_activity_coefficients;
+        let next = excess(model, t, &x)?.ln_activity_coefficients;
         let mut r: f64 = 0.0;
         for &i in &act {
             r = r.max((y[i].ln() + p.ln() - x[i].ln() - next[i] - ln_ps[i]).abs());

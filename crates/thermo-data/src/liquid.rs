@@ -211,7 +211,15 @@ pub struct LiquidDatabase {
 }
 
 impl LiquidDatabase {
+    /// The embedded dataset. It is parsed and checked once per process; later calls
+    /// return a clone of that result.
     pub fn embedded() -> Result<Self, CalculationError> {
+        static EMBEDDED: std::sync::OnceLock<Result<LiquidDatabase, CalculationError>> =
+            std::sync::OnceLock::new();
+        EMBEDDED.get_or_init(Self::parse_embedded).clone()
+    }
+
+    fn parse_embedded() -> Result<Self, CalculationError> {
         let extract: Extract = serde_json::from_str(include_str!(
             "../../../data/source-extracts/liquid-nrtl.provisional.json"
         ))

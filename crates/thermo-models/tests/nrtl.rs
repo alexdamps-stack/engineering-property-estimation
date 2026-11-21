@@ -23,6 +23,10 @@ fn ids(names: &[&str]) -> Vec<ComponentId> {
         .collect()
 }
 
+fn tk(kelvin: f64) -> Temperature {
+    Temperature::new(kelvin).unwrap()
+}
+
 fn tau(t0: f64, t1: f64, t2: f64, t3: f64) -> TauTerms {
     TauTerms { t0, t1, t2, t3 }
 }
@@ -87,7 +91,7 @@ fn zero_interactions_give_ideal_solution() {
         "ideal",
     )
     .unwrap();
-    let ex = NrtlModel::new(p).excess(350.0, &[0.3, 0.7]).unwrap();
+    let ex = NrtlModel::new(p).excess_at(tk(350.0), &[0.3, 0.7]).unwrap();
     assert!(ex.ln_activity_coefficients.iter().all(|g| *g == 0.0));
     assert_eq!(ex.excess_gibbs, 0.0);
     assert_eq!(ex.excess_enthalpy, 0.0);
@@ -99,7 +103,7 @@ fn excess_gibbs_is_the_mole_weighted_sum_and_obeys_gibbs_duhem() {
     let m = NrtlModel::new(ternary());
     for t in [280.0, 330.0, 400.0] {
         for x in [[0.2, 0.3, 0.5], [0.6, 0.4, 0.0], [0.05, 0.9, 0.05]] {
-            let ex = m.excess(t, &x).unwrap();
+            let ex = m.excess_at(tk(t), &x).unwrap();
             let sum: f64 = x
                 .iter()
                 .zip(&ex.ln_activity_coefficients)
@@ -114,8 +118,14 @@ fn excess_gibbs_is_the_mole_weighted_sum_and_obeys_gibbs_duhem() {
             if x.iter().any(|v| *v < 2.0 * h) {
                 continue;
             }
-            let up = m.excess(t, &shift(h)).unwrap().ln_activity_coefficients;
-            let dn = m.excess(t, &shift(-h)).unwrap().ln_activity_coefficients;
+            let up = m
+                .excess_at(tk(t), &shift(h))
+                .unwrap()
+                .ln_activity_coefficients;
+            let dn = m
+                .excess_at(tk(t), &shift(-h))
+                .unwrap()
+                .ln_activity_coefficients;
             let gd: f64 = (0..3).map(|i| x[i] * (up[i] - dn[i]) / (2.0 * h)).sum();
             assert!(gd.abs() < 1e-8, "Gibbs–Duhem {gd:e} at T={t} x={x:?}");
         }
@@ -130,9 +140,9 @@ fn ln_gamma_is_the_partial_molar_derivative_of_n_ge() {
     let nge = |n: &[f64]| -> f64 {
         let total: f64 = n.iter().sum();
         let x: Vec<f64> = n.iter().map(|v| v / total).collect();
-        total * m.excess(t, &x).unwrap().reduced_excess_gibbs
+        total * m.excess_at(tk(t), &x).unwrap().reduced_excess_gibbs
     };
-    let ex = m.excess(t, &n).unwrap();
+    let ex = m.excess_at(tk(t), &n).unwrap();
     for i in 0..3 {
         let h = 1e-6;
         let mut up = n;
@@ -154,9 +164,9 @@ fn temperature_derivatives_match_finite_differences() {
     let t = 330.0;
     let h = 1e-3;
     let (up, mid, dn) = (
-        m.excess(t + h, &x).unwrap(),
-        m.excess(t, &x).unwrap(),
-        m.excess(t - h, &x).unwrap(),
+        m.excess_at(tk(t + h), &x).unwrap(),
+        m.excess_at(tk(t), &x).unwrap(),
+        m.excess_at(tk(t - h), &x).unwrap(),
     );
     for i in 0..3 {
         let fd = (up.ln_activity_coefficients[i] - dn.ln_activity_coefficients[i]) / (2.0 * h);
@@ -176,8 +186,8 @@ fn component_permutation_permutes_results() {
     let permuted = NrtlModel::new(ternary().permuted(&order).unwrap());
     let x = [0.2, 0.3, 0.5];
     let px: Vec<f64> = order.iter().map(|&i| x[i]).collect();
-    let a = base.excess(345.0, &x).unwrap();
-    let b = permuted.excess(345.0, &px).unwrap();
+    let a = base.excess_at(tk(345.0), &x).unwrap();
+    let b = permuted.excess_at(tk(345.0), &px).unwrap();
     for (k, &i) in order.iter().enumerate() {
         assert!((a.ln_activity_coefficients[i] - b.ln_activity_coefficients[k]).abs() < 1e-14);
     }
@@ -204,9 +214,15 @@ fn parameters_are_directed() {
             .unwrap(),
         )
     };
-    let forward = make(-95.0, 399.0).excess(350.0, &[0.3, 0.7]).unwrap();
-    let swapped = make(399.0, -95.0).excess(350.0, &[0.3, 0.7]).unwrap();
-    let mirrored = make(399.0, -95.0).excess(350.0, &[0.7, 0.3]).unwrap();
+    let forward = make(-95.0, 399.0)
+        .excess_at(tk(350.0), &[0.3, 0.7])
+        .unwrap();
+    let swapped = make(399.0, -95.0)
+        .excess_at(tk(350.0), &[0.3, 0.7])
+        .unwrap();
+    let mirrored = make(399.0, -95.0)
+        .excess_at(tk(350.0), &[0.7, 0.3])
+        .unwrap();
     assert!(
         (forward.ln_activity_coefficients[0] - swapped.ln_activity_coefficients[0]).abs() > 1e-3
     );
@@ -303,48 +319,59 @@ fn invalid_parameter_sets_are_rejected() {
         NrtlParameters::new(two, good, vec![vec![ZA, falling], vec![falling, ZA]], "x").unwrap(),
     );
     assert!(matches!(
-        m.excess(350.0, &[0.5, 0.5]),
+        m.excess_at(tk(350.0), &[0.5, 0.5]),
         Err(CalculationError::OutsideValidityDomain(_))
     ));
-    assert!(m.excess(250.0, &[0.5, 0.5]).is_ok());
+    assert!(m.excess_at(tk(250.0), &[0.5, 0.5]).is_ok());
     for bad in [[0.5, 0.6], [f64::NAN, 1.0], [-0.1, 1.1]] {
         assert!(matches!(
-            m.excess(250.0, &bad),
+            m.excess_at(tk(250.0), &bad),
             Err(CalculationError::InvalidInput(_))
         ));
     }
-    assert!(m.excess(250.0, &[1.0]).is_err());
+    assert!(m.excess_at(tk(250.0), &[1.0]).is_err());
 }
 
 #[test]
 fn validity_reports_regression_interval() {
     let m = package(&[0.5, 0.5]);
-    let within = m.nrtl().excess(350.0, &[0.5, 0.5]).unwrap();
-    let below = m.nrtl().excess(320.0, &[0.5, 0.5]).unwrap();
-    let pure = m.nrtl().excess(320.0, &[1.0, 0.0]).unwrap();
+    let within = m.nrtl().excess_at(tk(350.0), &[0.5, 0.5]).unwrap();
+    let below = m.nrtl().excess_at(tk(320.0), &[0.5, 0.5]).unwrap();
+    let pure = m.nrtl().excess_at(tk(320.0), &[1.0, 0.0]).unwrap();
     assert_eq!(within.validity, ValidityStatus::WithinDeclaredDomain);
     assert_eq!(below.validity, ValidityStatus::Extrapolated);
     // The methanol/water interval is inferred from pure normal boiling points.
     assert!(within.inferred_regression_interval);
     assert!(!pure.inferred_regression_interval);
-    let typed = m
-        .nrtl()
-        .excess_at(Temperature::new(350.0).unwrap(), &[0.5, 0.5])
-        .unwrap();
-    assert_eq!(
-        typed.ln_activity_coefficients,
-        within.ln_activity_coefficients
-    );
     // No interacting pair: g^E = 0 and no regression interval applies.
     assert_eq!(pure.validity, ValidityStatus::Unassessed);
     assert_eq!(
-        m.nrtl().excess(450.0, &[1.0, 0.0]).unwrap().validity,
+        m.nrtl().excess_at(tk(450.0), &[1.0, 0.0]).unwrap().validity,
         ValidityStatus::Unassessed
     );
     let explicit = NrtlModel::new(ternary())
-        .excess(330.0, &[0.2, 0.3, 0.5])
+        .excess_at(tk(330.0), &[0.2, 0.3, 0.5])
         .unwrap();
     assert_eq!(explicit.validity, ValidityStatus::Unassessed);
+}
+
+/// The deprecated raw-kelvin entry point is the same evaluation as `excess_at` and
+/// keeps its own temperature validation.
+#[test]
+#[allow(deprecated)]
+fn raw_kelvin_excess_matches_typed_entry_point() {
+    let m = package(&[0.5, 0.5]);
+    let typed = m.nrtl().excess_at(tk(350.0), &[0.5, 0.5]).unwrap();
+    let raw = m.nrtl().excess(350.0, &[0.5, 0.5]).unwrap();
+    assert_eq!(typed.ln_activity_coefficients, raw.ln_activity_coefficients);
+    assert_eq!(typed.excess_enthalpy, raw.excess_enthalpy);
+    assert_eq!(typed.validity, raw.validity);
+    for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+        assert!(matches!(
+            m.nrtl().excess(bad, &[0.5, 0.5]),
+            Err(CalculationError::InvalidInput(_))
+        ));
+    }
 }
 
 #[test]

@@ -3,8 +3,8 @@
 use serde::Deserialize;
 use std::sync::OnceLock;
 use thermo_types::{
-    CalculationError as Error, ComponentId, Composition, CompositionBasis, InputError,
-    NormalizationPolicy, Temperature, ValidityStatus,
+    CalculationError as Error, CaloricReference, ComponentId, Composition, CompositionBasis,
+    InputError, NormalizationPolicy, Temperature, ValidityStatus,
 };
 
 /// GERG's formulation constant; deliberately distinct from the shared SI constant.
@@ -14,6 +14,17 @@ pub const GERG_DATA_REVISION: &str = "3bdb9ab8ff317c618b0b59d1b704c2c86ddc5fce";
 /// Native GERG ideal reference, incompatible with cubic NASA7 anchored enthalpies.
 pub const GERG_CALORIC_REFERENCE: &str =
     "GERG native ideal h=s=0 at 298.15 K, 101325 Pa (rounded NIST constants)";
+/// Identifier of [`GERG_CALORIC_REFERENCE`], distinct from the cubic/gamma-phi
+/// `IDEAL_GAS_CALORIC_REFERENCE_ID` so that the two scales are never mixed.
+pub const GERG_CALORIC_REFERENCE_ID: &str = "gerg-native-ideal";
+
+/// Caloric reference of every GERG state and equilibrium phase.
+pub fn gerg_caloric_reference() -> CaloricReference {
+    CaloricReference {
+        identifier: GERG_CALORIC_REFERENCE_ID.into(),
+        definition: GERG_CALORIC_REFERENCE.into(),
+    }
+}
 
 #[derive(Deserialize)]
 struct Provenance {
@@ -249,7 +260,7 @@ pub struct GergState {
     pub derivatives: GergDerivatives,
     pub model_version: &'static str,
     pub data_revision: &'static str,
-    pub caloric_reference: &'static str,
+    pub caloric_reference: CaloricReference,
 }
 
 /// Chemical-potential results in the original input component order, including
@@ -640,7 +651,7 @@ impl GergModel {
             derivatives: a,
             model_version: GERG_MODEL_VERSION,
             data_revision: GERG_DATA_REVISION,
-            caloric_reference: GERG_CALORIC_REFERENCE,
+            caloric_reference: gerg_caloric_reference(),
         })
     }
 }

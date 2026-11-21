@@ -199,7 +199,7 @@ fn calculate_gerg(case: GergCase) -> Result<Value, Box<dyn std::error::Error>> {
         "speed_of_sound_m_per_s":s.speed_of_sound, "dp_drho_Pa_per_mol_per_m3":s.dp_drho,"dp_dt_Pa_per_K":s.dp_dt,
         "model":{"id":"GERG-2008", "implementation":s.model_version},
         "data":{"id":"NIST AGA8 2.01", "revision":s.data_revision},
-        "caloric_reference":{"id":"gerg-native-ideal", "definition":s.caloric_reference},
+        "caloric_reference":{"id":s.caloric_reference.identifier, "definition":s.caloric_reference.definition},
         "validity":"unassessed physical phase/domain; local mechanical and thermal checks passed",
         "convergence":convergence,
         "diagnostics":["Homogeneous state; an explicit density bracket selects a TP root. Root completeness, phase identity and equilibrium stability are unassessed."]
@@ -348,13 +348,7 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
             "feed_mole_fractions":fractions, "temperature_K":r.temperature_k,
             "pressure_Pa_absolute":r.pressure_pa, "target_enthalpy_J_per_mol":r.target_enthalpy,
             "enthalpy_J_per_mol":r.enthalpy, "phase_count":r.phases.len(),
-            "phases": r.phases.iter().map(|ph| {
-                let mut v = state_json(&ph.state);
-                v["label"] = json!(phase_label(ph.phase));
-                v["molar_phase_fraction"] = json!(ph.phase_fraction);
-                v["mole_fractions"] = json!(ph.composition);
-                v
-            }).collect::<Vec<_>>(),
+            "phases": flash_phases_json(&r.phases),
             "convergence": {
                 "temperature_iterations":r.iterations,
                 "scaled_energy_residual":r.scaled_energy_residual,
@@ -382,13 +376,7 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
             "temperature_K":r.temperature_k, "pressure_Pa_absolute":r.pressure_pa,
             "enthalpy_J_per_mol":r.enthalpy(),
             "phase_count":r.phases.len(), "molar_vapor_fraction":r.vapor_fraction(),
-            "phases": r.phases.iter().map(|ph| {
-                let mut v = state_json(&ph.state);
-                v["label"] = json!(phase_label(ph.phase));
-                v["molar_phase_fraction"] = json!(ph.phase_fraction);
-                v["mole_fractions"] = json!(ph.composition);
-                v
-            }).collect::<Vec<_>>(),
+            "phases": flash_phases_json(&r.phases),
             "convergence":{
                 "split_iterations":r.iterations,
                 // Retained for existing consumers; includes Newton iterations.

@@ -7,6 +7,17 @@ use thermo_types::{
 
 pub const OMEGA_A: f64 = 0.457_235_528_921_382_2;
 pub const OMEGA_B: f64 = 0.077_796_073_903_888_46;
+/// Homogeneous T,p envelope of the PR/PR-BM evaluators (`evaluate`, `ln_fugacity`,
+/// `compressibility_roots`, `residual_helmholtz`), in K. Solvers, packages and
+/// interfaces that expose the cubic domain use this constant rather than a copy.
+pub const CUBIC_TEMPERATURE_RANGE_K: [f64; 2] = [200.0, 600.0];
+/// Pressure part of the homogeneous PR/PR-BM envelope, in Pa (absolute).
+pub const CUBIC_PRESSURE_RANGE_PA: [f64; 2] = [0.01, 100_000_000.0];
+/// Identifier of the NASA7 ideal-gas caloric zero shared by the cubic and gamma-phi
+/// models: pure ideal gas h = s = 0 at 298.15 K and 100000 Pa. Values on this
+/// reference are comparable between those models; each model's
+/// `CaloricReference::definition` states how its phase departures are formed.
+pub const IDEAL_GAS_CALORIC_REFERENCE_ID: &str = "ideal-pure-zero-298.15K-1bar-cp-integrated-v1";
 /// Temperature envelope of `CubicModel::pressure_derivatives` (K).
 pub const MECHANICAL_TEMPERATURE_RANGE_K: [f64; 2] = [100.0, 1000.0];
 
@@ -223,7 +234,9 @@ impl CubicModel {
     }
 
     fn check_domain(t: f64, p: f64) -> Result<(), Error> {
-        if !(200.0..=600.0).contains(&t) || !(0.01..=100_000_000.0).contains(&p) {
+        let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
+        let [p_lo, p_hi] = CUBIC_PRESSURE_RANGE_PA;
+        if !(t_lo..=t_hi).contains(&t) || !(p_lo..=p_hi).contains(&p) {
             return Err(Error::OutsideValidityDomain("homogeneous EOS envelope: 200..=600 K, 0.01..=1e8 Pa; no phase/stability qualification".into()));
         }
         Ok(())
@@ -231,7 +244,8 @@ impl CubicModel {
 
     /// Temperature part of `check_domain`, for T,V entry points without a pressure.
     fn check_temperature(t: f64) -> Result<(), Error> {
-        if !(200.0..=600.0).contains(&t) {
+        let [lo, hi] = CUBIC_TEMPERATURE_RANGE_K;
+        if !(lo..=hi).contains(&t) {
             return Err(Error::OutsideValidityDomain(
                 "homogeneous EOS envelope: 200..=600 K; no phase/stability qualification".into(),
             ));
@@ -321,11 +335,37 @@ impl CubicModel {
                 "nonfinite or calorically unstable root".into(),
             ));
         }
-        Ok(HomogeneousState { temperature_k:t, pressure_pa:p, compressibility:z, molar_volume:v, mass_density:mass/v,
-            ln_fugacity_coefficients:ln_phi, residual_enthalpy:hr, residual_entropy:sr, enthalpy:h0+hr, entropy:s0+sr,
-            internal_energy:h0+hr-p*v, cp,cv,speed_of_sound:sound,dp_dt:pt,dp_dv:pv,model:self.metadata(),data:self.data.clone(),
-            caloric_reference: CaloricReference { identifier: "ideal-pure-zero-298.15K-1bar-cp-integrated-v1".into(), definition: "NASA7 cp integrals; pure ideal h=s=0 at 298.15 K, 100000 Pa; ideal mixing entropy; EOS departures at same T,p,x; J/mol and J/(mol K)".into() },
-            validity: ValidityStatus::Unassessed, selection })
+        Ok(HomogeneousState {
+            temperature_k: t,
+            pressure_pa: p,
+            compressibility: z,
+            molar_volume: v,
+            mass_density: mass / v,
+            ln_fugacity_coefficients: ln_phi,
+            residual_enthalpy: hr,
+            residual_entropy: sr,
+            enthalpy: h0 + hr,
+            entropy: s0 + sr,
+            internal_energy: h0 + hr - p * v,
+            cp,
+            cv,
+            speed_of_sound: sound,
+            dp_dt: pt,
+            dp_dv: pv,
+            model: self.metadata(),
+            data: self.data.clone(),
+            caloric_reference: Self::caloric_reference(),
+            validity: ValidityStatus::Unassessed,
+            selection,
+        })
+    }
+
+    /// Caloric reference of every [`HomogeneousState`] from this model (both variants).
+    pub fn caloric_reference() -> CaloricReference {
+        CaloricReference {
+            identifier: IDEAL_GAS_CALORIC_REFERENCE_ID.into(),
+            definition: "NASA7 cp integrals; pure ideal h=s=0 at 298.15 K, 100000 Pa; ideal mixing entropy; EOS departures at same T,p,x; J/mol and J/(mol K)".into(),
+        }
     }
 
     /// The same model and interactions at another mole-fraction vector in model order.

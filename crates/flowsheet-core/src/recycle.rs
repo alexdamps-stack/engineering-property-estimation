@@ -121,9 +121,7 @@ impl Flowsheet {
         })
         .is_break()
         {
-            let mut e = error("Calculation cancelled; no results were produced.");
-            e.cancelled = true;
-            return Err(e);
+            return Err(SolveError::cancelled());
         }
         let mut flashed = BTreeMap::new();
         let mut feed_state = |id: crate::UnitId| -> Result<(f64, EquilibriumState), SolveError> {
@@ -219,9 +217,7 @@ impl Flowsheet {
             })
             .is_break()
             {
-                let mut e = error("Calculation cancelled; no results were produced.");
-                e.cancelled = true;
-                return Err(e);
+                return Err(SolveError::cancelled());
             }
             if !guess.molar_flow_mol_s.is_finite() || guess.molar_flow_mol_s < 0.0 {
                 return Err(error(format!(
@@ -324,29 +320,8 @@ impl Flowsheet {
         if let Some(id) = tears.iter().find(|id| self.stream(**id).is_none()) {
             return Err(error(format!("Unknown tear stream {id}")));
         }
-        let mut incoming: BTreeMap<_, usize> = self.units().map(|u| (u.id, 0)).collect();
-        for s in self.streams().filter(|s| !tears.contains(&s.id)) {
-            *incoming.get_mut(&s.to.unit).expect("unit") += 1;
-        }
-        let mut ready: BTreeSet<_> = incoming
-            .iter()
-            .filter_map(|(&id, &n)| (n == 0).then_some(id))
-            .collect();
-        let mut order = vec![];
-        while let Some(id) = ready.pop_first() {
-            order.push(id);
-            for s in self
-                .streams()
-                .filter(|s| s.from.unit == id && !tears.contains(&s.id))
-            {
-                let n = incoming.get_mut(&s.to.unit).expect("unit");
-                *n -= 1;
-                if *n == 0 {
-                    ready.insert(s.to.unit);
-                }
-            }
-        }
-        if order.len() != incoming.len() {
+        let order = self.kahn_order(|s| !tears.contains(&s.id));
+        if order.len() != self.units().count() {
             return Err(error("Tear streams do not break every recycle loop."));
         }
         Ok(order)

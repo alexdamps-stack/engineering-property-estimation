@@ -3,7 +3,7 @@
 use property_packages::CubicPackage;
 use serde::{Deserialize, Serialize};
 use thermo_data::ComponentDatabase;
-use thermo_models::{CubicModel, CubicVariant};
+use thermo_models::{CUBIC_TEMPERATURE_RANGE_K, CubicModel, CubicVariant};
 use thermo_solvers::PhFlashOptions;
 use thermo_types::{ComponentId, Composition, CompositionBasis, DataMetadata, NormalizationPolicy};
 
@@ -98,8 +98,8 @@ impl PackageSelection {
             components,
             kij: vec![vec![0.0; n]; n],
             interaction_source: source.into(),
-            ph_minimum_temperature_k: 200.0,
-            ph_maximum_temperature_k: 600.0,
+            ph_minimum_temperature_k: CUBIC_TEMPERATURE_RANGE_K[0],
+            ph_maximum_temperature_k: CUBIC_TEMPERATURE_RANGE_K[1],
         }
     }
 
@@ -145,8 +145,9 @@ impl PackageSelection {
             ));
         }
         let (lo, hi) = (self.ph_minimum_temperature_k, self.ph_maximum_temperature_k);
-        if !(lo.is_finite() && hi.is_finite() && (200.0..=600.0).contains(&lo))
-            || !(200.0..=600.0).contains(&hi)
+        let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
+        if !(lo.is_finite() && hi.is_finite() && (t_lo..=t_hi).contains(&lo))
+            || !(t_lo..=t_hi).contains(&hi)
             || lo >= hi
         {
             return Err(ProjectError::Package(

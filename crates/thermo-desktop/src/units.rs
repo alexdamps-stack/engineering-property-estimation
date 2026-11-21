@@ -2,6 +2,8 @@
 //! values with absolute pressure; conversions here affect presentation and
 //! editing only.
 
+use flowsheet_project::DisplayUnitSet;
+
 /// Selectable display unit set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DisplayUnits {
@@ -10,6 +12,25 @@ pub enum DisplayUnits {
     /// °C, bar, kmol/h, kW — the default for process engineers.
     #[default]
     ProcessMetric,
+}
+
+// The one mapping between the stored project unit set and the display unit set.
+impl From<DisplayUnitSet> for DisplayUnits {
+    fn from(set: DisplayUnitSet) -> Self {
+        match set {
+            DisplayUnitSet::ProcessMetric => DisplayUnits::ProcessMetric,
+            DisplayUnitSet::Si => DisplayUnits::Si,
+        }
+    }
+}
+
+impl From<DisplayUnits> for DisplayUnitSet {
+    fn from(units: DisplayUnits) -> Self {
+        match units {
+            DisplayUnits::ProcessMetric => DisplayUnitSet::ProcessMetric,
+            DisplayUnits::Si => DisplayUnitSet::Si,
+        }
+    }
 }
 
 /// Physical quantity of an editable field.
