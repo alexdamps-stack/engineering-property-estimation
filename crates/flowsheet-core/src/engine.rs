@@ -237,6 +237,7 @@ impl Flowsheet {
         progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
     ) -> Result<Calculation, SolveError> {
         let order = self.calculation_order()?;
+        self.validate_inputs(package, feeds)?;
         self.solve_pass(package, feeds, order, &BTreeMap::new(), progress)
     }
 
@@ -298,6 +299,9 @@ impl Flowsheet {
         Ok(())
     }
 
+    /// One sequential pass over `order`. Callers must have run
+    /// [`Self::validate_inputs`] once for these inputs; recycle iterations
+    /// reuse the same inputs and do not repeat it.
     pub(crate) fn solve_pass(
         &self,
         package: &CubicPackage,
@@ -306,7 +310,6 @@ impl Flowsheet {
         tears: &BTreeMap<StreamId, MaterialStream>,
         mut progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
     ) -> Result<Calculation, SolveError> {
-        self.validate_inputs(package, feeds)?;
         let fail = |id: UnitId, message: String| SolveError {
             unit: Some(id),
             message: format!("{}: {message}", self.unit(id).expect("unit exists").name),

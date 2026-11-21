@@ -1,11 +1,20 @@
 //! Flowsheet topology: units, streams, and structural diagnostics.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt;
 
 use crate::unit::{
     PortDirection, PortRef, PortSpec, SpecIssue, SpecProblem, Unit, UnitId, UnitKind, UnitSpec,
 };
+
+/// Largest unit or stream identifier, and largest generated tag number,
+/// that [`Flowsheet::restore`] accepts: 2^53 − 1, the largest integer every
+/// JSON reader represents exactly.
+///
+/// Stored identifiers at or below this bound leave the identifier counters
+/// far more room than a flowsheet can ever use, so [`Flowsheet::add_unit`]
+/// and [`Flowsheet::connect`] cannot overflow or reuse an identifier.
+pub const MAX_IDENTIFIER: u64 = (1 << 53) - 1;
 
 /// Stable identifier of a material stream within one [`Flowsheet`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -45,6 +54,8 @@ pub enum ConnectError {
     PortOccupied(PortRef),
     /// Source and destination belong to the same unit.
     SelfConnection(UnitId),
+    /// No unused stream identifier remains.
+    StreamIdsExhausted,
 }
 
 impl fmt::Display for ConnectError {
@@ -56,6 +67,7 @@ impl fmt::Display for ConnectError {
             ConnectError::DestinationNotInlet(_) => f.write_str("a stream must end at an inlet"),
             ConnectError::PortOccupied(_) => f.write_str("the port is already connected"),
             ConnectError::SelfConnection(_) => f.write_str("a unit cannot be connected to itself"),
+            ConnectError::StreamIdsExhausted => f.write_str("no unused stream identifier remains"),
         }
     }
 }
@@ -71,7 +83,9 @@ pub enum RestoreError {
     DuplicateStream(StreamId),
     /// A unit's specification variant does not belong to its kind.
     SpecKindMismatch(UnitId),
-    /// A stream identifier of zero is not valid.
+    /// A unit identifier is zero or above [`MAX_IDENTIFIER`].
+    InvalidUnitId(UnitId),
+    /// A stream identifier is zero or above [`MAX_IDENTIFIER`].
     InvalidStreamId(StreamId),
     /// A stream fails the ordinary connection checks.
     Connection(StreamId, ConnectError),
@@ -85,7 +99,14 @@ impl fmt::Display for RestoreError {
             RestoreError::SpecKindMismatch(u) => {
                 write!(f, "unit {u} has a specification of another unit kind")
             }
-            RestoreError::InvalidStreamId(s) => write!(f, "stream identifier {s} is not valid"),
+            RestoreError::InvalidUnitId(u) => write!(
+                f,
+                "unit identifier {u} is not valid (identifiers run from 1 to {MAX_IDENTIFIER})"
+            ),
+            RestoreError::InvalidStreamId(s) => write!(
+                f,
+                "stream identifier {s} is not valid (identifiers run from 1 to {MAX_IDENTIFIER})"
+            ),
             RestoreError::Connection(s, e) => write!(f, "stream {s}: {e}"),
         }
     }
@@ -205,11 +226,20 @@ impl Flowsheet {
     }
 
     /// Adds a unit with a generated tag and default specification.
+    ///
+    /// Identifiers start at 1 and [`Self::restore`] accepts none above
+    /// [`MAX_IDENTIFIER`], so the counter cannot be exhausted by any
+    /// flowsheet that fits in memory.
     pub fn add_unit(&mut self, kind: UnitKind) -> UnitId {
-        self.next_unit += 1;
+        self.next_unit = self
+            .next_unit
+            .checked_add(1)
+            .expect("unit identifiers are bounded by MAX_IDENTIFIER on restore");
         let id = UnitId(self.next_unit);
         let counter = self.tag_counters.entry(kind.tag_series()).or_insert(0);
-        *counter += 1;
+        // Restored tag numbers are bounded too; saturating only guards the
+        // generated name, which need not be unique.
+        *counter = counter.saturating_add(1);
         let name = kind.tag(*counter);
         self.units.insert(
             id,
@@ -261,6 +291,34 @@ impl Flowsheet {
 
     /// Connects an outlet port to an inlet port with a new stream.
     pub fn connect(&mut self, from: PortRef, to: PortRef) -> Result<StreamId, ConnectError> {
+        self.check_connection(from, to, |port| self.stream_at(port).is_some())?;
+        let next = self
+            .next_stream
+            .checked_add(1)
+            .ok_or(ConnectError::StreamIdsExhausted)?;
+        self.next_stream = next;
+        let id = StreamId(next);
+        self.streams.insert(
+            id,
+            Stream {
+                id,
+                name: id.to_string(),
+                from,
+                to,
+            },
+        );
+        self.revision += 1;
+        Ok(id)
+    }
+
+    /// The checks of [`Self::connect`], with port occupancy supplied by the
+    /// caller so [`Self::restore`] can use an index instead of a scan.
+    fn check_connection(
+        &self,
+        from: PortRef,
+        to: PortRef,
+        occupied: impl Fn(PortRef) -> bool,
+    ) -> Result<(), ConnectError> {
         let from_spec = self.checked_port(from)?;
         let to_spec = self.checked_port(to)?;
         if from_spec.direction != PortDirection::Outlet {
@@ -273,23 +331,11 @@ impl Flowsheet {
             return Err(ConnectError::SelfConnection(from.unit));
         }
         for port in [from, to] {
-            if self.stream_at(port).is_some() {
+            if occupied(port) {
                 return Err(ConnectError::PortOccupied(port));
             }
         }
-        self.next_stream += 1;
-        let id = StreamId(self.next_stream);
-        self.streams.insert(
-            id,
-            Stream {
-                id,
-                name: id.to_string(),
-                from,
-                to,
-            },
-        );
-        self.revision += 1;
-        Ok(id)
+        Ok(())
     }
 
     /// Removes a stream. Returns the removed stream.
@@ -313,16 +359,23 @@ impl Flowsheet {
     /// project file. Every unit keeps its identifier, tag and specification;
     /// every stream is reconnected through the same checks as [`Self::connect`].
     ///
-    /// Identifier counters continue after the largest stored identifier, and
-    /// tag counters after the largest stored tag number of each series, so
-    /// new units never reuse a stored identifier or generated tag. The
-    /// restored flowsheet starts at revision 0.
+    /// Identifiers must lie in `1..=`[`MAX_IDENTIFIER`]. Identifier counters
+    /// continue after the largest stored identifier, and tag counters after
+    /// the largest stored tag number of each series (numbers above
+    /// [`MAX_IDENTIFIER`] count as user-chosen names), so new units never
+    /// reuse a stored identifier or generated tag. The restored flowsheet
+    /// starts at revision 0. Ports are indexed, so restoring takes
+    /// O((U + S) log(U + S)) time.
     pub fn restore(
         units: impl IntoIterator<Item = Unit>,
         streams: impl IntoIterator<Item = Stream>,
     ) -> Result<Self, RestoreError> {
         let mut fs = Flowsheet::new();
+        let mut series_sizes: BTreeMap<&'static str, u64> = BTreeMap::new();
         for unit in units {
+            if !(1..=MAX_IDENTIFIER).contains(&unit.id.0) {
+                return Err(RestoreError::InvalidUnitId(unit.id));
+            }
             if fs.units.contains_key(&unit.id) {
                 return Err(RestoreError::DuplicateUnit(unit.id));
             }
@@ -333,32 +386,33 @@ impl Flowsheet {
             }
             fs.next_unit = fs.next_unit.max(unit.id.0);
             let series = unit.kind.tag_series();
-            let in_series = fs
-                .units
-                .values()
-                .filter(|u| u.kind.tag_series() == series)
-                .count() as u64
-                + 1;
+            let in_series = series_sizes.entry(series).or_insert(0);
+            *in_series += 1;
+            let tag_number = unit
+                .kind
+                .tag_number(&unit.name)
+                .filter(|&n| n <= MAX_IDENTIFIER)
+                .unwrap_or(0);
             let counter = fs.tag_counters.entry(series).or_insert(0);
-            *counter = (*counter)
-                .max(in_series)
-                .max(unit.kind.tag_number(&unit.name).unwrap_or(0));
+            *counter = (*counter).max(*in_series).max(tag_number);
             fs.units.insert(unit.id, unit);
         }
+        let mut occupied: HashSet<PortRef> = HashSet::new();
         for stream in streams {
-            if fs.streams.contains_key(&stream.id) {
-                return Err(RestoreError::DuplicateStream(stream.id));
-            }
-            let (id, name) = (stream.id, stream.name);
-            if id.0 == 0 {
+            let id = stream.id;
+            if !(1..=MAX_IDENTIFIER).contains(&id.0) {
                 return Err(RestoreError::InvalidStreamId(id));
             }
-            fs.next_stream = id.0 - 1;
-            fs.connect(stream.from, stream.to)
+            if fs.streams.contains_key(&id) {
+                return Err(RestoreError::DuplicateStream(id));
+            }
+            fs.check_connection(stream.from, stream.to, |port| occupied.contains(&port))
                 .map_err(|e| RestoreError::Connection(id, e))?;
-            fs.streams.get_mut(&id).expect("just connected").name = name;
+            occupied.insert(stream.from);
+            occupied.insert(stream.to);
+            fs.next_stream = fs.next_stream.max(id.0);
+            fs.streams.insert(id, stream);
         }
-        fs.next_stream = fs.streams.keys().map(|s| s.0).max().unwrap_or(0);
         fs.revision = 0;
         Ok(fs)
     }
@@ -850,6 +904,82 @@ mod tests {
         assert_eq!(
             Flowsheet::restore(units, zero),
             Err(RestoreError::InvalidStreamId(StreamId(0)))
+        );
+    }
+
+    #[test]
+    fn restore_rejects_identifiers_without_room_to_allocate() {
+        let mut fs = Flowsheet::new();
+        let feed = fs.add_unit(UnitKind::Feed);
+        let product = fs.add_unit(UnitKind::Product);
+        fs.connect(out(feed), PortRef::new(product, 0)).unwrap();
+        let units: Vec<Unit> = fs.units().cloned().collect();
+        let streams: Vec<Stream> = fs.streams().cloned().collect();
+
+        for bad in [0, MAX_IDENTIFIER + 1, u64::MAX] {
+            let mut u = units.clone();
+            u[1].id = UnitId(bad);
+            assert_eq!(
+                Flowsheet::restore(u, Vec::new()),
+                Err(RestoreError::InvalidUnitId(UnitId(bad)))
+            );
+            let mut s = streams.clone();
+            s[0].id = StreamId(bad);
+            assert_eq!(
+                Flowsheet::restore(units.clone(), s),
+                Err(RestoreError::InvalidStreamId(StreamId(bad)))
+            );
+        }
+
+        // The largest accepted identifiers still leave room for new ones.
+        let mut u = units.clone();
+        u[1].id = UnitId(MAX_IDENTIFIER);
+        u[1].name = format!("Product {}", u64::MAX);
+        let mut restored = Flowsheet::restore(u, Vec::new()).unwrap();
+        let next = restored.add_unit(UnitKind::Product);
+        assert_eq!(next, UnitId(MAX_IDENTIFIER + 1));
+        // An out-of-range tag number counts as a user-chosen name.
+        assert_eq!(restored.unit(next).unwrap().name, "Product 2");
+        let mut s = streams.clone();
+        s[0].id = StreamId(MAX_IDENTIFIER);
+        let mut restored = Flowsheet::restore(units, s).unwrap();
+        let p2 = restored.add_unit(UnitKind::Product);
+        let f2 = restored.add_unit(UnitKind::Feed);
+        assert_eq!(
+            restored.connect(out(f2), PortRef::new(p2, 0)),
+            Ok(StreamId(MAX_IDENTIFIER + 1))
+        );
+    }
+
+    #[test]
+    fn restore_keeps_stream_names_and_rejects_shared_ports() {
+        let mut fs = Flowsheet::new();
+        let feed = fs.add_unit(UnitKind::Feed);
+        let split = fs.add_unit(UnitKind::Splitter);
+        let product = fs.add_unit(UnitKind::Product);
+        fs.connect(out(feed), PortRef::new(split, 0)).unwrap();
+        let s = fs
+            .connect(PortRef::new(split, 1), PortRef::new(product, 0))
+            .unwrap();
+        fs.rename_stream(s, "liquid");
+        let units: Vec<Unit> = fs.units().cloned().collect();
+        let mut streams: Vec<Stream> = fs.streams().cloned().collect();
+        let restored = Flowsheet::restore(units.clone(), streams.clone()).unwrap();
+        assert_eq!(restored.stream(s).unwrap().name, "liquid");
+
+        // A second stream into the occupied product inlet.
+        streams.push(Stream {
+            id: StreamId(9),
+            name: "S9".into(),
+            from: PortRef::new(split, 2),
+            to: PortRef::new(product, 0),
+        });
+        assert_eq!(
+            Flowsheet::restore(units, streams),
+            Err(RestoreError::Connection(
+                StreamId(9),
+                ConnectError::PortOccupied(PortRef::new(product, 0))
+            ))
         );
     }
 
