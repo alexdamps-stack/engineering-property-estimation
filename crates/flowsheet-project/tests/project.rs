@@ -4,7 +4,9 @@
 use std::ops::ControlFlow;
 use std::path::PathBuf;
 
-use flowsheet_core::{ExchangerSpec, MAX_IDENTIFIER, PortRef, PressureSpec, StreamId, UnitId, UnitKind, UnitSpec};
+use flowsheet_core::{
+    ExchangerSpec, MAX_IDENTIFIER, PortRef, PressureSpec, StreamId, UnitId, UnitKind, UnitSpec,
+};
 use flowsheet_project::{
     CubicVariantChoice, Currency, Fingerprint, Fingerprints, MAX_PROJECT_FILE_BYTES, MAX_STREAMS,
     MAX_UNITS, Project, ProjectError, ResultSet, demonstration, run_acceptance, solve_project,

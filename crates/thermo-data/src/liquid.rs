@@ -258,7 +258,9 @@ impl LiquidDatabase {
     pub fn embedded() -> Result<Self, CalculationError> {
         static EMBEDDED: std::sync::OnceLock<Result<LiquidDatabase, CalculationError>> =
             std::sync::OnceLock::new();
-        EMBEDDED.get_or_init(|| Self::from_extract(EMBEDDED_EXTRACT, &ComponentDatabase::embedded()?)).clone()
+        EMBEDDED
+            .get_or_init(|| Self::from_extract(EMBEDDED_EXTRACT, &ComponentDatabase::embedded()?))
+            .clone()
     }
 
     /// Pure-liquid IDs and CAS numbers must match `components`, NRTL pairs must name
