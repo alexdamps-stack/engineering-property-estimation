@@ -193,6 +193,39 @@ fn invalid_compositions_have_distinct_failures() {
 }
 
 #[test]
+fn calculation_errors_display_human_readable_text() {
+    let cases = [
+        (
+            CalculationError::from(InputError::NonFinite("pressure")),
+            "invalid calculation input: pressure is not finite",
+        ),
+        (
+            CalculationError::MissingParameter("kij for methane/water".into()),
+            "missing parameter: kij for methane/water",
+        ),
+        (
+            CalculationError::UnsupportedCapability("model \"SRK\"".into()),
+            "unsupported: model \"SRK\"",
+        ),
+        (
+            CalculationError::OutsideValidityDomain("T below 200 K".into()),
+            "outside validity domain: T below 200 K",
+        ),
+        (
+            CalculationError::NonConvergence("PH temperature iteration limit is zero".into()),
+            "did not converge: PH temperature iteration limit is zero",
+        ),
+        (
+            CalculationError::NumericalFailure("singular Jacobian".into()),
+            "numerical failure: singular Jacobian",
+        ),
+    ];
+    for (error, text) in cases {
+        assert_eq!(error.to_string(), text);
+    }
+}
+
+#[test]
 fn mass_mole_conversion_matches_hand_calculated_values() {
     let mole = composition(
         CompositionBasis::Mole,

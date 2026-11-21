@@ -118,7 +118,7 @@ also saves the solved DWSIM flowsheet as `target/a12-dwsim/dwsim-separator-check
 | max \|Δy\| / max \|Δx\| | 6.9e-5 / 1.05e-4 |
 | Vapor Z DWSIM / ThermoCore | 0.89334 / 0.88984 (Δ = 3.5e-3) |
 | ThermoCore ln-fugacity residual | ≤ 1e-10 |
-| 150 K DWSIM state | typed `unsupported-capability` |
+| 150 K DWSIM state | typed `unsupported-capability` (the kind at the time of this run; since #141 a state outside the package interval is `outside-validity-domain`) |
 | DWSIM n-butane stream | rejected before the call (no ThermoCore component for CAS 106-97-8) |
 
 The gates (|Δβ| ≤ 0.02, |Δx|,|Δy| ≤ 0.02, |ΔZ| ≤ 0.01) were fixed before the

@@ -41,6 +41,7 @@ impl SaturationOptions {
             self.minimum_pressure_pa,
             self.maximum_pressure_pa,
         ];
+        // Invalid options use the same kinds as the PH and flash validators.
         if values.iter().any(|v| !v.is_finite())
             || self.minimum_temperature_k < 200.0
             || self.maximum_temperature_k > 600.0
@@ -48,10 +49,14 @@ impl SaturationOptions {
             || self.minimum_pressure_pa < 0.01
             || self.maximum_pressure_pa > 100_000_000.0
             || self.minimum_pressure_pa >= self.maximum_pressure_pa
-            || self.max_iterations == 0
             || self.max_iterations > 2000
         {
-            return Err(Error::OutsideValidityDomain("A13 requires ordered finite bounds inside 200..600 K, 0.01..1e8 Pa and iteration budget 1..2000".into()));
+            return Err(Error::UnsupportedCapability("A13 requires ordered finite bounds inside 200..600 K, 0.01..1e8 Pa and iteration budget 1..2000".into()));
+        }
+        if self.max_iterations == 0 {
+            return Err(Error::NonConvergence(
+                "A13 saturation iteration limit is zero".into(),
+            ));
         }
         Ok(())
     }

@@ -488,7 +488,7 @@ mod tests {
             ),
             (
                 Box::new(|v| v["state"]["temperature_K"] = json!(150.0)),
-                "unsupported-capability",
+                "outside-validity-domain",
             ),
             (
                 Box::new(|v| v["package"]["components"][4] = json!("hydrogen")),

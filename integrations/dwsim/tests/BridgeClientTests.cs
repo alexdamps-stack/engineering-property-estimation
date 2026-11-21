@@ -114,8 +114,8 @@ internal static class BridgeClientTests
             var q = Load(args[1]);
             ThermoCoreBridge.Obj(q["state"])["temperature_K"] = 150.0;
             ThermoCoreBridge.Calculate(q);
-        }, "unsupported-capability");
-        Check(e == null, "150 K outside package interval -> unsupported-capability " + e);
+        }, "outside-validity-domain");
+        Check(e == null, "150 K outside package interval -> outside-validity-domain " + e);
         e = Expect(delegate
         {
             var q = Load(args[1]);
