@@ -45,6 +45,9 @@ jobs:
       - name: Reproduce independent GERG density and fugacity references without writing
         run: |
           python validation/generate-gerg-density-references.py
+          # Fugacity applies np.log to AD coefficients. Pin its scalar fallback:
+          # the AVX2 loop differs by 1.94e-16 in one retained-zero-component case.
+          export NPY_DISABLE_CPU_FEATURES="$NPY_DISABLE_CPU_FEATURES AVX2 FMA3"
           python validation/generate-gerg-fugacity-references.py --output "$RUNNER_TEMP/gerg-fugacity-candidate.json"
           python validation/generate-gerg-fugacity-references.py
       - name: Independently reproduce GERG equilibrium into a temporary candidate
