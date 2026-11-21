@@ -59,6 +59,15 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Test workspace
         run: cargo test --workspace --locked
+      - name: Upload new and diff images of failed UI snapshots
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ui-snapshot-diffs-${{ matrix.os }}
+          path: |
+            crates/thermo-desktop/tests/snapshots/*.new.png
+            crates/thermo-desktop/tests/snapshots/*.diff.png
+          if-no-files-found: ignore
       - name: Build documentation
         run: cargo doc --workspace --no-deps --locked
 

@@ -93,7 +93,7 @@ committed Clapeyron reference values offline, without requiring Julia. See
 - **Interaction tests** inject pointer and key events: placing units, connecting nozzles, moving and deleting.
 - **Snapshot tests** render the UI off-screen and compare it with the PNG baselines in `tests/snapshots/`.
 
-After an intended visual change, set `UPDATE_SNAPSHOTS=1` to re-record the baselines, then review the PNGs before committing. On CI the snapshots are rendered but not compared pixel by pixel.
+After an intended visual change, set `UPDATE_SNAPSHOTS=1` to re-record the baselines, then review the PNGs before committing. CI compares the snapshots on Linux and Windows. A per-pixel threshold of 0.6 and up to 20 differing pixels absorb anti-aliasing differences between renderers. When a comparison fails, CI uploads the `*.new.png` and `*.diff.png` images as the `ui-snapshot-diffs-<os>` artifact.
 
 On Windows with **Smart App Control** enabled, freshly built unsigned test executables can be blocked ("An application control policy has blocked this file"). Run the UI tests in WSL instead (needs Ubuntu with rustup and `mesa-vulkan-drivers`):
 
