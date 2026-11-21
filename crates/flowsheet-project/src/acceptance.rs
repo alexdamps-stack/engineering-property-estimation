@@ -94,6 +94,11 @@ fn max_difference(a: &ResultSet, b: &ResultSet) -> Result<f64, String> {
         if x.duty_w != 0.0 || y.duty_w != 0.0 {
             worst = worst.max(relative(x.duty_w, y.duty_w));
         }
+        match (x.transferred_duty_w, y.transferred_duty_w) {
+            (Some(p), Some(q)) if p != 0.0 || q != 0.0 => worst = worst.max(relative(p, q)),
+            (Some(_), Some(_)) | (None, None) => {}
+            _ => return Err("transferred duty presence changed after reload".into()),
+        }
     }
     Ok(worst)
 }

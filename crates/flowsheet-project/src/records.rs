@@ -1,7 +1,7 @@
 //! Serializable mirrors of the `flowsheet-core` topology and specifications.
 //!
 //! The engine types stay free of serialization concerns; these records define
-//! the stable JSON spelling of project format versions 1 and 2 (which share
+//! the stable JSON spelling of project format versions 1 to 3 (which share
 //! the same input records).
 
 use flowsheet_core::{

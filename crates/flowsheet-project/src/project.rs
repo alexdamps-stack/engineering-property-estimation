@@ -17,12 +17,14 @@ use crate::{Fingerprints, PackageSelection, PreparedPackage, ProjectError, Resul
 
 /// Project file format version written by this program.
 ///
-/// Version 2 adds the optional `results.recycle` closure evidence (A10).
-/// Version 1 files have the same schema without that requirement and are
-/// still read; they are written back as version 2. Files declaring any other
-/// version are rejected, so older programs that only read version 1 report
-/// an unsupported version instead of an unknown field.
-pub const FORMAT_VERSION: u64 = 2;
+/// Version 3 adds the optional heat-exchanger
+/// `results.units.<id>.transferred_duty_w` (#152). Version 2 added the
+/// optional `results.recycle` closure evidence (A10). Version 1 and 2 files
+/// are still read (stored exchanger results from them have no transferred
+/// duty until recalculated) and are written back as version 3. Files
+/// declaring any other version are rejected, so older programs report an
+/// unsupported version instead of an unknown field.
+pub const FORMAT_VERSION: u64 = 3;
 
 /// Oldest project file format version this program reads.
 pub const OLDEST_READABLE_FORMAT_VERSION: u64 = 1;

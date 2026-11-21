@@ -601,6 +601,16 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                     ));
                     ui.end_row();
                 }
+                if kind == Some(UnitKind::HeatExchanger) {
+                    // Internal heat moved from the hot to the cold side; the
+                    // external duty of an exchanger is zero.
+                    ui.label("Transferred duty (hot to cold)");
+                    ui.label(match r.transferred_duty_w {
+                        Some(q) => value_text(format_quantity(u, Quantity::Duty, q), stale),
+                        None => RichText::new("not stored — recalculate").weak(),
+                    });
+                    ui.end_row();
+                }
                 // Outlet summary from the first outlet stream.
                 if let Some(kind) = kind {
                     for (i, port) in kind.ports().iter().enumerate() {
