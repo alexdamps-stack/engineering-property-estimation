@@ -166,12 +166,44 @@ fn bounded_trace_retains_verified_points_and_stops_near_critical() {
         minimum_temperature_k: f64::NAN,
         ..o
     };
-    assert!(saturation_pressure(&m, Temperature::new(300.).unwrap(), Kind::Bubble, bad).is_err());
+    // Invalid options use the PH/flash kinds: bad bounds and oversized budgets are
+    // unsupported, a zero iteration limit is non-convergence.
+    assert!(matches!(
+        saturation_pressure(&m, Temperature::new(300.).unwrap(), Kind::Bubble, bad),
+        Err(thermo_types::CalculationError::UnsupportedCapability(_))
+    ));
+    for bad in [
+        SaturationOptions {
+            minimum_temperature_k: 150.,
+            ..o
+        },
+        SaturationOptions {
+            minimum_pressure_pa: 2e7,
+            maximum_pressure_pa: 1e7,
+            ..o
+        },
+        SaturationOptions {
+            max_iterations: 2001,
+            ..o
+        },
+    ] {
+        assert!(matches!(
+            bad.validate(),
+            Err(thermo_types::CalculationError::UnsupportedCapability(_))
+        ));
+    }
     let bad = SaturationOptions {
         max_iterations: 0,
         ..o
     };
-    assert!(saturation_temperature(&m, Pressure::new(1e6).unwrap(), Kind::Dew, bad).is_err());
+    assert!(matches!(
+        saturation_temperature(&m, Pressure::new(1e6).unwrap(), Kind::Dew, bad),
+        Err(thermo_types::CalculationError::NonConvergence(_))
+    ));
+    assert!(matches!(
+        trace_phase_envelope(&m, Kind::Dew, 5., 10, bad),
+        Err(thermo_types::CalculationError::NonConvergence(_))
+    ));
     let empty = trace_phase_envelope(
         &m,
         Kind::Dew,

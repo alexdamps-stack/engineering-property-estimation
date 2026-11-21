@@ -55,6 +55,14 @@ fn saturation_uses_package_model_composition_and_temperature_limits() {
             .saturation_pressure(&[0.], 300., Kind::Bubble, bounds)
             .is_err()
     );
+    // A TP state outside the package interval is a state outside the validity
+    // domain, the same kind the homogeneous model reports below 200 K.
+    for t in [280., 370.] {
+        assert!(matches!(
+            package.tp(&[1.], t, 1e5),
+            Err(thermo_types::CalculationError::OutsideValidityDomain(_))
+        ));
+    }
 }
 
 #[test]

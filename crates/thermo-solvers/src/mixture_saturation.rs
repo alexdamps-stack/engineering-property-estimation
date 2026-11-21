@@ -46,6 +46,7 @@ impl SaturationOptions {
         ];
         let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
         let [p_lo, p_hi] = CUBIC_PRESSURE_RANGE_PA;
+        // Invalid options use the same kinds as the PH and flash validators.
         if values.iter().any(|v| !v.is_finite())
             || self.minimum_temperature_k < t_lo
             || self.maximum_temperature_k > t_hi
@@ -53,10 +54,14 @@ impl SaturationOptions {
             || self.minimum_pressure_pa < p_lo
             || self.maximum_pressure_pa > p_hi
             || self.minimum_pressure_pa >= self.maximum_pressure_pa
-            || self.max_iterations == 0
             || self.max_iterations > 2000
         {
-            return Err(Error::OutsideValidityDomain("A13 requires ordered finite bounds inside 200..600 K, 0.01..1e8 Pa and iteration budget 1..2000".into()));
+            return Err(Error::UnsupportedCapability("A13 requires ordered finite bounds inside 200..600 K, 0.01..1e8 Pa and iteration budget 1..2000".into()));
+        }
+        if self.max_iterations == 0 {
+            return Err(Error::NonConvergence(
+                "A13 saturation iteration limit is zero".into(),
+            ));
         }
         Ok(())
     }

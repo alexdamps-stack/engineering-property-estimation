@@ -212,7 +212,7 @@ internal static class Check
             ThermoCoreBridge.Calculate(bad);
         }
         catch (ThermoCoreException e) { kind = e.Kind; }
-        Gate(kind == "unsupported-capability", "150 K state rejected with typed error (" + kind + ")");
+        Gate(kind == "outside-validity-domain", "150 K state rejected with typed error (" + kind + ")");
 
         string unmapped = null;
         DWSIM.Interfaces.IFlowsheet fs2 = automation.CreateFlowsheet();
