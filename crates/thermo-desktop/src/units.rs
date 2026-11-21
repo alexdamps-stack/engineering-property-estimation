@@ -199,6 +199,23 @@ pub fn format_value(v: f64) -> String {
     format!("{v:.decimals$}")
 }
 
+/// Scaled residuals at or below this size are round-off and shown as a bound.
+pub const RESIDUAL_DISPLAY_FLOOR: f64 = 1e-12;
+
+/// Formats a dimensionless scaled balance residual with two significant
+/// digits. Values at or below [`RESIDUAL_DISPLAY_FLOOR`] are shown as
+/// `< 1e-12` regardless of sign: their digits are floating-point round-off
+/// that changes with solver numerics and carries no information.
+pub fn format_residual(v: f64) -> String {
+    if !v.is_finite() {
+        return "—".into();
+    }
+    if v.abs() <= RESIDUAL_DISPLAY_FLOOR {
+        return format!("< {RESIDUAL_DISPLAY_FLOOR:.0e}");
+    }
+    format!("{v:.1e}")
+}
+
 /// Formats a value of quantity `q` in the display set, with its unit.
 pub fn format_quantity(u: DisplayUnits, q: Quantity, si: f64) -> String {
     format!("{} {}", format_value(u.si_to_display(q, si)), u.symbol(q))
@@ -264,5 +281,15 @@ mod tests {
             format_quantity(DisplayUnits::ProcessMetric, Quantity::Pressure, 1.5e6),
             "15.0000 bar(a)"
         );
+    }
+
+    #[test]
+    fn round_off_residuals_are_shown_as_a_bound() {
+        for v in [0.0, 1.8e-16, 9.9e-17, -2.9e-17, -1e-12, 1e-12] {
+            assert_eq!(format_residual(v), "< 1e-12", "{v:e}");
+        }
+        assert_eq!(format_residual(3.4e-9), "3.4e-9");
+        assert_eq!(format_residual(-2.5e-6), "-2.5e-6");
+        assert_eq!(format_residual(f64::NAN), "—");
     }
 }

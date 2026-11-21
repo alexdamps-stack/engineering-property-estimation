@@ -7,9 +7,15 @@
 //!
 //! Update snapshots after an intended visual change with
 //! `UPDATE_SNAPSHOTS=1 cargo test -p thermo-desktop --test ui` and review the
-//! changed PNGs before committing. On CI (`CI` set) the snapshots are rendered
-//! but not compared pixel by pixel, because the baselines are recorded on a
-//! developer machine and software renderers on CI differ slightly.
+//! changed PNGs before committing. The snapshots are compared everywhere,
+//! including CI (Mesa lavapipe on Linux; egui_kittest prefers a CPU adapter
+//! on every platform), with a per-pixel
+//! tolerance and a small allowed count of differing pixels that absorb
+//! anti-aliasing differences between renderers (see [`PIXEL_THRESHOLD`] and
+//! [`MAX_FAILED_PIXELS`]). A failing comparison writes `<name>.new.png` and
+//! `<name>.diff.png` next to the baseline; CI uploads them as an artifact.
+//! Snapshot content must not depend on solver round-off: values that are
+//! round-off by nature, such as balance residuals, are displayed as a bound.
 
 use eframe::egui::{self, Event, Key, Modifiers, PointerButton, Pos2, Vec2, vec2};
 use egui_kittest::Harness;
@@ -202,14 +208,28 @@ fn key(h: &mut Harness<FlowsheetApp>, key: Key) {
 /// threads crashed the Windows driver in a local run.
 static RENDER: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// Pixel comparison locally; render-only on CI (see module docs).
+/// Per-pixel tolerance: the weighted squared YIQ distance from which a pixel
+/// counts as differing. Renderer drift between the Windows baselines and
+/// Mesa lavapipe stays below it except for a few glyph edge pixels, and all
+/// drift is gone at 3.0.
+const PIXEL_THRESHOLD: f32 = 0.6;
+
+/// Pixels allowed to exceed [`PIXEL_THRESHOLD`]: 6–14 glyph edge pixels per
+/// image were measured between the baselines and lavapipe, plus a small
+/// margin. A real change such as a moved label or a changed value differs
+/// by far more (the residual text change of #150 alone was 261 pixels).
+const MAX_FAILED_PIXELS: usize = 20;
+
+fn snapshot_options() -> egui_kittest::SnapshotOptions {
+    egui_kittest::SnapshotOptions::new()
+        .threshold(PIXEL_THRESHOLD)
+        .max_failed_pixels(MAX_FAILED_PIXELS)
+}
+
+/// Renders and compares with the baseline (see module docs for tolerances).
 fn check_snapshot(h: &mut Harness<FlowsheetApp>, name: &str) {
     let _gpu = RENDER.lock().unwrap_or_else(|e| e.into_inner());
-    if std::env::var_os("CI").is_some() {
-        h.render().expect("headless render");
-    } else {
-        h.snapshot(name);
-    }
+    h.snapshot_options(name, &snapshot_options());
 }
 
 fn two_units(a: UnitKind, b: UnitKind) -> FlowsheetApp {

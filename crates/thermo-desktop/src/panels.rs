@@ -11,7 +11,9 @@ use thermo_types::COMPOSITION_SUM_TOLERANCE;
 
 use crate::editor::{Editor, ItemStatus, Selection};
 use crate::symbols::Theme;
-use crate::units::{DisplayUnits, Quantity, format_quantity, format_value, starting_value};
+use crate::units::{
+    DisplayUnits, Quantity, format_quantity, format_residual, format_value, starting_value,
+};
 
 /// Tabs of the bottom panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -636,7 +638,15 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                 {
                     ui.label("Balance residuals");
                     ui.label(
-                        value_text(format!("components {c:.1e}, energy {e:.1e}"), stale).small(),
+                        value_text(
+                            format!(
+                                "components {}, energy {}",
+                                format_residual(c),
+                                format_residual(e)
+                            ),
+                            stale,
+                        )
+                        .small(),
                     );
                     ui.end_row();
                 }
