@@ -36,26 +36,34 @@ A material stream holds:
 | Properties | Molar enthalpy and entropy, molar mass, mass flow, per-phase density, Z, and further properties the package supports |
 | Provenance | Property package, model and data versions, calculation status, solver diagnostics |
 
-Energy streams carry a duty in W with sign convention "positive into the unit". One property package applies to the whole flowsheet initially; mixing packages between streams is deferred, because it needs explicit conversion rules.
+Energy streams would carry a duty in W with sign convention "positive into the unit"; they are not implemented, and unit duties use the same sign convention (section 2.3). One property package applies to the whole flowsheet initially; mixing packages between streams is deferred, because it needs explicit conversion rules.
 
-### 2.3 Unit operations and specifications — *proposed*
+### 2.3 Unit operations and specifications — *implemented (A8)*
 
-Each unit has a fixed number of required specifications. The defaults below cover the demonstration process.
+Each unit has a fixed set of material ports and one specification set (`flowsheet_core::UnitKind::ports` and `UnitSpec`). Where the table says "one of", the specification is an enum, so exactly one choice is stored. Energy streams are not modelled: duties are unit results, not ports. The table describes the code on `main`.
 
-| Unit | Ports | Required specification (choose one where listed) | Defaults | Calculation |
+| Unit | Material ports | Specification (choose one where listed) | Defaults | Calculation |
 |---|---|---|---|---|
-| Feed | 1 out | T and p; flow as molar, mass, or standard volume; composition as mole or mass fractions. After A13 also p with vapor fraction (bubble/dew) | — | TP flash |
-| Mixer | n in, 1 out | Outlet pressure: lowest inlet pressure, or a value not above it | Lowest inlet pressure; adiabatic | Sum of flows and enthalpies, then PH flash |
-| Heater / cooler | 1 in, 1 out, energy | One of: outlet T, duty, or (after A13) outlet vapor fraction; plus pressure drop | Pressure drop 0 | TP or PH flash; duty reported |
-| Valve | 1 in, 1 out | One of: outlet pressure or pressure drop | — | Isenthalpic PH flash |
-| Two-phase separator | 1 in, 2 out (vapor, liquid), optional energy | Adiabatic, or one of outlet T / duty; plus pressure drop | Adiabatic, pressure drop 0 | Flash at outlet conditions; if single phase, the empty outlet carries zero flow and a warning |
-| Splitter (*suggested addition*) | 1 in, n out | n−1 split fractions | — | Same state in all outlets |
+| Feed | 1 out | T, absolute p and total molar flow (mol/s); mole-fraction composition supplied separately, in package component order | — | TP flash |
+| Product | 1 in | None | — | Boundary; no calculation |
+| Mixer | 2 in (`in 1`, `in 2`), 1 out | Outlet pressure: lowest inlet pressure, or a value not above it | Lowest inlet pressure; adiabatic | Sum of flowing inlet flows and enthalpies, then PH flash |
+| Heater / cooler | 1 in, 1 out | One of: outlet T or duty (W, positive into the unit); plus pressure drop | Outlet T; pressure drop 0 | TP or PH flash; duty reported |
+| Valve | 1 in, 1 out | One of: outlet pressure or pressure drop | Outlet pressure | Isenthalpic PH flash |
+| Two-phase separator | 1 in, 2 out (`vapor`, `liquid`) | Adiabatic, or one of outlet T / duty; plus pressure drop | Adiabatic, pressure drop 0 | Flash at outlet conditions; if single phase, the absent outlet carries zero flow, no state and a warning |
+| Splitter | 1 in, 2 out (`out 1`, `out 2`) | Fraction of the inlet flow to `out 1`, 0 to 1 | — | Inlet state copied to both outlets |
+| Heat exchanger (two-stream) | 2 in (`hot in`, `cold in`), 2 out (`hot out`, `cold out`) | One of: hot outlet T, cold outlet T or transferred duty; plus hot- and cold-side pressure drops | Hot outlet T; pressure drops 0 | PH flash of both sides; hot-to-cold duty without terminal temperature crossover |
+| Pump / compressor | 1 in, 1 out | One of: outlet pressure or pressure increase; plus efficiency | Outlet pressure; efficiency 0.75 | Not calculable yet (see below) |
+| Expander | 1 in, 1 out | One of: outlet pressure or pressure drop; plus efficiency | Outlet pressure; efficiency 0.75 | Not calculable yet (see below) |
 
-Pumps, compressors, and expanders need a PS flash and efficiency models; they are scheduled as A14 in the [development plan](development-plan.md) (section 5.1).
+Pumps, compressors, and expanders can be placed and specified, but a solve containing one stops in preflight, before any property calculation, because they need a PS flash and efficiency models. They are scheduled as A14 in the [development plan](development-plan.md) (section 5.1).
+
+*Original proposal, not implemented.* The first version of this table also proposed feed flows as mass or standard volume, feed compositions as mass fractions, n-inlet mixers and n-outlet splitters (n−1 split fractions), energy ports on heaters, coolers and separators, and outlet vapor-fraction specifications. These are scheduled in the development plan: extended specifications and n-port units as A15, vapor-fraction specifications after A13.
 
 ### 2.4 Specification check
 
-Before solving, every unit is checked for missing, duplicate, or contradictory specifications (for example both outlet temperature and duty on a heater, or a valve outlet pressure above the inlet pressure). The result is a per-unit status (section 4.6) and a message that names the unit and the field. The solver does not start on an underspecified flowsheet; it reports what is missing.
+Before solving, every unit's specification is checked (`Unit::issues`) for missing values, non-finite numbers, nonpositive temperatures and absolute pressures, negative flows and pressure drops, split fractions outside 0 to 1, efficiencies outside (0, 1], and a duty whose sign contradicts the unit kind (a negative heater duty or a positive cooler duty). Duplicate specifications cannot occur, because each choice is stored as a single enum value. Unconnected ports, a missing feed and, for the acyclic API, unresolved recycles are reported as structural diagnostics. The result is a per-unit status (section 4.6) and a message that names the unit and the field. The solver does not start on an underspecified flowsheet; it reports what is missing.
+
+Checks that need calculated inlet states run during the solve and fail the named unit instead: a valve outlet pressure above its inlet pressure, a mixer outlet pressure above the lowest flowing inlet pressure, a pressure drop that leaves a nonpositive absolute outlet pressure, and an exchanger duty that would cross terminal temperatures. A heater outlet temperature below its inlet, or a cooler outlet temperature above it, is reported as a unit warning on the result, because inside a recycle it depends on the current iterate.
 
 ### 2.5 When calculation runs — *proposed*
 

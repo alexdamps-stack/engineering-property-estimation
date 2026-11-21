@@ -1,11 +1,14 @@
 # Independent numerical validation
 
 The [approved A2 tolerance registry](tolerances.json) consolidates the exact
-cubic, flash, PH, process, Clapeyron and GERG budgets. Check registry/fixture
-agreement and process input/adapter hashes with
+cubic, flash, PH, process, Clapeyron, GERG and A13 saturation budgets. Check
+registry/fixture agreement and process input/adapter hashes with
 `python validation/consolidate-tolerances.py`. The retired preparation proposals
-in `tolerances.preparation-history.json` are historical only. Bubble/dew and
-envelope qualification remain deferred to A13.
+in `tolerances.preparation-history.json` are historical only. Bounded PR/PR-BM
+bubble/dew and envelope qualification is implemented by A13
+([below](#a13-bubbledew-and-envelope-references)); critical-point and
+retrograde envelope continuation is the one capability the registry still
+lists as deferred.
 
 The [A2 process fixture](fixtures/process-v1.json) adds all seven demonstration
 streams for each cubic variant, independently generated with the pinned Python
@@ -112,3 +115,17 @@ julia --project=validation/julia validation/julia/generate_nrtl.jl --output cand
 
 The source data are transcribed only by `python3 -I validation/prepare-nrtl-source-data.py
 --output-directory <dir>`. See [A7 status](../docs/a7-status.md) and [checks](a7-checks.md).
+
+## A13 bubble/dew and envelope references
+
+[`fixtures/a13-v1.json`](fixtures/a13-v1.json) comes from
+[`julia/generate_a13.jl`](julia/generate_a13.jl) in the same locked Julia
+environment, using native Clapeyron bubble/dew pressure and temperature solvers
+on the inputs in [`a13-inputs.json`](a13-inputs.json). It holds 62 points: 32
+PR/PR-BM bubble/dew pressure and temperature cases and 30 PR-BM envelope
+samples. `check.jl` verifies its provenance, regenerates a live candidate,
+checks that it reproduces the committed fixture and runs
+`cargo test -p thermo-solvers --test a13_clapeyron` with `THERMO_A13_REFERENCE`.
+Ordinary tests compare the committed fixture offline. See
+[A13 status](../docs/a13-status.md) for the formulation, supported domain and
+limits.
