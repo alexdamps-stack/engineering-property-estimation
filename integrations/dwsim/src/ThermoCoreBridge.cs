@@ -277,9 +277,20 @@ namespace ThermoCore.Bridge
         // Note: .NET Framework number parsing is not guaranteed to be correctly
         // rounded, so values read here can differ from the Rust result by about
         // one unit in the last place; the Rust side emits shortest round-trip text.
+        // A JSON null is a missing value, never 0: Num rejects it, and fields
+        // the bridge may legitimately report as null (for example
+        // molar_vapor_fraction of a single supercritical phase) are read with
+        // NumOrNull.
         public static double Num(object o)
         {
+            if (o == null)
+                throw new InvalidOperationException("expected a JSON number but the value is null (not defined for this state)");
             return Convert.ToDouble(o, CultureInfo.InvariantCulture);
+        }
+
+        public static double? NumOrNull(object o)
+        {
+            return o == null ? (double?)null : Num(o);
         }
 
         public static double[] Nums(object o)

@@ -176,6 +176,13 @@ pub fn info() -> Value {
 
 /// Evaluates one v1 request. Always returns a complete v1 response.
 pub fn calculate(request: &str) -> Value {
+    calculate_recording_id(request, &mut None)
+}
+
+/// [`calculate`], storing the request's `request_id` in `request_id` as soon
+/// as the request is parsed, so that the C ABI can still echo it if the
+/// evaluation panics.
+pub(crate) fn calculate_recording_id(request: &str, request_id: &mut Option<String>) -> Value {
     let parsed: Result<Request, _> = serde_json::from_str(request);
     let request = match parsed {
         Ok(r) => r,
@@ -191,6 +198,7 @@ pub fn calculate(request: &str) -> Value {
         }
     };
     let id = request.request_id.clone();
+    request_id.clone_from(&id);
     match evaluate(request) {
         Ok(result) => {
             let mut v = envelope(id.as_deref());
