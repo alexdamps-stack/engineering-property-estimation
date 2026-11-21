@@ -47,6 +47,13 @@ For native GERG-2008, ordinary Rust tests compare 273 homogeneous derivative
 states and 269 locally admissible property states against independently executed
 NIST C++ 2.01. Reproduce without writing using `python3 validation/prepare-gerg.py`
 (requires g++); `--write` explicitly replaces outputs and requires diff review.
+The byte-exact reproduction assumes g++ targets the generic x86-64 baseline. On a
+toolchain that defaults to AVX2/FMA (e.g. Ubuntu's amd64v3 variant, as on GitHub's
+`ubuntu-latest`; check `g++ -Q --help=target | grep march`), put a `g++` link to
+`validation/gxx-baseline.sh` first on `PATH`, as the numerical-validation workflow
+does. The Python generators likewise assume the AVX2 kernel path; on AVX-512
+machines set `OPENBLAS_CORETYPE=Haswell` and disable NumPy's AVX-512 dispatch with
+`NPY_DISABLE_CPU_FEATURES` (values in `.github/workflows/numerical-validation.yml`).
 `python validation/check-gerg-teqp.py` adds teqp 0.23.2 AD comparisons using the
 existing pinned reference environment. See [A6 scope](../docs/a6-status.md) and
 [executed checks](a6-checks.md), including ideal-reference compatibility.
