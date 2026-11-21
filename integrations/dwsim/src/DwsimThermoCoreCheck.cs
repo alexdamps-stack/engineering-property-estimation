@@ -100,6 +100,20 @@ internal static class Check
         }
 
         var automation = new DWSIM.Automation.Automation3();
+        try
+        {
+            return Compare(automation, casToId, reportPath, dwsimDir);
+        }
+        finally
+        {
+            // Released on failure paths too (thrown gates, DWSIM errors).
+            automation.ReleaseResources();
+        }
+    }
+
+    private static int Compare(DWSIM.Automation.Automation3 automation, Dictionary<string, string> casToId,
+        string reportPath, string dwsimDir)
+    {
         string dwsimVersion = automation.GetVersion();
         Console.WriteLine("DWSIM " + dwsimVersion + " from " + dwsimDir);
         DWSIM.Interfaces.IFlowsheet fs = automation.CreateFlowsheet();
@@ -230,7 +244,6 @@ internal static class Check
             { "failed_gates", failures },
         };
         File.WriteAllText(reportPath, ThermoCoreBridge.ToJson(reportDoc), new UTF8Encoding(false));
-        automation.ReleaseResources();
         Console.WriteLine(failures == 0 ? "ALL PASSED" : failures + " FAILED");
         return failures == 0 ? 0 : 1;
     }

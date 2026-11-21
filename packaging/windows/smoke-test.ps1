@@ -18,30 +18,46 @@ function Invoke-Checked([string]$File, [string[]]$Arguments) {
     if ($p.ExitCode -ne 0) { throw "$File $($Arguments -join ' ') exited with $($p.ExitCode)" }
 }
 
-Invoke-Checked $Setup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', "/DIR=`"$dir`"", "/LOG=`"$ReportDir\install.log`"")
+function Uninstall-Smoke {
+    $uninstaller = Get-ChildItem $dir -Filter 'unins*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $uninstaller) { throw "no uninstaller found in $dir" }
+    Invoke-Checked $uninstaller.FullName @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART')
+    # The uninstaller relaunches itself from a temporary copy; wait for it.
+    for ($i = 0; $i -lt 60 -and (Test-Path $exe); $i++) { Start-Sleep -Milliseconds 500 }
+    if (Test-Path $exe) { throw "uninstall left $exe behind" }
+}
+
 $exe = Join-Path $dir 'thermo-desktop.exe'
-if (-not (Test-Path $exe)) { throw "installed executable missing: $exe" }
-foreach ($f in 'README.txt', 'notices\NOTICE.txt', 'notices\THIRD-PARTY-CRATES.txt', 'notices\CoolProp-LICENSE.txt') {
-    if (-not (Test-Path (Join-Path $dir $f))) { throw "installed file missing: $f" }
+$checksPassed = $false
+try {
+    Invoke-Checked $Setup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', "/DIR=`"$dir`"", "/LOG=`"$ReportDir\install.log`"")
+    if (-not (Test-Path $exe)) { throw "installed executable missing: $exe" }
+    foreach ($f in 'README.txt', 'notices\NOTICE.txt', 'notices\THIRD-PARTY-CRATES.txt', 'notices\CoolProp-LICENSE.txt') {
+        if (-not (Test-Path (Join-Path $dir $f))) { throw "installed file missing: $f" }
+    }
+    $menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Property Estimation Flowsheet'
+    if (-not (Get-ChildItem -Recurse -Filter '*.lnk' $menu -ErrorAction SilentlyContinue)) {
+        throw "Start-menu shortcuts missing in $menu"
+    }
+
+    $version = Join-Path $ReportDir 'installed-version.txt'
+    Invoke-Checked $exe @('--version', "`"$version`"")
+    Get-Content $version
+
+    $report = Join-Path $ReportDir 'installed-self-test.json'
+    Invoke-Checked $exe @('--self-test', "`"$report`"")
+    $r = Get-Content $report -Raw | ConvertFrom-Json
+    if ($r.status -ne 'passed') { throw "self-test status $($r.status)" }
+    $r.report.steps | ForEach-Object { "  $_" }
+    $checksPassed = $true
+} finally {
+    # Always remove the test install. After a passing run a failed uninstall
+    # fails the test; after a failing run it is only reported, so the
+    # original error is not masked.
+    if ($checksPassed) {
+        Uninstall-Smoke
+    } else {
+        try { Uninstall-Smoke } catch { Write-Warning "cleanup after the failure also failed: $_" }
+    }
 }
-$menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Property Estimation Flowsheet'
-if (-not (Get-ChildItem -Recurse -Filter '*.lnk' $menu -ErrorAction SilentlyContinue)) {
-    throw "Start-menu shortcuts missing in $menu"
-}
-
-$version = Join-Path $ReportDir 'installed-version.txt'
-Invoke-Checked $exe @('--version', "`"$version`"")
-Get-Content $version
-
-$report = Join-Path $ReportDir 'installed-self-test.json'
-Invoke-Checked $exe @('--self-test', "`"$report`"")
-$r = Get-Content $report -Raw | ConvertFrom-Json
-if ($r.status -ne 'passed') { throw "self-test status $($r.status)" }
-$r.report.steps | ForEach-Object { "  $_" }
-
-$uninstaller = Get-ChildItem $dir -Filter 'unins*.exe' | Select-Object -First 1
-Invoke-Checked $uninstaller.FullName @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART')
-# The uninstaller relaunches itself from a temporary copy; wait for it.
-for ($i = 0; $i -lt 60 -and (Test-Path $exe); $i++) { Start-Sleep -Milliseconds 500 }
-if (Test-Path $exe) { throw "uninstall left $exe behind" }
 'Installer smoke test passed.'
