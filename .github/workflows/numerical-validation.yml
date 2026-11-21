@@ -8,6 +8,16 @@ on:
 permissions:
   contents: read
 
+# The Python reference fixtures were generated on an AVX2 machine. On AVX-512
+# runners OpenBLAS selects SkylakeX kernels and NumPy its AVX-512 loops, which
+# changes LAPACK/ufunc results in the last bits (np.roots eigenvalues, logs).
+# The narrow PR-BM split in the A2 process valve solve then stops with MINPACK
+# "not making good progress" (#151). Pin both dispatchers to the AVX2 path so
+# every runner executes the same kernels; this changes no tolerance or fixture.
+env:
+  OPENBLAS_CORETYPE: Haswell
+  NPY_DISABLE_CPU_FEATURES: AVX512F AVX512CD AVX512_KNL AVX512_KNM AVX512_SKX AVX512_CLX AVX512_CNL AVX512_ICL AVX512_SPR
+
 jobs:
   gerg:
     name: Independent GERG parameter reproduction and teqp AD
@@ -20,6 +30,14 @@ jobs:
           python-version: '3.12'
       - name: Install pinned reference dependencies
         run: python -m pip install -r validation/reference-requirements.txt
+      # ubuntu-latest ships the amd64v3 g++ (--with-arch-64=x86-64-v3), which
+      # emits FMA by default and does not reproduce the baseline-x86-64 NIST
+      # fixtures bit for bit (#149). Put a baseline-target wrapper first on PATH.
+      - name: Pin g++ to the baseline x86-64 target of the committed fixtures
+        run: |
+          mkdir -p "$RUNNER_TEMP/gxx-baseline"
+          ln -s "$GITHUB_WORKSPACE/validation/gxx-baseline.sh" "$RUNNER_TEMP/gxx-baseline/g++"
+          echo "$RUNNER_TEMP/gxx-baseline" >> "$GITHUB_PATH"
       - name: Reproduce NIST data and fixtures without replacing them
         run: python validation/prepare-gerg.py
       - name: Compare NIST fixtures with teqp AD
