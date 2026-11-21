@@ -16,9 +16,9 @@
     0.02,
     0.01
   ],
-  "pressure_pa": 3000000.0,
-  "enthalpy_j_per_mol": 424.5677333317572,
-  "temperature_bracket_k": [
+  "pressure_Pa": 3000000.0,
+  "enthalpy_J_per_mol": 424.5677333317572,
+  "temperature_bracket_K": [
     300.0,
     350.0
   ]

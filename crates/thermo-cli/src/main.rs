@@ -24,13 +24,26 @@ struct Case {
     calculation: Option<String>,
     components: Vec<String>,
     mole_fractions: Vec<f64>,
-    #[serde(default)]
+    // Field names carry SI units with the unit's own case (`_K`, `_Pa`,
+    // `_J_per_mol`), matching every CLI output and the thermo-bridge contract.
+    // The earlier lowercase spellings remain accepted as aliases.
+    #[serde(default, rename = "temperature_K", alias = "temperature_k")]
     temperature_k: Option<f64>,
     /// Required only for PH flash, on the reported model caloric reference.
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "enthalpy_J_per_mol",
+        alias = "enthalpy_j_per_mol"
+    )]
     enthalpy_j_per_mol: Option<f64>,
     /// Absolute pressure; an output (omit it) for bubble-pressure and dew-pressure.
-    #[serde(default)]
+    /// `pressure_Pa_absolute`, the output spelling, is also accepted.
+    #[serde(
+        default,
+        rename = "pressure_Pa",
+        alias = "pressure_pa",
+        alias = "pressure_Pa_absolute"
+    )]
     pressure_pa: Option<f64>,
     model: String,
     /// Required for homogeneous evaluation; rejected for a flash.
@@ -42,11 +55,19 @@ struct Case {
     kij: Option<Vec<Vec<f64>>>,
     #[serde(default)]
     interaction_source: Option<String>,
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "saturation_temperature_bounds_K",
+        alias = "saturation_temperature_bounds_k"
+    )]
     saturation_temperature_bounds_k: Option<[f64; 2]>,
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "saturation_pressure_bounds_Pa",
+        alias = "saturation_pressure_bounds_pa"
+    )]
     saturation_pressure_bounds_pa: Option<[f64; 2]>,
-    #[serde(default)]
+    #[serde(default, rename = "envelope_step_K", alias = "envelope_step_k")]
     envelope_step_k: Option<f64>,
     #[serde(default)]
     envelope_maximum_points: Option<usize>,
@@ -60,17 +81,31 @@ struct GergCase {
     model: String,
     components: Vec<String>,
     mole_fractions: Vec<f64>,
-    #[serde(default)]
+    // Same SI-unit spelling and lowercase aliases as `Case`.
+    #[serde(default, rename = "temperature_K", alias = "temperature_k")]
     temperature_k: Option<f64>,
     #[serde(default)]
     molar_density_mol_per_m3: Option<f64>,
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "pressure_Pa",
+        alias = "pressure_pa",
+        alias = "pressure_Pa_absolute"
+    )]
     pressure_pa: Option<f64>,
     #[serde(default)]
     density_bracket_mol_per_m3: Option<[f64; 2]>,
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "enthalpy_J_per_mol",
+        alias = "enthalpy_j_per_mol"
+    )]
     enthalpy_j_per_mol: Option<f64>,
-    #[serde(default)]
+    #[serde(
+        default,
+        rename = "temperature_bracket_K",
+        alias = "temperature_bracket_k"
+    )]
     temperature_bracket_k: Option<[f64; 2]>,
 }
 
@@ -99,7 +134,7 @@ fn calculate_gerg(case: GergCase) -> Result<Value, Box<dyn std::error::Error>> {
                 "GERG flash determines density and phase roots; omit density inputs".into(),
             );
         }
-        let p = Pressure::new(case.pressure_pa.ok_or("GERG flash requires pressure_pa")?)?;
+        let p = Pressure::new(case.pressure_pa.ok_or("GERG flash requires pressure_Pa")?)?;
         let fractions: Vec<_> = composition.entries().iter().map(|(_, x)| *x).collect();
         if case.calculation == "tp-flash" {
             if case.enthalpy_j_per_mol.is_some() || case.temperature_bracket_k.is_some() {
@@ -107,7 +142,7 @@ fn calculate_gerg(case: GergCase) -> Result<Value, Box<dyn std::error::Error>> {
             }
             let t = Temperature::new(
                 case.temperature_k
-                    .ok_or("GERG TP flash requires temperature_k")?,
+                    .ok_or("GERG TP flash requires temperature_K")?,
             )?;
             let r = gerg_tp_flash(&model, t, p, FlashOptions::default())?;
             return Ok(
@@ -122,11 +157,11 @@ fn calculate_gerg(case: GergCase) -> Result<Value, Box<dyn std::error::Error>> {
             );
         }
         if case.temperature_k.is_some() {
-            return Err("temperature is an output of GERG PH flash; omit temperature_k".into());
+            return Err("temperature is an output of GERG PH flash; omit temperature_K".into());
         }
         let h = case
             .enthalpy_j_per_mol
-            .ok_or("GERG PH flash requires enthalpy_j_per_mol on the native GERG reference")?;
+            .ok_or("GERG PH flash requires enthalpy_J_per_mol on the native GERG reference")?;
         let mut options = GergPhFlashOptions::default();
         if let Some([lo, hi]) = case.temperature_bracket_k {
             options.minimum_temperature_k = lo;
@@ -149,7 +184,7 @@ fn calculate_gerg(case: GergCase) -> Result<Value, Box<dyn std::error::Error>> {
     if case.enthalpy_j_per_mol.is_some() || case.temperature_bracket_k.is_some() {
         return Err("GERG homogeneous calculations reject PH energy inputs".into());
     }
-    let t = Temperature::new(case.temperature_k.ok_or("temperature_k is required")?)?;
+    let t = Temperature::new(case.temperature_k.ok_or("temperature_K is required")?)?;
     let (rho, convergence) = match case.calculation.as_str() {
         "homogeneous-trho" => {
             if case.pressure_pa.is_some() || case.density_bracket_mol_per_m3.is_some() {
@@ -167,7 +202,7 @@ fn calculate_gerg(case: GergCase) -> Result<Value, Box<dyn std::error::Error>> {
             }
             let p = Pressure::new(
                 case.pressure_pa
-                    .ok_or("homogeneous-tp requires pressure_pa")?,
+                    .ok_or("homogeneous-tp requires pressure_Pa")?,
             )?;
             let [lo, hi] = case
                 .density_bracket_mol_per_m3
@@ -333,15 +368,15 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
     if calculation.starts_with("bubble-") || calculation.starts_with("dew-") {
         return saturation::calculate(&case, &model);
     }
-    let p = Pressure::new(case.pressure_pa.ok_or("pressure_pa is required")?)?;
+    let p = Pressure::new(case.pressure_pa.ok_or("pressure_Pa is required")?)?;
     let fractions: Vec<f64> = composition.entries().iter().map(|(_, x)| *x).collect();
     if calculation == "ph-flash" {
         if case.temperature_k.is_some() {
-            return Err("temperature_k is an output of ph-flash; omit it".into());
+            return Err("temperature_K is an output of ph-flash; omit it".into());
         }
         let h = case
             .enthalpy_j_per_mol
-            .ok_or("ph-flash requires enthalpy_j_per_mol")?;
+            .ok_or("ph-flash requires enthalpy_J_per_mol")?;
         let r = ph_flash(&model, p, h, PhFlashOptions::default())?;
         return Ok(json!({
             "case":case.id, "calculation":"ph-flash", "components":case.components,
@@ -360,7 +395,7 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
                 "scaled_energy_residual":r.scaled_energy_residual,
                 "energy_scale_floor_J_per_mol":1.0,
                 "max_abs_ln_fugacity_residual":r.tp.as_ref().map(|f| f.max_ln_fugacity_residual).or_else(|| r.pure_saturation.as_ref().map(|s| s.fugacity_residual)),
-                "max_abs_component_balance_residual":r.tp.as_ref().map(|f| f.max_component_balance_residual).unwrap_or(0.0),
+                "max_abs_component_balance_residual":r.tp.as_ref().map(|f| f.max_component_balance_residual),
                 "pure_saturation_iterations":r.pure_saturation.as_ref().map(|s| s.iterations),
             },
             "feed_stability":r.tp.as_ref().map(|f| stability_json(&f.feed_stability)),
@@ -371,9 +406,9 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
         }));
     }
     if case.enthalpy_j_per_mol.is_some() {
-        return Err("enthalpy_j_per_mol is only an input of ph-flash".into());
+        return Err("enthalpy_J_per_mol is only an input of ph-flash".into());
     }
-    let t = Temperature::new(case.temperature_k.ok_or("temperature_k is required")?)?;
+    let t = Temperature::new(case.temperature_k.ok_or("temperature_K is required")?)?;
     let Some(root) = root else {
         let r = tp_flash(&model, t, p, FlashOptions::default())?;
         return Ok(json!({
@@ -429,8 +464,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     if args.first().is_some_and(|a| a == "--help" || a == "-h") {
         println!(
-            "Usage: thermo-cli [case.json]\nDefault: embedded dry natural-gas PR-BM homogeneous example.\nSchema/examples: examples/homogeneous-*.json, examples/tp-flash-*.json, examples/ph-flash-*.json, examples/gerg-*.json.\nCubic calculation: homogeneous (requires root), tp-flash (requires temperature_k) or ph-flash (requires enthalpy_j_per_mol; temperature is an output). Flashes support at most two phases.\nGERG-2008: homogeneous-trho requires temperature_k and molar_density_mol_per_m3; homogeneous-tp requires temperature_k, pressure_pa and density_bracket_mol_per_m3. GERG tp-flash and ph-flash support the dry five-component fluid domain, 230..350 K and 0.1..10 MPa. PH uses native GERG enthalpy, optionally temperature_bracket_k.
-model NRTL-IG (NRTL liquid, ideal-gas vapor; embedded methanol/water data, no kij): tp-flash, ph-flash, bubble-pressure, dew-pressure (temperature_k), bubble-temperature, dew-temperature. See examples/nrtl-*.json."
+            "Usage: thermo-cli [case.json]\nDefault: embedded dry natural-gas PR-BM homogeneous example.\nSchema/examples: examples/homogeneous-*.json, examples/tp-flash-*.json, examples/ph-flash-*.json, examples/gerg-*.json.\nCubic calculation: homogeneous (requires root), tp-flash (requires temperature_K) or ph-flash (requires enthalpy_J_per_mol; temperature is an output). Flashes support at most two phases.\nGERG-2008: homogeneous-trho requires temperature_K and molar_density_mol_per_m3; homogeneous-tp requires temperature_K, pressure_Pa and density_bracket_mol_per_m3. GERG tp-flash and ph-flash support the dry five-component fluid domain, 230..350 K and 0.1..10 MPa. PH uses native GERG enthalpy, optionally temperature_bracket_K.
+model NRTL-IG (NRTL liquid, ideal-gas vapor; embedded methanol/water data, no kij): tp-flash, ph-flash, bubble-pressure, dew-pressure (temperature_K), bubble-temperature, dew-temperature. See examples/nrtl-*.json."
         );
         return Ok(());
     }
@@ -486,12 +521,12 @@ mod tests {
                 "\"model\":",
                 "\"density_bracket_mol_per_m3\": [1,20000], \"model\":",
             ),
-            input.replace("temperature_k", "wrong_temperature"),
+            input.replace("temperature_K", "wrong_temperature"),
             input.replace("250.0", "220.0"),
             input.replace("propane", "water"),
-            ph_input.replace("\"model\":", "\"temperature_k\": 320, \"model\":"),
-            ph_input.replace("enthalpy_j_per_mol", "wrong_enthalpy"),
-            ph_input.replace("temperature_bracket_k", "wrong_temperature_bracket"),
+            ph_input.replace("\"model\":", "\"temperature_K\": 320, \"model\":"),
+            ph_input.replace("enthalpy_J_per_mol", "wrong_enthalpy"),
+            ph_input.replace("temperature_bracket_K", "wrong_temperature_bracket"),
         ] {
             assert!(calculate_input(&invalid).is_err(), "{invalid}");
         }
@@ -515,7 +550,7 @@ mod tests {
         let mut trho: Value = serde_json::from_str(input).unwrap();
         trho["calculation"] = json!("homogeneous-trho");
         trho["molar_density_mol_per_m3"] = result["molar_density_mol_per_m3"].clone();
-        trho.as_object_mut().unwrap().remove("pressure_pa");
+        trho.as_object_mut().unwrap().remove("pressure_Pa");
         trho.as_object_mut()
             .unwrap()
             .remove("density_bracket_mol_per_m3");
@@ -547,7 +582,7 @@ mod tests {
         for invalid in [
             input.replace("homogeneous-trho", "tp-flash"),
             input.replace("homogeneous-trho", "ph-flash"),
-            input.replace("\"model\":", "\"pressure_pa\": 100000, \"model\":"),
+            input.replace("\"model\":", "\"pressure_Pa\": 100000, \"model\":"),
             input.replace("molar_density_mol_per_m3", "density_kg_per_m3"),
             input.replace("methane", "methanol"),
             input.replace("300.0", "500.0"),
@@ -570,7 +605,7 @@ mod tests {
         case.pressure_pa = Some(-1.0);
         assert!(calculate(case).is_err());
         assert!(
-            serde_json::from_str::<Case>(&input.replace("\"pressure_pa\"", "\"gauge_pressure\""))
+            serde_json::from_str::<Case>(&input.replace("\"pressure_Pa\"", "\"gauge_pressure\""))
                 .is_err()
         );
         let mut case: Case = serde_json::from_str(input).unwrap();
@@ -636,10 +671,10 @@ mod tests {
             2
         );
         for invalid in [
-            example.replace("enthalpy_j_per_mol", "wrong_enthalpy"),
+            example.replace("enthalpy_J_per_mol", "wrong_enthalpy"),
             example.replace(
                 "\"calculation\": \"ph-flash\",",
-                "\"calculation\": \"ph-flash\", \"temperature_k\": 250.0,",
+                "\"calculation\": \"ph-flash\", \"temperature_K\": 250.0,",
             ),
             example.replace(
                 "\"calculation\": \"ph-flash\",",
@@ -652,5 +687,67 @@ mod tests {
                     .map_or(true, |r| r.is_err())
             );
         }
+    }
+
+    #[test]
+    fn unit_cased_inputs_accept_legacy_and_output_spellings() {
+        // Canonical input spelling matches the output, so a result's state can be
+        // fed back as a case; the earlier lowercase spelling is still accepted.
+        let input = include_str!("../../../examples/tp-flash-binary.json");
+        assert!(input.contains("\"temperature_K\"") && input.contains("\"pressure_Pa\""));
+        let canonical = calculate_input(input).unwrap();
+        let legacy = input
+            .replace("\"temperature_K\"", "\"temperature_k\"")
+            .replace("\"pressure_Pa\"", "\"pressure_pa\"");
+        assert_eq!(calculate_input(&legacy).unwrap(), canonical);
+        let mut fed_back: Value = serde_json::from_str(input).unwrap();
+        let case = fed_back.as_object_mut().unwrap();
+        case.remove("temperature_K");
+        case.remove("pressure_Pa");
+        case.insert("temperature_K".into(), canonical["temperature_K"].clone());
+        case.insert(
+            "pressure_Pa_absolute".into(),
+            canonical["pressure_Pa_absolute"].clone(),
+        );
+        assert_eq!(
+            calculate_input(&fed_back.to_string()).unwrap()["molar_vapor_fraction"],
+            canonical["molar_vapor_fraction"]
+        );
+        // Both spellings of one field are a duplicate, not a silent override.
+        let duplicate = input.replace("\"model\":", "\"temperature_k\": 300.0, \"model\":");
+        assert!(calculate_input(&duplicate).is_err());
+        // GERG and PH inputs: legacy enthalpy and bracket spellings remain valid.
+        let gerg_ph = include_str!("../../../examples/gerg-ph-flash-natural-gas.json");
+        let legacy = gerg_ph
+            .replace("\"enthalpy_J_per_mol\"", "\"enthalpy_j_per_mol\"")
+            .replace("\"temperature_bracket_K\"", "\"temperature_bracket_k\"")
+            .replace("\"pressure_Pa\"", "\"pressure_pa\"");
+        assert_eq!(
+            calculate_input(&legacy).unwrap(),
+            calculate_input(gerg_ph).unwrap()
+        );
+    }
+
+    #[test]
+    fn pure_saturation_ph_reports_no_component_balance_residual() {
+        let bubble = include_str!("../../../examples/a13-bubble-temperature-propane.json");
+        let sat = calculate_input(bubble).unwrap();
+        let target = 0.5
+            * (sat["liquid"]["enthalpy_J_per_mol"].as_f64().unwrap()
+                + sat["vapor"]["enthalpy_J_per_mol"].as_f64().unwrap());
+        let mut ph: Value = serde_json::from_str(bubble).unwrap();
+        ph["calculation"] = json!("ph-flash");
+        ph["enthalpy_J_per_mol"] = json!(target);
+        let output = calculate_input(&ph.to_string()).unwrap();
+        assert_eq!(output["phase_count"], 2);
+        let convergence = &output["convergence"];
+        assert!(convergence["pure_saturation_iterations"].is_u64());
+        assert!(convergence["max_abs_ln_fugacity_residual"].is_f64());
+        // No TP split was solved, so there is no material-balance residual to report.
+        assert!(
+            convergence["max_abs_component_balance_residual"].is_null(),
+            "{convergence}"
+        );
+        assert!(output["feed_stability"].is_null());
     }
 }

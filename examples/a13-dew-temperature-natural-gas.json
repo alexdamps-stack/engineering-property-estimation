@@ -54,5 +54,5 @@
     ]
   ],
   "interaction_source": "Explicit synthetic zero-kij approximation; not fitted VLE data",
-  "pressure_pa": 1500000.0
+  "pressure_Pa": 1500000.0
 }

@@ -1,5 +1,13 @@
 # Reproducible examples
 
+CLI case fields carry their SI unit in its own case, as the CLI output and the
+[A12 bridge](../docs/a12-status.md) do: `temperature_K`, `pressure_Pa`
+(absolute), `enthalpy_J_per_mol`, `temperature_bracket_K`,
+`saturation_temperature_bounds_K`, `saturation_pressure_bounds_Pa` and
+`envelope_step_K`. A result's `temperature_K` and `pressure_Pa_absolute` can be
+fed back as inputs. The earlier lowercase spellings (`temperature_k`,
+`pressure_pa`, `enthalpy_j_per_mol`, ...) are still accepted as aliases.
+
 The [native GERG-2008 example](gerg-natural-gas.json) uses
 `calculation: homogeneous-trho`, temperature in K and molar density in mol/m³.
 Run `cargo run -p thermo-cli --locked -- examples/gerg-natural-gas.json`.
@@ -7,7 +15,7 @@ Pressure is an output; phase stability and equilibrium are unassessed. The
 reported native GERG caloric reference differs from the cubic NASA7 reference.
 
 The [GERG pressure-input example](gerg-tp-natural-gas.json) uses
-`calculation: homogeneous-tp`, `pressure_pa` and an explicit
+`calculation: homogeneous-tp`, `pressure_Pa` and an explicit
 `density_bracket_mol_per_m3` in place of a density input:
 
 ```sh
@@ -29,7 +37,7 @@ cargo run -p thermo-cli --locked -- examples/gerg-ph-flash-natural-gas.json
 
 TP selects and checks phase roots internally; omit density/root inputs. PH
 accepts a native-reference molar enthalpy target and an optional explicit
-`temperature_bracket_k`. The valve target comes from an independently evaluated
+`temperature_bracket_K`. The valve target comes from an independently evaluated
 330 K / 5 MPa inlet and is applied at 3 MPa. Input changes require a fresh solve;
 unsupported inner roots or equilibrium states return errors.
 
@@ -52,8 +60,8 @@ remain unassessed in that mode. Two-phase TP flashes with stability evidence use
 [mixed natural-gas separator state](tp-flash-natural-gas.json); see [A4 status](../docs/a4-status.md).
 The provisional process file is not a CLI input format.
 
-PH calculations use `"calculation": "ph-flash"` with `enthalpy_j_per_mol`
-instead of `temperature_k`. The target is molar enthalpy on the reported
+PH calculations use `"calculation": "ph-flash"` with `enthalpy_J_per_mol`
+instead of `temperature_K`. The target is molar enthalpy on the reported
 caloric reference; temperature is an output. Root requests are rejected.
 Run the [natural-gas example](ph-flash-natural-gas.json):
 
@@ -65,12 +73,14 @@ TP output now includes phase-weighted `enthalpy_J_per_mol`. To calculate an
 ideal adiabatic valve, use this inlet enthalpy as the PH target at the outlet
 pressure, keeping composition, model, interactions and caloric reference fixed.
 PH output includes the energy residual, phase properties and equilibrium
-evidence. See [A5 status](../docs/a5-status.md) for supported cases and limits.
+evidence. When a pure-fluid saturation step, not a TP split, determines the
+result, `max_abs_component_balance_residual` is `null`, because no material
+balance was solved. See [A5 status](../docs/a5-status.md) for supported cases and limits.
 
 The A7 gamma–phi package uses `"model": "NRTL-IG"` (NRTL liquid with an
 explicitly selected ideal-gas vapor; embedded methanol/water data only, no
 `kij`). It supports `tp-flash`, `ph-flash`, `bubble-pressure`/`dew-pressure`
-(input `temperature_k`) and `bubble-temperature`/`dew-temperature` (input
-`pressure_pa`). See the [TP example](nrtl-tp-flash-methanol-water.json), the
+(input `temperature_K`) and `bubble-temperature`/`dew-temperature` (input
+`pressure_Pa`). See the [TP example](nrtl-tp-flash-methanol-water.json), the
 [bubble-temperature example](nrtl-bubble-temperature-methanol-water.json) and
 [A7 status](../docs/a7-status.md).
