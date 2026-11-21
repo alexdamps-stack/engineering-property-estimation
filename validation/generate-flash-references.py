@@ -100,7 +100,12 @@ def wilson(ids, t, p):
 
 
 def tpd_search(model, ids, t, p, z):
-    """Global multi-start minimization of tm over ln W; returns (min tm, w, Z)."""
+    """Finite-start evidence over ln W; returns (min tm, w, Z).
+
+    Only successful finite minimizations support stability. A failed trajectory
+    may still witness instability below stable_tm_floor, but a failed near-zero
+    objective cannot establish stability. No eligible trajectory is unresolved.
+    """
     active = z > 0
     if active.sum() < 2:
         return 0.0, z.tolist(), min_gibbs(model, t, p, z)[0]
@@ -124,8 +129,12 @@ def tpd_search(model, ids, t, p, z):
         s = np.maximum(s, 1e-12)
         result = minimize(tm, np.log(s), jac=True, method="L-BFGS-B", bounds=[(-60.0, 5.0)]*len(s),
                           options={"ftol": 1e-15, "gtol": 1e-12, "maxiter": 2000})
-        if result.fun < best[0]:
+        finite = np.isfinite(result.fun) and np.all(np.isfinite(result.x))
+        eligible = result.success or result.fun < TOLERANCES["stable_tm_floor"]
+        if finite and eligible and result.fun < best[0]:
             best = (float(result.fun), result.x)
+    if best[1] is None:
+        raise AssertionError("reference TPD unresolved: no successful finite minimum or instability witness")
     w = np.zeros(len(z))
     w[active] = np.exp(best[1])
     w /= w.sum()

@@ -53,6 +53,8 @@ jobs:
       # replaces committed fixtures. Recorded interpreter/package versions are
       # reported, not compared. Every generator runs even after an earlier
       # mismatch so one run reports all fixtures.
+      - name: Check reference TPD acceptance and unresolved searches
+        run: python -m unittest discover -s validation/tests -v
       - name: Reproduce A3 homogeneous cubic references
         run: |
           python validation/generate-references.py --output "$RUNNER_TEMP/cubic-v1.json"

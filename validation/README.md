@@ -14,6 +14,33 @@ Review candidates before adopting them; the generator never calls Rust.
 See [stream qualification](../docs/a2-process-qualification.md) for the fixed
 state domain, phases, assumptions and separation from A8 flowsheet acceptance.
 
+### Reference stability acceptance
+
+The independent cubic and GERG Python TPD searches require a successful finite
+minimization before using a nonnegative or near-zero minimum as stability
+evidence. An unsuccessful trajectory may still witness instability when its
+finite TPD is below the existing `stable_tm_floor` (-1e-8). If no successful
+finite minimum or instability witness exists, generation fails as unresolved;
+it does not emit a stable state. This rule also applies to phase stability after
+a split and to the PH and process generators that reuse the cubic search.
+Finite starts remain evidence, rather than proof of global stability.
+
+Run acceptance regressions in the pinned Python reference environment with
+`python -m unittest discover -s validation/tests -v`. They simulate unsuccessful
+and successful optimizations, negative witnesses and nonfinite results for both
+generators, independently of Rust and EOS evaluation.
+
+The 21 November 2026 regeneration for #134 reviewed all 22 cubic flash cases,
+30 pure saturation states, 28 PH cases, 14 process streams, and 13 GERG TP / 15
+GERG PH cases against the preceding fixtures. Phase classifications, physical
+states, compositions, caloric targets and tolerances were unchanged. Six cubic
+and 17 GERG near-zero TPD diagnostic leaves changed, by at most 5.91e-14.
+Provenance hashes were refreshed for the edited adapters, including the
+Clapeyron fixture's PH input hash; the flash environment record now reflects
+the pinned NumPy 2.3.4 and SciPy 1.16.3 actually used. The GERG Julia EOS/AD
+check also passed all states and two fresh binary solves. No Rust values were
+used to generate references, and no tolerance was widened.
+
 For native GERG-2008, ordinary Rust tests compare 273 homogeneous derivative
 states and 269 locally admissible property states against independently executed
 NIST C++ 2.01. Reproduce without writing using `python3 validation/prepare-gerg.py`

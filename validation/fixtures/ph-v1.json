@@ -11,7 +11,7 @@
   "input_sha256": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147",
   "adapter_sha256": {
     "generate-references.py": "eea4700cf5b1f18d64ed0db77c4c73b7a4ec98052930bf755f3f192bb898d2a6",
-    "generate-flash-references.py": "bbc264bc56be9648c6a011e335c9a4972580cd962c717bd947cbdc3c97119148",
+    "generate-flash-references.py": "13dbb9f40fa221ecae9472e15a8b11bc81a98233c83d7d9e298b1b0ec7809e31",
     "generate-ph-references.py": "ad25db3e9a692c72bf67bfd65ce2064833c2a828761698f3ce5c20e8e1afbfd6"
   },
   "independence": "teqp residual AD, Cantera NASA7 offsets, SciPy equilibrium/valve and teqp pure VLE; shared parameters; no Rust calls",
@@ -1163,7 +1163,7 @@
           ]
         ]
       },
-      "feed_min_tm": -1.9539925233402755e-14,
+      "feed_min_tm": -1.7541523789077473e-14,
       "phases": 1,
       "Z": 0.1726971139364475,
       "target_h": -20631.56577702396

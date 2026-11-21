@@ -1965,7 +1965,7 @@
         ]
     },
     "input_sha256": {
-        "validation/fixtures/ph-v1.json": "29ad16db95b83c4164041934c5e53375fd8770f0d17f071521ca3fba5ecabaf4",
+        "validation/fixtures/ph-v1.json": "ed249bb6d67d7164b4defc4e2fb0f5df845bb826edc8b5485f1214592fa3d28b",
         "data/source-extracts/components.provisional.json": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147",
         "validation/fixtures/cubic-v1.json": "ac4aad8361a29b372bdfb81f4d8c972d6ea03eab18b17ab32f1bb444bba732da"
     },
