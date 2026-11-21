@@ -9,7 +9,7 @@ use eframe::egui::{Pos2, Rect, Vec2, pos2};
 use flowsheet_core::{Flowsheet, PortRef, StreamId, UnitId, UnitKind, UnitStatus};
 use flowsheet_project::{
     CubicVariantChoice, Currency, FeedFractions, Fingerprint, Fingerprints, InputIssue,
-    PackageSelection, Project, ResultSet,
+    PackageSelection, Project, ResultSet, write_atomically,
 };
 
 use crate::solve::{PackageCache, SolveJob, SolveOutcome};
@@ -345,12 +345,16 @@ impl Editor {
     }
 
     /// Writes the project to `path` and remembers it as the project file.
+    ///
+    /// The file is replaced atomically (see [`write_atomically`]): a failed or
+    /// interrupted save leaves any existing file unchanged, and the editor
+    /// keeps its previous project file and saved state.
     pub fn save_to(&mut self, path: &Path) -> Result<(), String> {
         let project = self
             .to_project()
             .ok_or("Create a project with a property package before saving.")?;
         let text = project.to_json().map_err(|e| e.to_string())?;
-        std::fs::write(path, &text).map_err(|e| format!("Saving failed: {e}"))?;
+        write_atomically(path, text.as_bytes()).map_err(|e| format!("Saving failed: {e}"))?;
         self.path = Some(path.to_path_buf());
         self.set_saved(Some(text));
         self.status = Some(format!("Saved {}.", path.display()));
@@ -904,5 +908,93 @@ mod tests {
         assert!(err.contains("version 99"), "{err}");
         assert_eq!(other.path.as_deref(), Some(path.as_path()));
         assert_eq!(other.fs.units().count(), 8);
+    }
+
+    fn directory_entries(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn saving_is_atomic_and_a_failed_save_keeps_the_original_file() {
+        let dir =
+            std::env::temp_dir().join(format!("thermo-desktop-atomic-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("a.flowsheet.json");
+        let mut ed = Editor::default();
+        ed.load_demonstration();
+        ed.save_to(&path).unwrap();
+        let original = std::fs::read_to_string(&path).unwrap();
+
+        // Overwriting an existing file replaces it and leaves no temporary files.
+        ed.units = DisplayUnits::Si;
+        ed.save_to(&path).unwrap();
+        let replaced = std::fs::read_to_string(&path).unwrap();
+        assert_ne!(replaced, original);
+        assert_eq!(
+            directory_entries(&dir),
+            vec!["a.flowsheet.json".to_string()]
+        );
+
+        // A save whose final rename fails reports the error, cleans up its
+        // temporary file and keeps the editor's project file and saved state.
+        ed.units = DisplayUnits::ProcessMetric;
+        assert!(ed.is_modified());
+        let blocked = dir.join("blocked");
+        std::fs::create_dir_all(blocked.join("occupied")).unwrap();
+        let err = ed.save_to(&blocked).unwrap_err();
+        assert!(err.starts_with("Saving failed:"), "{err}");
+        assert!(blocked.join("occupied").is_dir());
+        assert_eq!(
+            directory_entries(&dir),
+            vec!["a.flowsheet.json".to_string(), "blocked".to_string()]
+        );
+        assert_eq!(ed.path.as_deref(), Some(path.as_path()));
+        assert!(ed.is_modified());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), replaced);
+
+        // On Unix a read-only directory still allows rewriting the existing
+        // file in place (what a non-atomic save would do), but not creating
+        // the temporary file beside it: the save must fail and keep the
+        // original contents.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::Permissions::from_mode;
+            std::fs::remove_dir_all(&blocked).unwrap();
+            std::fs::set_permissions(&dir, mode(0o555)).unwrap();
+            // Privileged users bypass directory permissions; skip the check then.
+            let probe = dir.join("probe");
+            let enforced = std::fs::File::create(&probe).is_err();
+            let _ = std::fs::remove_file(&probe);
+            let result = enforced.then(|| ed.save_to(&path));
+            std::fs::set_permissions(&dir, mode(0o755)).unwrap();
+            if let Some(result) = result {
+                assert!(result.unwrap_err().starts_with("Saving failed:"));
+                assert_eq!(std::fs::read_to_string(&path).unwrap(), replaced);
+                assert!(ed.is_modified());
+            }
+        }
+
+        // Windows refuses to replace a read-only file: the original survives.
+        #[cfg(windows)]
+        {
+            let mut perms = std::fs::metadata(&path).unwrap().permissions();
+            perms.set_readonly(true);
+            std::fs::set_permissions(&path, perms.clone()).unwrap();
+            let result = ed.save_to(&path);
+            #[allow(clippy::permissions_set_readonly_false)]
+            perms.set_readonly(false);
+            std::fs::set_permissions(&path, perms).unwrap();
+            assert!(result.unwrap_err().starts_with("Saving failed:"));
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), replaced);
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
