@@ -115,8 +115,8 @@ julia --project=validation/julia validation/julia/check.jl
 
 CLI calculations are `bubble-pressure`, `dew-pressure`, `bubble-temperature`,
 `dew-temperature`, `bubble-envelope`, and `dew-envelope`. Optional
-`saturation_temperature_bounds_k` and `saturation_pressure_bounds_pa` are
-ordered two-element arrays. Envelope inputs also accept `envelope_step_k` and
+`saturation_temperature_bounds_K` and `saturation_pressure_bounds_Pa` are
+ordered two-element arrays. Envelope inputs also accept `envelope_step_K` and
 `envelope_maximum_points`; omit fixed T/p. A failed boundary returns the CLI's
 existing nonzero error outcome; a trace returns its verified prefix and
 explicit stop, so callers must inspect the stop before using its range.

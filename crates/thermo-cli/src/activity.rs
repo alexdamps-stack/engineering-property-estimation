@@ -126,17 +126,17 @@ pub(crate) fn calculate(case: Case) -> Result<Value> {
     let calculation = case.calculation.as_deref().unwrap_or("homogeneous");
     let temperature = || -> Result<Temperature> {
         Ok(Temperature::new(
-            case.temperature_k.ok_or("temperature_k is required")?,
+            case.temperature_k.ok_or("temperature_K is required")?,
         )?)
     };
     let pressure = || -> Result<Pressure> {
         Ok(Pressure::new(
-            case.pressure_pa.ok_or("pressure_pa is required")?,
+            case.pressure_pa.ok_or("pressure_Pa is required")?,
         )?)
     };
     let enthalpy_only_ph = |name: &str| -> Result<()> {
         if case.enthalpy_j_per_mol.is_some() {
-            return Err(format!("enthalpy_j_per_mol is not an input of {name}").into());
+            return Err(format!("enthalpy_J_per_mol is not an input of {name}").into());
         }
         Ok(())
     };
@@ -144,7 +144,7 @@ pub(crate) fn calculate(case: Case) -> Result<Value> {
         "bubble-pressure" | "dew-pressure" => {
             enthalpy_only_ph(calculation)?;
             if case.pressure_pa.is_some() {
-                return Err(format!("pressure is an output of {calculation}; omit pressure_pa").into());
+                return Err(format!("pressure is an output of {calculation}; omit pressure_Pa").into());
             }
             let t = temperature()?;
             let s = if calculation == "bubble-pressure" {
@@ -157,7 +157,7 @@ pub(crate) fn calculate(case: Case) -> Result<Value> {
         "bubble-temperature" | "dew-temperature" => {
             enthalpy_only_ph(calculation)?;
             if case.temperature_k.is_some() {
-                return Err(format!("temperature is an output of {calculation}; omit temperature_k").into());
+                return Err(format!("temperature is an output of {calculation}; omit temperature_K").into());
             }
             let p = pressure()?;
             let s = if calculation == "bubble-temperature" {
@@ -188,9 +188,9 @@ pub(crate) fn calculate(case: Case) -> Result<Value> {
         }
         "ph-flash" => {
             if case.temperature_k.is_some() {
-                return Err("temperature_k is an output of ph-flash; omit it".into());
+                return Err("temperature_K is an output of ph-flash; omit it".into());
             }
-            let h = case.enthalpy_j_per_mol.ok_or("ph-flash requires enthalpy_j_per_mol")?;
+            let h = case.enthalpy_j_per_mol.ok_or("ph-flash requires enthalpy_J_per_mol")?;
             let r = activity_ph_flash(&model, pressure()?, h, o)?;
             Ok(json!({
                 "case": case.id, "calculation": "ph-flash", "components": case.components,
@@ -252,7 +252,7 @@ mod tests {
             ),
             tp.replace("\"tp-flash\"", "\"homogeneous\""),
             tp.replace("\"methanol\"", "\"ethane\""),
-            bubble.replace("\"pressure_pa\": 101325.0", "\"temperature_k\": 350.0"),
+            bubble.replace("\"pressure_Pa\": 101325.0", "\"temperature_K\": 350.0"),
         ] {
             assert!(
                 serde_json::from_str::<Case>(&invalid)
