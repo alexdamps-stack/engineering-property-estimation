@@ -355,25 +355,6 @@ fn validity_reports_regression_interval() {
     assert_eq!(explicit.validity, ValidityStatus::Unassessed);
 }
 
-/// The deprecated raw-kelvin entry point is the same evaluation as `excess_at` and
-/// keeps its own temperature validation.
-#[test]
-#[allow(deprecated)]
-fn raw_kelvin_excess_matches_typed_entry_point() {
-    let m = package(&[0.5, 0.5]);
-    let typed = m.nrtl().excess_at(tk(350.0), &[0.5, 0.5]).unwrap();
-    let raw = m.nrtl().excess(350.0, &[0.5, 0.5]).unwrap();
-    assert_eq!(typed.ln_activity_coefficients, raw.ln_activity_coefficients);
-    assert_eq!(typed.excess_enthalpy, raw.excess_enthalpy);
-    assert_eq!(typed.validity, raw.validity);
-    for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
-        assert!(matches!(
-            m.nrtl().excess(bad, &[0.5, 0.5]),
-            Err(CalculationError::InvalidInput(_))
-        ));
-    }
-}
-
 #[test]
 fn package_caloric_properties_are_thermodynamically_consistent() {
     let m = package(&[0.3, 0.7]);

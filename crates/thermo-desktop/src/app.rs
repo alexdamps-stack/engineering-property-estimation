@@ -17,7 +17,7 @@ use crate::canvas;
 use crate::editor::{Editor, ItemStatus};
 use crate::panels::{self, BottomTab};
 use crate::symbols::{Theme, draw_unit, icon_rect};
-use crate::units::DisplayUnits;
+use crate::units::{DisplayUnits, DisplayUnitsExt};
 
 /// File-name suffix proposed for project files.
 pub const PROJECT_SUFFIX: &str = ".flowsheet.json";

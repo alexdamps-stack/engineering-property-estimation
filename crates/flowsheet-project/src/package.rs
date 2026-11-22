@@ -150,9 +150,9 @@ impl PackageSelection {
             || !(t_lo..=t_hi).contains(&hi)
             || lo >= hi
         {
-            return Err(ProjectError::Package(
-                "PH search interval must be ordered and within 200..600 K".into(),
-            ));
+            return Err(ProjectError::Package(format!(
+                "PH search interval must be ordered and within {t_lo}..{t_hi} K"
+            )));
         }
         let db = ComponentDatabase::embedded().map_err(|e| package(&e))?;
         let entries = self
