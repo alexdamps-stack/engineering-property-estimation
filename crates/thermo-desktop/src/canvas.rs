@@ -28,6 +28,27 @@ fn badge_center(r: Rect, scale: f32) -> Pos2 {
     r.right_top() + vec2(4.0, -4.0) * scale
 }
 
+/// Unit names are drawn from this zoom on.
+const LABEL_MIN_ZOOM: f32 = 0.35;
+
+/// Anchor of the name of a unit drawn in screen rectangle `r`.
+fn name_anchor(kind: UnitKind, r: Rect, scale: f32) -> (Pos2, Align2) {
+    match kind {
+        // Bottom nozzle is taken by the liquid line, the left side by the
+        // feed.
+        UnitKind::Separator => (pos2(r.right() + 8.0, r.top() + 4.0), Align2::LEFT_TOP),
+        // Clear the heating/cooling medium stub below the shell.
+        UnitKind::Heater | UnitKind::Cooler => (
+            pos2(r.right() + 2.0 * scale, r.bottom() + 2.0 * scale),
+            Align2::LEFT_TOP,
+        ),
+        _ => (
+            pos2(r.center().x, r.bottom() + 5.0 * scale),
+            Align2::CENTER_TOP,
+        ),
+    }
+}
+
 /// Shows the canvas filling the available space of `ui`. While `dialog_open`
 /// (a modal such as Unsaved changes or New project is shown) the canvas
 /// ignores keyboard shortcuts, so keys meant for the dialog never edit the
@@ -124,6 +145,13 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, dialog_open: bool) {
                 ed.viewport.to_screen(canvas, world.max),
             );
             taken.push(r.expand(2.0));
+            if z >= LABEL_MIN_ZOOM {
+                let (pos, align) = name_anchor(u.kind, r, scale);
+                let size = painter
+                    .layout_no_wrap(u.name.clone(), font(12.0), theme.line)
+                    .size();
+                taken.push(align.anchor_size(pos, size).expand(1.0));
+            }
             if statuses.get(&u.id).is_some_and(|s| *s != ItemStatus::Ready) {
                 let d = 2.0 * BADGE_RADIUS * scale + 4.0;
                 taken.push(Rect::from_center_size(
@@ -192,20 +220,8 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, dialog_open: bool) {
             theme.background,
         );
 
-        if z >= 0.35 {
-            let (pos, align) = match unit.kind {
-                // Bottom nozzle is taken by the liquid line.
-                UnitKind::Separator => (pos2(r.left() - 8.0, r.top() + 4.0), Align2::RIGHT_TOP),
-                // Clear the heating/cooling medium stub below the shell.
-                UnitKind::Heater | UnitKind::Cooler => (
-                    pos2(r.right() + 2.0 * scale, r.bottom() + 2.0 * scale),
-                    Align2::LEFT_TOP,
-                ),
-                _ => (
-                    pos2(r.center().x, r.bottom() + 5.0 * scale),
-                    Align2::CENTER_TOP,
-                ),
-            };
+        if z >= LABEL_MIN_ZOOM {
+            let (pos, align) = name_anchor(unit.kind, r, scale);
             painter.text(pos, align, &unit.name, font(12.0), theme.line);
         }
         if status == ItemStatus::Stale && !selected {

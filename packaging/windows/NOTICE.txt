@@ -6,13 +6,16 @@ The license texts that ship with this file are in the same folder.
 
 Equipment symbols
 -----------------
-The canvas symbols are redrawn from the ISO 10628-2:2012 symbol sheets by
+The canvas symbols are adapted from the ISO 10628-2:2012 symbol sheets by
 Steven Baltakatei Sandoval (Baltakatei), 2020, updated 2023:
 https://commons.wikimedia.org/wiki/File:ISO_10628-2_2012_Symbols.pdf
 Licensed under Creative Commons Attribution-ShareAlike 4.0 International,
 https://creativecommons.org/licenses/by-sa/4.0/
-Changes: individual symbols redrawn as vector line work in program code,
-proportions retained; feed/product and splitter symbols are project additions.
+Changes: individual symbols extracted as standalone SVG files and embedded in
+the program; the pipe lines beside each symbol are omitted, the geometry is
+scaled uniformly, curves are flattened to line segments, and the line work is
+recoloured. The heating/cooling medium arrow and the feed/product and splitter
+symbols are project additions.
 
 Component data (embedded)
 -------------------------

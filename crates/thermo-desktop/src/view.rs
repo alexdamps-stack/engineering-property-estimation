@@ -73,16 +73,22 @@ pub fn snap(p: Pos2) -> Pos2 {
 }
 
 /// World-space size of a unit symbol.
+///
+/// Traced symbols (see [`crate::symbols::TRACED`]) are scaled uniformly,
+/// so each block has the proportions of its reference drawing; a test in
+/// `symbols.rs` checks this. The nozzles below are defined here, apart
+/// from the drawings, and are checked to lie on the traced line work.
 pub fn block_size(kind: UnitKind) -> Vec2 {
     match kind {
         UnitKind::Feed | UnitKind::Product => vec2(70.0, 30.0),
         UnitKind::Mixer => vec2(60.0, 60.0),
-        // Circle of 40 plus the medium nozzles above and below.
-        UnitKind::Heater | UnitKind::Cooler => vec2(40.0, 60.0),
+        // Circle of 40, then a gap and the medium nozzle above and below
+        // (reference 20 by 35).
+        UnitKind::Heater | UnitKind::Cooler => vec2(40.0, 70.0),
         // Reference proportions: valve 2:1, shell-and-tube 3.5:1, turbine
-        // 2:3 (length to outlet height).
+        // 2:3 (length to outlet height), vessel with dished ends 2:3.
         UnitKind::Valve => vec2(40.0, 20.0),
-        UnitKind::Separator => vec2(50.0, 130.0),
+        UnitKind::Separator => vec2(50.0, 75.0),
         UnitKind::Splitter => vec2(40.0, 60.0),
         UnitKind::HeatExchanger => vec2(140.0, 40.0),
         UnitKind::Pump => vec2(50.0, 50.0),
