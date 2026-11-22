@@ -232,6 +232,35 @@ impl NrtlParameters {
         Self::checked(ids.to_vec(), tau, alpha, regression, source)
     }
 
+    /// The same parameters with a regression temperature interval (K) declared for
+    /// the pair (i, j), as reported by the parameter source (not inferred). Bounds
+    /// must be finite with 0 < lo < hi; i and j must be distinct valid indices.
+    pub fn with_regression_interval(
+        mut self,
+        i: usize,
+        j: usize,
+        bounds_k: [f64; 2],
+    ) -> Result<Self, Error> {
+        let n = self.ids.len();
+        if i >= n || j >= n || i == j {
+            return Err(InputError::ComponentMismatch.into());
+        }
+        let [lo, hi] = bounds_k;
+        if !(lo.is_finite() && hi.is_finite()) {
+            return Err(InputError::NonFinite("NRTL regression interval").into());
+        }
+        if !(lo > 0.0 && lo < hi) {
+            return Err(InputError::NotPositive("NRTL regression interval width").into());
+        }
+        let interval = Some(RegressionInterval {
+            bounds: bounds_k,
+            inferred: false,
+        });
+        self.regression[i][j] = interval;
+        self.regression[j][i] = interval;
+        Ok(self)
+    }
+
     pub fn component_ids(&self) -> &[ComponentId] {
         &self.ids
     }
@@ -272,6 +301,14 @@ impl NrtlParameters {
         })
     }
 }
+
+/// Diagnostic code for results whose NRTL validity rests on an inferred regression
+/// interval (see [`ExcessState::inferred_regression_interval`]).
+pub const INFERRED_REGRESSION_INTERVAL_CODE: &str = "A7-NRTL-INFERRED-REGRESSION-INTERVAL";
+
+/// User-facing warning for results whose NRTL validity rests on an inferred
+/// regression interval. The validity status itself is unchanged.
+pub const INFERRED_REGRESSION_INTERVAL_WARNING: &str = "NRTL regression interval inferred from pure-component boiling points; validity basis weaker than declared.";
 
 /// Excess and activity properties at T and x (model order). Units: J/mol, J/(mol K).
 #[derive(Debug, Clone)]

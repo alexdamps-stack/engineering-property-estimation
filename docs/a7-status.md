@@ -62,7 +62,16 @@ single active component, where g^E = 0), because no interval applies.
 `Extrapolated` on any pair takes precedence over a pair without an interval.
 `ExcessState::inferred_regression_interval` flags a status that rests on an
 interval inferred rather than reported by the source; the methanol/water interval
-is inferred from the pure normal boiling points of the 1 atm data.
+is inferred from the pure normal boiling points of the 1 atm data. The flag is
+additive (#121): `ValidityStatus` keeps its three values and no status or
+numerical result changes. It is carried by `ActivityPhaseState` (liquid: copied
+from the excess state; vapor: false) and by `ActivityTpFlash` and
+`ActivityPhFlash` (`inferred_regression_interval`, true when any reported phase
+carries it). Those flash results then also include the `Warning` diagnostic
+`A7-NRTL-INFERRED-REGRESSION-INTERVAL`: "NRTL regression interval inferred from
+pure-component boiling points; validity basis weaker than declared."
+`NrtlParameters::with_regression_interval` declares a source-reported interval
+for an explicit or database pair, which is never flagged.
 
 **Gamma–phi package (`thermo-models::ActivityModel`).** The vapor model is a
 required `VaporModel` argument with no default. `IdealGas` is the only variant.
@@ -145,7 +154,16 @@ The CLI accepts `"model": "NRTL-IG"` for `tp-flash`, `ph-flash`,
 see `examples/nrtl-*.json`. It rejects `kij`, `interaction_source` and `root`
 for this model. Its provenance records the component and liquid/NRTL data
 identifiers and versions. Bubble and dew outputs report the NRTL validity of
-the saturated liquid.
+the saturated liquid. Additive output fields mark an inferred regression
+interval without changing the `validity` text: each flash phase has
+`nrtl_regression_interval_inferred`, flash results have a top-level
+`nrtl_regression_interval_inferred`, and saturation results have
+`liquid_nrtl_regression_interval_inferred` plus a `diagnostics` array. When the
+flag is set, `diagnostics` contains the `A7-NRTL-INFERRED-REGRESSION-INTERVAL`
+warning. The CLI is the only result surface that exposes NRTL today: bridge v1,
+the flowsheet/project layer and the desktop are cubic-only (NRTL in the
+flowsheet is A16), so they have no NRTL result to flag. Any later NRTL path
+there must carry this flag and warning as an additive, optional field.
 
 ## Independent evidence
 
