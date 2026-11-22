@@ -849,6 +849,10 @@ fn zero_flow_streams_pass_through_downstream_units() {
         10.0,
     );
     let mut line = valve_and_heater().to_vec();
+    line[1].1 = UnitSpec::HeatExchange {
+        thermal: ThermalSpec::OutletTemperature(Some(350.0)),
+        pressure_drop_pa: 0.0,
+    };
     line.push((UnitKind::Separator, UnitKind::Separator.default_spec()));
     let ids = chain(&mut fs, sep, 2, &line);
     // `chain` connected the second separator's vapour port; add its liquid.
@@ -858,8 +862,34 @@ fn zero_flow_streams_pass_through_downstream_units() {
     let r = fs.solve(&pkg, &feeds).unwrap();
     let liquid = &r.streams[&fs.stream_at(PortRef::new(sep, 2)).unwrap().id];
     assert!(liquid.state.is_none() && liquid.molar_flow_mol_s == 0.0);
-    for id in ids {
+    for &id in &ids {
         assert_empty_pass_through(&fs, &r, id);
+    }
+    for (id, spec) in [
+        (
+            ids[1],
+            UnitSpec::HeatExchange {
+                thermal: ThermalSpec::Duty(Some(5e3)),
+                pressure_drop_pa: 0.0,
+            },
+        ),
+        (
+            ids[2],
+            UnitSpec::Separator {
+                thermal: SeparatorThermal::Duty(Some(5e3)),
+                pressure_drop_pa: 0.0,
+            },
+        ),
+    ] {
+        let mut infeasible = fs.clone();
+        infeasible.set_spec(id, spec);
+        let error = infeasible.solve(&pkg, &feeds).unwrap_err();
+        assert_eq!(error.unit, Some(id));
+        assert!(
+            error
+                .message
+                .contains("nonzero specified duty requires positive inlet flow")
+        );
     }
 
     // Splitter endpoints: the empty branch passes through a valve and heater,
@@ -875,12 +905,13 @@ fn zero_flow_streams_pass_through_downstream_units() {
         );
         let first = chain(&mut fs, split, 1, &valve_and_heater());
         let second = chain(&mut fs, split, 2, &valve_and_heater());
-        let r = fs.solve(&pkg, &feeds).unwrap();
         let (empty, full) = if fraction == 0.0 {
             (first, second)
         } else {
             (second, first)
         };
+        fs.set_spec(empty[1], line[1].1);
+        let r = fs.solve(&pkg, &feeds).unwrap();
         for id in empty {
             assert_empty_pass_through(&fs, &r, id);
         }
@@ -911,14 +942,12 @@ fn zero_flow_streams_pass_through_downstream_units() {
             fs.remove_unit(id);
         }
         let ex = fs.add_unit(UnitKind::HeatExchanger);
-        fs.set_spec(
-            ex,
-            UnitSpec::HeatExchanger {
-                thermal: ExchangerSpec::Duty(Some(1e3)),
-                hot_pressure_drop_pa: 1e5,
-                cold_pressure_drop_pa: 2e5,
-            },
-        );
+        let spec = |thermal| UnitSpec::HeatExchanger {
+            thermal,
+            hot_pressure_drop_pa: 1e5,
+            cold_pressure_drop_pa: 2e5,
+        };
+        fs.set_spec(ex, spec(ExchangerSpec::Duty(Some(0.0))));
         for i in 0..2 {
             fs.connect(PortRef::new(split, i + 1), PortRef::new(ex, i))
                 .unwrap();
@@ -948,6 +977,28 @@ fn zero_flow_streams_pass_through_downstream_units() {
         assert_eq!(state.pressure_pa, 5e6 - drop);
         assert!((state.enthalpy() - inlet.enthalpy()).abs() <= 1e-9 * inlet.enthalpy().abs());
         assert!(u.balance.as_ref().unwrap().scaled_energy_residual.abs() < 1e-9);
+        let flowing_side_temperature = |temperature| {
+            if fraction == 0.0 {
+                ExchangerSpec::ColdOutletTemperature(Some(temperature))
+            } else {
+                ExchangerSpec::HotOutletTemperature(Some(temperature))
+            }
+        };
+        fs.set_spec(ex, spec(flowing_side_temperature(state.temperature_k)));
+        assert!(fs.solve(&pkg, &feeds).is_ok());
+        for unmet in [
+            ExchangerSpec::Duty(Some(1e3)),
+            flowing_side_temperature(350.0),
+        ] {
+            fs.set_spec(ex, spec(unmet));
+            let error = fs.solve(&pkg, &feeds).unwrap_err();
+            assert_eq!(error.unit, Some(ex));
+            assert!(
+                error
+                    .message
+                    .contains("positive inlet flow on both exchanger sides")
+            );
+        }
     }
 }
 

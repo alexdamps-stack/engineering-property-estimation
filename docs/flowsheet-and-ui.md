@@ -65,6 +65,8 @@ Before solving, every unit's specification is checked (`Unit::issues`) for missi
 
 Checks that need calculated inlet states run during the solve and fail the named unit instead: a valve outlet pressure above its inlet pressure, a mixer outlet pressure above the lowest flowing inlet pressure, a pressure drop that leaves a nonpositive absolute outlet pressure, and an exchanger duty that would cross terminal temperatures. A heater outlet temperature below its inlet, or a cooler outlet temperature above it, is reported as a unit warning on the result, because inside a recycle it depends on the current iterate.
 
+Empty streams can pass through thermal units with a warning. A final result requires positive inlet flow for an imposed nonzero duty. An exchanger needs flow on both sides to meet a duty or change the flowing side's enthalpy to meet an outlet temperature. During recycle iteration, a temporary empty path can propagate so the next pass can establish flow.
+
 ### 2.5 When calculation runs — *proposed*
 
 - **Manual solve is the default** (toolbar button and `F5`). An **auto-solve** toggle recalculates after each confirmed edit.
@@ -75,7 +77,7 @@ Checks that need calculated inlet states run during the solve and fail the named
 
 Project files use JSON with a top-level `format_version`. Writers use version 3, and readers accept versions 1 through 3. A project stores the components, property package selection, units, streams, specifications, canvas layout, and display settings. Results include their engine, model, and data provenance. Results with incompatible provenance are shown as stale until recalculated.
 
-Loading accepts up to 64 MiB, 10,000 units, and 20,000 streams. Duplicate layout entries and stored compositions that have the wrong number of components are rejected. Both the editor and the project API save through an atomic replacement of the destination file.
+Reading and writing support up to 64 MiB, 10,000 units, and 20,000 streams. New identifiers stay within the range of integers that JSON readers can exchange exactly. Duplicate layout entries and stored compositions that have the wrong number of components are rejected. Both the editor and the project API save through an atomic replacement of the destination file.
 
 ## 3. Main window
 

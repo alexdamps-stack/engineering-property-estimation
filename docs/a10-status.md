@@ -31,16 +31,19 @@ The committed JSON contains inputs, not reference answers.
   and remove one edge from each remaining cycle, preferring mixer inlets. This
   does not minimize the number of tears. Acyclic graphs use the original path.
 - Automatic starts use zero flow for tears at mixer inlets. Other tears use
-  the flow and flashed state of the nearest upstream feed in the unit graph,
-  or zero flow if the search finds no feed. Zero-flow guesses carry the first
-  feed's flashed state. `solve_recycles` accepts explicit tear-stream initial
-  states and `RecycleOptions`. Unknown tears, incomplete cycle cuts, invalid flows,
+  the nearest upstream feed along the same material path, using the tear
+  source's outlet temperature when specified. A heat exchanger does not pass
+  material between its sides. A non-mixer tear with no reachable feed needs an
+  explicit starting state through `solve_recycles`, which also accepts
+  `RecycleOptions`. Unknown tears, incomplete cycle cuts, invalid flows,
   missing inputs, invalid options and unsupported equipment fail explicitly.
   Initial states are re-flashed with the calculation package using their
   composition, pressure and enthalpy; cached phase properties are not reused.
 - Direct substitution reads **previous-pass** tear values at every torn inlet,
   independently of whether its source has already run in the current pass.
-  Every pass produces a fresh set of unit and stream results.
+  Every pass produces a fresh set of unit and stream results. Temporary empty
+  streams can propagate through thermal units. A converged result must have
+  enough flowing inlets to satisfy any imposed duty.
 - Defaults are **500 passes** and **1e-10 maximum scaled closure residual**.
   Closure covers total and component molar flows, enthalpy flow, T, absolute p,
   molar h and mole fractions. A dimensional residual divides by
@@ -145,7 +148,7 @@ Direct substitution need not converge for arbitrary loops. There is no
 Wegstein/Newton recycle acceleration, optimal tear selection, or desktop tear
 configuration form. The explicit API supplies process-specific starting states
 and iteration limits when the automatic start is unsuitable.
-Disconnected loops without a flowing source may fail on an empty thermal inlet.
+Disconnected material loops need an explicit circulation flow and tear state.
 Pressure-loss loops still need a supported pressure-raising operation; drawing
 a pump or compressor does not implement it. No new flash domain, equilibrium
 stability claim, or equipment capability is introduced by A10.
