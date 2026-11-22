@@ -17,14 +17,20 @@ use crate::{Fingerprints, PackageSelection, PreparedPackage, ProjectError, Resul
 
 /// Project file format version written by this program.
 ///
-/// Version 3 adds the optional heat-exchanger
-/// `results.units.<id>.transferred_duty_w` (#152). Version 2 added the
-/// optional `results.recycle` closure evidence (A10). Version 1 and 2 files
-/// are still read (stored exchanger results from them have no transferred
-/// duty until recalculated) and are written back as version 3. Files
-/// declaring any other version are rejected, so older programs report an
-/// unsupported version instead of an unknown field.
-pub const FORMAT_VERSION: u64 = 3;
+/// Version 4 (A17 foundation, #170/#171) adds energy streams (energy ports,
+/// the `energy_source` / `energy_sink` specifications, the heater
+/// `energy_stream` thermal choice and `results.energy_streams`), every A17
+/// unit kind, and the nested group specification records
+/// `{"type": "<group>", "unit": {"kind": ...}}`. Group work packages add
+/// fields to their records with serde defaults behind version 4; only the
+/// integrator bumps this number. Version 3 added the optional heat-exchanger
+/// `results.units.<id>.transferred_duty_w` (#152), version 2 the optional
+/// `results.recycle` closure evidence (A10). Versions 1 to 3 are still read
+/// through [`migrate`] (stored exchanger results from versions 1 and 2 have
+/// no transferred duty until recalculated) and are written back as version
+/// 4. Files declaring any other version are rejected, so older programs
+/// report an unsupported version instead of an unknown field.
+pub const FORMAT_VERSION: u64 = 4;
 
 /// Oldest project file format version this program reads.
 pub const OLDEST_READABLE_FORMAT_VERSION: u64 = 1;
@@ -197,7 +203,7 @@ impl Project {
                     id: u.id.0,
                     kind: u.kind.into(),
                     tag: u.name.clone(),
-                    spec: u.spec.into(),
+                    spec: (&u.spec).into(),
                 })
                 .collect(),
             streams: fs
@@ -250,7 +256,7 @@ impl Project {
             return Err(non_finite("package PH search interval"));
         }
         for u in self.flowsheet.units() {
-            if SpecRecord::from(u.spec)
+            if SpecRecord::from(&u.spec)
                 .numbers()
                 .iter()
                 .any(|v| !v.is_finite())
@@ -291,13 +297,14 @@ impl Project {
         }
         let value: serde_json::Value =
             serde_json::from_str(text).map_err(|e| ProjectError::Format(e.to_string()))?;
-        match value
+        let version = match value
             .get("format_version")
             .and_then(serde_json::Value::as_u64)
         {
-            Some(v) if (OLDEST_READABLE_FORMAT_VERSION..=FORMAT_VERSION).contains(&v) => {}
+            Some(v) if (OLDEST_READABLE_FORMAT_VERSION..=FORMAT_VERSION).contains(&v) => v,
             other => return Err(ProjectError::UnsupportedVersion(other)),
-        }
+        };
+        let value = migrate(value, version)?;
         let file: ProjectFile =
             serde_json::from_value(value).map_err(|e| ProjectError::Format(e.to_string()))?;
         if file.units.len() > MAX_UNITS {
@@ -429,6 +436,32 @@ impl Project {
     pub fn feed_compositions(&self) -> Result<FeedCompositions, Vec<InputIssue>> {
         feed_compositions(&self.flowsheet, &self.feeds, &self.package)
     }
+}
+
+/// Upgrades the JSON of a file of format `version` to the current format,
+/// one version step at a time. Each step is a pure JSON transformation, so
+/// later format changes add a step here instead of keeping old record
+/// types.
+///
+/// - 1 → 2 → 3: no change to stored inputs or results; the additions are
+///   optional fields.
+/// - 3 → 4: no change. Version-3 records are a subset of version 4: material
+///   streams keep their port indices (energy ports follow the material
+///   ports), and the new energy and group records did not exist before.
+pub(crate) fn migrate(
+    mut value: serde_json::Value,
+    version: u64,
+) -> Result<serde_json::Value, ProjectError> {
+    for from in version..FORMAT_VERSION {
+        match from {
+            1..=3 => {}
+            _ => return Err(ProjectError::UnsupportedVersion(Some(version))),
+        }
+    }
+    if let Some(v) = value.get_mut("format_version") {
+        *v = FORMAT_VERSION.into();
+    }
+    Ok(value)
 }
 
 fn too_large() -> ProjectError {

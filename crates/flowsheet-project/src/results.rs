@@ -107,6 +107,17 @@ pub struct UnitResult {
     pub scaled_energy_residual: Option<f64>,
 }
 
+/// Result of one energy stream (#171, format version 4).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnergyStreamResult {
+    /// Fingerprint of both connected units when calculated.
+    pub fingerprint: Fingerprint,
+    /// Duty in W, positive in the stream direction (into the destination
+    /// unit, out of the source unit).
+    pub duty_w: f64,
+}
+
 /// Closure evidence for a successful cyclic network calculation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -137,6 +148,9 @@ pub struct ResultSet {
     /// Per-stream results.
     #[serde(with = "ids::map")]
     pub streams: BTreeMap<StreamId, StreamResult>,
+    /// Per-energy-stream results (format version 4); absent in older files.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty", with = "ids::map")]
+    pub energy_streams: BTreeMap<StreamId, EnergyStreamResult>,
 }
 
 impl ResultSet {
@@ -177,6 +191,19 @@ impl ResultSet {
             .iter()
             .filter_map(|(id, s)| Some((*id, stream_result(s, fingerprints.stream(fs, *id)?))))
             .collect();
+        let energy_streams = calc
+            .energy_streams
+            .iter()
+            .filter_map(|(id, e)| {
+                Some((
+                    *id,
+                    EnergyStreamResult {
+                        fingerprint: fingerprints.stream(fs, *id)?,
+                        duty_w: e.duty_w,
+                    },
+                ))
+            })
+            .collect();
         Self {
             recycle: calc.recycle.as_ref().map(|r| RecycleResult {
                 iterations: r.iterations,
@@ -188,6 +215,7 @@ impl ResultSet {
             order: calc.order.clone(),
             units,
             streams,
+            energy_streams,
         }
     }
 
@@ -208,10 +236,15 @@ impl ResultSet {
         id: StreamId,
         current: &Fingerprints,
     ) -> Currency {
-        match self.streams.get(&id) {
+        let stored = self
+            .streams
+            .get(&id)
+            .map(|r| r.fingerprint)
+            .or_else(|| self.energy_streams.get(&id).map(|r| r.fingerprint));
+        match stored {
             _ if fs.stream(id).is_none() => Currency::Missing,
             None => Currency::Missing,
-            Some(r) if current.stream(fs, id) == Some(r.fingerprint) => Currency::Current,
+            Some(fp) if current.stream(fs, id) == Some(fp) => Currency::Current,
             Some(_) => Currency::Stale,
         }
     }
@@ -233,6 +266,11 @@ impl ResultSet {
                 || opt(u.scaled_energy_residual)
             {
                 return Some(format!("result of unit {id}"));
+            }
+        }
+        for (id, e) in &self.energy_streams {
+            if bad(e.duty_w) {
+                return Some(format!("result of energy stream {id}"));
             }
         }
         for (id, s) in &self.streams {
@@ -298,6 +336,7 @@ impl ResultSet {
     pub fn retain_existing(&mut self, fs: &Flowsheet) {
         self.units.retain(|id, _| fs.unit(*id).is_some());
         self.streams.retain(|id, _| fs.stream(*id).is_some());
+        self.energy_streams.retain(|id, _| fs.stream(*id).is_some());
         self.order.retain(|id| fs.unit(*id).is_some());
     }
 }

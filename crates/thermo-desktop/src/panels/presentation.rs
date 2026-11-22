@@ -117,11 +117,16 @@ pub(super) struct StreamColumn {
     pub(super) result: Option<StreamResult>,
 }
 
-/// Every stream in flowsheet order with its status and, when it has a
+/// Every material stream in flowsheet order with its status and, when it has a
 /// status, its stored result.
 pub(super) fn stream_columns(ed: &mut Editor) -> Vec<(StreamId, StreamColumn)> {
     let fps = ed.fingerprints();
-    let streams: Vec<_> = ed.fs.streams().map(|s| (s.id, s.name.clone())).collect();
+    // Material streams only; energy streams are shown in their own panel.
+    let streams: Vec<_> = ed
+        .fs
+        .material_streams()
+        .map(|s| (s.id, s.name.clone()))
+        .collect();
     streams
         .into_iter()
         .map(|(id, name)| {

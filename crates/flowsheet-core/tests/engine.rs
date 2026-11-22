@@ -788,7 +788,7 @@ fn chain(
     fs.remove_unit(old);
     let mut from = PortRef::new(u, port);
     let mut ids = vec![];
-    for &(kind, spec) in units {
+    for (kind, spec) in units.iter().cloned() {
         let id = fs.add_unit(kind);
         assert!(fs.set_spec(id, spec));
         fs.connect(from, PortRef::new(id, 0)).unwrap();

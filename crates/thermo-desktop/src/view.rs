@@ -7,7 +7,7 @@
 //! pure geometry so it can be unit-tested without a running GUI.
 
 use eframe::egui::{Pos2, Rect, Vec2, pos2, vec2};
-use flowsheet_core::{PortDirection, UnitKind};
+use flowsheet_core::{PaletteCategory, PortDirection, PortMedium, PortSpec, Unit, UnitKind};
 
 /// Minimum and maximum zoom factors.
 pub const ZOOM_RANGE: (f32, f32) = (0.25, 4.0);
@@ -81,6 +81,7 @@ pub fn snap(p: Pos2) -> Pos2 {
 pub fn block_size(kind: UnitKind) -> Vec2 {
     match kind {
         UnitKind::Feed | UnitKind::Product => vec2(70.0, 30.0),
+        UnitKind::EnergySource | UnitKind::EnergySink => vec2(60.0, 26.0),
         UnitKind::Mixer => vec2(60.0, 60.0),
         // Circle of 40, then a gap and the medium nozzle above and below
         // (reference 20 by 35).
@@ -94,6 +95,20 @@ pub fn block_size(kind: UnitKind) -> Vec2 {
         UnitKind::Pump => vec2(50.0, 50.0),
         UnitKind::Compressor => vec2(60.0, 60.0),
         UnitKind::Expander => vec2(40.0, 60.0),
+        // A17 kinds: the traced symbol's proportions fitted into a box per
+        // palette category; logical blocks without a symbol are plain boxes.
+        _ => {
+            let (w, h) = match kind.category() {
+                PaletteCategory::Columns => (70.0, 150.0),
+                PaletteCategory::Reactors => (70.0, 90.0),
+                _ => (90.0, 70.0),
+            };
+            match crate::symbols::outline(kind) {
+                Some(o) if o.aspect > w / h => vec2(w, w / o.aspect),
+                Some(o) => vec2(h * o.aspect, h),
+                None => vec2(60.0, 40.0),
+            }
+        }
     }
 }
 
@@ -106,46 +121,69 @@ pub fn block_rect(kind: UnitKind, center: Pos2) -> Rect {
 /// reversed) a nozzle. Inlets are entered from the left; separator vapor
 /// leaves through the top head and liquid through the bottom head, as on a
 /// process flow diagram.
+///
+/// Energy ports (#171) sit on the top edge (energy in, as the heating
+/// medium of a heater) and the bottom edge (energy out, as the cooling
+/// medium of a cooler). Uses the ports of a new unit of `kind`; see
+/// [`unit_port_exit`] for units with variable ports.
 pub fn port_exit(kind: UnitKind, index: usize) -> Vec2 {
-    match (kind, kind.ports().get(index).map(|p| p.direction)) {
-        (UnitKind::Separator, Some(PortDirection::Outlet)) if index == 1 => vec2(0.0, -1.0),
-        (UnitKind::Separator, Some(PortDirection::Outlet)) => vec2(0.0, 1.0),
-        (_, Some(PortDirection::Inlet)) => vec2(-1.0, 0.0),
+    port_exit_in(kind, &kind.default_ports(), index)
+}
+
+/// [`port_exit`] for the ports of an actual unit.
+pub fn unit_port_exit(unit: &Unit, index: usize) -> Vec2 {
+    port_exit_in(unit.kind, &unit.ports(), index)
+}
+
+fn port_exit_in(kind: UnitKind, ports: &[PortSpec], index: usize) -> Vec2 {
+    let port = ports.get(index);
+    match (kind, port.map(|p| (p.medium, p.direction))) {
+        (_, Some((PortMedium::Energy, PortDirection::Inlet))) => vec2(0.0, -1.0),
+        (_, Some((PortMedium::Energy, PortDirection::Outlet))) => vec2(0.0, 1.0),
+        (UnitKind::Separator, Some((_, PortDirection::Outlet))) if index == 1 => vec2(0.0, -1.0),
+        (UnitKind::Separator, Some((_, PortDirection::Outlet))) => vec2(0.0, 1.0),
+        (_, Some((_, PortDirection::Inlet))) => vec2(-1.0, 0.0),
         _ => vec2(1.0, 0.0),
     }
 }
 
-/// World-space position of nozzle `index` of a unit centred at `center`.
+/// World-space position of nozzle `index` of a unit of `kind` centred at
+/// `center` (ports of a new unit; see [`unit_port_pos`]).
 pub fn port_pos(kind: UnitKind, center: Pos2, index: usize) -> Pos2 {
+    port_pos_in(kind, &kind.default_ports(), center, index)
+}
+
+/// [`port_pos`] for the ports of an actual unit, including variable ports.
+pub fn unit_port_pos(unit: &Unit, center: Pos2, index: usize) -> Pos2 {
+    port_pos_in(unit.kind, &unit.ports(), center, index)
+}
+
+/// Nozzles on the same edge are spread evenly along it, in port order.
+fn port_pos_in(kind: UnitKind, ports: &[PortSpec], center: Pos2, index: usize) -> Pos2 {
     let rect = block_rect(kind, center);
-    let ports = kind.ports();
-    let Some(spec) = ports.get(index) else {
+    if index >= ports.len() {
         return center;
-    };
-    let exit = port_exit(kind, index);
-    if exit.y < 0.0 {
-        return rect.center_top();
     }
-    if exit.y > 0.0 {
-        return rect.center_bottom();
-    }
-    let same_side: Vec<usize> = ports
-        .iter()
-        .enumerate()
-        .filter(|&(i, p)| p.direction == spec.direction && port_exit(kind, i) == exit)
-        .map(|(i, _)| i)
+    let exit = port_exit_in(kind, ports, index);
+    let same_side: Vec<usize> = (0..ports.len())
+        .filter(|&i| port_exit_in(kind, ports, i) == exit)
         .collect();
     let rank = same_side.iter().position(|&i| i == index).unwrap_or(0);
-    let n = same_side.len() as f32;
+    let t = (rank as f32 + 1.0) / (same_side.len() as f32 + 1.0);
+    if exit.y != 0.0 {
+        let y = if exit.y < 0.0 {
+            rect.top()
+        } else {
+            rect.bottom()
+        };
+        return pos2(rect.left() + rect.width() * t, y);
+    }
     let x = if exit.x < 0.0 {
         rect.left()
     } else {
         rect.right()
     };
-    pos2(
-        x,
-        rect.top() + rect.height() * (rank as f32 + 1.0) / (n + 1.0),
-    )
+    pos2(x, rect.top() + rect.height() * t)
 }
 
 /// Orthogonal route of a stream from a nozzle at `from` leaving in direction
@@ -186,6 +224,19 @@ pub fn stream_route(from: Pos2, exit: Vec2, to: Pos2) -> Vec<Pos2> {
             pts.extend([lead_out, pos2(lead_out.x, y), pos2(lead_in.x, y), lead_in]);
         }
     }
+    pts.push(to);
+    simplify(pts)
+}
+
+/// [`stream_route`] to an inlet nozzle whose [`port_exit`] is `entry`: an
+/// inlet on the top or bottom edge (an energy inlet) is entered vertically
+/// after a straight lead-in; any other inlet from the left.
+pub fn stream_route_into(from: Pos2, exit: Vec2, to: Pos2, entry: Vec2) -> Vec<Pos2> {
+    if entry.y == 0.0 {
+        return stream_route(from, exit, to);
+    }
+    let lead_in = to + entry * STUB;
+    let mut pts = stream_route(from, exit, lead_in);
     pts.push(to);
     simplify(pts)
 }
@@ -403,6 +454,56 @@ mod tests {
                 assert!(on_edge, "{kind} nozzle {i} at {p:?}");
             }
         }
+    }
+
+    #[test]
+    fn energy_ports_sit_on_the_top_and_bottom_edges() {
+        // Heater: energy in at the top; cooler: energy out at the bottom.
+        let rect = block_rect(UnitKind::Heater, Pos2::ZERO);
+        assert_eq!(port_exit(UnitKind::Heater, 2), vec2(0.0, -1.0));
+        assert_eq!(port_pos(UnitKind::Heater, Pos2::ZERO, 2), rect.center_top());
+        assert_eq!(port_exit(UnitKind::Cooler, 2), vec2(0.0, 1.0));
+        // Two energy ports on the same edge are spread along it.
+        let column = UnitKind::DistillationColumn;
+        let ports = column.default_ports();
+        let all: Vec<_> = (0..ports.len())
+            .map(|i| port_pos(column, Pos2::ZERO, i))
+            .collect();
+        for (i, a) in all.iter().enumerate() {
+            for b in &all[i + 1..] {
+                assert!(a.distance(*b) > 1.0, "{column}: overlapping nozzles");
+            }
+        }
+        // Every port of every new unit lies on its block edge.
+        for kind in UnitKind::ALL {
+            let rect = block_rect(kind, Pos2::ZERO);
+            for i in 0..kind.default_ports().len() {
+                let p = port_pos(kind, Pos2::ZERO, i);
+                let on_edge = p.x == rect.left()
+                    || p.x == rect.right()
+                    || p.y == rect.top()
+                    || p.y == rect.bottom();
+                assert!(on_edge, "{kind} port {i} at {p:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn energy_inlets_are_entered_vertically() {
+        let to = pos2(200.0, 0.0);
+        let r = stream_route_into(pos2(0.0, 100.0), vec2(1.0, 0.0), to, vec2(0.0, -1.0));
+        let n = r.len();
+        assert_eq!(r[n - 1], to);
+        assert_eq!(r[n - 2], pos2(200.0, -STUB));
+        for w in r.windows(2) {
+            assert!(w[0].x == w[1].x || w[0].y == w[1].y, "{r:?}");
+        }
+        // Side inlets keep the ordinary route.
+        let a = pos2(0.0, 0.0);
+        assert_eq!(
+            stream_route_into(a, vec2(1.0, 0.0), to, vec2(-1.0, 0.0)),
+            stream_route(a, vec2(1.0, 0.0), to)
+        );
     }
 
     #[test]

@@ -36,11 +36,11 @@ A material stream holds:
 | Properties | Molar enthalpy and entropy, molar mass, mass flow, per-phase density, Z, and further properties the package supports |
 | Provenance | Property package, model and data versions, calculation status, solver diagnostics |
 
-Energy streams would carry a duty in W with sign convention "positive into the unit"; they are not implemented, and unit duties use the same sign convention (section 2.3). One property package applies to the whole flowsheet initially; mixing packages between streams is deferred, because it needs explicit conversion rules.
+Energy streams (#171, A17) carry a duty in W, positive in the stream direction, that is, into the destination unit; unit duties keep the convention "positive into the unit" (section 2.3). An energy stream connects energy ports only and is determined by exactly one end: an energy source (specified, or reporting the duty its unit calculates), a heater or cooler that calculates its duty, or a heater set to take its duty from the stream. Details: [A17 architecture](a17-architecture.md), section 7. One property package applies to the whole flowsheet initially; mixing packages between streams is deferred, because it needs explicit conversion rules.
 
 ### 2.3 Unit operations and specifications — *implemented (A8)*
 
-Each unit has a fixed set of material ports and one specification set (`flowsheet_core::UnitKind::ports` and `UnitSpec`). Where the table says "one of", the specification is an enum, so exactly one choice is stored. Energy streams are not modelled: duties are unit results, not ports. The table describes the code on `main`.
+Each unit has a fixed set of material ports, optional energy ports, variable ports defined by its specification, and one specification set (`flowsheet_core::Unit::ports` and `UnitSpec`). Where the table says "one of", the specification is an enum, so exactly one choice is stored. Heaters have an optional energy inlet `Q` and may take their duty from it; coolers have an optional energy outlet `Q` (#171). The A17 palette kinds and their owning groups are listed in [A17 architecture](a17-architecture.md); most are drawn only. The table describes the A8 units.
 
 | Unit | Material ports | Specification (choose one where listed) | Defaults | Calculation |
 |---|---|---|---|---|

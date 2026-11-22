@@ -1,12 +1,14 @@
 //! Streams, unit operations, balances, and calculation order.
 //!
 //! This crate provides the **flowsheet topology and sequential engine**:
-//! unit operations, their material ports, the streams connecting them, user
-//! specifications in SI units with absolute pressure, and pre-calculation
-//! diagnostics, balances and flash-based unit operations (A8). See the
-//! specification sets in `docs/flowsheet-and-ui.md`, section 2.3.
-//! A10 adds [`Flowsheet::solve_network`] with deterministic automatic tears,
-//! or [`Flowsheet::solve_recycles`] with explicit starting states and limits.
+//! unit operations, their material and energy ports, the streams connecting
+//! them, user specifications in SI units with absolute pressure, and
+//! pre-calculation diagnostics, balances and flash-based unit operations
+//! (A8). See the specification sets in `docs/flowsheet-and-ui.md`, section
+//! 2.3. A10 adds [`Flowsheet::solve_network`] with deterministic automatic
+//! tears, or [`Flowsheet::solve_recycles`] with explicit starting states and
+//! limits. A17 adds energy streams (#171), the full unit palette and the
+//! per-group modules in [`units`] (`docs/a17-architecture.md`).
 //!
 //! The model is independent of any GUI framework. Graphical layout (block
 //! positions, zoom, selection) belongs to the consuming application.
@@ -20,16 +22,18 @@ mod engine;
 mod flowsheet;
 mod recycle;
 mod unit;
+pub mod units;
 
 pub use engine::*;
 pub use recycle::*;
 
 pub use flowsheet::{
-    ConnectError, Diagnostic, DiagnosticKind, Flowsheet, MAX_IDENTIFIER, RestoreError, Stream,
-    StreamId, UnitStatus,
+    ConnectError, Diagnostic, DiagnosticKind, Flowsheet, MAX_IDENTIFIER, RestoreError,
+    SpecChangeError, Stream, StreamId, UnitStatus,
 };
 pub use unit::{
-    DEFAULT_EFFICIENCY, ExchangerSpec, MixerPressure, PortDirection, PortRef, PortSpec,
-    PressureRise, PressureSpec, SeparatorThermal, SpecIssue, SpecProblem, ThermalSpec, Unit,
-    UnitId, UnitKind, UnitSpec,
+    CalculationStatus, DEFAULT_EFFICIENCY, EnergyRole, EnergySourceDuty, ExchangerSpec, KindInfo,
+    MixerPressure, PaletteCategory, PortDirection, PortMedium, PortRef, PortSpec, PressureRise,
+    PressureSpec, SeparatorThermal, Sign, SpecIssue, SpecProblem, ThermalSpec, Unit, UnitGroup,
+    UnitId, UnitKind, UnitSpec, check_optional, check_value, ports_for,
 };

@@ -1,13 +1,24 @@
 //! Deterministic sequential-modular execution. No GUI dependencies.
+use crate::units::{self, CalcContext, UnitInputs, UnitOutput};
 use crate::{
-    Diagnostic, ExchangerSpec, Flowsheet, MixerPressure, PortDirection, PortRef, PressureSpec,
-    SeparatorThermal, Stream, StreamId, ThermalSpec, UnitId, UnitKind, UnitSpec,
+    CalculationStatus, Diagnostic, EnergySourceDuty, ExchangerSpec, Flowsheet, MixerPressure,
+    PortDirection, PortMedium, PortRef, PressureSpec, SeparatorThermal, Stream, StreamId,
+    ThermalSpec, Unit, UnitId, UnitKind, UnitSpec,
 };
 use property_packages::{CubicPackage, EquilibriumState};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::ops::ControlFlow;
 use thermo_types::{Composition, CompositionBasis, Phase};
+
+/// Solved energy stream (#171): a heat duty or shaft work in W, positive in
+/// the stream direction, that is, into the destination unit and out of the
+/// source unit.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EnergyStream {
+    /// Duty in W, positive into the destination unit.
+    pub duty_w: f64,
+}
 
 /// Feed fractions include identities and basis; they must match package order.
 pub type FeedCompositions = BTreeMap<UnitId, Composition>;
@@ -105,6 +116,8 @@ pub struct Calculation {
     package: CubicPackage,
     pub order: Vec<UnitId>,
     pub streams: BTreeMap<StreamId, MaterialStream>,
+    /// Solved energy streams; material streams are in `streams`.
+    pub energy_streams: BTreeMap<StreamId, EnergyStream>,
     pub units: BTreeMap<UnitId, UnitCalculation>,
     /// Tear-stream closure for a successful recycle calculation.
     pub recycle: Option<crate::RecycleConvergence>,
@@ -254,14 +267,12 @@ impl Flowsheet {
         };
         // Complete preflight before invoking any property calculation.
         for u in self.units() {
-            if !u.kind.calculation_planned() {
-                return Err(fail(
-                    u.id,
-                    format!(
-                        "{} requires a PS flash and efficiency model (deferred)",
-                        u.kind
-                    ),
-                ));
+            if let CalculationStatus::DrawnOnly(reason) = u.kind.calculation_status() {
+                let issue = u
+                    .kind
+                    .issue()
+                    .map_or_else(String::new, |n| format!(" (#{n})"));
+                return Err(fail(u.id, format!("{} {reason}{issue}", u.kind)));
             }
             if u.kind == UnitKind::Feed {
                 let c = feeds
@@ -322,6 +333,7 @@ impl Flowsheet {
             package: package.clone(),
             order: order.clone(),
             streams: BTreeMap::new(),
+            energy_streams: BTreeMap::new(),
             units: BTreeMap::new(),
             recycle: None,
         };
@@ -337,29 +349,40 @@ impl Flowsheet {
                 return Err(SolveError::cancelled());
             }
             let u = self.unit(id).expect("checked topology");
-            let mut inlets = Vec::new();
-            for (i, p) in u.kind.ports().iter().enumerate() {
-                if p.direction == PortDirection::Inlet {
-                    let s = self
-                        .stream_at(PortRef::new(id, i))
-                        .expect("checked topology");
-                    inlets.push(
-                        tears
-                            .get(&s.id)
-                            .unwrap_or_else(|| &report.streams[&s.id])
-                            .clone(),
-                    );
-                }
-            }
+            let ports = self.unit_ports(u);
+            let inlets: Vec<MaterialStream> = ports
+                .material_inlets
+                .iter()
+                .map(|s| match s {
+                    Some(s) => tears.get(s).unwrap_or_else(|| &report.streams[s]).clone(),
+                    None => empty(),
+                })
+                .collect();
+            // `None`: unconnected, or a source that takes its duty from this unit.
+            let energy_in: Vec<Option<f64>> = ports
+                .energy
+                .iter()
+                .filter(|p| p.direction == PortDirection::Inlet)
+                .map(|p| {
+                    p.stream
+                        .and_then(|s| report.energy_streams.get(&s).map(|e| e.duty_w))
+                })
+                .collect();
+            let inputs = UnitInputs {
+                material: &inlets,
+                energy: &energy_in,
+            };
+            let ctx = CalcContext::new(package, feeds.get(&id));
             let UnitOutput {
                 outlets,
                 duty_w,
                 transferred_duty_w,
                 warnings,
-            } = calculate_unit(u.kind, u.spec, &inlets, feeds.get(&id), package)
-                .map_err(|e| fail(id, e))?;
+                energy,
+            } = calculate_unit(u.kind, &u.spec, &inputs, &ctx).map_err(|e| fail(id, e))?;
             if !duty_w.is_finite()
                 || transferred_duty_w.is_some_and(|q| !q.is_finite())
+                || energy.iter().flatten().any(|q| !q.is_finite())
                 || outlets.iter().any(|s| {
                     !s.molar_flow_mol_s.is_finite()
                         || !s.enthalpy_flow_w().is_finite()
@@ -371,7 +394,17 @@ impl Flowsheet {
                     "nonfinite extensive stream property or duty".into(),
                 ));
             }
-            let balance = if matches!(u.kind, UnitKind::Feed | UnitKind::Product) {
+            if outlets.len() != ports.material_outlets.len() {
+                return Err(fail(
+                    id,
+                    format!(
+                        "calculation returned {} outlets for {} outlet ports",
+                        outlets.len(),
+                        ports.material_outlets.len()
+                    ),
+                ));
+            }
+            let balance = if u.kind.is_boundary() {
                 None
             } else {
                 Some(
@@ -379,17 +412,12 @@ impl Flowsheet {
                         .map_err(|e| fail(id, e))?,
                 )
             };
-            let ports = u
-                .kind
-                .ports()
-                .iter()
-                .enumerate()
-                .filter(|(_, p)| p.direction == PortDirection::Outlet);
-            for ((i, _), result) in ports.zip(outlets) {
-                let s = self
-                    .stream_at(PortRef::new(id, i))
-                    .expect("checked topology");
-                report.streams.insert(s.id, result);
+            transfer_energy(&ports.energy, duty_w, energy, &mut report.energy_streams)
+                .map_err(|e| fail(id, e))?;
+            for (stream, result) in ports.material_outlets.iter().zip(outlets) {
+                if let Some(s) = stream {
+                    report.streams.insert(*s, result);
+                }
             }
             report.units.insert(
                 id,
@@ -405,26 +433,104 @@ impl Flowsheet {
     }
 }
 
-struct UnitOutput {
-    outlets: Vec<MaterialStream>,
-    duty_w: f64,
-    transferred_duty_w: Option<f64>,
-    warnings: Vec<String>,
+/// One energy port of a unit with the stream attached to it, if any.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct EnergyPort {
+    pub(crate) direction: PortDirection,
+    pub(crate) stream: Option<StreamId>,
 }
 
-impl UnitOutput {
-    fn new(outlets: Vec<MaterialStream>, duty_w: f64, warnings: Vec<String>) -> Self {
-        Self {
-            outlets,
-            duty_w,
-            transferred_duty_w: None,
-            warnings,
+/// Streams at a unit's ports, by medium and direction, in port order.
+/// Unconnected (optional) ports are `None`.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct UnitPorts {
+    pub(crate) material_inlets: Vec<Option<StreamId>>,
+    pub(crate) material_outlets: Vec<Option<StreamId>>,
+    pub(crate) energy: Vec<EnergyPort>,
+}
+
+impl Flowsheet {
+    /// Streams attached to each port of `unit`.
+    pub(crate) fn unit_ports(&self, unit: &Unit) -> UnitPorts {
+        let mut out = UnitPorts::default();
+        for (i, p) in unit.ports().iter().enumerate() {
+            let stream = self.stream_at(PortRef::new(unit.id, i)).map(|s| s.id);
+            match (p.medium, p.direction) {
+                (PortMedium::Material, PortDirection::Inlet) => out.material_inlets.push(stream),
+                (PortMedium::Material, PortDirection::Outlet) => out.material_outlets.push(stream),
+                (PortMedium::Energy, direction) => {
+                    out.energy.push(EnergyPort { direction, stream })
+                }
+            }
         }
+        out
     }
 }
 
+/// Relative tolerance between the duty an energy stream delivers and the
+/// duty the receiving unit used.
+const ENERGY_TOLERANCE: f64 = 1e-9;
+
+/// Records the energy-port values of a calculated unit (#171).
+///
+/// `values` holds one entry per energy port (positive in the port's
+/// direction); empty means the default: a single energy port carries the
+/// unit's `duty_w` (negated for an outlet). An outlet value becomes the
+/// stream's duty. An inlet whose stream already has a duty must match the
+/// value the unit used; an inlet whose stream has none (its source is an
+/// energy source set to "calculated") receives the unit's value.
+fn transfer_energy(
+    ports: &[EnergyPort],
+    duty_w: f64,
+    values: Vec<Option<f64>>,
+    streams: &mut BTreeMap<StreamId, EnergyStream>,
+) -> Result<(), String> {
+    let values = if !values.is_empty() {
+        values
+    } else if let [port] = ports {
+        vec![Some(match port.direction {
+            PortDirection::Inlet => duty_w,
+            PortDirection::Outlet => -duty_w,
+        })]
+    } else {
+        vec![None; ports.len()]
+    };
+    if values.len() != ports.len() {
+        return Err(format!(
+            "calculation returned {} energy values for {} energy ports",
+            values.len(),
+            ports.len()
+        ));
+    }
+    for (port, value) in ports.iter().zip(values) {
+        let Some(id) = port.stream else { continue };
+        match (port.direction, streams.get(&id), value) {
+            // An energy source left to the connected unit leaves no value.
+            (PortDirection::Outlet, _, None) => {}
+            (PortDirection::Outlet, _, Some(q)) => {
+                streams.insert(id, EnergyStream { duty_w: q });
+            }
+            (PortDirection::Inlet, Some(given), Some(q)) => {
+                if (given.duty_w - q).abs() > ENERGY_TOLERANCE * given.duty_w.abs().max(1.0) {
+                    return Err(format!(
+                        "energy stream {id} delivers {:.6e} W but the unit used {q:.6e} W",
+                        given.duty_w
+                    ));
+                }
+            }
+            (PortDirection::Inlet, None, Some(q)) => {
+                streams.insert(id, EnergyStream { duty_w: q });
+            }
+            (PortDirection::Inlet, _, None) => {
+                return Err(format!("the unit did not determine energy stream {id}"));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Zero-flow outlet without a thermodynamic state.
-fn empty() -> MaterialStream {
+pub(crate) fn empty() -> MaterialStream {
     MaterialStream {
         molar_flow_mol_s: 0.0,
         state: None,
@@ -433,13 +539,35 @@ fn empty() -> MaterialStream {
 
 const ZERO_FLOW_WARNING: &str = "Zero inlet flow: passed through as a zero-flow outlet without a thermodynamic state; no duty applied.";
 
+/// Calculates one unit. Core kinds are calculated here; group kinds are
+/// routed to their module in [`crate::units`].
 fn calculate_unit(
     kind: UnitKind,
-    spec: UnitSpec,
-    inputs: &[MaterialStream],
-    feed: Option<&Composition>,
-    pkg: &CubicPackage,
+    spec: &UnitSpec,
+    unit_inputs: &UnitInputs,
+    ctx: &CalcContext,
 ) -> Result<UnitOutput, String> {
+    match spec {
+        UnitSpec::Pressurize { .. } | UnitSpec::Expand { .. } => {
+            return units::rotating::calculate_core(kind, spec, unit_inputs, ctx);
+        }
+        UnitSpec::Rotating(s) => return units::rotating::calculate(kind, s, unit_inputs, ctx),
+        UnitSpec::HeatTransport(s) => {
+            return units::heat_transport::calculate(kind, s, unit_inputs, ctx);
+        }
+        UnitSpec::SimpleLogical(s) => {
+            return units::simple_logical::calculate(kind, s, unit_inputs, ctx);
+        }
+        UnitSpec::Reactors(s) => return units::reactors::calculate(kind, s, unit_inputs, ctx),
+        UnitSpec::Columns(s) => return units::columns::calculate(kind, s, unit_inputs, ctx),
+        UnitSpec::Multiphase(s) => return units::multiphase::calculate(kind, s, unit_inputs, ctx),
+        UnitSpec::Solids(s) => return units::solids::calculate(kind, s, unit_inputs, ctx),
+        _ => {}
+    }
+    let inputs = unit_inputs.material;
+    let feed: Option<&Composition> = ctx.feed();
+    let pkg: &CubicPackage = ctx.package();
+    let spec = spec.clone();
     fn state(s: &MaterialStream) -> Result<&EquilibriumState, String> {
         s.state.as_ref().ok_or_else(|| {
             "inlet has no material phase; cannot apply a thermodynamic specification".to_string()
@@ -491,6 +619,26 @@ fn calculate_unit(
             ))
         }
         UnitSpec::Product => Ok(UnitOutput::new(vec![], 0.0, vec![])),
+        // Energy boundaries (#171): a specified source sets its stream; a
+        // calculated one leaves it to the connected unit; a sink records
+        // what it receives.
+        UnitSpec::EnergySource { duty } => Ok(UnitOutput {
+            energy: vec![match duty {
+                EnergySourceDuty::Specified(Some(q)) => Some(q),
+                EnergySourceDuty::Specified(None) => {
+                    return Err("missing energy source duty".into());
+                }
+                EnergySourceDuty::Calculated => None,
+            }],
+            ..UnitOutput::new(vec![], 0.0, vec![])
+        }),
+        UnitSpec::EnergySink => match unit_inputs.energy {
+            [Some(q)] => Ok(UnitOutput {
+                energy: vec![Some(*q)],
+                ..UnitOutput::new(vec![], 0.0, vec![])
+            }),
+            _ => Err("energy sink receives no determined duty".into()),
+        },
         UnitSpec::Mixer { outlet_pressure } => {
             let active: Vec<_> = inputs.iter().filter(|s| s.molar_flow_mol_s > 0.0).collect();
             let n: f64 = active.iter().map(|s| s.molar_flow_mol_s).sum();
@@ -531,15 +679,23 @@ fn calculate_unit(
             let a = state(&inputs[0])?;
             let n = positive_flow(&inputs[0])?;
             let p = pressure(a.pressure_pa, pressure_drop_pa)?;
-            let out = match thermal {
-                ThermalSpec::OutletTemperature(Some(t)) => tp(a, p, t)?,
-                ThermalSpec::Duty(Some(q)) => ph(a, p, a.enthalpy() + q / n)?,
+            // A heater may take its duty from the energy stream at its
+            // energy inlet (#171); otherwise the duty is specified or follows
+            // from the outlet temperature.
+            let specified = match thermal {
+                ThermalSpec::Duty(Some(q)) => Some(q),
+                ThermalSpec::EnergyStream => match unit_inputs.energy {
+                    [Some(q)] => Some(*q),
+                    _ => return Err("no duty is supplied by an energy stream".into()),
+                },
+                _ => None,
+            };
+            let out = match (thermal, specified) {
+                (_, Some(q)) => ph(a, p, a.enthalpy() + q / n)?,
+                (ThermalSpec::OutletTemperature(Some(t)), _) => tp(a, p, t)?,
                 _ => return Err("missing thermal specification".into()),
             };
-            let q = match thermal {
-                ThermalSpec::Duty(Some(q)) => q,
-                _ => n * (out.enthalpy() - a.enthalpy()),
-            };
+            let q = specified.unwrap_or_else(|| n * (out.enthalpy() - a.enthalpy()));
             // A duty sign that contradicts the kind is rejected before solving
             // (`Unit::issues`); an outlet temperature on the wrong side of the
             // inlet is only known here and depends on the iterate inside a
@@ -663,6 +819,7 @@ fn calculate_unit(
                 outlets,
                 duty_w: 0.0,
                 transferred_duty_w: Some(0.0),
+                energy: Vec::new(),
                 warnings: vec![
                     "Zero flow on one or both exchanger sides: no heat transferred; empty sides pass through as zero-flow outlets without a thermodynamic state.".into(),
                 ],
@@ -703,6 +860,7 @@ fn calculate_unit(
                 outlets: vec![stream(nh, ho), stream(nc, co)],
                 duty_w: 0.0,
                 transferred_duty_w: Some(q),
+                energy: Vec::new(),
                 warnings: vec![],
             })
         }

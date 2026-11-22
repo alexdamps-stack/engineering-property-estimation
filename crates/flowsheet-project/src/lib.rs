@@ -46,7 +46,8 @@ pub use project::{
     write_atomically,
 };
 pub use results::{
-    Currency, PhaseResult, RecycleResult, ResultSet, StateResult, StreamResult, UnitResult,
+    Currency, EnergyStreamResult, PhaseResult, RecycleResult, ResultSet, StateResult, StreamResult,
+    UnitResult,
 };
 pub use time::format_utc;
 

@@ -3,13 +3,14 @@
 //! properties panel, bottom panel (messages and stream table), status bar,
 //! plus the new-project and unsaved-changes dialogs.
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use eframe::egui::{
     self, Id, Key, KeyboardShortcut, Modifiers, Panel, RichText, ScrollArea, Sense, Stroke, Ui,
     ViewportCommand, vec2,
 };
-use flowsheet_core::UnitKind;
+use flowsheet_core::{CalculationStatus, PaletteCategory, UnitKind};
 use flowsheet_project::{CubicVariantChoice, PackageSelection, format_utc};
 use property_packages::CUBIC_TEMPERATURE_RANGE_K;
 
@@ -89,6 +90,8 @@ pub struct FlowsheetApp {
     confirm: Option<Pending>,
     allow_close: bool,
     title: String,
+    /// Palette categories toggled away from [`palette_open_by_default`].
+    palette_toggled: BTreeSet<PaletteCategory>,
 }
 
 impl FlowsheetApp {
@@ -265,6 +268,7 @@ impl eframe::App for FlowsheetApp {
         Panel::bottom("status_bar").show(ui, |ui| status_bar(ui, &mut self.editor));
         let dialog_open = self.dialog_open();
         let tab = &mut self.bottom_tab;
+        let toggled = &mut self.palette_toggled;
         let ed = &mut self.editor;
         Panel::bottom("bottom_panel")
             .resizable(true)
@@ -272,8 +276,8 @@ impl eframe::App for FlowsheetApp {
             .show(ui, |ui| panels::bottom_panel(ui, ed, tab));
         Panel::left("palette")
             .resizable(false)
-            .exact_size(175.0)
-            .show(ui, |ui| palette(ui, ed));
+            .exact_size(190.0)
+            .show(ui, |ui| palette(ui, ed, toggled));
         let mut open_dialog = false;
         Panel::right("properties")
             .resizable(true)
@@ -621,54 +625,75 @@ fn status_bar(ui: &mut Ui, ed: &mut Editor) {
     });
 }
 
-fn palette(ui: &mut Ui, ed: &mut Editor) {
-    ScrollArea::vertical().show(ui, |ui| palette_items(ui, ed));
+/// Whether a palette category is open when the application starts: the
+/// categories holding the calculated A8 units. The others open on click.
+pub fn palette_open_by_default(category: PaletteCategory) -> bool {
+    matches!(
+        category,
+        PaletteCategory::Streams
+            | PaletteCategory::MixingSplitting
+            | PaletteCategory::Separators
+            | PaletteCategory::HeatTransfer
+            | PaletteCategory::PressureChange
+    )
 }
 
-fn palette_items(ui: &mut Ui, ed: &mut Editor) {
+impl FlowsheetApp {
+    /// Whether a palette category is expanded.
+    pub fn palette_category_open(&self, category: PaletteCategory) -> bool {
+        palette_open_by_default(category) != self.palette_toggled.contains(&category)
+    }
+
+    /// Expands or collapses a palette category.
+    pub fn set_palette_category_open(&mut self, category: PaletteCategory, open: bool) {
+        if open == palette_open_by_default(category) {
+            self.palette_toggled.remove(&category);
+        } else {
+            self.palette_toggled.insert(category);
+        }
+    }
+}
+
+fn palette(ui: &mut Ui, ed: &mut Editor, toggled: &mut BTreeSet<PaletteCategory>) {
+    ScrollArea::vertical().show(ui, |ui| palette_items(ui, ed, toggled));
+}
+
+fn palette_items(ui: &mut Ui, ed: &mut Editor, toggled: &mut BTreeSet<PaletteCategory>) {
     ui.add_space(6.0);
     ui.strong("Unit operations");
+    ui.label(
+        RichText::new("Grey items are drawn only: not calculated yet.")
+            .small()
+            .weak(),
+    );
     ui.add_space(4.0);
-    for kind in UnitKind::ALL {
-        let (rect, response) =
-            ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::click());
-        let visuals = ui.style().interact(&response);
-        if response.hovered() {
-            ui.painter().rect_filled(rect, 4, visuals.weak_bg_fill);
-        }
-        let icon_area = egui::Rect::from_min_size(rect.min + vec2(8.0, 5.0), vec2(36.0, 26.0));
-        draw_unit(
-            ui.painter(),
-            kind,
-            icon_rect(icon_area, kind),
-            Stroke::new(1.2, visuals.text_color()),
-            egui::Color32::TRANSPARENT,
-        );
-        ui.painter().text(
-            rect.left_center() + vec2(54.0, 0.0),
-            egui::Align2::LEFT_CENTER,
-            kind.label(),
-            egui::FontId::proportional(14.0),
-            visuals.text_color(),
-        );
-        let label = kind.label();
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
-        if response
-            .on_hover_text(format!("Place a {}", kind.label().to_lowercase()))
-            .clicked()
-        {
-            let hint = ed
-                .content_bounds()
-                .map(|b| egui::pos2(b.right() + 100.0, b.center().y))
-                .unwrap_or(egui::Pos2::ZERO);
-            ed.add_unit_near(kind, hint);
+    for category in PaletteCategory::ALL {
+        let open = palette_open_by_default(category) != toggled.contains(&category);
+        let kinds: Vec<UnitKind> = category.kinds().collect();
+        let calculated = kinds.iter().filter(|k| k.calculation_planned()).count();
+        let response = egui::CollapsingHeader::new(category.label())
+            .id_salt(("palette", category))
+            .open(Some(open))
+            .show(ui, |ui| {
+                for kind in &kinds {
+                    palette_item(ui, ed, *kind);
+                }
+            });
+        let header = response.header_response.on_hover_text(format!(
+            "{} of {} calculated",
+            calculated,
+            kinds.len()
+        ));
+        if header.clicked() && !toggled.remove(&category) {
+            toggled.insert(category);
         }
     }
     ui.add_space(12.0);
     ui.separator();
     ui.label(
         RichText::new(
-            "Drag from an outlet to an inlet to connect.\n\
+            "Dashed lines are energy streams (W, + in flow direction).\n\
+             Drag from an outlet to an inlet to connect.\n\
              Drag blocks to move them.\n\
              Drag the background or scroll to pan; Ctrl+scroll to zoom.\n\
              Del removes the selection. F5 solves.",
@@ -676,4 +701,61 @@ fn palette_items(ui: &mut Ui, ed: &mut Editor) {
         .small()
         .weak(),
     );
+}
+
+/// One palette entry. Kinds without a calculation are drawn in the weak
+/// text colour, and their hover text gives the reason and sub-issue.
+fn palette_item(ui: &mut Ui, ed: &mut Editor, kind: UnitKind) {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::click());
+    let visuals = ui.style().interact(&response);
+    if response.hovered() {
+        ui.painter().rect_filled(rect, 4, visuals.weak_bg_fill);
+    }
+    let drawn_only = match kind.calculation_status() {
+        CalculationStatus::Calculated => None,
+        CalculationStatus::DrawnOnly(reason) => Some(reason),
+    };
+    let color = if drawn_only.is_some() {
+        ui.visuals().weak_text_color()
+    } else {
+        visuals.text_color()
+    };
+    let icon_area = egui::Rect::from_min_size(rect.min + vec2(6.0, 5.0), vec2(34.0, 24.0));
+    draw_unit(
+        ui.painter(),
+        kind,
+        icon_rect(icon_area, kind),
+        Stroke::new(1.2, color),
+        egui::Color32::TRANSPARENT,
+    );
+    // Long names wrap onto a second line within the palette width.
+    let galley = ui.painter().layout(
+        kind.label().to_string(),
+        egui::FontId::proportional(13.0),
+        color,
+        (rect.right() - rect.left() - 52.0).max(40.0),
+    );
+    let at = egui::pos2(rect.left() + 48.0, rect.center().y - galley.size().y / 2.0);
+    ui.painter().galley(at, galley, color);
+    let label = kind.label();
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
+    let hover = match drawn_only {
+        None => format!("Place a {}", kind.label().to_lowercase()),
+        Some(reason) => {
+            let issue = kind
+                .issue()
+                .map_or_else(String::new, |n| format!(" (#{n})"));
+            format!(
+                "Place a {} — drawn only: it {reason}{issue}. A flowsheet containing it cannot be solved yet.",
+                kind.label().to_lowercase()
+            )
+        }
+    };
+    if response.on_hover_text(hover).clicked() {
+        let hint = ed
+            .content_bounds()
+            .map(|b| egui::pos2(b.right() + 100.0, b.center().y))
+            .unwrap_or(egui::Pos2::ZERO);
+        ed.add_unit_near(kind, hint);
+    }
 }

@@ -1,22 +1,60 @@
 //! Unit specification forms.
+//!
+//! Core kinds are edited here; each A17 group owns its form in
+//! `spec/<group>.rs` (`docs/a17-architecture.md`). Group forms use the
+//! field helpers of this module (`choice`, `opt_field`, `value_field`,
+//! `count_field`, `note_row`, `drawn_only_note`).
 
 use eframe::egui::{DragValue, RichText, Ui};
 use flowsheet_core::{
-    ExchangerSpec, MixerPressure, PressureRise, PressureSpec, SeparatorThermal, ThermalSpec,
-    UnitSpec,
+    CalculationStatus, EnergySourceDuty, ExchangerSpec, MixerPressure, PressureSpec,
+    SeparatorThermal, ThermalSpec, UnitKind, UnitSpec,
 };
 
 use crate::symbols::Theme;
 use crate::units::{DisplayUnits, DisplayUnitsExt, Quantity, starting_value};
 
+mod columns;
+mod heat_transport;
+mod multiphase;
+mod reactors;
+mod rotating;
+mod simple_logical;
+mod solids;
+
 /// Specification form; mutually exclusive choices use radio buttons
 /// (proposal section 3).
-pub(super) fn spec_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
+pub(super) fn spec_form(ui: &mut Ui, kind: UnitKind, spec: &mut UnitSpec, u: DisplayUnits) {
     match spec {
-        UnitSpec::Product => {
+        UnitSpec::Product | UnitSpec::EnergySink => {
             ui.label(RichText::new("No specification.").weak());
             ui.end_row();
         }
+        UnitSpec::EnergySource { duty } => {
+            let current = matches!(duty, EnergySourceDuty::Specified(_)) as usize;
+            match choice(ui, "Duty", current, &["Calculated", "Specified"]) {
+                Some(0) => *duty = EnergySourceDuty::Calculated,
+                Some(_) => *duty = EnergySourceDuty::Specified(None),
+                None => {}
+            }
+            match duty {
+                EnergySourceDuty::Calculated => note_row(
+                    ui,
+                    "Reports the duty the connected unit calculates from its own specification.",
+                ),
+                EnergySourceDuty::Specified(q) => {
+                    opt_field(ui, "Duty (+ to the unit)", q, Quantity::Duty, u);
+                    note_row(ui, "The connected unit must take its duty from the stream.");
+                }
+            }
+        }
+        UnitSpec::Rotating(s) => rotating::form(ui, s, u),
+        UnitSpec::HeatTransport(s) => heat_transport::form(ui, s, u),
+        UnitSpec::SimpleLogical(s) => simple_logical::form(ui, s, u),
+        UnitSpec::Reactors(s) => reactors::form(ui, s, u),
+        UnitSpec::Columns(s) => columns::form(ui, s, u),
+        UnitSpec::Multiphase(s) => multiphase::form(ui, s, u),
+        UnitSpec::Solids(s) => solids::form(ui, s, u),
         UnitSpec::Feed {
             temperature_k,
             pressure_pa,
@@ -42,10 +80,22 @@ pub(super) fn spec_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
             thermal,
             pressure_drop_pa,
         } => {
-            let current = matches!(thermal, ThermalSpec::Duty(_)) as usize;
-            match choice(ui, "Specify", current, &["Outlet T", "Duty"]) {
+            let current = match thermal {
+                ThermalSpec::OutletTemperature(_) => 0,
+                ThermalSpec::Duty(_) => 1,
+                ThermalSpec::EnergyStream => 2,
+            };
+            // Only a heater can take its duty from an energy stream: a
+            // cooler's energy port is an outlet (#171).
+            let options: &[&str] = if kind == UnitKind::Heater {
+                &["Outlet T", "Duty", "Energy stream"]
+            } else {
+                &["Outlet T", "Duty"]
+            };
+            match choice(ui, "Specify", current, options) {
                 Some(0) => *thermal = ThermalSpec::OutletTemperature(None),
-                Some(_) => *thermal = ThermalSpec::Duty(None),
+                Some(1) => *thermal = ThermalSpec::Duty(None),
+                Some(_) => *thermal = ThermalSpec::EnergyStream,
                 None => {}
             }
             match thermal {
@@ -53,6 +103,7 @@ pub(super) fn spec_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
                     opt_field(ui, "Outlet temperature", t, Quantity::Temperature, u)
                 }
                 ThermalSpec::Duty(q) => opt_field(ui, "Duty (+ into unit)", q, Quantity::Duty, u),
+                ThermalSpec::EnergyStream => note_row(ui, "Duty from the energy stream at port Q."),
             }
             value_field(
                 ui,
@@ -161,59 +212,9 @@ pub(super) fn spec_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
                 u,
             );
         }
-        UnitSpec::Pressurize {
-            pressure,
-            efficiency,
-        } => {
-            let current = matches!(pressure, PressureRise::PressureIncrease(_)) as usize;
-            match choice(ui, "Specify", current, &["Outlet p", "Pressure increase"]) {
-                Some(0) => *pressure = PressureRise::OutletPressure(None),
-                Some(_) => *pressure = PressureRise::PressureIncrease(None),
-                None => {}
-            }
-            match pressure {
-                PressureRise::OutletPressure(p) => {
-                    opt_field(ui, "Outlet pressure", p, Quantity::Pressure, u)
-                }
-                PressureRise::PressureIncrease(dp) => {
-                    opt_field(ui, "Pressure increase", dp, Quantity::PressureDrop, u)
-                }
-            }
-            value_field(ui, "Efficiency", efficiency, Quantity::Fraction, u);
-            note_row(ui, ROTATING_DEFERRED);
-        }
-        UnitSpec::Expand {
-            pressure,
-            efficiency,
-        } => {
-            let current = matches!(pressure, PressureSpec::PressureDrop(_)) as usize;
-            match choice(ui, "Specify", current, &["Outlet p", "Pressure drop"]) {
-                Some(0) => *pressure = PressureSpec::OutletPressure(None),
-                Some(_) => *pressure = PressureSpec::PressureDrop(None),
-                None => {}
-            }
-            match pressure {
-                PressureSpec::OutletPressure(p) => {
-                    opt_field(ui, "Outlet pressure", p, Quantity::Pressure, u)
-                }
-                PressureSpec::PressureDrop(dp) => {
-                    opt_field(ui, "Pressure drop", dp, Quantity::PressureDrop, u)
-                }
-            }
-            value_field(
-                ui,
-                "Isentropic efficiency",
-                efficiency,
-                Quantity::Fraction,
-                u,
-            );
-            note_row(ui, ROTATING_DEFERRED);
-        }
+        UnitSpec::Pressurize { .. } | UnitSpec::Expand { .. } => rotating::core_form(ui, spec, u),
     }
 }
-
-/// Pumps, compressors, and expanders need a PS flash (proposal section 2.3).
-const ROTATING_DEFERRED: &str = "Calculation deferred: needs a PS flash and efficiency model.";
 
 /// A row of radio buttons; returns the newly chosen index if it changed.
 fn choice(ui: &mut Ui, label: &str, current: usize, options: &[&str]) -> Option<usize> {
@@ -282,4 +283,38 @@ fn value_field(ui: &mut Ui, label: &str, si: &mut f64, q: Quantity, u: DisplayUn
         *si = u.display_to_si(q, shown);
     }
     ui.end_row();
+}
+
+/// A count (number of feeds, passes, …) edited as an integer in `range`.
+/// Returns whether it changed.
+fn count_field(
+    ui: &mut Ui,
+    label: &str,
+    n: &mut u16,
+    range: std::ops::RangeInclusive<u16>,
+) -> bool {
+    let label = ui.label(label);
+    let changed = ui
+        .add(DragValue::new(n).range(range).speed(0.05))
+        .labelled_by(label.id)
+        .changed();
+    ui.end_row();
+    changed
+}
+
+/// Note shown in the form of a kind that is drawn only.
+fn drawn_only_note(ui: &mut Ui, kind: UnitKind) {
+    if let CalculationStatus::DrawnOnly(reason) = kind.calculation_status() {
+        let issue = kind
+            .issue()
+            .map_or_else(String::new, |n| format!(" (#{n})"));
+        let warning = Theme::from_visuals(ui.visuals()).warning;
+        ui.label("");
+        ui.label(
+            RichText::new(format!("Not calculated: {kind} {reason}{issue}."))
+                .small()
+                .color(warning),
+        );
+        ui.end_row();
+    }
 }

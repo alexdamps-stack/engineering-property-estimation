@@ -286,15 +286,15 @@ fn malformed_and_foreign_files_are_rejected() {
         Project::from_json(&text.replacen(from, to, 1))
     };
     assert_eq!(
-        edit("\"format_version\": 3", "\"format_version\": 4").unwrap_err(),
-        ProjectError::UnsupportedVersion(Some(4))
+        edit("\"format_version\": 4", "\"format_version\": 5").unwrap_err(),
+        ProjectError::UnsupportedVersion(Some(5))
     );
     assert_eq!(
-        edit("\"format_version\": 3", "\"format_version\": 0").unwrap_err(),
+        edit("\"format_version\": 4", "\"format_version\": 0").unwrap_err(),
         ProjectError::UnsupportedVersion(Some(0))
     );
     assert_eq!(
-        edit("\"format_version\": 3", "\"format\": 3").unwrap_err(),
+        edit("\"format_version\": 4", "\"format\": 4").unwrap_err(),
         ProjectError::UnsupportedVersion(None)
     );
     assert!(matches!(
@@ -427,18 +427,18 @@ fn reloaded_projects_continue_identifiers_and_tags() {
 }
 
 #[test]
-fn version_3_is_written_and_version_1_and_2_files_still_load() {
-    assert_eq!(flowsheet_project::FORMAT_VERSION, 3);
+fn version_4_is_written_and_version_1_to_3_files_still_load() {
+    assert_eq!(flowsheet_project::FORMAT_VERSION, 4);
     let mut project = demonstration(CubicVariantChoice::PengRobinson);
     project.results = Some(solve(&project));
     let text = project.to_json().unwrap();
-    assert!(text.contains("\"format_version\": 3"));
+    assert!(text.contains("\"format_version\": 4"));
 
-    // Version-1 and version-2 files without exchangers have the same
-    // content and are written back as version 3.
-    for old in [1, 2] {
+    // Version-1 to version-3 files without exchangers or energy streams have the same
+    // content and are written back as version 4.
+    for old in [1, 2, 3] {
         let older = text.replacen(
-            "\"format_version\": 3",
+            "\"format_version\": 4",
             &format!("\"format_version\": {old}"),
             1,
         );
@@ -451,7 +451,7 @@ fn version_3_is_written_and_version_1_and_2_files_still_load() {
     let example = include_str!("../../../examples/recycle.flowsheet.json");
     assert!(example.contains("\"format_version\": 1"));
     let loaded = Project::from_json(example).unwrap();
-    assert!(loaded.to_json().unwrap().contains("\"format_version\": 3"));
+    assert!(loaded.to_json().unwrap().contains("\"format_version\": 4"));
 }
 
 /// The demonstration feeds routed through a heat exchanger that moves 1 kW
@@ -508,7 +508,7 @@ fn exchanger_transferred_duty_is_stored_saved_and_reloaded() {
     }
     project.results = Some(results);
     let text = project.to_json().unwrap();
-    assert!(text.contains("\"format_version\": 3"));
+    assert!(text.contains("\"format_version\": 4"));
     assert_eq!(text.matches("\"transferred_duty_w\": 1000.0").count(), 1);
     let loaded = Project::from_json(&text).unwrap();
     assert_eq!(loaded.results, project.results);
@@ -519,16 +519,16 @@ fn exchanger_transferred_duty_is_stored_saved_and_reloaded() {
     );
 
     // A version-2 file has no transferred duty: it loads without one and is
-    // written back as version 3, still without one until recalculated.
+    // written back as version 4, still without one until recalculated.
     let v2 = text
-        .replacen("\"format_version\": 3", "\"format_version\": 2", 1)
+        .replacen("\"format_version\": 4", "\"format_version\": 2", 1)
         .replace("\"transferred_duty_w\": 1000.0,", "");
     assert!(!v2.contains("transferred_duty_w"));
     let loaded = Project::from_json(&v2).unwrap();
     let stored = &loaded.results.as_ref().unwrap().units[&ex];
     assert_eq!((stored.duty_w, stored.transferred_duty_w), (0.0, None));
     let resaved = loaded.to_json().unwrap();
-    assert!(resaved.contains("\"format_version\": 3"));
+    assert!(resaved.contains("\"format_version\": 4"));
     assert!(!resaved.contains("transferred_duty_w"));
 
     // Non-finite values cannot be saved.
@@ -750,5 +750,54 @@ fn packages_without_components_are_rejected_on_load() {
     assert!(
         matches!(&err, ProjectError::Package(m) if m.contains("at least one component")),
         "{err}"
+    );
+}
+
+#[test]
+fn energy_streams_and_every_unit_kind_round_trip_in_version_4() {
+    let mut project = demonstration(CubicVariantChoice::PengRobinsonBostonMathias);
+    let cooler = unit(&project, UnitKind::Cooler);
+    let fs = &mut project.flowsheet;
+    let sink = fs.add_unit(UnitKind::EnergySink);
+    // Cooler energy port follows its two material ports.
+    let q = fs
+        .connect(PortRef::new(cooler, 2), PortRef::new(sink, 0))
+        .unwrap();
+    let results = solve(&project);
+    let removed = -results.units[&cooler].duty_w;
+    assert!(removed > 0.0);
+    assert_eq!(results.energy_streams[&q].duty_w, removed);
+    assert!(!results.streams.contains_key(&q));
+    project.results = Some(results);
+    // Every kind's default record is written and read back.
+    for kind in UnitKind::ALL {
+        project.flowsheet.add_unit(kind);
+    }
+    let text = project.to_json().unwrap();
+    assert!(text.contains("\"energy_streams\""));
+    assert!(text.contains("\"type\": \"reactors\""));
+    let loaded = Project::from_json(&text).unwrap();
+    assert!(loaded.flowsheet.same_calculation_inputs(&project.flowsheet));
+    assert_eq!(loaded.results, project.results);
+    assert_eq!(loaded.to_json().unwrap(), text);
+    let fps = loaded.fingerprints();
+    let stored = loaded.results.as_ref().unwrap();
+    assert_eq!(
+        stored.stream_currency(&loaded.flowsheet, q, &fps),
+        Currency::Current
+    );
+    // The energy stream depends on both ends: editing the cooler makes it stale.
+    let mut edited = loaded.clone();
+    edited.flowsheet.set_spec(
+        cooler,
+        UnitSpec::HeatExchange {
+            thermal: flowsheet_core::ThermalSpec::OutletTemperature(Some(250.0)),
+            pressure_drop_pa: 0.0,
+        },
+    );
+    let fps = edited.fingerprints();
+    assert_eq!(
+        stored.stream_currency(&edited.flowsheet, q, &fps),
+        Currency::Stale
     );
 }

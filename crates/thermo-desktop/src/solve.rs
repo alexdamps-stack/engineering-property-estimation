@@ -42,7 +42,7 @@ impl PackageCache {
 }
 
 pub(crate) enum SolveOutcome {
-    Solved(ResultSet),
+    Solved(Box<ResultSet>),
     Failed(SolveFailure),
 }
 
@@ -92,7 +92,7 @@ impl SolveJob {
                     .duration_since(std::time::UNIX_EPOCH)
                     .map_or(0, |d| d.as_secs());
                 let outcome = match solve_project(&project, &package, progress, now) {
-                    Ok(r) => SolveOutcome::Solved(r),
+                    Ok(r) => SolveOutcome::Solved(Box::new(r)),
                     Err(f) => SolveOutcome::Failed(f),
                 };
                 // The receiver is gone if the job was cancelled; that is fine.

@@ -20,7 +20,9 @@
 use eframe::egui::{self, Event, Key, Modifiers, PointerButton, Pos2, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use flowsheet_core::{PortRef, PressureSpec, StreamId, UnitId, UnitKind, UnitSpec};
+use flowsheet_core::{
+    PaletteCategory, PortRef, PressureSpec, StreamId, UnitId, UnitKind, UnitSpec,
+};
 use thermo_desktop::FlowsheetApp;
 use thermo_desktop::editor::{ItemStatus, Selection};
 use thermo_desktop::view::{port_exit, port_pos, stream_route};
@@ -244,6 +246,9 @@ fn two_units(a: UnitKind, b: UnitKind) -> FlowsheetApp {
 #[test]
 fn palette_click_places_and_selects_a_unit() {
     let mut h = harness(FlowsheetApp::default(), egui::Theme::Dark);
+    // The grouped palette (A17) is taller than the window: scroll to the entry.
+    h.get_by_label("Valve").scroll_to_me();
+    h.run();
     h.get_by_label("Valve").click();
     h.run();
     let ed = h.state().editor();
@@ -464,6 +469,14 @@ fn snapshot_selected_cooler_properties() {
 fn every_palette_entry_places_its_unit_kind() {
     let mut h = harness(FlowsheetApp::default(), egui::Theme::Dark);
     for kind in UnitKind::ALL {
+        // Only the kind's palette category is expanded, so it is in view.
+        for category in PaletteCategory::ALL {
+            h.state_mut()
+                .set_palette_category_open(category, category == kind.category());
+        }
+        h.run();
+        h.get_by_label(kind.label()).scroll_to_me();
+        h.run();
         h.get_by_label(kind.label()).click();
         h.run();
         let ed = h.state().editor();

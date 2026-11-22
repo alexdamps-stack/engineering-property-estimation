@@ -115,6 +115,11 @@ pub struct TracedSymbol {
     /// IDs of nozzle stubs that are drawn but are not part of the body, so
     /// the background mask does not cover the gap between stub and body.
     stubs: &'static [&'static str],
+    /// Whether the kind's port coordinates in [`crate::view`] were reviewed
+    /// against the traced line work (a test then checks every port lies on
+    /// it). A17 kinds start unreviewed: their nozzles sit on the block edge
+    /// and the owning group reviews them with the calculation.
+    pub reviewed_ports: bool,
 }
 
 macro_rules! traced {
@@ -129,13 +134,30 @@ macro_rules! traced {
             )),
             pipes: &$pipes,
             stubs: &$stubs,
+            reviewed_ports: true,
+        }
+    };
+    // A17 kinds: the whole reference drawing, nozzle stubs included.
+    ($kind:ident, $asset:literal $(,)?) => {
+        TracedSymbol {
+            kind: UnitKind::$kind,
+            asset: $asset,
+            svg: include_str!(concat!(
+                "../../../docs/design-reference/iso-10628/symbols/",
+                $asset,
+                ".svg"
+            )),
+            pipes: &[],
+            stubs: &[],
+            reviewed_ports: false,
         }
     };
 }
 
-/// Reference symbol of each unit kind that has one. Feed, product and
-/// splitter have none and keep their project drawings.
-pub const TRACED: [TracedSymbol; 9] = [
+/// Reference symbol of each unit kind that has one. Feed, product, the
+/// energy boundaries, the splitter and the logical blocks have none and
+/// keep project drawings ([`fallback_code`]).
+pub const TRACED: [TracedSymbol; 48] = [
     traced!(Mixer, "s4-x2673-in-line-static-mixer",
         pipes: ["path3552", "path3554"], stubs: []),
     // Heater and cooler: the process line crosses the exchanger; the
@@ -156,7 +178,110 @@ pub const TRACED: [TracedSymbol; 9] = [
         pipes: ["path2892", "path3544"], stubs: []),
     traced!(Separator, "s1-2062-tank-vessel-with-dished-ends",
         pipes: ["path904-9", "path906-3"], stubs: []),
+    // A17 palette (docs/a17-architecture.md). A symbol does not imply a
+    // calculation; see `UnitKind::calculation_status`.
+    traced!(ComponentSplitter, "s3-x2616-impact-separator"),
+    traced!(Selector, "s6-2103-valve-three-way-type-general"),
+    traced!(StreamCutter, "s6-516-reducer"),
+    traced!(
+        ThreePhaseSeparator,
+        "s1-x8201-vessel-with-two-different-diameters"
+    ),
+    traced!(Decanter, "s3-x8031-gravity-separator-settling-chamber"),
+    traced!(Tank, "s1-x2063-tank-with-conical-roof-and-flat-bottom"),
+    traced!(
+        AirCooler,
+        "s2-x2505-heat-exchanger-with-finned-tube-and-fan"
+    ),
+    traced!(FiredHeater, "s2-2533-furnace"),
+    traced!(MultiStreamExchanger, "s2-2516-heat-exchanger-of-plate-type"),
+    traced!(
+        MultistageCompressor,
+        "s4-x8102-compressor-vacuum-pump-turbo-type"
+    ),
+    traced!(PipeSegment, "s6-x322-pipeline-with-thermal-insulation"),
+    traced!(
+        ReliefValve,
+        "s6-x2124-safety-valve-spring-loaded-globe-type"
+    ),
+    traced!(ShortcutColumn, "s1-x8100-column-general"),
+    traced!(DistillationColumn, "s1-x8101-tray-column-general"),
+    traced!(
+        Absorber,
+        "s1-x8016-column-with-two-fixed-bed-sections-and-intermediate-spray-nozzle"
+    ),
+    traced!(ThreePhaseColumn, "s1-x8012-column-with-valve-trays"),
+    traced!(LiquidExtractor, "s1-x8013-column-staggered-baffle-trays"),
+    traced!(
+        PetroleumFractionator,
+        "s1-x8011-column-with-bubble-cap-trays"
+    ),
+    traced!(
+        ConversionReactor,
+        "s1-x8004-vessel-with-dished-ends-and-support-skirt"
+    ),
+    traced!(
+        YieldReactor,
+        "s1-x8005-vessel-with-dished-ends-and-support-ring"
+    ),
+    traced!(
+        EquilibriumReactor,
+        "s1-x8003-vessel-with-dished-ends-and-support-brackets"
+    ),
+    traced!(
+        GibbsReactor,
+        "s1-x8098-vessel-with-dished-ends-and-thermal-insulation"
+    ),
+    traced!(
+        Cstr,
+        "s1-x8006-jacketed-vessel-with-dished-ends-and-agitator-driven-by-electric-motor"
+    ),
+    traced!(PlugFlowReactor, "s1-x8015-column-with-fixed-bed"),
+    traced!(
+        BatchReactor,
+        "s1-x2069-vessel-with-dished-ends-and-heating-cooling-jacket"
+    ),
+    traced!(Cyclone, "s3-x2618-separator-cyclone-type"),
+    traced!(Hydrocyclone, "s3-x2618-separator-cyclone-type"),
+    traced!(Baghouse, "s3-x8022-gas-filter-bag-candle-or-cartridge-type"),
+    traced!(
+        RotaryFilter,
+        "s3-x8119-liquid-rotary-filter-drum-or-disc-type"
+    ),
+    traced!(SolidsSeparator, "s3-x8081-separator-sifter-general"),
+    traced!(
+        Crystallizer,
+        "s1-x8008-vessel-with-dished-roof-and-conical-bottom"
+    ),
+    traced!(Centrifuge, "s3-x8035-centrifuge-with-solid-shell"),
+    traced!(
+        ElectrostaticPrecipitator,
+        "s3-x8125-separator-precipitator-electrostatic-type"
+    ),
+    traced!(VenturiScrubber, "s3-x8034-separator-scrubber-venturi-type"),
+    traced!(Crusher, "s4-x8085-crusher-general"),
+    traced!(Screen, "s3-x8123-screening-device-sieve-strainer-general"),
+    traced!(Dryer, "s4-c0046-drier-general"),
+    traced!(Granulator, "s4-x8057-pelletizing-disc"),
+    traced!(SolidsWasher, "s3-x8124-separator-scrubber-wet-type"),
 ];
+
+/// Short code drawn in the box of a kind without a reference symbol:
+/// ISO 10628-2 has no symbols for logical blocks. `None` for kinds with a
+/// dedicated project drawing (feed, product, energy boundaries, splitter).
+pub fn fallback_code(kind: UnitKind) -> Option<&'static str> {
+    Some(match kind {
+        UnitKind::Multiplier => "×n",
+        UnitKind::Adjust => "ADJ",
+        UnitKind::Set => "SET",
+        UnitKind::Spreadsheet => "f(x)",
+        UnitKind::Balance => "BAL",
+        UnitKind::RecycleBlock => "RCY",
+        UnitKind::ControlBlock => "PID",
+        UnitKind::UserUnit => "USER",
+        _ => return None,
+    })
+}
 
 /// Stroke width of equipment outlines on the reference sheets (mm). Line
 /// weights are drawn relative to it.
@@ -414,6 +539,30 @@ pub fn draw_unit(painter: &Painter, kind: UnitKind, r: Rect, stroke: Stroke, fil
             ];
             painter.add(Shape::convex_polygon(pts, fill, stroke));
         }
+        UnitKind::EnergySource | UnitKind::EnergySink => {
+            // Project symbol (#171): a dashed boundary flag marked Q, as the
+            // dashed energy streams; the reference has no energy symbol.
+            let tip = r.height() * 0.5;
+            let pts = [
+                r.left_top(),
+                pos2(r.right() - tip, r.top()),
+                pos2(r.right(), c.y),
+                pos2(r.right() - tip, r.bottom()),
+                r.left_bottom(),
+            ];
+            painter.add(Shape::convex_polygon(pts.to_vec(), fill, Stroke::NONE));
+            let mut closed = pts.to_vec();
+            closed.push(pts[0]);
+            let dash = (r.height() * 0.2).max(2.0);
+            painter.extend(Shape::dashed_line(&closed, stroke, dash, dash * 0.6));
+            painter.text(
+                pos2(c.x - tip * 0.3, c.y),
+                eframe::egui::Align2::CENTER_CENTER,
+                "Q",
+                eframe::egui::FontId::monospace((r.height() * 0.55).max(6.0)),
+                stroke.color,
+            );
+        }
         UnitKind::Splitter => {
             // Project symbol: one inlet forking to the two outlet nozzles.
             // ISO 10628-2 has no unit symbol for a stream split.
@@ -432,10 +581,21 @@ pub fn draw_unit(painter: &Painter, kind: UnitKind, r: Rect, stroke: Stroke, fil
                 thin,
             );
         }
-        // Every other kind has a traced symbol; an outline that failed to
-        // parse (caught by the tests) falls back to a plain box.
+        // Logical blocks: a box with a short code. Every other kind has a
+        // traced symbol; an outline that failed to parse (caught by the
+        // tests) falls back to a plain box.
         _ => {
             painter.rect(r, 0, fill, stroke, eframe::egui::StrokeKind::Middle);
+            if let Some(code) = fallback_code(kind) {
+                let size = (r.height() * 0.38).min(r.width() / code.len().max(2) as f32 * 1.4);
+                painter.text(
+                    c,
+                    eframe::egui::Align2::CENTER_CENTER,
+                    code,
+                    eframe::egui::FontId::monospace(size.max(5.0)),
+                    stroke.color,
+                );
+            }
         }
     }
 }
@@ -523,10 +683,36 @@ mod tests {
             .into_iter()
             .filter(|&k| traced_symbol(k).is_none())
             .collect();
+        // Logical blocks have no ISO 10628 symbol; everything else does.
         assert_eq!(
             missing,
-            [UnitKind::Feed, UnitKind::Splitter, UnitKind::Product]
+            [
+                UnitKind::Feed,
+                UnitKind::Product,
+                UnitKind::EnergySource,
+                UnitKind::EnergySink,
+                UnitKind::Splitter,
+                UnitKind::Multiplier,
+                UnitKind::Adjust,
+                UnitKind::Set,
+                UnitKind::Spreadsheet,
+                UnitKind::Balance,
+                UnitKind::RecycleBlock,
+                UnitKind::ControlBlock,
+                UnitKind::UserUnit,
+            ]
         );
+        for kind in missing {
+            let project_drawing = matches!(
+                kind,
+                UnitKind::Feed
+                    | UnitKind::Product
+                    | UnitKind::EnergySource
+                    | UnitKind::EnergySink
+                    | UnitKind::Splitter
+            );
+            assert_eq!(fallback_code(kind).is_none(), project_drawing, "{kind}");
+        }
     }
 
     /// The block keeps the reference proportions, so the traced geometry
@@ -550,7 +736,7 @@ mod tests {
     /// must still land on the traced line work.
     #[test]
     fn every_port_lies_on_the_traced_line_work() {
-        for t in &TRACED {
+        for t in TRACED.iter().filter(|t| t.reviewed_ports) {
             let o = outline(t.kind).unwrap();
             let rect = block_rect(t.kind, Pos2::ZERO);
             let lines: Vec<Vec<Pos2>> = o

@@ -2,7 +2,7 @@
 //! and results.
 
 use eframe::egui::{self, DragValue, RichText, Ui};
-use flowsheet_core::{PortDirection, PortRef, SpecProblem, UnitId, UnitKind};
+use flowsheet_core::{PortDirection, PortMedium, PortRef, SpecProblem, UnitId, UnitKind};
 use flowsheet_project::Fingerprints;
 use thermo_types::COMPOSITION_SUM_TOLERANCE;
 
@@ -37,14 +37,18 @@ pub(super) fn unit_properties(ui: &mut Ui, ed: &mut Editor, id: UnitId) {
 
     ui.add_space(8.0);
     ui.strong("Specification");
-    let mut spec = unit.spec;
+    let mut spec = unit.spec.clone();
     let u = ed.units;
     egui::Grid::new(("spec", id))
         .num_columns(2)
         .spacing([8.0, 6.0])
-        .show(ui, |ui| spec_form(ui, &mut spec, u));
-    ed.fs.set_spec(id, spec);
-    for issue in spec.issues() {
+        .show(ui, |ui| spec_form(ui, unit.kind, &mut spec, u));
+    let issues = spec.issues();
+    if let Err(e) = ed.fs.try_set_spec(id, spec) {
+        // For example fewer column feeds while the last one is connected.
+        ed.status = Some(format!("Specification not changed: {e}."));
+    }
+    for issue in issues {
         if issue.problem != SpecProblem::Missing {
             ui.colored_label(
                 theme.warning,
@@ -61,14 +65,21 @@ pub(super) fn unit_properties(ui: &mut Ui, ed: &mut Editor, id: UnitId) {
     egui::Grid::new(("ports", id))
         .num_columns(2)
         .show(ui, |ui| {
-            for (i, port) in unit.kind.ports().iter().enumerate() {
-                ui.label(port.name);
+            for (i, port) in unit.ports().iter().enumerate() {
+                let label = match port.medium {
+                    PortMedium::Material => port.label(),
+                    PortMedium::Energy => format!("{port} (energy)"),
+                };
+                ui.label(label);
                 match ed.fs.stream_at(PortRef::new(id, i)) {
                     Some(s) => {
                         let sid = s.id;
                         if ui.link(s.name.clone()).clicked() {
                             ed.selection = Some(Selection::Stream(sid));
                         }
+                    }
+                    None if port.optional => {
+                        ui.label(RichText::new("optional, not connected").weak());
                     }
                     None => {
                         ui.label(RichText::new("not connected").color(theme.warning));
@@ -205,10 +216,38 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                     });
                     ui.end_row();
                 }
-                // Outlet summary from the first outlet stream.
-                if let Some(kind) = kind {
-                    for (i, port) in kind.ports().iter().enumerate() {
-                        if port.direction != PortDirection::Outlet {
+                // Energy streams at the unit (#171), positive in the stream
+                // direction.
+                let ports = ed.fs.unit(id).map(|x| x.ports()).unwrap_or_default();
+                for (i, port) in ports.iter().enumerate() {
+                    if port.medium != PortMedium::Energy {
+                        continue;
+                    }
+                    let Some(s) = ed.fs.stream_at(PortRef::new(id, i)) else {
+                        continue;
+                    };
+                    let Some(e) = ed
+                        .results
+                        .as_ref()
+                        .and_then(|r| r.energy_streams.get(&s.id))
+                    else {
+                        continue;
+                    };
+                    let st = ed.stream_status(s.id, fps) == Some(ItemStatus::Stale) || stale;
+                    let arrow = match port.direction {
+                        PortDirection::Inlet => "in",
+                        PortDirection::Outlet => "out",
+                    };
+                    ui.label(format!("{port} ({}, {arrow})", s.name));
+                    ui.label(value_text(format_quantity(u, Quantity::Duty, e.duty_w), st));
+                    ui.end_row();
+                }
+                // Outlet summary of every connected material outlet.
+                if kind.is_some() {
+                    for (i, port) in ports.iter().enumerate() {
+                        if port.direction != PortDirection::Outlet
+                            || port.medium != PortMedium::Material
+                        {
                             continue;
                         }
                         let Some(s) = ed.fs.stream_at(PortRef::new(id, i)) else {
@@ -220,7 +259,7 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         };
                         let current = ed.stream_status(s.id, fps);
                         let st = current == Some(ItemStatus::Stale) || stale;
-                        ui.label(format!("{} ({})", port.name, s.name));
+                        ui.label(format!("{} ({})", port.label(), s.name));
                         ui.label(value_text(stream_summary(sr, u), st));
                         ui.end_row();
                     }

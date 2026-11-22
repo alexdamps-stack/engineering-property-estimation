@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use flowsheet_core::{Flowsheet, PortDirection, PortRef, StreamId, UnitId};
+use flowsheet_core::{Flowsheet, PortDirection, PortMedium, PortRef, StreamId, UnitId};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::records::{KindRecord, SpecRecord};
@@ -128,7 +128,16 @@ impl Fingerprints {
     pub fn stream(&self, fs: &Flowsheet, id: StreamId) -> Option<Fingerprint> {
         let s = fs.stream(id)?;
         let source = self.units.get(&s.from.unit)?;
-        Some(stream_fp(*source, s.from.port))
+        let fp = stream_fp(*source, s.from.port);
+        if fs.stream_medium(id) == Some(PortMedium::Energy) {
+            // An energy source left to the connected unit reports that
+            // unit's duty, so an energy stream depends on both ends.
+            let destination = self.units.get(&s.to.unit)?;
+            let mut h = Fnv::new();
+            h.field("energy").number(fp.0).number(destination.0);
+            return Some(h.finish());
+        }
+        Some(fp)
     }
 
     /// One digest of all unit fingerprints, used to recognise whether the
@@ -162,15 +171,21 @@ fn local_inputs(fs: &Flowsheet, feeds: &FeedFractions, id: UnitId) -> InputNode 
     let mut h = Fnv::new();
     h.number(id.0)
         .field(&serde_json::to_string(&KindRecord::from(u.kind)).expect("kind"))
-        .field(&serde_json::to_string(&SpecRecord::from(u.spec)).expect("spec"))
+        .field(&serde_json::to_string(&SpecRecord::from(&u.spec)).expect("spec"))
         .field(&serde_json::to_string(&feeds.get(&id)).expect("feed"));
     let mut upstream = vec![];
-    for (i, port) in u.kind.ports().iter().enumerate() {
+    for (i, port) in u.ports().iter().enumerate() {
         if port.direction != PortDirection::Inlet {
             continue;
         }
+        let stream = fs.stream_at(PortRef::new(id, i));
+        // An unconnected optional port (such as a heater's energy inlet) is
+        // not an input; skipping it keeps fingerprints of earlier projects.
+        if port.optional && stream.is_none() {
+            continue;
+        }
         h.number(i as u64);
-        match fs.stream_at(PortRef::new(id, i)) {
+        match stream {
             Some(s) => {
                 h.field("connected")
                     .number(s.from.unit.0)

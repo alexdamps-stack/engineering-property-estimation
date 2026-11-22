@@ -1,68 +1,75 @@
 //! Serializable mirrors of the `flowsheet-core` topology and specifications.
 //!
 //! The engine types stay free of serialization concerns; these records define
-//! the stable JSON spelling of project format versions 1 to 3 (which share
-//! the same input records).
+//! the stable JSON spelling of the project format. Versions 1 to 3 share the
+//! core records below; version 4 (A17 foundation) adds the energy records and
+//! one nested record per unit group, `{"type": "<group>", "unit": {"kind":
+//! "<kind>", ...}}`, owned by `records/<group>.rs`. Groups add fields with
+//! `#[serde(default)]` behind version 4; only the integrator bumps
+//! [`crate::FORMAT_VERSION`] (`docs/a17-architecture.md`).
 
 use flowsheet_core::{
-    ExchangerSpec, MixerPressure, PressureRise, PressureSpec, SeparatorThermal, ThermalSpec,
-    UnitKind, UnitSpec,
+    EnergySourceDuty, ExchangerSpec, MixerPressure, PressureRise, PressureSpec, SeparatorThermal,
+    ThermalSpec, UnitKind, UnitSpec,
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum KindRecord {
-    Feed,
-    Product,
-    Mixer,
-    Heater,
-    Cooler,
-    Valve,
-    Separator,
-    Splitter,
-    HeatExchanger,
-    Pump,
-    Compressor,
-    Expander,
+mod columns;
+mod heat_transport;
+mod multiphase;
+mod reactors;
+mod rotating;
+mod simple_logical;
+mod solids;
+
+pub(crate) use columns::ColumnRecord;
+pub(crate) use heat_transport::HeatTransportRecord;
+pub(crate) use multiphase::MultiphaseRecord;
+pub(crate) use reactors::ReactorRecord;
+pub(crate) use rotating::RotatingRecord;
+pub(crate) use simple_logical::SimpleLogicalRecord;
+pub(crate) use solids::SolidsRecord;
+
+/// Generates [`KindRecord`] with conversions from and to [`UnitKind`]; the
+/// JSON name is the snake-case variant name.
+macro_rules! kind_records {
+    ($($kind:ident),* $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        #[serde(rename_all = "snake_case")]
+        pub(crate) enum KindRecord {
+            $($kind,)*
+        }
+
+        impl From<UnitKind> for KindRecord {
+            fn from(k: UnitKind) -> Self {
+                match k {
+                    $(UnitKind::$kind => KindRecord::$kind,)*
+                }
+            }
+        }
+
+        impl From<KindRecord> for UnitKind {
+            fn from(k: KindRecord) -> Self {
+                match k {
+                    $(KindRecord::$kind => UnitKind::$kind,)*
+                }
+            }
+        }
+    };
 }
 
-impl From<UnitKind> for KindRecord {
-    fn from(k: UnitKind) -> Self {
-        match k {
-            UnitKind::Feed => KindRecord::Feed,
-            UnitKind::Product => KindRecord::Product,
-            UnitKind::Mixer => KindRecord::Mixer,
-            UnitKind::Heater => KindRecord::Heater,
-            UnitKind::Cooler => KindRecord::Cooler,
-            UnitKind::Valve => KindRecord::Valve,
-            UnitKind::Separator => KindRecord::Separator,
-            UnitKind::Splitter => KindRecord::Splitter,
-            UnitKind::HeatExchanger => KindRecord::HeatExchanger,
-            UnitKind::Pump => KindRecord::Pump,
-            UnitKind::Compressor => KindRecord::Compressor,
-            UnitKind::Expander => KindRecord::Expander,
-        }
-    }
-}
-
-impl From<KindRecord> for UnitKind {
-    fn from(k: KindRecord) -> Self {
-        match k {
-            KindRecord::Feed => UnitKind::Feed,
-            KindRecord::Product => UnitKind::Product,
-            KindRecord::Mixer => UnitKind::Mixer,
-            KindRecord::Heater => UnitKind::Heater,
-            KindRecord::Cooler => UnitKind::Cooler,
-            KindRecord::Valve => UnitKind::Valve,
-            KindRecord::Separator => UnitKind::Separator,
-            KindRecord::Splitter => UnitKind::Splitter,
-            KindRecord::HeatExchanger => UnitKind::HeatExchanger,
-            KindRecord::Pump => UnitKind::Pump,
-            KindRecord::Compressor => UnitKind::Compressor,
-            KindRecord::Expander => UnitKind::Expander,
-        }
-    }
+kind_records! {
+    Feed, Product, Mixer, Heater, Cooler, Valve, Separator, Splitter, HeatExchanger, Pump,
+    Compressor, Expander,
+    // Format version 4 (A17).
+    EnergySource, EnergySink, ComponentSplitter, Multiplier, Selector, StreamCutter,
+    ThreePhaseSeparator, Decanter, Tank, AirCooler, FiredHeater, MultiStreamExchanger,
+    MultistageCompressor, PipeSegment, ReliefValve, ShortcutColumn, DistillationColumn, Absorber,
+    ThreePhaseColumn, LiquidExtractor, PetroleumFractionator, ConversionReactor, YieldReactor,
+    EquilibriumReactor, GibbsReactor, Cstr, PlugFlowReactor, BatchReactor, Cyclone, Hydrocyclone,
+    Baghouse, RotaryFilter, SolidsSeparator, Crystallizer, Centrifuge, ElectrostaticPrecipitator,
+    VenturiScrubber, Crusher, Screen, Dryer, Granulator, SolidsWasher, Adjust, Set, Spreadsheet,
+    Balance, RecycleBlock, ControlBlock, UserUnit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -78,6 +85,8 @@ pub(crate) enum ThermalRecord {
     Adiabatic,
     OutletTemperatureK(Option<f64>),
     DutyW(Option<f64>),
+    /// Heater duty taken from its energy stream (version 4).
+    EnergyStream,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -98,8 +107,16 @@ pub(crate) enum ExchangerRecord {
     DutyW(Option<f64>),
 }
 
-/// Specification in SI units with absolute pressure; `null` means unset.
+/// Energy source duty (version 4).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum EnergyDutyRecord {
+    Calculated,
+    SpecifiedW(Option<f64>),
+}
+
+/// Specification in SI units with absolute pressure; `null` means unset.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum SpecRecord {
     Feed {
@@ -138,6 +155,32 @@ pub(crate) enum SpecRecord {
         pressure: PressureRecord,
         efficiency: f64,
     },
+    // Format version 4 (A17).
+    EnergySource {
+        duty: EnergyDutyRecord,
+    },
+    EnergySink,
+    Rotating {
+        unit: RotatingRecord,
+    },
+    HeatTransport {
+        unit: HeatTransportRecord,
+    },
+    SimpleLogical {
+        unit: SimpleLogicalRecord,
+    },
+    Reactors {
+        unit: ReactorRecord,
+    },
+    Columns {
+        unit: ColumnRecord,
+    },
+    Multiphase {
+        unit: MultiphaseRecord,
+    },
+    Solids {
+        unit: SolidsRecord,
+    },
 }
 
 impl SpecRecord {
@@ -149,7 +192,7 @@ impl SpecRecord {
             | PressureRecord::PressureIncreasePa(v) => v,
         };
         let thermal = |t: &ThermalRecord| match *t {
-            ThermalRecord::Adiabatic => None,
+            ThermalRecord::Adiabatic | ThermalRecord::EnergyStream => None,
             ThermalRecord::OutletTemperatureK(v) | ThermalRecord::DutyW(v) => v,
         };
         let values: Vec<Option<f64>> = match self {
@@ -158,7 +201,11 @@ impl SpecRecord {
                 pressure_pa,
                 molar_flow_mol_s,
             } => vec![*temperature_k, *pressure_pa, *molar_flow_mol_s],
-            SpecRecord::Product => vec![],
+            SpecRecord::Product | SpecRecord::EnergySink => vec![],
+            SpecRecord::EnergySource { duty } => match duty {
+                EnergyDutyRecord::Calculated => vec![],
+                EnergyDutyRecord::SpecifiedW(q) => vec![*q],
+            },
             SpecRecord::Mixer { outlet_pressure } => match outlet_pressure {
                 MixerPressureRecord::LowestInlet => vec![],
                 MixerPressureRecord::SpecifiedPa(p) => vec![*p],
@@ -194,18 +241,25 @@ impl SpecRecord {
                 pressure: p,
                 efficiency,
             } => vec![pressure(p), Some(*efficiency)],
+            SpecRecord::Rotating { unit } => return unit.numbers(),
+            SpecRecord::HeatTransport { unit } => return unit.numbers(),
+            SpecRecord::SimpleLogical { unit } => return unit.numbers(),
+            SpecRecord::Reactors { unit } => return unit.numbers(),
+            SpecRecord::Columns { unit } => return unit.numbers(),
+            SpecRecord::Multiphase { unit } => return unit.numbers(),
+            SpecRecord::Solids { unit } => return unit.numbers(),
         };
         values.into_iter().flatten().collect()
     }
 }
 
-impl From<UnitSpec> for SpecRecord {
-    fn from(s: UnitSpec) -> Self {
+impl From<&UnitSpec> for SpecRecord {
+    fn from(s: &UnitSpec) -> Self {
         let drop_or_outlet = |p: PressureSpec| match p {
             PressureSpec::OutletPressure(v) => PressureRecord::OutletPressurePa(v),
             PressureSpec::PressureDrop(v) => PressureRecord::PressureDropPa(v),
         };
-        match s {
+        match *s {
             UnitSpec::Feed {
                 temperature_k,
                 pressure_pa,
@@ -216,6 +270,13 @@ impl From<UnitSpec> for SpecRecord {
                 molar_flow_mol_s,
             },
             UnitSpec::Product => SpecRecord::Product,
+            UnitSpec::EnergySource { duty } => SpecRecord::EnergySource {
+                duty: match duty {
+                    EnergySourceDuty::Calculated => EnergyDutyRecord::Calculated,
+                    EnergySourceDuty::Specified(q) => EnergyDutyRecord::SpecifiedW(q),
+                },
+            },
+            UnitSpec::EnergySink => SpecRecord::EnergySink,
             UnitSpec::Mixer { outlet_pressure } => SpecRecord::Mixer {
                 outlet_pressure: match outlet_pressure {
                     MixerPressure::LowestInlet => MixerPressureRecord::LowestInlet,
@@ -229,6 +290,7 @@ impl From<UnitSpec> for SpecRecord {
                 thermal: match thermal {
                     ThermalSpec::OutletTemperature(t) => ThermalRecord::OutletTemperatureK(t),
                     ThermalSpec::Duty(q) => ThermalRecord::DutyW(q),
+                    ThermalSpec::EnergyStream => ThermalRecord::EnergyStream,
                 },
                 pressure_drop_pa,
             },
@@ -281,6 +343,13 @@ impl From<UnitSpec> for SpecRecord {
                 pressure: drop_or_outlet(pressure),
                 efficiency,
             },
+            UnitSpec::Rotating(ref s) => SpecRecord::Rotating { unit: s.into() },
+            UnitSpec::HeatTransport(ref s) => SpecRecord::HeatTransport { unit: s.into() },
+            UnitSpec::SimpleLogical(ref s) => SpecRecord::SimpleLogical { unit: s.into() },
+            UnitSpec::Reactors(ref s) => SpecRecord::Reactors { unit: s.into() },
+            UnitSpec::Columns(ref s) => SpecRecord::Columns { unit: s.into() },
+            UnitSpec::Multiphase(ref s) => SpecRecord::Multiphase { unit: s.into() },
+            UnitSpec::Solids(ref s) => SpecRecord::Solids { unit: s.into() },
         }
     }
 }
@@ -308,6 +377,13 @@ impl TryFrom<SpecRecord> for UnitSpec {
                 molar_flow_mol_s,
             },
             SpecRecord::Product => UnitSpec::Product,
+            SpecRecord::EnergySource { duty } => UnitSpec::EnergySource {
+                duty: match duty {
+                    EnergyDutyRecord::Calculated => EnergySourceDuty::Calculated,
+                    EnergyDutyRecord::SpecifiedW(q) => EnergySourceDuty::Specified(q),
+                },
+            },
+            SpecRecord::EnergySink => UnitSpec::EnergySink,
             SpecRecord::Mixer { outlet_pressure } => UnitSpec::Mixer {
                 outlet_pressure: match outlet_pressure {
                     MixerPressureRecord::LowestInlet => MixerPressure::LowestInlet,
@@ -321,6 +397,7 @@ impl TryFrom<SpecRecord> for UnitSpec {
                 thermal: match thermal {
                     ThermalRecord::OutletTemperatureK(t) => ThermalSpec::OutletTemperature(t),
                     ThermalRecord::DutyW(q) => ThermalSpec::Duty(q),
+                    ThermalRecord::EnergyStream => ThermalSpec::EnergyStream,
                     ThermalRecord::Adiabatic => return unexpected("adiabatic"),
                 },
                 pressure_drop_pa,
@@ -336,6 +413,7 @@ impl TryFrom<SpecRecord> for UnitSpec {
                     ThermalRecord::Adiabatic => SeparatorThermal::Adiabatic,
                     ThermalRecord::OutletTemperatureK(t) => SeparatorThermal::OutletTemperature(t),
                     ThermalRecord::DutyW(q) => SeparatorThermal::Duty(q),
+                    ThermalRecord::EnergyStream => return unexpected("energy_stream"),
                 },
                 pressure_drop_pa,
             },
@@ -375,7 +453,32 @@ impl TryFrom<SpecRecord> for UnitSpec {
                 pressure: pressure(p)?,
                 efficiency,
             },
+            SpecRecord::Rotating { unit } => UnitSpec::Rotating(unit.try_into()?),
+            SpecRecord::HeatTransport { unit } => UnitSpec::HeatTransport(unit.try_into()?),
+            SpecRecord::SimpleLogical { unit } => UnitSpec::SimpleLogical(unit.try_into()?),
+            SpecRecord::Reactors { unit } => UnitSpec::Reactors(unit.try_into()?),
+            SpecRecord::Columns { unit } => UnitSpec::Columns(unit.try_into()?),
+            SpecRecord::Multiphase { unit } => UnitSpec::Multiphase(unit.try_into()?),
+            SpecRecord::Solids { unit } => UnitSpec::Solids(unit.try_into()?),
         })
+    }
+}
+
+/// A count stored in a group record, checked against the range the group
+/// accepts (`u16` keeps the JSON value integral).
+pub(crate) fn count_in(
+    value: u16,
+    field: &str,
+    range: std::ops::RangeInclusive<u16>,
+) -> Result<u16, String> {
+    if range.contains(&value) {
+        Ok(value)
+    } else {
+        Err(format!(
+            "{field} {value} is outside {}..={}",
+            range.start(),
+            range.end()
+        ))
     }
 }
 
@@ -387,12 +490,42 @@ mod tests {
     fn every_default_spec_round_trips() {
         for kind in UnitKind::ALL {
             let spec = kind.default_spec();
-            let json = serde_json::to_string(&SpecRecord::from(spec)).unwrap();
+            let json = serde_json::to_string(&SpecRecord::from(&spec)).unwrap();
             let back: SpecRecord = serde_json::from_str(&json).unwrap();
             assert_eq!(UnitSpec::try_from(back).unwrap(), spec, "{kind}");
             let k: KindRecord = kind.into();
             assert_eq!(UnitKind::from(k), kind);
         }
+    }
+
+    #[test]
+    fn group_records_nest_under_a_type_and_name_their_kind() {
+        let json =
+            serde_json::to_string(&SpecRecord::from(&UnitKind::Cstr.default_spec())).unwrap();
+        assert_eq!(json, r#"{"type":"reactors","unit":{"kind":"cstr"}}"#);
+        let json = serde_json::to_string(&SpecRecord::from(
+            &UnitKind::DistillationColumn.default_spec(),
+        ))
+        .unwrap();
+        assert_eq!(
+            json,
+            r#"{"type":"columns","unit":{"kind":"distillation_column","feeds":1,"side_draws":0}}"#
+        );
+        // Fields added later read with their default from older version-4 files.
+        let older: SpecRecord =
+            serde_json::from_str(r#"{"type":"columns","unit":{"kind":"distillation_column"}}"#)
+                .unwrap();
+        assert_eq!(
+            UnitSpec::try_from(older).unwrap(),
+            UnitKind::DistillationColumn.default_spec()
+        );
+        // Unknown fields are rejected rather than silently dropped.
+        assert!(
+            serde_json::from_str::<SpecRecord>(
+                r#"{"type":"reactors","unit":{"kind":"cstr","volume_m3":1.0}}"#
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -404,6 +537,11 @@ mod tests {
         assert!(UnitSpec::try_from(bad).is_err());
         let bad = SpecRecord::Valve {
             pressure: PressureRecord::PressureIncreasePa(Some(1.0)),
+        };
+        assert!(UnitSpec::try_from(bad).is_err());
+        let bad = SpecRecord::Separator {
+            thermal: ThermalRecord::EnergyStream,
+            pressure_drop_pa: 0.0,
         };
         assert!(UnitSpec::try_from(bad).is_err());
     }

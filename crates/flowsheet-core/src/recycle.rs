@@ -2,7 +2,7 @@
 use crate::engine::molar_thermal_scale;
 use crate::{
     Calculation, Diagnostic, DiagnosticKind, FeedCompositions, Flowsheet, MaterialStream,
-    PortDirection, PortRef, SolveError, SolveProgress, StreamId, UnitKind, UnitSpec,
+    PortMedium, SolveError, SolveProgress, StreamId, UnitKind, UnitSpec,
 };
 use property_packages::{CubicPackage, EquilibriumState};
 use std::collections::{BTreeMap, BTreeSet};
@@ -69,8 +69,9 @@ impl Flowsheet {
         let mut graph = self.clone();
         let mut tears = BTreeSet::new();
         while let Some(cycle) = graph.find_cycle() {
-            // Prefer a mixer inlet: a fresh flowing inlet can start a recycle
-            // from zero flow without sending an empty stream into a heater.
+            // Prefer a material stream (energy streams cannot be torn) and
+            // a mixer inlet: a fresh flowing inlet can start a recycle from
+            // zero flow without sending an empty stream into a heater.
             let id = graph
                 .streams()
                 .filter(|s| {
@@ -80,6 +81,7 @@ impl Flowsheet {
                 })
                 .min_by_key(|s| {
                     (
+                        graph.stream_medium(s.id) != Some(PortMedium::Material),
                         graph.unit(s.to.unit).expect("unit").kind != UnitKind::Mixer,
                         s.id,
                     )
@@ -203,6 +205,14 @@ impl Flowsheet {
         }
         let ids = guesses.keys().copied().collect();
         let order = self.tear_order(&ids)?;
+        if let Some(id) = guesses
+            .keys()
+            .find(|id| self.stream_medium(**id) == Some(PortMedium::Energy))
+        {
+            return Err(error(format!(
+                "{id} is an energy stream; tear a material stream of the loop instead."
+            )));
+        }
         if guesses.is_empty() {
             return self.solve_with_progress(package, feeds, progress);
         }
@@ -295,7 +305,7 @@ impl Flowsheet {
             if self.unit(id)?.kind == UnitKind::Feed {
                 return Some(id);
             }
-            for s in self.streams().filter(|s| s.to.unit == id) {
+            for s in self.material_streams().filter(|s| s.to.unit == id) {
                 if seen.insert(s.from.unit) {
                     queue.push_back(s.from.unit);
                 }
@@ -332,21 +342,18 @@ impl Flowsheet {
         report: &mut Calculation,
         package: &CubicPackage,
     ) -> Result<(), String> {
-        for u in self
-            .units()
-            .filter(|u| !matches!(u.kind, UnitKind::Feed | UnitKind::Product))
-        {
-            let mut inputs = vec![];
-            let mut outputs = vec![];
-            for (i, port) in u.kind.ports().iter().enumerate() {
-                let s = self.stream_at(PortRef::new(u.id, i)).expect("checked port");
-                let values = if port.direction == PortDirection::Inlet {
-                    &mut inputs
-                } else {
-                    &mut outputs
-                };
-                values.push(report.streams[&s.id].clone());
+        for u in self.units().filter(|u| !u.kind.is_boundary()) {
+            let ports = self.unit_ports(u);
+            let stream = |s: &Option<StreamId>| {
+                s.map_or_else(crate::engine::empty, |s| report.streams[&s].clone())
+            };
+            // An unconnected optional outlet is not part of the network and
+            // its value is not kept, so the unit keeps its pass balance.
+            if ports.material_outlets.iter().any(Option::is_none) {
+                continue;
             }
+            let inputs: Vec<_> = ports.material_inlets.iter().map(stream).collect();
+            let outputs: Vec<_> = ports.material_outlets.iter().map(stream).collect();
             let unit = report.units.get_mut(&u.id).expect("calculated unit");
             unit.balance = Some(
                 crate::engine::balance(

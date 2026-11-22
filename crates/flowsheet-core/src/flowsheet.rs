@@ -4,7 +4,8 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt;
 
 use crate::unit::{
-    PortDirection, PortRef, PortSpec, SpecIssue, SpecProblem, Unit, UnitId, UnitKind, UnitSpec,
+    EnergyRole, PortDirection, PortMedium, PortRef, PortSpec, SpecIssue, SpecProblem, Unit, UnitId,
+    UnitKind, UnitSpec, ports_for,
 };
 
 /// Largest unit or stream identifier, and largest generated tag number,
@@ -26,7 +27,9 @@ impl fmt::Display for StreamId {
     }
 }
 
-/// A material stream from an outlet port to an inlet port.
+/// A material or energy stream from an outlet port to an inlet port. The
+/// medium follows from the ports ([`Flowsheet::stream_medium`]); both ends
+/// carry the same medium.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stream {
     /// Identifier, unique within its flowsheet.
@@ -56,7 +59,39 @@ pub enum ConnectError {
     SelfConnection(UnitId),
     /// No unused stream identifier remains.
     StreamIdsExhausted,
+    /// One port carries material and the other energy.
+    MediumMismatch(PortRef, PortRef),
 }
+
+/// Reasons [`Flowsheet::try_set_spec`] rejects a specification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecChangeError {
+    /// The unit does not exist.
+    UnknownUnit(UnitId),
+    /// The specification belongs to another unit kind.
+    WrongKind(UnitId),
+    /// The new specification removes a port that carries a stream;
+    /// disconnect it first.
+    ConnectedPortRemoved(PortRef),
+}
+
+impl fmt::Display for SpecChangeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SpecChangeError::UnknownUnit(u) => write!(f, "unit {u} does not exist"),
+            SpecChangeError::WrongKind(u) => {
+                write!(f, "the specification does not belong to unit {u}")
+            }
+            SpecChangeError::ConnectedPortRemoved(p) => write!(
+                f,
+                "port {} of unit {} carries a stream; disconnect it first",
+                p.port, p.unit
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SpecChangeError {}
 
 impl fmt::Display for ConnectError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -68,6 +103,9 @@ impl fmt::Display for ConnectError {
             ConnectError::PortOccupied(_) => f.write_str("the port is already connected"),
             ConnectError::SelfConnection(_) => f.write_str("a unit cannot be connected to itself"),
             ConnectError::StreamIdsExhausted => f.write_str("no unused stream identifier remains"),
+            ConnectError::MediumMismatch(..) => {
+                f.write_str("an energy port connects only to another energy port")
+            }
         }
     }
 }
@@ -127,6 +165,17 @@ pub enum DiagnosticKind {
     RecycleUnsupported(Vec<UnitId>),
     /// The flowsheet contains no feed.
     NoFeed,
+    /// Both ends of an energy stream determine its duty (#171).
+    EnergyOverspecified(StreamId),
+    /// Neither end of an energy stream determines its duty (#171).
+    EnergyUnderspecified(StreamId),
+    /// The duty would have to flow against the calculation order: the
+    /// source unit takes it from the destination unit. Only an energy
+    /// source boundary may do that.
+    EnergyAgainstFlow(StreamId),
+    /// A unit takes its duty from an energy stream, but the port is not
+    /// connected.
+    EnergyStreamMissing(PortRef),
 }
 
 /// A structural problem that prevents calculation of the flowsheet.
@@ -196,7 +245,25 @@ impl Flowsheet {
     /// Static description of a port, if it exists.
     pub fn port_spec(&self, port: PortRef) -> Option<PortSpec> {
         let unit = self.units.get(&port.unit)?;
-        unit.kind.ports().get(port.port).copied()
+        unit.ports().get(port.port).copied()
+    }
+
+    /// Whether a stream carries material or energy, if it exists.
+    pub fn stream_medium(&self, id: StreamId) -> Option<PortMedium> {
+        self.port_spec(self.streams.get(&id)?.from)
+            .map(|p| p.medium)
+    }
+
+    /// Material streams in identifier order.
+    pub fn material_streams(&self) -> impl Iterator<Item = &Stream> {
+        self.streams()
+            .filter(|s| self.stream_medium(s.id) == Some(PortMedium::Material))
+    }
+
+    /// Energy streams in identifier order.
+    pub fn energy_streams(&self) -> impl Iterator<Item = &Stream> {
+        self.streams()
+            .filter(|s| self.stream_medium(s.id) == Some(PortMedium::Energy))
     }
 
     /// The stream attached to a port, if any.
@@ -273,40 +340,73 @@ impl Flowsheet {
         true
     }
 
-    /// Replaces a unit's specification. Returns `false` if the unit does not
-    /// exist or the specification variant does not belong to its kind.
+    /// Replaces a unit's specification. Returns `false` if
+    /// [`Self::try_set_spec`] rejects it.
     pub fn set_spec(&mut self, id: UnitId, spec: UnitSpec) -> bool {
-        let Some(unit) = self.units.get_mut(&id) else {
-            return false;
-        };
-        if std::mem::discriminant(&unit.kind.default_spec()) != std::mem::discriminant(&spec) {
-            return false;
-        }
-        if unit.spec != spec {
-            unit.spec = spec;
-            self.revision += 1;
-        }
-        true
+        self.try_set_spec(id, spec).is_ok()
     }
 
-    /// Connects an outlet port to an inlet port with a new stream.
+    /// Replaces a unit's specification. The specification must belong to
+    /// the unit's kind. If it changes the unit's variable ports (for example
+    /// the number of column feeds), streams keep their port by identity
+    /// ([`PortSpec::same_port`]) and are re-indexed; a specification that
+    /// would remove a connected port is rejected.
+    pub fn try_set_spec(&mut self, id: UnitId, spec: UnitSpec) -> Result<(), SpecChangeError> {
+        let unit = self
+            .units
+            .get(&id)
+            .ok_or(SpecChangeError::UnknownUnit(id))?;
+        if !spec.fits(unit.kind) {
+            return Err(SpecChangeError::WrongKind(id));
+        }
+        if unit.spec == spec {
+            return Ok(());
+        }
+        let old = unit.ports();
+        let new = ports_for(unit.kind, &spec);
+        let mut moves = Vec::new();
+        for s in self.streams.values() {
+            for (end, port) in [(false, s.from), (true, s.to)] {
+                if port.unit != id {
+                    continue;
+                }
+                let index = old
+                    .get(port.port)
+                    .and_then(|p| new.iter().position(|q| q.same_port(p)))
+                    .ok_or(SpecChangeError::ConnectedPortRemoved(port))?;
+                if index != port.port {
+                    moves.push((s.id, end, index));
+                }
+            }
+        }
+        for (sid, to_end, index) in moves {
+            let s = self.streams.get_mut(&sid).expect("stream");
+            if to_end {
+                s.to.port = index;
+            } else {
+                s.from.port = index;
+            }
+        }
+        self.units.get_mut(&id).expect("unit").spec = spec;
+        self.revision += 1;
+        Ok(())
+    }
+
+    /// Connects an outlet port to an inlet port with a new stream. Material
+    /// streams are named `S<n>`, energy streams `Q<n>`.
     pub fn connect(&mut self, from: PortRef, to: PortRef) -> Result<StreamId, ConnectError> {
-        self.check_connection(from, to, |port| self.stream_at(port).is_some())?;
+        let medium = self.check_connection(from, to, |port| self.stream_at(port).is_some())?;
         let next = self
             .next_stream
             .checked_add(1)
             .ok_or(ConnectError::StreamIdsExhausted)?;
         self.next_stream = next;
         let id = StreamId(next);
-        self.streams.insert(
-            id,
-            Stream {
-                id,
-                name: id.to_string(),
-                from,
-                to,
-            },
-        );
+        let name = match medium {
+            PortMedium::Material => id.to_string(),
+            PortMedium::Energy => format!("Q{}", id.0),
+        };
+        self.streams.insert(id, Stream { id, name, from, to });
         self.revision += 1;
         Ok(id)
     }
@@ -318,7 +418,7 @@ impl Flowsheet {
         from: PortRef,
         to: PortRef,
         occupied: impl Fn(PortRef) -> bool,
-    ) -> Result<(), ConnectError> {
+    ) -> Result<PortMedium, ConnectError> {
         let from_spec = self.checked_port(from)?;
         let to_spec = self.checked_port(to)?;
         if from_spec.direction != PortDirection::Outlet {
@@ -326,6 +426,9 @@ impl Flowsheet {
         }
         if to_spec.direction != PortDirection::Inlet {
             return Err(ConnectError::DestinationNotInlet(to));
+        }
+        if from_spec.medium != to_spec.medium {
+            return Err(ConnectError::MediumMismatch(from, to));
         }
         if from.unit == to.unit {
             return Err(ConnectError::SelfConnection(from.unit));
@@ -335,7 +438,7 @@ impl Flowsheet {
                 return Err(ConnectError::PortOccupied(port));
             }
         }
-        Ok(())
+        Ok(from_spec.medium)
     }
 
     /// Removes a stream. Returns the removed stream.
@@ -379,9 +482,7 @@ impl Flowsheet {
             if fs.units.contains_key(&unit.id) {
                 return Err(RestoreError::DuplicateUnit(unit.id));
             }
-            if std::mem::discriminant(&unit.kind.default_spec())
-                != std::mem::discriminant(&unit.spec)
-            {
+            if !unit.spec.fits(unit.kind) {
                 return Err(RestoreError::SpecKindMismatch(unit.id));
             }
             fs.next_unit = fs.next_unit.max(unit.id.0);
@@ -420,8 +521,11 @@ impl Flowsheet {
     /// Pre-calculation status of a unit, or `None` if it does not exist.
     pub fn unit_status(&self, id: UnitId) -> Option<UnitStatus> {
         let unit = self.units.get(&id)?;
-        let open_port =
-            (0..unit.kind.ports().len()).any(|i| self.stream_at(PortRef::new(id, i)).is_none());
+        let open_port = unit
+            .ports()
+            .iter()
+            .enumerate()
+            .any(|(i, p)| !p.optional && self.stream_at(PortRef::new(id, i)).is_none());
         Some(if open_port || !unit.issues().is_empty() {
             UnitStatus::Underspecified
         } else {
@@ -434,11 +538,80 @@ impl Flowsheet {
             .units
             .get(&port.unit)
             .ok_or(ConnectError::UnknownUnit(port.unit))?;
-        unit.kind
-            .ports()
+        unit.ports()
             .get(port.port)
             .copied()
             .ok_or(ConnectError::UnknownPort(port))
+    }
+
+    /// Energy-stream consistency (#171): each energy stream must be
+    /// determined by exactly one end, and a unit that takes its duty from an
+    /// energy stream must have one connected.
+    fn energy_diagnostics(&self, out: &mut Vec<Diagnostic>) {
+        let name = |id: UnitId| self.units.get(&id).map_or("?", |u| u.name.as_str());
+        let role = |port: PortRef| {
+            let unit = self.units.get(&port.unit)?;
+            let spec = unit.ports().get(port.port).copied()?;
+            Some(unit.spec.energy_role(&spec))
+        };
+        for s in self.energy_streams() {
+            let (Some(from), Some(to)) = (role(s.from), role(s.to)) else {
+                continue;
+            };
+            let source_is_boundary =
+                self.units.get(&s.from.unit).map(|u| u.kind) == Some(UnitKind::EnergySource);
+            let (kind, message) = match (from, to) {
+                (EnergyRole::Determines, EnergyRole::Consumes) => continue,
+                (EnergyRole::Consumes, EnergyRole::Determines) if source_is_boundary => continue,
+                (EnergyRole::Determines, EnergyRole::Determines) => (
+                    DiagnosticKind::EnergyOverspecified(s.id),
+                    format!(
+                        "Energy stream {}: both {} and {} determine its duty; let one of them take the duty from the stream.",
+                        s.name,
+                        name(s.from.unit),
+                        name(s.to.unit)
+                    ),
+                ),
+                (EnergyRole::Consumes, EnergyRole::Consumes) => (
+                    DiagnosticKind::EnergyUnderspecified(s.id),
+                    format!(
+                        "Energy stream {}: neither {} nor {} determines its duty; specify it at one end.",
+                        s.name,
+                        name(s.from.unit),
+                        name(s.to.unit)
+                    ),
+                ),
+                (EnergyRole::Consumes, EnergyRole::Determines) => (
+                    DiagnosticKind::EnergyAgainstFlow(s.id),
+                    format!(
+                        "Energy stream {}: {} would take its duty from {}, against the calculation order; only an energy source can do that.",
+                        s.name,
+                        name(s.from.unit),
+                        name(s.to.unit)
+                    ),
+                ),
+            };
+            out.push(Diagnostic { kind, message });
+        }
+        for unit in self.units.values() {
+            for (index, spec) in unit.ports().iter().enumerate() {
+                let port = PortRef::new(unit.id, index);
+                if spec.medium == PortMedium::Energy
+                    && spec.optional
+                    && spec.direction == PortDirection::Inlet
+                    && unit.spec.energy_role(spec) == EnergyRole::Consumes
+                    && self.stream_at(port).is_none()
+                {
+                    out.push(Diagnostic {
+                        kind: DiagnosticKind::EnergyStreamMissing(port),
+                        message: format!(
+                            "{}: takes its duty from an energy stream, but port '{spec}' is not connected.",
+                            unit.name
+                        ),
+                    });
+                }
+            }
+        }
     }
 
     /// Structural problems that must be resolved before calculation.
@@ -454,12 +627,12 @@ impl Flowsheet {
             });
         }
         for unit in self.units.values() {
-            for (index, spec) in unit.kind.ports().iter().enumerate() {
+            for (index, spec) in unit.ports().iter().enumerate() {
                 let port = PortRef::new(unit.id, index);
-                if self.stream_at(port).is_none() {
+                if !spec.optional && self.stream_at(port).is_none() {
                     out.push(Diagnostic {
                         kind: DiagnosticKind::UnconnectedPort(port),
-                        message: format!("{}: port '{}' is not connected.", unit.name, spec.name),
+                        message: format!("{}: port '{spec}' is not connected.", unit.name),
                     });
                 }
             }
@@ -481,6 +654,7 @@ impl Flowsheet {
                 });
             }
         }
+        self.energy_diagnostics(&mut out);
         if let Some(cycle) = self.find_cycle() {
             let names: Vec<&str> = cycle
                 .iter()
@@ -673,7 +847,7 @@ mod tests {
             pressure_pa: Some(5.0e6),
             molar_flow_mol_s: Some(1.0),
         };
-        assert!(fs.set_spec(feed, spec));
+        assert!(fs.set_spec(feed, spec.clone()));
         let r2 = fs.revision();
         assert!(r2 > r1);
         // Setting an identical spec is not a change.
