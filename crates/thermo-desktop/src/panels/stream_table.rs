@@ -2,7 +2,9 @@
 
 use eframe::egui::{self, RichText, ScrollArea, Ui};
 
-use super::presentation::{StreamProperty, component_names, fraction_text, stream_columns};
+use super::presentation::{
+    StreamProperty, component_names, fraction_text, fraction_value, stream_columns,
+};
 use super::status_style;
 use crate::editor::{Editor, ItemStatus, Selection};
 use crate::symbols::Theme;
@@ -12,12 +14,13 @@ use crate::units::format_value;
 /// one row per property; empty cells where no value exists.
 pub fn stream_table_tsv(ed: &mut Editor) -> String {
     let u = ed.units;
-    let cols = stream_columns(ed);
+    let fps = ed.fingerprints();
+    let cols = stream_columns(ed, &fps);
     let components = component_names(ed);
     let mut out = String::from("Stream\tUnit");
     for (_, c) in &cols {
         out.push('\t');
-        out.push_str(&tsv_cell(&c.name));
+        out.push_str(&tsv_cell(c.name));
     }
     out.push_str("\nStatus\t");
     for (_, c) in &cols {
@@ -36,7 +39,7 @@ pub fn stream_table_tsv(ed: &mut Editor) -> String {
         out.push_str(property.unit_symbol(u));
         for (_, c) in &cols {
             out.push('\t');
-            if let Some(shown) = c.result.as_ref().and_then(|r| property.display_value(r, u))
+            if let Some(shown) = c.result.and_then(|r| property.display_value(r, u))
                 && shown.is_finite()
             {
                 out.push_str(&shown.to_string());
@@ -49,9 +52,8 @@ pub fn stream_table_tsv(ed: &mut Editor) -> String {
             out.push('\t');
             if let Some(x) = c
                 .result
-                .as_ref()
                 .and_then(|r| r.state.as_ref())
-                .and_then(|s| s.mole_fractions.get(i))
+                .and_then(|s| fraction_value(&s.mole_fractions, i))
             {
                 out.push_str(&x.to_string());
             }
@@ -63,7 +65,8 @@ pub fn stream_table_tsv(ed: &mut Editor) -> String {
 
 /// Streams as columns, properties as rows (proposal section 4.2).
 pub(super) fn stream_table(ui: &mut Ui, ed: &mut Editor) {
-    let cols = stream_columns(ed);
+    let fps = ed.fingerprints();
+    let cols = stream_columns(ed, &fps);
     if cols.is_empty() {
         ui.label(RichText::new("No streams yet.").weak());
         return;
@@ -71,6 +74,7 @@ pub(super) fn stream_table(ui: &mut Ui, ed: &mut Editor) {
     let theme = Theme::from_visuals(ui.visuals());
     let u = ed.units;
     let components = component_names(ed);
+    let mut selection = ed.selection;
     ScrollArea::both().auto_shrink(false).show(ui, |ui| {
         egui::Grid::new("stream_table")
             .striped(true)
@@ -79,12 +83,12 @@ pub(super) fn stream_table(ui: &mut Ui, ed: &mut Editor) {
                 ui.label("");
                 ui.label("");
                 for (id, c) in &cols {
-                    let selected = ed.selection == Some(Selection::Stream(*id));
+                    let selected = selection == Some(Selection::Stream(*id));
                     if ui
-                        .selectable_label(selected, RichText::new(&c.name).strong())
+                        .selectable_label(selected, RichText::new(c.name).strong())
                         .clicked()
                     {
-                        ed.selection = Some(Selection::Stream(*id));
+                        selection = Some(Selection::Stream(*id));
                     }
                 }
                 ui.end_row();
@@ -127,7 +131,7 @@ pub(super) fn stream_table(ui: &mut Ui, ed: &mut Editor) {
                     ui.label(RichText::new(property.unit_symbol(u)).weak());
                     for (_, c) in &cols {
                         let stale = c.status == Some(ItemStatus::Stale);
-                        match c.result.as_ref().and_then(|r| property.display_value(r, u)) {
+                        match c.result.and_then(|r| property.display_value(r, u)) {
                             Some(v) => {
                                 let text = format_value(v);
                                 ui.label(if stale {
@@ -148,7 +152,7 @@ pub(super) fn stream_table(ui: &mut Ui, ed: &mut Editor) {
                     ui.label(RichText::new("mol/mol").weak());
                     for (_, c) in &cols {
                         let stale = c.status == Some(ItemStatus::Stale);
-                        match c.result.as_ref().and_then(|r| r.state.as_ref()) {
+                        match c.result.and_then(|r| r.state.as_ref()) {
                             Some(s) => {
                                 let text = fraction_text(&s.mole_fractions, i);
                                 ui.label(if stale {
@@ -166,6 +170,7 @@ pub(super) fn stream_table(ui: &mut Ui, ed: &mut Editor) {
                 }
             });
     });
+    ed.selection = selection;
 }
 
 /// A user-entered name as one tab-separated cell: tabs and line breaks would

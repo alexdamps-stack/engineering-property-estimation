@@ -584,6 +584,9 @@ impl Editor {
             SolveOutcome::Failed(f) if f.cancelled => {
                 self.status = Some(f.message);
             }
+            // The worker solved a snapshot. A deleted unit has no place in
+            // the current project to report its failure.
+            SolveOutcome::Failed(f) if f.unit.is_some_and(|id| self.fs.unit(id).is_none()) => {}
             SolveOutcome::Failed(f) => {
                 self.status = None;
                 self.failure = Some(Failure {
@@ -831,6 +834,31 @@ mod tests {
         assert!(ed.failure.is_some());
         ed.selection = Some(Selection::Unit(valve));
         ed.delete_selection();
+        assert!(ed.failure.is_none());
+    }
+
+    #[test]
+    fn a_running_solve_cannot_report_failure_for_a_deleted_unit() {
+        let mut ed = Editor::default();
+        ed.load_demonstration();
+        let valve = ed
+            .fs
+            .units()
+            .find(|u| u.kind == UnitKind::Valve)
+            .unwrap()
+            .id;
+        ed.fs.set_spec(
+            valve,
+            flowsheet_core::UnitSpec::Valve {
+                pressure: flowsheet_core::PressureSpec::OutletPressure(Some(6.0e6)),
+            },
+        );
+        ed.start_solve(None);
+        assert!(ed.is_solving());
+        ed.selection = Some(Selection::Unit(valve));
+        ed.delete_selection();
+        ed.wait_for_solve();
+        assert!(ed.results.is_none());
         assert!(ed.failure.is_none());
     }
 
