@@ -40,7 +40,7 @@ Energy streams would carry a duty in W with sign convention "positive into the u
 
 ### 2.3 Unit operations and specifications — *implemented (A8)*
 
-Each unit has a fixed set of material ports and one specification set (`flowsheet_core::UnitKind::ports` and `UnitSpec`). Where the table says "one of", the specification is an enum, so exactly one choice is stored. Energy streams are not modelled: duties are unit results, not ports. The table describes the code on `main`.
+Each unit has a fixed set of material ports and one specification set (`flowsheet_core::UnitKind::ports` and `UnitSpec`). Where the table says "one of", the specification is an enum, so exactly one choice is stored. The implemented ports carry material. Duties are recorded in unit results.
 
 | Unit | Material ports | Specification (choose one where listed) | Defaults | Calculation |
 |---|---|---|---|---|
@@ -71,9 +71,11 @@ Checks that need calculated inlet states run during the solve and fail the named
 - Calculation runs in a background thread. The interface stays responsive and shows a progress indicator with a **Cancel** button.
 - Any edit marks the affected unit and all downstream streams as **stale** immediately (section 4.6), even before the next solve.
 
-### 2.6 Project file — *proposed*
+### 2.6 Project file — *implemented*
 
-A text-based, versioned format (JSON or RON) with a top-level `format_version`. It stores components, property package selection, units, streams, specifications, canvas layout, and display settings. Results are stored together with the code, model, and data versions that produced them; on load, results from a different version are shown as stale until recalculated. Text format keeps project files reviewable in Git.
+Project files use JSON with a top-level `format_version`. Writers use version 3, and readers accept versions 1 through 3. A project stores the components, property package selection, units, streams, specifications, canvas layout, and display settings. Results include their engine, model, and data provenance. Results with incompatible provenance are shown as stale until recalculated.
+
+Loading accepts up to 64 MiB, 10,000 units, and 20,000 streams. Duplicate layout entries and stored compositions that have the wrong number of components are rejected. Both the editor and the project API save through an atomic replacement of the destination file.
 
 ## 3. Main window
 
