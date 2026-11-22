@@ -1,7 +1,7 @@
 //! Specification forms of the simple/logical group; owned by the
 //! simple/logical work package.
 
-use eframe::egui::Ui;
+use eframe::egui::{ComboBox, Ui};
 use flowsheet_core::units::simple_logical::MAX_SELECTOR_INLETS;
 use flowsheet_core::units::{GroupSpec, SimpleLogicalSpec};
 
@@ -54,8 +54,38 @@ pub(super) fn form(
                 "Both outlets use the inlet temperature and pressure. The splitter calculates the duty.",
             );
         }
+        SimpleLogicalSpec::Multiplier(s) => {
+            opt_field(ui, "Flow factor", &mut s.factor, Quantity::Factor, u);
+            note_row(
+                ui,
+                "Scales flow at the inlet state. Results show the material and enthalpy added or removed.",
+            );
+        }
         SimpleLogicalSpec::Selector(s) => {
-            count_field(ui, "Inlets", &mut s.inlets, 2..=MAX_SELECTOR_INLETS);
+            if count_field(ui, "Inlets", &mut s.inlets, 2..=MAX_SELECTOR_INLETS)
+                && s.selected_inlet.is_some_and(|n| n > s.inlets)
+            {
+                s.selected_inlet = None;
+            }
+            let label = ui.label("Selected inlet");
+            ComboBox::from_id_salt("selected_inlet")
+                .selected_text(
+                    s.selected_inlet
+                        .map_or_else(|| "Choose an inlet".into(), |n| format!("Inlet {n}")),
+                )
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut s.selected_inlet, None, "Choose an inlet");
+                    for n in 1..=s.inlets.clamp(2, MAX_SELECTOR_INLETS) {
+                        ui.selectable_value(&mut s.selected_inlet, Some(n), format!("Inlet {n}"));
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            ui.end_row();
+            note_row(
+                ui,
+                "Forwards the selected inlet. Results show the material and enthalpy removed with the other inlets.",
+            );
         }
         _ => {}
     }

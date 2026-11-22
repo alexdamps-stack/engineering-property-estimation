@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use flowsheet_core::units::SimpleLogicalSpec;
 use flowsheet_core::units::simple_logical::{
-    ComponentSplitterSpec, MAX_SELECTOR_INLETS, SelectorSpec,
+    ComponentSplitterSpec, MAX_SELECTOR_INLETS, MultiplierSpec, SelectorSpec,
 };
 use serde::{Deserialize, Serialize};
 
@@ -24,10 +24,15 @@ pub(crate) enum SimpleLogicalRecord {
         #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
         overhead_recovery: BTreeMap<String, f64>,
     },
-    Multiplier {},
+    Multiplier {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        factor: Option<f64>,
+    },
     Selector {
         #[serde(default = "default_inlets")]
         inlets: u16,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        selected_inlet: Option<u16>,
     },
     StreamCutter {},
     Tank {},
@@ -47,6 +52,7 @@ impl SimpleLogicalRecord {
             Self::ComponentSplitter { overhead_recovery } => {
                 overhead_recovery.values().copied().collect()
             }
+            Self::Multiplier { factor } => factor.iter().copied().collect(),
             _ => Vec::new(),
         }
     }
@@ -59,8 +65,11 @@ impl From<&SimpleLogicalSpec> for SimpleLogicalRecord {
             S::ComponentSplitter(s) => Self::ComponentSplitter {
                 overhead_recovery: s.overhead_recovery.clone(),
             },
-            S::Multiplier(_) => Self::Multiplier {},
-            S::Selector(x) => Self::Selector { inlets: x.inlets },
+            S::Multiplier(s) => Self::Multiplier { factor: s.factor },
+            S::Selector(s) => Self::Selector {
+                inlets: s.inlets,
+                selected_inlet: s.selected_inlet,
+            },
             S::StreamCutter(_) => Self::StreamCutter {},
             S::Tank(_) => Self::Tank {},
             S::Adjust(_) => Self::Adjust {},
@@ -83,9 +92,13 @@ impl TryFrom<SimpleLogicalRecord> for SimpleLogicalSpec {
             R::ComponentSplitter { overhead_recovery } => {
                 Self::ComponentSplitter(ComponentSplitterSpec { overhead_recovery })
             }
-            R::Multiplier {} => Self::Multiplier(Default::default()),
-            R::Selector { inlets } => Self::Selector(SelectorSpec {
+            R::Multiplier { factor } => Self::Multiplier(MultiplierSpec { factor }),
+            R::Selector {
+                inlets,
+                selected_inlet,
+            } => Self::Selector(SelectorSpec {
                 inlets: count_in(inlets, "inlets", 2..=MAX_SELECTOR_INLETS)?,
+                selected_inlet,
             }),
             R::StreamCutter {} => Self::StreamCutter(Default::default()),
             R::Tank {} => Self::Tank(Default::default()),

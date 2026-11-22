@@ -99,12 +99,26 @@ pub struct UnitResult {
     /// read from format version 1 or 2 files, which did not store it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transferred_duty_w: Option<f64>,
+    /// Material and enthalpy crossing the modeled flowsheet boundary at this unit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub material_exchange: Option<MaterialExchangeResult>,
     /// Engine warnings (for example a single-phase separator).
     pub warnings: Vec<String>,
     /// Largest scaled component balance residual (internal units only).
     pub max_scaled_component_residual: Option<f64>,
     /// Scaled energy balance residual (internal units only).
     pub scaled_energy_residual: Option<f64>,
+}
+
+/// External material contribution, positive flow into the unit.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MaterialExchangeResult {
+    pub molar_flow_mol_s: f64,
+    /// Signed molar flow of each component in package order.
+    pub component_flows_mol_s: Vec<f64>,
+    /// Enthalpy carried by the signed flow, on the package reference.
+    pub enthalpy_flow_w: f64,
 }
 
 /// Result of one energy stream (#171, format version 4).
@@ -173,6 +187,13 @@ impl ResultSet {
                         fingerprint: *fingerprints.units.get(id)?,
                         duty_w: u.duty_w,
                         transferred_duty_w: u.transferred_duty_w,
+                        material_exchange: u.material_exchange.as_ref().map(|x| {
+                            MaterialExchangeResult {
+                                molar_flow_mol_s: x.molar_flow_mol_s,
+                                component_flows_mol_s: x.component_flows_mol_s.clone(),
+                                enthalpy_flow_w: x.enthalpy_flow_w,
+                            }
+                        }),
                         warnings: u.warnings.clone(),
                         max_scaled_component_residual: u
                             .balance
@@ -262,6 +283,11 @@ impl ResultSet {
         for (id, u) in &self.units {
             if bad(u.duty_w)
                 || opt(u.transferred_duty_w)
+                || u.material_exchange.as_ref().is_some_and(|x| {
+                    bad(x.molar_flow_mol_s)
+                        || bad(x.enthalpy_flow_w)
+                        || x.component_flows_mol_s.iter().copied().any(bad)
+                })
                 || opt(u.max_scaled_component_residual)
                 || opt(u.scaled_energy_residual)
             {
@@ -306,9 +332,19 @@ impl ResultSet {
         None
     }
 
-    /// Describes the first stream result whose overall or phase mole
-    /// fractions do not have one entry per package component, if any.
+    /// Describes the first stored composition or material exchange with a
+    /// component count different from the package, if any.
     pub(crate) fn first_component_mismatch(&self, components: usize) -> Option<String> {
+        for (id, u) in &self.units {
+            if let Some(x) = &u.material_exchange
+                && x.component_flows_mol_s.len() != components
+            {
+                return Some(format!(
+                    "stored material exchange of unit {id} has {} flows for {components} components",
+                    x.component_flows_mol_s.len()
+                ));
+            }
+        }
         for (id, s) in &self.streams {
             let Some(state) = &s.state else { continue };
             if state.mole_fractions.len() != components {

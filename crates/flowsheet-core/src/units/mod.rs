@@ -20,7 +20,7 @@ use property_packages::{CubicPackage, EquilibriumState};
 use thermo_models::{CubicModel, FugacityState, HomogeneousState, RootSelection};
 use thermo_types::{Composition, Pressure, Temperature};
 
-use crate::engine::MaterialStream;
+use crate::engine::{MaterialExchange, MaterialStream};
 use crate::unit::{PortSpec, SpecIssue, UnitKind};
 
 pub mod columns;
@@ -85,6 +85,8 @@ pub struct UnitOutput {
     pub duty_w: f64,
     /// Heat moved internally between sides of an exchanger, W.
     pub transferred_duty_w: Option<f64>,
+    /// Material crossing the flowsheet boundary at this unit.
+    pub material_exchange: Option<MaterialExchange>,
     /// Warnings shown with the result.
     pub warnings: Vec<String>,
     /// Duty in W at each energy port, in energy-port order, positive in the
@@ -102,6 +104,7 @@ impl UnitOutput {
             outlets,
             duty_w,
             transferred_duty_w: None,
+            material_exchange: None,
             warnings,
             energy: Vec::new(),
         }

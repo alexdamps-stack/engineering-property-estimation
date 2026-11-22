@@ -360,6 +360,7 @@ impl Flowsheet {
                     &inputs,
                     &outputs,
                     unit.duty_w,
+                    unit.material_exchange.as_ref(),
                     package.model().fractions().len(),
                 )
                 .map_err(|e| format!("{}: {e}", u.name))?,

@@ -22,6 +22,8 @@ pub enum Quantity {
     Duty,
     /// Dimensionless fraction from 0 to 1 (split fraction, efficiency).
     Fraction,
+    /// Dimensionless scale factor.
+    Factor,
     /// Mass flow, stored in kg/s.
     MassFlow,
     /// Molar enthalpy, stored in J/mol.
@@ -79,6 +81,7 @@ impl DisplayUnitsExt for DisplayUnits {
             (DisplayUnits::Si, Quantity::MolarFlow) => "mol/s",
             (DisplayUnits::Si, Quantity::Duty) => "W",
             (DisplayUnits::Si, Quantity::Fraction) => "–",
+            (_, Quantity::Factor) => "×",
             (DisplayUnits::Si, Quantity::MassFlow) => "kg/s",
             (DisplayUnits::Si, Quantity::MolarEnthalpy) => "J/mol",
             (DisplayUnits::Si, Quantity::MolarEntropy) => "J/(mol K)",
@@ -109,7 +112,10 @@ impl DisplayUnitsExt for DisplayUnits {
             // kJ/kmol and kJ/(kmol K) equal J/mol and J/(mol K) numerically.
             (
                 DisplayUnits::ProcessMetric,
-                Quantity::MolarEnthalpy | Quantity::MolarEntropy | Quantity::Density,
+                Quantity::MolarEnthalpy
+                | Quantity::MolarEntropy
+                | Quantity::Density
+                | Quantity::Factor,
             ) => si,
         }
     }
@@ -127,7 +133,10 @@ impl DisplayUnitsExt for DisplayUnits {
             (DisplayUnits::ProcessMetric, Quantity::MassFlow) => shown / 3600.0,
             (
                 DisplayUnits::ProcessMetric,
-                Quantity::MolarEnthalpy | Quantity::MolarEntropy | Quantity::Density,
+                Quantity::MolarEnthalpy
+                | Quantity::MolarEntropy
+                | Quantity::Density
+                | Quantity::Factor,
             ) => shown,
         }
     }
@@ -170,6 +179,7 @@ pub fn starting_value(q: Quantity) -> f64 {
         Quantity::MolarFlow => 1.0,
         Quantity::PressureDrop | Quantity::Duty => 0.0,
         Quantity::Fraction => 0.5,
+        Quantity::Factor => 1.0,
         Quantity::MassFlow => 1.0,
         Quantity::MolarEnthalpy | Quantity::MolarEntropy | Quantity::Density => 0.0,
     }

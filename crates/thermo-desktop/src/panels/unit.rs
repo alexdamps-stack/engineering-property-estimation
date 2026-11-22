@@ -220,6 +220,30 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                     });
                     ui.end_row();
                 }
+                if let Some(x) = &r.material_exchange {
+                    ui.label("External material (+ into unit)");
+                    ui.label(value_text(
+                        format_quantity(u, Quantity::MolarFlow, x.molar_flow_mol_s),
+                        stale,
+                    ));
+                    ui.end_row();
+                    if !stale && let Some(package) = &ed.package {
+                        for (id, &flow) in package.components.iter().zip(&x.component_flows_mol_s) {
+                            ui.label(id);
+                            ui.label(value_text(
+                                format_quantity(u, Quantity::MolarFlow, flow),
+                                false,
+                            ));
+                            ui.end_row();
+                        }
+                    }
+                    ui.label("Enthalpy carried by material");
+                    ui.label(value_text(
+                        format_quantity(u, Quantity::Duty, x.enthalpy_flow_w),
+                        stale,
+                    ));
+                    ui.end_row();
+                }
                 // Energy streams at the unit (#171), positive in the stream
                 // direction.
                 let ports = ed.fs.unit(id).map(|x| x.ports()).unwrap_or_default();

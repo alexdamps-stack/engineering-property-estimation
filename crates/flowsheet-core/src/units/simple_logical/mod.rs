@@ -13,8 +13,10 @@ mod component_splitter;
 pub use component_splitter::ComponentSplitterSpec;
 
 use super::{CalcContext, DRAWN_ONLY, GroupSpec, UnitInputs, UnitOutput, kind_info, numbered};
+use crate::engine::{MaterialExchange, MaterialStream, empty};
 use crate::unit::{
-    CalculationStatus, KindInfo, PaletteCategory, PortSpec, SpecIssue, SpecProblem, UnitKind,
+    CalculationStatus, KindInfo, PaletteCategory, PortSpec, Sign, SpecIssue, SpecProblem, UnitKind,
+    check_optional,
 };
 
 const SINGLE: [PortSpec; 2] = [PortSpec::inlet("in"), PortSpec::outlet("out")];
@@ -52,7 +54,9 @@ pub(crate) fn info(kind: UnitKind) -> KindInfo {
 /// Calculation status of a simple/logical kind.
 pub(crate) fn status(kind: UnitKind) -> CalculationStatus {
     match kind {
-        UnitKind::ComponentSplitter => CalculationStatus::Calculated,
+        UnitKind::ComponentSplitter | UnitKind::Multiplier | UnitKind::Selector => {
+            CalculationStatus::Calculated
+        }
         _ => DRAWN_ONLY,
     }
 }
@@ -88,7 +92,11 @@ pub enum SimpleLogicalSpec {
 
 /// Stream multiplier / duplicator specification (#173).
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct MultiplierSpec {}
+pub struct MultiplierSpec {
+    /// A finite nonnegative factor applied to total molar flow. Material
+    /// added or removed is accounted for at the inlet state.
+    pub factor: Option<f64>,
+}
 
 /// Largest number of selector inlets.
 pub const MAX_SELECTOR_INLETS: u16 = 12;
@@ -99,11 +107,16 @@ pub const MAX_SELECTOR_INLETS: u16 = 12;
 pub struct SelectorSpec {
     /// Number of inlets, 2 to [`MAX_SELECTOR_INLETS`].
     pub inlets: u16,
+    /// One-based index of the inlet to forward, including when its flow is zero.
+    pub selected_inlet: Option<u16>,
 }
 
 impl Default for SelectorSpec {
     fn default() -> Self {
-        Self { inlets: 2 }
+        Self {
+            inlets: 2,
+            selected_inlet: None,
+        }
     }
 }
 
@@ -185,11 +198,31 @@ impl GroupSpec for SimpleLogicalSpec {
     fn issues(&self) -> Vec<SpecIssue> {
         match self {
             SimpleLogicalSpec::ComponentSplitter(s) => s.issues(),
-            SimpleLogicalSpec::Selector(s) if !(2..=MAX_SELECTOR_INLETS).contains(&s.inlets) => {
-                vec![SpecIssue {
-                    field: "inlets",
-                    problem: SpecProblem::CountOutOfRange,
-                }]
+            SimpleLogicalSpec::Multiplier(s) => {
+                let mut issues = Vec::new();
+                check_optional(&mut issues, "flow factor", s.factor, Sign::NonNegative);
+                issues
+            }
+            SimpleLogicalSpec::Selector(s) => {
+                let mut issues = Vec::new();
+                if !(2..=MAX_SELECTOR_INLETS).contains(&s.inlets) {
+                    issues.push(SpecIssue {
+                        field: "inlets",
+                        problem: SpecProblem::CountOutOfRange,
+                    });
+                }
+                match s.selected_inlet {
+                    None => issues.push(SpecIssue {
+                        field: "selected inlet",
+                        problem: SpecProblem::Missing,
+                    }),
+                    Some(n) if !(1..=s.inlets).contains(&n) => issues.push(SpecIssue {
+                        field: "selected inlet",
+                        problem: SpecProblem::CountOutOfRange,
+                    }),
+                    Some(_) => {}
+                }
+                issues
             }
             _ => Vec::new(),
         }
@@ -214,8 +247,72 @@ pub(crate) fn calculate(
         SimpleLogicalSpec::ComponentSplitter(s) => {
             component_splitter::calculate(s, &inputs.material[0], ctx)
         }
+        SimpleLogicalSpec::Multiplier(s) => {
+            let factor = s.factor.ok_or("missing flow factor")?;
+            let inlet = &inputs.material[0];
+            let flow = inlet.molar_flow_mol_s * factor;
+            let outlet = if flow == 0.0 {
+                empty()
+            } else {
+                MaterialStream {
+                    molar_flow_mol_s: flow,
+                    state: inlet.state.clone(),
+                }
+            };
+            let exchange = material_exchange([(inlet, factor - 1.0)], ctx.component_count());
+            Ok(UnitOutput {
+                material_exchange: Some(exchange),
+                ..UnitOutput::new(vec![outlet], 0.0, vec![])
+            })
+        }
+        SimpleLogicalSpec::Selector(s) => {
+            let selected = s
+                .selected_inlet
+                .and_then(|n| n.checked_sub(1))
+                .map(usize::from)
+                .ok_or("select an inlet")?;
+            let outlet = inputs
+                .material
+                .get(selected)
+                .ok_or("selected inlet is out of range")?;
+            let unselected = inputs
+                .material
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != selected)
+                .map(|(_, inlet)| (inlet, -1.0));
+            let exchange = material_exchange(unselected, ctx.component_count());
+            Ok(UnitOutput {
+                material_exchange: Some(exchange),
+                ..UnitOutput::new(vec![outlet.clone()], 0.0, vec![])
+            })
+        }
         _ => Err(super::not_implemented(kind)),
     }
+}
+
+/// Accounts for each boundary stream at its own phase state.
+fn material_exchange<'a>(
+    streams: impl IntoIterator<Item = (&'a MaterialStream, f64)>,
+    count: usize,
+) -> MaterialExchange {
+    let mut exchange = MaterialExchange {
+        molar_flow_mol_s: 0.0,
+        component_flows_mol_s: vec![0.0; count],
+        enthalpy_flow_w: 0.0,
+    };
+    for (stream, scale) in streams {
+        exchange.molar_flow_mol_s += scale * stream.molar_flow_mol_s;
+        exchange.enthalpy_flow_w += scale * stream.enthalpy_flow_w();
+        for (total, flow) in exchange
+            .component_flows_mol_s
+            .iter_mut()
+            .zip(stream.component_flows_mol_s(count))
+        {
+            *total += scale * flow;
+        }
+    }
+    exchange
 }
 
 #[cfg(test)]
@@ -230,7 +327,10 @@ mod tests {
 
     #[test]
     fn selector_inlets_are_numbered() {
-        let spec = SimpleLogicalSpec::Selector(SelectorSpec { inlets: 3 });
+        let spec = SimpleLogicalSpec::Selector(SelectorSpec {
+            inlets: 3,
+            ..SelectorSpec::default()
+        });
         let labels: Vec<_> = spec.variable_ports().iter().map(|p| p.label()).collect();
         assert_eq!(labels, ["in 1", "in 2", "in 3"]);
     }

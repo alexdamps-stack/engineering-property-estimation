@@ -85,8 +85,19 @@ pub(crate) fn molar_thermal_scale(s: &EquilibriumState) -> f64 {
     }
 }
 
-/// Outlet minus inlet component and energy residuals; duty is positive into
-/// the unit. Boundary feeds/products have no internal balance.
+/// Material crossing the modeled flowsheet boundary at a logical unit.
+/// Flow is positive into the unit. Enthalpy flow uses that same direction
+/// and the package's signed molar enthalpy.
+#[derive(Debug, Clone)]
+pub struct MaterialExchange {
+    pub molar_flow_mol_s: f64,
+    /// Signed molar flows in package component order.
+    pub component_flows_mol_s: Vec<f64>,
+    pub enthalpy_flow_w: f64,
+}
+
+/// Outlet minus inlet residuals after accounting for external material and
+/// duty. Boundary feeds/products have no internal balance.
 #[derive(Debug, Clone)]
 pub struct Balance {
     pub component_residuals_mol_s: Vec<f64>,
@@ -103,6 +114,8 @@ pub struct UnitCalculation {
     /// heat exchanger, W. `None` for other units. It is not an external duty
     /// and does not enter the energy balance.
     pub transferred_duty_w: Option<f64>,
+    /// Additional flowsheet boundary contribution from material and its enthalpy.
+    pub material_exchange: Option<MaterialExchange>,
     pub balance: Option<Balance>,
     pub warnings: Vec<String>,
 }
@@ -377,6 +390,7 @@ impl Flowsheet {
                 outlets,
                 duty_w,
                 transferred_duty_w,
+                material_exchange,
                 warnings,
                 energy,
             } = calculate_unit(u.kind, &u.spec, &inputs, &ctx).map_err(|e| fail(id, e))?;
@@ -408,8 +422,14 @@ impl Flowsheet {
                 None
             } else {
                 Some(
-                    balance(&inlets, &outlets, duty_w, package.model().fractions().len())
-                        .map_err(|e| fail(id, e))?,
+                    balance(
+                        &inlets,
+                        &outlets,
+                        duty_w,
+                        material_exchange.as_ref(),
+                        package.model().fractions().len(),
+                    )
+                    .map_err(|e| fail(id, e))?,
                 )
             };
             transfer_energy(&ports.energy, duty_w, energy, &mut report.energy_streams)
@@ -424,6 +444,7 @@ impl Flowsheet {
                 UnitCalculation {
                     duty_w,
                     transferred_duty_w,
+                    material_exchange,
                     balance,
                     warnings,
                 },
@@ -819,6 +840,7 @@ fn calculate_unit(
                 outlets,
                 duty_w: 0.0,
                 transferred_duty_w: Some(0.0),
+                material_exchange: None,
                 energy: Vec::new(),
                 warnings: vec![
                     "Zero flow on one or both exchanger sides: no heat transferred; empty sides pass through as zero-flow outlets without a thermodynamic state.".into(),
@@ -860,6 +882,7 @@ fn calculate_unit(
                 outlets: vec![stream(nh, ho), stream(nc, co)],
                 duty_w: 0.0,
                 transferred_duty_w: Some(q),
+                material_exchange: None,
                 energy: Vec::new(),
                 warnings: vec![],
             })
@@ -872,12 +895,29 @@ pub(crate) fn balance(
     inputs: &[MaterialStream],
     outputs: &[MaterialStream],
     duty: f64,
+    exchange: Option<&MaterialExchange>,
     count: usize,
 ) -> Result<Balance, String> {
     let mut residual = vec![0.0; count];
     let mut energy = -duty;
     let mut energy_scale = duty.abs();
     let mut thermal_scale = 0.0;
+    let mut external_inflow = 0.0;
+    if let Some(x) = exchange {
+        if x.component_flows_mol_s.len() != count
+            || !x.molar_flow_mol_s.is_finite()
+            || !x.enthalpy_flow_w.is_finite()
+            || x.component_flows_mol_s.iter().any(|n| !n.is_finite())
+        {
+            return Err("invalid external material exchange".into());
+        }
+        for (r, n) in residual.iter_mut().zip(&x.component_flows_mol_s) {
+            *r -= n;
+        }
+        energy -= x.enthalpy_flow_w;
+        energy_scale += x.enthalpy_flow_w.abs();
+        external_inflow = x.molar_flow_mol_s.max(0.0);
+    }
     for (sign, streams) in [(-1.0, inputs), (1.0, outputs)] {
         for s in streams {
             if !s.molar_flow_mol_s.is_finite() || s.molar_flow_mol_s < 0.0 {
@@ -892,10 +932,7 @@ pub(crate) fn balance(
             thermal_scale += s.thermal_scale_w();
         }
     }
-    let flow_scale = inputs
-        .iter()
-        .map(|s| s.molar_flow_mol_s)
-        .sum::<f64>()
+    let flow_scale = (inputs.iter().map(|s| s.molar_flow_mol_s).sum::<f64>() + external_inflow)
         .max(f64::MIN_POSITIVE);
     let max_scaled = residual
         .iter()
@@ -907,6 +944,8 @@ pub(crate) fn balance(
     if residual.iter().any(|r| !r.is_finite())
         || !energy.is_finite()
         || !energy_scale.is_finite()
+        || !thermal_scale.is_finite()
+        || !flow_scale.is_finite()
         || !scaled_energy.is_finite()
         || max_scaled > 1e-8
         || scaled_energy.abs() > 2e-9

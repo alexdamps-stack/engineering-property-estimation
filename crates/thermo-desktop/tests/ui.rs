@@ -469,6 +469,77 @@ fn component_splitter_recovery_is_edited_from_the_properties_panel() {
 }
 
 #[test]
+fn logical_stream_specs_and_exchange_use_the_properties_panel() {
+    use flowsheet_core::units::SimpleLogicalSpec;
+    use flowsheet_core::units::simple_logical::{MultiplierSpec, SelectorSpec};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["methane".into()],
+        "single-component UI test",
+    ));
+    let first = ed.add_unit_at(UnitKind::Feed, egui::pos2(0.0, 0.0));
+    let second = ed.add_unit_at(UnitKind::Feed, egui::pos2(0.0, 170.0));
+    let scale = ed.add_unit_at(UnitKind::Multiplier, egui::pos2(150.0, 0.0));
+    let select = ed.add_unit_at(UnitKind::Selector, egui::pos2(320.0, 0.0));
+    let product = ed.add_unit_at(UnitKind::Product, egui::pos2(480.0, 0.0));
+    for (feed, flow) in [(first, 2.0), (second, 3.0)] {
+        ed.fs.set_spec(
+            feed,
+            UnitSpec::Feed {
+                temperature_k: Some(330.0),
+                pressure_pa: Some(2e6),
+                molar_flow_mol_s: Some(flow),
+            },
+        );
+        ed.feeds.insert(feed, vec![1.0]);
+    }
+    for (from, out, to, inlet) in [
+        (first, 0, scale, 0),
+        (scale, 1, select, 1),
+        (second, 0, select, 2),
+        (select, 0, product, 0),
+    ] {
+        ed.fs
+            .connect(PortRef::new(from, out), PortRef::new(to, inlet))
+            .unwrap();
+    }
+    ed.selection = Some(Selection::Unit(scale));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Enter value").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(scale).unwrap().spec,
+        UnitSpec::SimpleLogical(SimpleLogicalSpec::Multiplier(MultiplierSpec {
+            factor: Some(1.0)
+        })),
+    );
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(select));
+    h.run();
+    h.get_by_label("Selected inlet").click();
+    h.run();
+    h.get_by_label("Inlet 2").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(select).unwrap().spec,
+        UnitSpec::SimpleLogical(SimpleLogicalSpec::Selector(SelectorSpec {
+            inlets: 2,
+            selected_inlet: Some(2),
+        })),
+    );
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("External material (+ into unit)");
+    h.get_by_label("Enthalpy carried by material");
+    let r = h.state().editor().results.as_ref().unwrap();
+    let exchange = r.units[&select].material_exchange.as_ref().unwrap();
+    assert_eq!(exchange.component_flows_mol_s, [-2.0]);
+}
+
+#[test]
 fn snapshot_demonstration_dark() {
     let mut h = harness(FlowsheetApp::with_demonstration(), egui::Theme::Dark);
     check_snapshot(&mut h, "demonstration_dark");

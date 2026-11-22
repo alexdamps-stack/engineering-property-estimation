@@ -141,12 +141,17 @@ impl CalcContext<'_> {
 ```
 
 The calculation returns `UnitOutput { outlets, duty_w, transferred_duty_w,
-warnings, energy }`: one `MaterialStream` per material outlet port in port
+material_exchange, warnings, energy }`: one `MaterialStream` per material outlet port in port
 order; `duty_w` is the net external duty (positive into the unit) and enters
 the energy balance that the engine checks (1e-8 relative component, 2e-9
 scaled energy); `energy` gives one value per energy port (positive in the
 port's direction) or stays empty for the default — a unit with exactly one
 energy port puts `duty_w` through it (negated for an outlet).
+
+The multiplier and selector supply `material_exchange` for their additional
+flowsheet boundary. The engine subtracts its signed component and enthalpy
+flows from the outlet-minus-inlet residuals. Positive flow enters the unit.
+The result preserves the boundary contribution separately from heat duty.
 
 ## 6. Port model
 
