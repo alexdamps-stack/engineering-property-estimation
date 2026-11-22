@@ -93,9 +93,9 @@ impl CubicPackage {
         let hi = self.options.maximum_temperature_k;
         let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
         if !lo.is_finite() || !hi.is_finite() || lo < t_lo || hi > t_hi || lo >= hi {
-            return Err(CalculationError::UnsupportedCapability(
-                "package requires ordered finite temperature bounds within 200..=600 K".into(),
-            ));
+            return Err(CalculationError::UnsupportedCapability(format!(
+                "package requires ordered finite temperature bounds within {t_lo}..={t_hi} K"
+            )));
         }
         Ok(())
     }

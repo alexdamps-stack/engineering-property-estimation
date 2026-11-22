@@ -323,7 +323,7 @@ impl Editor {
         self.package = Some(project.package);
         self.feeds = project.feeds;
         self.results = project.results;
-        self.units = project.display_units.into();
+        self.units = project.display_units;
         self.fit_requested = true;
     }
 
@@ -339,7 +339,7 @@ impl Editor {
                 .filter(|(id, _)| self.fs.unit(**id).is_some())
                 .map(|(id, p)| (*id, [p.x, p.y]))
                 .collect(),
-            display_units: self.units.into(),
+            display_units: self.units,
             results: self.results.clone(),
         })
     }

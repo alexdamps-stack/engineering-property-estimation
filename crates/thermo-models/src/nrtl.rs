@@ -385,13 +385,8 @@ impl NrtlModel {
         self.excess_kelvin(temperature.value(), x)
     }
 
-    /// Raw-`f64` form of [`NrtlModel::excess_at`], with the temperature in kelvin
-    /// validated here (finite, positive).
-    #[deprecated(note = "use `NrtlModel::excess_at`, which takes a typed `Temperature`")]
-    pub fn excess(&self, temperature: f64, x: &[f64]) -> Result<ExcessState, Error> {
-        self.excess_kelvin(temperature, x)
-    }
-
+    /// [`NrtlModel::excess_at`] with the temperature in kelvin, validated again
+    /// here (finite, positive).
     fn excess_kelvin(&self, temperature: f64, x: &[f64]) -> Result<ExcessState, Error> {
         let n = self.parameters.ids.len();
         if x.len() != n {

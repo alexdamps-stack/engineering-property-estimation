@@ -2,36 +2,10 @@
 //! values with absolute pressure; conversions here affect presentation and
 //! editing only.
 
-use flowsheet_project::DisplayUnitSet;
-
-/// Selectable display unit set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DisplayUnits {
-    /// K, Pa, mol/s, W.
-    Si,
-    /// °C, bar, kmol/h, kW — the default for process engineers.
-    #[default]
-    ProcessMetric,
-}
-
-// The one mapping between the stored project unit set and the display unit set.
-impl From<DisplayUnitSet> for DisplayUnits {
-    fn from(set: DisplayUnitSet) -> Self {
-        match set {
-            DisplayUnitSet::ProcessMetric => DisplayUnits::ProcessMetric,
-            DisplayUnitSet::Si => DisplayUnits::Si,
-        }
-    }
-}
-
-impl From<DisplayUnits> for DisplayUnitSet {
-    fn from(units: DisplayUnits) -> Self {
-        match units {
-            DisplayUnits::ProcessMetric => DisplayUnitSet::ProcessMetric,
-            DisplayUnits::Si => DisplayUnitSet::Si,
-        }
-    }
-}
+/// Selectable display unit set: the unit set stored with the project
+/// (SI, or process metric — the default for process engineers). The
+/// presentation behaviour lives in [`DisplayUnitsExt`].
+pub use flowsheet_project::DisplayUnitSet as DisplayUnits;
 
 /// Physical quantity of an editable field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,20 +32,46 @@ pub enum Quantity {
     Density,
 }
 
-impl DisplayUnits {
+/// Labels, unit symbols and conversions of a [`DisplayUnits`] set.
+pub trait DisplayUnitsExt: Copy {
     /// All unit sets, in menu order.
-    pub const ALL: [DisplayUnits; 2] = [DisplayUnits::ProcessMetric, DisplayUnits::Si];
+    const ALL: [DisplayUnits; 2];
 
     /// Menu label.
-    pub fn label(self) -> &'static str {
+    fn label(self) -> &'static str;
+
+    /// Unit symbol for a quantity. Absolute pressures are always marked `(a)`.
+    fn symbol(self, q: Quantity) -> &'static str;
+
+    /// Converts a stored SI value to this display set.
+    fn si_to_display(self, q: Quantity, si: f64) -> f64;
+
+    /// Converts a displayed value back to SI.
+    fn display_to_si(self, q: Quantity, shown: f64) -> f64;
+
+    /// Drag speed for editing a displayed value.
+    fn drag_speed(self, q: Quantity) -> f64;
+
+    /// Lowest displayed value the editor allows. Duty may be negative (heat
+    /// removed); all other quantities are non-negative in SI. Strict
+    /// positivity is reported by the flowsheet diagnostics, not clamped away.
+    fn display_min(self, q: Quantity) -> f64;
+
+    /// Highest displayed value the editor allows (fractions are capped at 1).
+    fn display_max(self, q: Quantity) -> f64;
+}
+
+impl DisplayUnitsExt for DisplayUnits {
+    const ALL: [DisplayUnits; 2] = [DisplayUnits::ProcessMetric, DisplayUnits::Si];
+
+    fn label(self) -> &'static str {
         match self {
             DisplayUnits::Si => "SI",
             DisplayUnits::ProcessMetric => "Process metric",
         }
     }
 
-    /// Unit symbol for a quantity. Absolute pressures are always marked `(a)`.
-    pub fn symbol(self, q: Quantity) -> &'static str {
+    fn symbol(self, q: Quantity) -> &'static str {
         match (self, q) {
             (DisplayUnits::Si, Quantity::Temperature) => "K",
             (DisplayUnits::Si, Quantity::Pressure) => "Pa(a)",
@@ -95,8 +95,7 @@ impl DisplayUnits {
         }
     }
 
-    /// Converts a stored SI value to this display set.
-    pub fn si_to_display(self, q: Quantity, si: f64) -> f64 {
+    fn si_to_display(self, q: Quantity, si: f64) -> f64 {
         match (self, q) {
             (DisplayUnits::Si, _) => si,
             (DisplayUnits::ProcessMetric, Quantity::Temperature) => si - 273.15,
@@ -115,8 +114,7 @@ impl DisplayUnits {
         }
     }
 
-    /// Converts a displayed value back to SI.
-    pub fn display_to_si(self, q: Quantity, shown: f64) -> f64 {
+    fn display_to_si(self, q: Quantity, shown: f64) -> f64 {
         match (self, q) {
             (DisplayUnits::Si, _) => shown,
             (DisplayUnits::ProcessMetric, Quantity::Temperature) => shown + 273.15,
@@ -134,8 +132,7 @@ impl DisplayUnits {
         }
     }
 
-    /// Drag speed for editing a displayed value.
-    pub fn drag_speed(self, q: Quantity) -> f64 {
+    fn drag_speed(self, q: Quantity) -> f64 {
         match (self, q) {
             (DisplayUnits::Si, Quantity::Fraction) => 0.001,
             (DisplayUnits::Si, Quantity::Pressure | Quantity::PressureDrop | Quantity::Duty) => {
@@ -148,18 +145,14 @@ impl DisplayUnits {
         }
     }
 
-    /// Lowest displayed value the editor allows. Duty may be negative (heat
-    /// removed); all other quantities are non-negative in SI. Strict
-    /// positivity is reported by the flowsheet diagnostics, not clamped away.
-    pub fn display_min(self, q: Quantity) -> f64 {
+    fn display_min(self, q: Quantity) -> f64 {
         match q {
             Quantity::Duty => f64::NEG_INFINITY,
             _ => self.si_to_display(q, 0.0),
         }
     }
 
-    /// Highest displayed value the editor allows (fractions are capped at 1).
-    pub fn display_max(self, q: Quantity) -> f64 {
+    fn display_max(self, q: Quantity) -> f64 {
         match q {
             Quantity::Fraction => self.si_to_display(q, 1.0),
             _ => f64::INFINITY,

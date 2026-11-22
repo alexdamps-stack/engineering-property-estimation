@@ -130,10 +130,10 @@ pub fn ph_flash(
         || options.energy_tolerance <= 0.0
         || options.energy_tolerance > 1e-6
     {
-        return Err(Error::UnsupportedCapability(
-            "PH requires ordered bounds within 200..=600 K and energy tolerance in (0, 1e-6]"
-                .into(),
-        ));
+        let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
+        return Err(Error::UnsupportedCapability(format!(
+            "PH requires ordered bounds within {t_lo}..={t_hi} K and energy tolerance in (0, 1e-6]"
+        )));
     }
     if options.max_iterations == 0 {
         return Err(Error::NonConvergence(
