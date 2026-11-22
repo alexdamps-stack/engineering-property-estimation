@@ -12,7 +12,7 @@
     "validation/generate-process-references.py": "5e5015be5d366933122eea3711468e4d35a574d1ede1296132ca37e6268fc03d",
     "validation/generate-ph-references.py": "ad25db3e9a692c72bf67bfd65ce2064833c2a828761698f3ce5c20e8e1afbfd6",
     "validation/generate-references.py": "eea4700cf5b1f18d64ed0db77c4c73b7a4ec98052930bf755f3f192bb898d2a6",
-    "validation/generate-flash-references.py": "bbc264bc56be9648c6a011e335c9a4972580cd962c717bd947cbdc3c97119148"
+    "validation/generate-flash-references.py": "13dbb9f40fa221ecae9472e15a8b11bc81a98233c83d7d9e298b1b0ec7809e31"
   },
   "independence": "teqp AD, Cantera NASA7, SciPy brentq energy solves and A4 multi-start TPD/split; no Rust calls",
   "scope": "Seven fixed streams per variant; synthetic zero kij; finite-start fluid stability, not experimental accuracy or a continuous state-domain qualification",
@@ -1062,7 +1062,7 @@
               ]
             ]
           },
-          "feed_min_tm": -1.0347278589506459e-13,
+          "feed_min_tm": -6.816769371198461e-14,
           "phases": 1,
           "Z": 0.8851317065306241,
           "target_h": -3614.848153440884,
@@ -1227,7 +1227,7 @@
               ]
             ]
           },
-          "feed_min_tm": -8.548717289613705e-14,
+          "feed_min_tm": -3.863576125695545e-14,
           "phases": 1,
           "Z": 0.05088207227266514,
           "target_h": -20057.321860861033,
@@ -2263,7 +2263,7 @@
               ]
             ]
           },
-          "feed_min_tm": -1.1790568521519162e-13,
+          "feed_min_tm": -1.028066520802895e-13,
           "phases": 1,
           "Z": 0.8852681215566389,
           "target_h": -3623.5190741651613,
@@ -2428,7 +2428,7 @@
               ]
             ]
           },
-          "feed_min_tm": -1.5654144647214707e-13,
+          "feed_min_tm": -1.2745360322696797e-13,
           "phases": 1,
           "Z": 0.05089533929404338,
           "target_h": -20091.336410539905,

@@ -4,10 +4,12 @@
 use std::ops::ControlFlow;
 use std::path::PathBuf;
 
-use flowsheet_core::{PortRef, PressureSpec, UnitId, UnitKind, UnitSpec};
+use flowsheet_core::{
+    ExchangerSpec, MAX_IDENTIFIER, PortRef, PressureSpec, StreamId, UnitId, UnitKind, UnitSpec,
+};
 use flowsheet_project::{
-    CubicVariantChoice, Currency, Fingerprint, Fingerprints, Project, ProjectError, ResultSet,
-    demonstration, run_acceptance, solve_project,
+    CubicVariantChoice, Currency, Fingerprint, Fingerprints, MAX_PROJECT_FILE_BYTES, MAX_STREAMS,
+    MAX_UNITS, Project, ProjectError, ResultSet, demonstration, run_acceptance, solve_project,
 };
 
 fn solve(project: &Project) -> ResultSet {
@@ -284,15 +286,15 @@ fn malformed_and_foreign_files_are_rejected() {
         Project::from_json(&text.replacen(from, to, 1))
     };
     assert_eq!(
-        edit("\"format_version\": 2", "\"format_version\": 3").unwrap_err(),
-        ProjectError::UnsupportedVersion(Some(3))
+        edit("\"format_version\": 3", "\"format_version\": 4").unwrap_err(),
+        ProjectError::UnsupportedVersion(Some(4))
     );
     assert_eq!(
-        edit("\"format_version\": 2", "\"format_version\": 0").unwrap_err(),
+        edit("\"format_version\": 3", "\"format_version\": 0").unwrap_err(),
         ProjectError::UnsupportedVersion(Some(0))
     );
     assert_eq!(
-        edit("\"format_version\": 2", "\"format\": 2").unwrap_err(),
+        edit("\"format_version\": 3", "\"format\": 3").unwrap_err(),
         ProjectError::UnsupportedVersion(None)
     );
     assert!(matches!(
@@ -311,6 +313,90 @@ fn malformed_and_foreign_files_are_rejected() {
         Project::load(std::path::Path::new("does/not/exist.json")),
         Err(ProjectError::Io(_))
     ));
+}
+
+#[test]
+fn oversized_duplicated_and_out_of_range_content_is_rejected() {
+    let project = demonstration(CubicVariantChoice::PengRobinsonBostonMathias);
+    let value: serde_json::Value = serde_json::from_str(&project.to_json().unwrap()).unwrap();
+    let load = |edit: &dyn Fn(&mut serde_json::Value)| {
+        let mut v = value.clone();
+        edit(&mut v);
+        Project::from_json(&v.to_string())
+    };
+    let invalid = |r: Result<Project, ProjectError>, needle: &str| match r {
+        Err(ProjectError::Invalid(m)) => assert!(m.contains(needle), "{m}"),
+        other => panic!("expected Invalid containing {needle:?}, got {other:?}"),
+    };
+
+    // Duplicate layout entries are rejected like duplicate feeds (#140).
+    invalid(
+        load(&|v| {
+            let first = v["layout"][0].clone();
+            v["layout"].as_array_mut().unwrap().push(first);
+        }),
+        "appears twice",
+    );
+    // Identifiers that leave no room for allocation are rejected (#132).
+    for id in [0, MAX_IDENTIFIER + 1, u64::MAX] {
+        invalid(
+            load(&|v| v["units"][0]["id"] = id.into()),
+            "unit identifier",
+        );
+        invalid(
+            load(&|v| v["streams"][0]["id"] = id.into()),
+            "stream identifier",
+        );
+    }
+    // Collection and file size limits (#140).
+    invalid(
+        load(&|v| {
+            let unit = v["units"][0].clone();
+            let units = v["units"].as_array_mut().unwrap();
+            for i in 0..=MAX_UNITS as u64 {
+                let mut u = unit.clone();
+                u["id"] = (1_000_000 + i).into();
+                units.push(u);
+            }
+        }),
+        "units exceed",
+    );
+    invalid(
+        load(&|v| {
+            let stream = v["streams"][0].clone();
+            let streams = v["streams"].as_array_mut().unwrap();
+            streams.extend(std::iter::repeat_n(stream, MAX_STREAMS + 1));
+        }),
+        "streams exceed",
+    );
+    let mut huge = project.to_json().unwrap();
+    huge.push_str(&" ".repeat(MAX_PROJECT_FILE_BYTES as usize));
+    invalid(Project::from_json(&huge), "MiB limit");
+    let path = std::env::temp_dir().join(format!(
+        "flowsheet-project-oversized-{}.json",
+        std::process::id()
+    ));
+    std::fs::write(&path, &huge).unwrap();
+    let loaded = Project::load(&path);
+    std::fs::remove_file(&path).unwrap();
+    invalid(loaded, "MiB limit");
+}
+
+#[test]
+fn restored_identifiers_near_the_limit_still_allocate() {
+    // The largest accepted identifier leaves room for new units and streams.
+    let project = demonstration(CubicVariantChoice::PengRobinsonBostonMathias);
+    let mut value: serde_json::Value = serde_json::from_str(&project.to_json().unwrap()).unwrap();
+    value["streams"][0]["id"] = MAX_IDENTIFIER.into();
+    let mut loaded = Project::from_json(&value.to_string()).unwrap();
+    let feed = loaded.flowsheet.add_unit(UnitKind::Feed);
+    let product = loaded.flowsheet.add_unit(UnitKind::Product);
+    assert_eq!(
+        loaded
+            .flowsheet
+            .connect(PortRef::new(feed, 0), PortRef::new(product, 0)),
+        Ok(StreamId(MAX_IDENTIFIER + 1))
+    );
 }
 
 #[test]
@@ -341,24 +427,120 @@ fn reloaded_projects_continue_identifiers_and_tags() {
 }
 
 #[test]
-fn version_2_is_written_and_version_1_files_still_load() {
-    assert_eq!(flowsheet_project::FORMAT_VERSION, 2);
+fn version_3_is_written_and_version_1_and_2_files_still_load() {
+    assert_eq!(flowsheet_project::FORMAT_VERSION, 3);
     let mut project = demonstration(CubicVariantChoice::PengRobinson);
     project.results = Some(solve(&project));
     let text = project.to_json().unwrap();
-    assert!(text.contains("\"format_version\": 2"));
+    assert!(text.contains("\"format_version\": 3"));
 
-    // A version-1 file (same schema) is read and written back as version 2.
-    let v1 = text.replacen("\"format_version\": 2", "\"format_version\": 1", 1);
-    let loaded = Project::from_json(&v1).unwrap();
-    assert_eq!(loaded.results, project.results);
-    assert_eq!(loaded.to_json().unwrap(), text);
+    // Version-1 and version-2 files without exchangers have the same
+    // content and are written back as version 3.
+    for old in [1, 2] {
+        let older = text.replacen(
+            "\"format_version\": 3",
+            &format!("\"format_version\": {old}"),
+            1,
+        );
+        let loaded = Project::from_json(&older).unwrap();
+        assert_eq!(loaded.results, project.results);
+        assert_eq!(loaded.to_json().unwrap(), text);
+    }
 
     // The committed A10 example is a version-1 input-only project.
     let example = include_str!("../../../examples/recycle.flowsheet.json");
     assert!(example.contains("\"format_version\": 1"));
     let loaded = Project::from_json(example).unwrap();
-    assert!(loaded.to_json().unwrap().contains("\"format_version\": 2"));
+    assert!(loaded.to_json().unwrap().contains("\"format_version\": 3"));
+}
+
+/// The demonstration feeds routed through a heat exchanger that moves 1 kW
+/// from feed B (350 K, hot side) to feed A (330 K, cold side).
+fn exchanger_project() -> (Project, UnitId) {
+    let mut project = demonstration(CubicVariantChoice::PengRobinsonBostonMathias);
+    let fs = &mut project.flowsheet;
+    let feed_at = |fs: &flowsheet_core::Flowsheet, t: f64| {
+        fs.units()
+            .find(|u| matches!(u.spec, UnitSpec::Feed { temperature_k: Some(x), .. } if x == t))
+            .unwrap()
+            .id
+    };
+    let (a, b) = (feed_at(fs, 330.0), feed_at(fs, 350.0));
+    let others: Vec<_> = fs
+        .units()
+        .filter(|u| u.kind != UnitKind::Feed)
+        .map(|u| u.id)
+        .collect();
+    for id in others {
+        fs.remove_unit(id);
+    }
+    let ex = fs.add_unit(UnitKind::HeatExchanger);
+    fs.set_spec(
+        ex,
+        UnitSpec::HeatExchanger {
+            thermal: ExchangerSpec::Duty(Some(1000.0)),
+            hot_pressure_drop_pa: 0.0,
+            cold_pressure_drop_pa: 0.0,
+        },
+    );
+    fs.connect(PortRef::new(b, 0), PortRef::new(ex, 0)).unwrap();
+    fs.connect(PortRef::new(a, 0), PortRef::new(ex, 1)).unwrap();
+    for port in [2, 3] {
+        let product = fs.add_unit(UnitKind::Product);
+        fs.connect(PortRef::new(ex, port), PortRef::new(product, 0))
+            .unwrap();
+    }
+    project.layout.retain(|id, _| *id == a || *id == b);
+    (project, ex)
+}
+
+#[test]
+fn exchanger_transferred_duty_is_stored_saved_and_reloaded() {
+    let (mut project, ex) = exchanger_project();
+    let results = solve(&project);
+    let r = &results.units[&ex];
+    assert_eq!(r.duty_w, 0.0);
+    assert_eq!(r.transferred_duty_w, Some(1000.0));
+    for (id, u) in &results.units {
+        if *id != ex {
+            assert_eq!(u.transferred_duty_w, None, "unit {id}");
+        }
+    }
+    project.results = Some(results);
+    let text = project.to_json().unwrap();
+    assert!(text.contains("\"format_version\": 3"));
+    assert_eq!(text.matches("\"transferred_duty_w\": 1000.0").count(), 1);
+    let loaded = Project::from_json(&text).unwrap();
+    assert_eq!(loaded.results, project.results);
+    let fps = loaded.fingerprints();
+    assert_eq!(
+        loaded.results.as_ref().unwrap().unit_currency(ex, &fps),
+        Currency::Current
+    );
+
+    // A version-2 file has no transferred duty: it loads without one and is
+    // written back as version 3, still without one until recalculated.
+    let v2 = text
+        .replacen("\"format_version\": 3", "\"format_version\": 2", 1)
+        .replace("\"transferred_duty_w\": 1000.0,", "");
+    assert!(!v2.contains("transferred_duty_w"));
+    let loaded = Project::from_json(&v2).unwrap();
+    let stored = &loaded.results.as_ref().unwrap().units[&ex];
+    assert_eq!((stored.duty_w, stored.transferred_duty_w), (0.0, None));
+    let resaved = loaded.to_json().unwrap();
+    assert!(resaved.contains("\"format_version\": 3"));
+    assert!(!resaved.contains("transferred_duty_w"));
+
+    // Non-finite values cannot be saved.
+    project
+        .results
+        .as_mut()
+        .unwrap()
+        .units
+        .get_mut(&ex)
+        .unwrap()
+        .transferred_duty_w = Some(f64::INFINITY);
+    assert!(matches!(project.to_json(), Err(ProjectError::Invalid(_))));
 }
 
 fn directory_entries(dir: &std::path::Path) -> Vec<String> {

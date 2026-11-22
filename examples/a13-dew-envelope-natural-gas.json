@@ -54,13 +54,13 @@
     ]
   ],
   "interaction_source": "Explicit synthetic zero-kij approximation; not fitted VLE data",
-  "saturation_temperature_bounds_k": [
+  "saturation_temperature_bounds_K": [
     200.0,
     225.0
   ],
-  "envelope_step_k": 5.0,
+  "envelope_step_K": 5.0,
   "envelope_maximum_points": 10,
-  "saturation_pressure_bounds_pa": [
+  "saturation_pressure_bounds_Pa": [
     10000.0,
     4000000.0
   ]

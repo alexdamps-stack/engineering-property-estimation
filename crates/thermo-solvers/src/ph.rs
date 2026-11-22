@@ -2,7 +2,7 @@
 use crate::{
     FlashOptions, FlashPhase, PR_CRITICAL_VOLUME_OVER_COVOLUME, PureSaturation, TpFlash, tp_flash,
 };
-use thermo_models::{CubicModel, RootSelection};
+use thermo_models::{CUBIC_TEMPERATURE_RANGE_K, CubicModel, RootSelection};
 use thermo_types::{
     CalculationError as Error, Diagnostic, DiagnosticSeverity, Phase, Pressure, Temperature,
 };
@@ -21,8 +21,8 @@ pub struct PhFlashOptions {
 impl Default for PhFlashOptions {
     fn default() -> Self {
         Self {
-            minimum_temperature_k: 200.0,
-            maximum_temperature_k: 600.0,
+            minimum_temperature_k: CUBIC_TEMPERATURE_RANGE_K[0],
+            maximum_temperature_k: CUBIC_TEMPERATURE_RANGE_K[1],
             max_iterations: 100,
             energy_tolerance: 1e-10,
             tp: FlashOptions::default(),
@@ -123,17 +123,17 @@ pub fn ph_flash(
     let mut hi = options.maximum_temperature_k;
     if !lo.is_finite()
         || !hi.is_finite()
-        || lo < 200.0
-        || hi > 600.0
+        || lo < CUBIC_TEMPERATURE_RANGE_K[0]
+        || hi > CUBIC_TEMPERATURE_RANGE_K[1]
         || lo >= hi
         || !options.energy_tolerance.is_finite()
         || options.energy_tolerance <= 0.0
         || options.energy_tolerance > 1e-6
     {
-        return Err(Error::UnsupportedCapability(
-            "PH requires ordered bounds within 200..=600 K and energy tolerance in (0, 1e-6]"
-                .into(),
-        ));
+        let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
+        return Err(Error::UnsupportedCapability(format!(
+            "PH requires ordered bounds within {t_lo}..={t_hi} K and energy tolerance in (0, 1e-6]"
+        )));
     }
     if options.max_iterations == 0 {
         return Err(Error::NonConvergence(

@@ -41,8 +41,9 @@ pub use error::ProjectError;
 pub use fingerprint::{Fingerprint, Fingerprints};
 pub use package::{CubicVariantChoice, PackageSelection, PreparedPackage, Provenance};
 pub use project::{
-    DisplayUnitSet, FORMAT_VERSION, FeedFractions, InputIssue, OLDEST_READABLE_FORMAT_VERSION,
-    Project, SolveFailure, solve_project, write_atomically,
+    DisplayUnitSet, FORMAT_VERSION, FeedFractions, InputIssue, MAX_PROJECT_FILE_BYTES, MAX_STREAMS,
+    MAX_UNITS, OLDEST_READABLE_FORMAT_VERSION, Project, SolveFailure, input_issues, solve_project,
+    write_atomically,
 };
 pub use results::{
     Currency, PhaseResult, RecycleResult, ResultSet, StateResult, StreamResult, UnitResult,

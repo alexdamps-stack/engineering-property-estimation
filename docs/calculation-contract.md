@@ -223,8 +223,13 @@ All satisfy `ComponentId`; their registry mappings remain data-layer records,
 not a hardcoded list in this crate. The A2 examples' absolute Pa/K states,
 mole fractions and mol/s flows agree with this contract. Every positive component
 is active, zeros are retained, and the untranslated cubic baseline agrees.
-Use the same `R = 8.31446261815324 J/(mol K)` for subsequent EOS and ideal
-caloric terms; a reference with a different R needs an explicit matching override.
+Use the same `R = 8.31446261815324 J/(mol K)` (`thermo_types::MOLAR_GAS_CONSTANT`)
+for subsequent EOS and ideal caloric terms; a reference with a different R needs
+an explicit matching override. The cubic, NRTL/gamma–phi, liquid-data and
+tabulation code use this shared constant. Native GERG-2008 is the deliberate
+exception: its formulation constant `R = 8.314472 J/(mol K)`
+(`thermo_models::GERG_GAS_CONSTANT`) is used throughout the GERG model and
+solvers, with its own caloric reference ([A6 status](a6-status.md)).
 
 A1 agrees with A2's proposed caloric convention, subject to coordinator review:
 pure-species ideal-gas molar h and s are zero at 298.15 K and 100000 Pa.

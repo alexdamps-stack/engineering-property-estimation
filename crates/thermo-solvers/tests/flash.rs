@@ -1,5 +1,7 @@
 //! A4 stability, TP flash and pure saturation against the offline independent
 //! fixture `validation/fixtures/flash-v1.json`, plus consistency and failure checks.
+mod common;
+
 use serde_json::Value;
 use thermo_data::ComponentDatabase;
 use thermo_models::{CubicModel, CubicVariant, RootSelection};
@@ -93,9 +95,13 @@ fn fixture_provenance_matches_embedded_data() {
     assert_eq!(f["packages"]["teqp"], "0.23.2");
     assert_eq!(f["flash"].as_array().unwrap().len(), 22);
     assert_eq!(f["saturation"].as_array().unwrap().len(), 30);
-    // The generator records the SHA-256 of the source extract it read; reviewers
-    // compare it with `validation/a4-checks.md` when regenerating.
-    assert_eq!(f["input_sha256"].as_str().unwrap().len(), 64);
+    // The generator records the SHA-256 of the source extract it read; a changed
+    // extract must not pass against these stale references.
+    common::assert_input_sha256(
+        "flash-v1.json",
+        "data/source-extracts/components.provisional.json",
+        f["input_sha256"].as_str().unwrap(),
+    );
 }
 
 #[test]
@@ -143,7 +149,13 @@ fn tp_flash_matches_independent_references() {
             beta_tol,
         );
         for (label, phase, key) in [("y", vapor, "vapor"), ("x", liquid, "liquid")] {
-            for (a, e) in phase.composition.iter().zip(floats(&case[key])) {
+            let expected = floats(&case[key]);
+            assert_eq!(
+                phase.composition.len(),
+                expected.len(),
+                "{id} {label}: component count"
+            );
+            for (a, e) in phase.composition.iter().zip(expected) {
                 close(&format!("{id} {label}"), *a, e, x_tol);
             }
         }
@@ -572,4 +584,118 @@ fn duplicate_trials_are_reported_and_inconclusive_limits_still_fail() {
         ),
         Err(CalculationError::NonConvergence(_))
     ));
+}
+
+fn stability_with(edit: impl FnOnce(&mut StabilityOptions)) -> StabilityOptions {
+    let mut options = StabilityOptions::default();
+    edit(&mut options);
+    options
+}
+
+#[test]
+fn invalid_options_are_rejected_before_solving() {
+    let m = model(
+        &["methane", "propane"],
+        &[0.5, 0.5],
+        CubicVariant::PengRobinson,
+        zeros(2),
+    );
+    let pure = model(&["propane"], &[1.0], CubicVariant::PengRobinson, zeros(1));
+    let (t, p) = tp(250.0, 3e6);
+    // The default options split this feed; a NaN threshold must not hide that.
+    let split = tp_flash(&m, t, p, FlashOptions::default()).unwrap();
+    assert_eq!(split.phases.len(), 2);
+    assert!(!split.feed_stability.stable_in_trials);
+    let unsupported_stability = [
+        stability_with(|o| o.tm_threshold = f64::NAN),
+        stability_with(|o| o.tm_threshold = f64::NEG_INFINITY),
+        stability_with(|o| o.tm_threshold = 0.0),
+        stability_with(|o| o.tm_threshold = 1e-8),
+        stability_with(|o| o.tm_threshold = -1e-3),
+        stability_with(|o| o.tolerance = f64::NAN),
+        stability_with(|o| o.tolerance = f64::INFINITY),
+        stability_with(|o| o.tolerance = 0.0),
+        stability_with(|o| o.tolerance = -1e-10),
+        stability_with(|o| o.tolerance = 1e-3),
+    ];
+    for options in unsupported_stability {
+        assert!(matches!(
+            options.validate(),
+            Err(CalculationError::UnsupportedCapability(_))
+        ));
+        // Includes the single-component shortcut, which skips every TPD trial.
+        for feed in [&m, &pure] {
+            assert!(
+                matches!(
+                    assess_stability(feed, t, p, options),
+                    Err(CalculationError::UnsupportedCapability(_))
+                ),
+                "{options:?}"
+            );
+            let flash = FlashOptions {
+                stability: options,
+                ..FlashOptions::default()
+            };
+            assert!(
+                matches!(
+                    tp_flash(feed, t, p, flash),
+                    Err(CalculationError::UnsupportedCapability(_))
+                ),
+                "{options:?}"
+            );
+        }
+    }
+    let zero_stability_iterations = stability_with(|o| o.max_iterations = 0);
+    for feed in [&m, &pure] {
+        assert!(matches!(
+            assess_stability(feed, t, p, zero_stability_iterations),
+            Err(CalculationError::NonConvergence(_))
+        ));
+        let flash = FlashOptions {
+            stability: zero_stability_iterations,
+            ..FlashOptions::default()
+        };
+        assert!(matches!(
+            tp_flash(feed, t, p, flash),
+            Err(CalculationError::NonConvergence(_))
+        ));
+    }
+    for tolerance in [f64::NAN, f64::INFINITY, 0.0, -1e-10, 1e-3] {
+        let options = FlashOptions {
+            tolerance,
+            ..FlashOptions::default()
+        };
+        assert!(matches!(
+            options.validate(),
+            Err(CalculationError::UnsupportedCapability(_))
+        ));
+        for feed in [&m, &pure] {
+            assert!(matches!(
+                tp_flash(feed, t, p, options),
+                Err(CalculationError::UnsupportedCapability(_))
+            ));
+        }
+    }
+    let zero_flash_iterations = FlashOptions {
+        max_iterations: 0,
+        ..FlashOptions::default()
+    };
+    for feed in [&m, &pure] {
+        assert!(matches!(
+            tp_flash(feed, t, p, zero_flash_iterations),
+            Err(CalculationError::NonConvergence(_))
+        ));
+    }
+    // Defaults and the documented bounds remain accepted.
+    let boundary = FlashOptions {
+        tolerance: MAX_FLASH_TOLERANCE,
+        stability: StabilityOptions {
+            tolerance: MAX_STABILITY_TOLERANCE,
+            tm_threshold: MIN_TM_THRESHOLD,
+            ..StabilityOptions::default()
+        },
+        ..FlashOptions::default()
+    };
+    assert!(boundary.validate().is_ok());
+    assert!(FlashOptions::default().validate().is_ok());
 }

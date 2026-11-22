@@ -3,21 +3,24 @@ use crate::equilibrium_model::EquilibriumModel;
 use crate::{FlashOptions, StabilityAssessment, StabilityOptions, TpFlash};
 use thermo_data::ComponentDatabase;
 use thermo_models::{
-    FugacityState, GERG_CALORIC_REFERENCE, GERG_DATA_REVISION, GERG_GAS_CONSTANT as R,
-    GERG_MODEL_VERSION, GergFugacityState, GergModel, HomogeneousState, RootSelection,
+    FugacityState, GERG_DATA_REVISION, GERG_GAS_CONSTANT as R, GERG_MODEL_VERSION,
+    GergFugacityState, GergModel, HomogeneousState, RootSelection,
 };
 use thermo_types::{
-    CalculationError as Error, CaloricReference, DataMetadata, Diagnostic, DiagnosticSeverity,
-    ModelMetadata, Phase, Pressure, Temperature, ValidityStatus,
+    CalculationError as Error, DataMetadata, Diagnostic, DiagnosticSeverity, ModelMetadata, Phase,
+    Pressure, Temperature, ValidityStatus,
 };
 
-const COMPONENTS: [&str; 5] = ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide"];
+/// The qualified dry five-component fluid set shared by the GERG equilibrium path
+/// and the A13 cubic mixture-saturation domain.
+pub(crate) const QUALIFIED_DRY_COMPONENTS: [&str; 5] =
+    ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide"];
 
 pub(crate) fn validate(model: &GergModel, t: Temperature, p: Pressure) -> Result<(), Error> {
     if model
         .component_ids()
         .iter()
-        .any(|id| !COMPONENTS.contains(id))
+        .any(|id| !QUALIFIED_DRY_COMPONENTS.contains(id))
     {
         return Err(Error::UnsupportedCapability("GERG equilibrium is qualified only for methane/ethane/propane/nitrogen/carbon-dioxide; no aqueous or heavier-fluid equilibrium".into()));
     }
@@ -222,7 +225,7 @@ impl EquilibriumModel for GergEquilibrium {
             model:ModelMetadata {identifier:"GERG-2008".into(),implementation_version:GERG_MODEL_VERSION.into(),
                 formulation:"native GERG residual and ideal; R=8.314472; finite exterior-branch pressure search; minimum Gibbs among exterior roots".into()},
             data:DataMetadata {identifier:"NIST AGA8 GERG2008 2.01".into(),version:GERG_DATA_REVISION.into(),source:"data/source-extracts/gerg; native parameters and ideal reference".into()},
-            caloric_reference:CaloricReference {identifier:"gerg-native-ideal".into(),definition:GERG_CALORIC_REFERENCE.into()},
+            caloric_reference:s.caloric_reference,
             validity:ValidityStatus::Unassessed,selection})
     }
     fn wilson_values(&self, t: Temperature, p: Pressure) -> Vec<f64> {

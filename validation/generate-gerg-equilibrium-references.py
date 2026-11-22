@@ -105,8 +105,9 @@ PTR=ctypes.POINTER(ctypes.c_double)
 def tpd_search(model,ids,t,p,z):
     """Independent constrained numerical evidence over regular exterior roots.
 
-    Failed minimization trajectories are retained, never treated as stable
-    points. Successful trajectories supply finite evidence, not global proof.
+    Failed minimization trajectories are retained and may witness instability
+    below stable_tm_floor. Only successful finite minima support stability;
+    without either, the search is unresolved. Finite starts are not global proof.
     """
     active=z>0
     feed=a4.min_gibbs(model,t,p,z)
@@ -127,13 +128,14 @@ def tpd_search(model,ids,t,p,z):
             result=minimize(objective,np.log(np.maximum(start[active],1e-12)),jac=True,
                 method="L-BFGS-B",bounds=[(-60.,5.)]*active.sum(),
                 options=dict(ftol=1e-15,gtol=1e-12,maxiter=2000))
-            assert np.isfinite(result.fun)
-            if result.fun<best[0]:best=(float(result.fun),result.x)
+            assert np.isfinite(result.fun) and np.all(np.isfinite(result.x)),"nonfinite TPD result"
+            eligible=result.success or result.fun<a4.TOLERANCES["stable_tm_floor"]
+            if eligible and result.fun<best[0]:best=(float(result.fun),result.x)
             if not result.success:failures.append(dict(start=i,reason=str(result.message)))
         except AssertionError as error:
             failures.append(dict(start=i,reason=str(error)))
-    assert best[1] is not None,"all reference TPD trajectories failed"
     model.trial_records.append(dict(T=t,p=p,composition=z.tolist(),attempted_starts=len(starts),failed_trajectories=failures))
+    assert best[1] is not None,"reference TPD unresolved: no successful finite minimum or instability witness"
     w=np.zeros(len(z));w[active]=np.exp(best[1]);w/=w.sum()
     return best[0],w.tolist(),a4.min_gibbs(model,t,p,w)[0]
 

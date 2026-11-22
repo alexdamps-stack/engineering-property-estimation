@@ -1,5 +1,5 @@
 //! Pure-component saturation pressure from fugacity equality of the outer cubic roots.
-use thermo_models::{CubicModel, RootSelection};
+use thermo_models::{CUBIC_TEMPERATURE_RANGE_K, CubicModel, RootSelection};
 use thermo_types::{CalculationError as Error, Pressure, Temperature};
 
 /// Iteration limit for the bracketed Newton solve in ln p.
@@ -70,7 +70,8 @@ pub fn pure_saturation_pressure(
             "pure saturation supported for T/Tc <= {SATURATION_MAX_REDUCED_TEMPERATURE}; near-critical states are not supported"
         )));
     }
-    if !(200.0..=600.0).contains(&t) {
+    let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
+    if !(t_lo..=t_hi).contains(&t) {
         return Err(Error::OutsideValidityDomain(
             "pure saturation follows the 200..=600 K homogeneous EOS envelope".into(),
         ));

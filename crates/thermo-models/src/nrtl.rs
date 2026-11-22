@@ -377,18 +377,17 @@ impl NrtlModel {
         Ok((tau, g))
     }
 
-    /// Typed-temperature form of [`NrtlModel::excess`], consistent with the other
-    /// model entry points that take [`Temperature`].
+    /// Activity coefficients and excess properties at `temperature`, consistent with
+    /// the other model entry points that take [`Temperature`]. `x` must be finite,
+    /// nonnegative and sum to one within 1e-10; zero entries give infinite-dilution
+    /// ln γ.
     pub fn excess_at(&self, temperature: Temperature, x: &[f64]) -> Result<ExcessState, Error> {
-        self.excess(temperature.value(), x)
+        self.excess_kelvin(temperature.value(), x)
     }
 
-    /// Activity coefficients and excess properties at `temperature` in kelvin. The raw
-    /// `f64` form is kept for the existing solver call sites and is validated here
-    /// (finite, positive); prefer [`NrtlModel::excess_at`] in new code.
-    /// `x` must be finite, nonnegative and
-    /// sum to one within 1e-10; zero entries give infinite-dilution ln γ.
-    pub fn excess(&self, temperature: f64, x: &[f64]) -> Result<ExcessState, Error> {
+    /// [`NrtlModel::excess_at`] with the temperature in kelvin, validated again
+    /// here (finite, positive).
+    fn excess_kelvin(&self, temperature: f64, x: &[f64]) -> Result<ExcessState, Error> {
         let n = self.parameters.ids.len();
         if x.len() != n {
             return Err(InputError::ComponentMismatch.into());
@@ -524,10 +523,10 @@ mod tests {
         let parameters =
             NrtlParameters::checked(ids, tau, alpha, regression, "synthetic".into()).unwrap();
         let model = NrtlModel::new(parameters);
-        let state = model.excess(350.0, &[0.3, 0.3, 0.4]).unwrap();
+        let state = model.excess_kelvin(350.0, &[0.3, 0.3, 0.4]).unwrap();
         assert_eq!(state.validity, ValidityStatus::Extrapolated);
         // Within the (b,c) interval the missing (a,b) interval leaves it unassessed.
-        let state = model.excess(310.0, &[0.3, 0.3, 0.4]).unwrap();
+        let state = model.excess_kelvin(310.0, &[0.3, 0.3, 0.4]).unwrap();
         assert_eq!(state.validity, ValidityStatus::Unassessed);
     }
 }

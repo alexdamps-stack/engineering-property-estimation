@@ -290,6 +290,90 @@ fn invalid_missing_and_singular_requests_fail_explicitly() {
     }
 }
 
+/// `evaluate` and `ln_fugacity` (the flash entry point) share one root-acceptance
+/// rule: on a grid that crosses the two-phase region, each selection is accepted by
+/// both or by neither, accepted roots are identical, and `evaluate` never refuses a
+/// root on mechanical grounds that `ln_fugacity` accepted. `MinimumGibbs` returns
+/// the outer root with the lower reduced residual Gibbs energy.
+#[test]
+fn evaluate_and_ln_fugacity_share_root_acceptance() {
+    let selections = [
+        RootSelection::SmallestVolume,
+        RootSelection::LargestVolume,
+        RootSelection::MinimumGibbs,
+    ];
+    let mut three_root_states = 0;
+    let mut refused = 0;
+    for variant in [
+        CubicVariant::PengRobinson,
+        CubicVariant::PengRobinsonBostonMathias,
+    ] {
+        for (ids, x) in [
+            (vec!["propane"], vec![1.0]),
+            (vec!["methane", "propane"], vec![0.3, 0.7]),
+            (vec!["water", "methanol"], vec![0.6, 0.4]),
+        ] {
+            let m = mixture(&ids, &x, variant);
+            for k in 0..=40 {
+                let t = Temperature::new(200. + 10. * f64::from(k)).unwrap();
+                for e in 0..=30 {
+                    let p = Pressure::new(10f64.powf(-1.5 + 0.3 * f64::from(e))).unwrap();
+                    let mut outer = Vec::new();
+                    for selection in selections {
+                        let fug = m.ln_fugacity(t, p, selection);
+                        let full = m.evaluate(t, p, selection);
+                        match (&fug, &full) {
+                            (Ok(f), Ok(s)) => {
+                                assert_eq!(f.compressibility, s.compressibility);
+                                assert_eq!(f.ln_fugacity_coefficients, s.ln_fugacity_coefficients);
+                            }
+                            (Err(a), Err(b)) => {
+                                refused += 1;
+                                let mechanical = |e: &CalculationError| {
+                                    e.to_string().contains("mechanically unstable")
+                                };
+                                assert_eq!(mechanical(a), mechanical(b), "{a} / {b}");
+                            }
+                            (Ok(_), Err(b)) => assert!(
+                                !b.to_string().contains("mechanically unstable"),
+                                "evaluate refused a root ln_fugacity accepted: {b}"
+                            ),
+                            (Err(a), Ok(_)) => {
+                                panic!("ln_fugacity refused a root evaluate accepted: {a}")
+                            }
+                        }
+                        if let Ok(f) = fug
+                            && selection != RootSelection::MinimumGibbs
+                        {
+                            outer.push(f);
+                        }
+                    }
+                    if let ([small, large], Ok(min)) = (
+                        outer.as_slice(),
+                        m.ln_fugacity(t, p, RootSelection::MinimumGibbs),
+                    ) && small.root_count == 3
+                    {
+                        three_root_states += 1;
+                        let expected =
+                            if large.reduced_residual_gibbs < small.reduced_residual_gibbs {
+                                large
+                            } else {
+                                small
+                            };
+                        assert_eq!(min.compressibility, expected.compressibility);
+                        assert_eq!(min.reduced_residual_gibbs, expected.reduced_residual_gibbs);
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        three_root_states > 100,
+        "{three_root_states} three-root states"
+    );
+    eprintln!("{three_root_states} three-root states, {refused} requests refused by both");
+}
+
 proptest! {
     #![proptest_config(ProptestConfig { cases: std::env::var("PROPTEST_CASES").ok().and_then(|v| v.parse().ok()).unwrap_or(64), rng_seed: proptest::test_runner::RngSeed::Fixed(0xA1A2A3), .. ProptestConfig::default() })]
     #[test]

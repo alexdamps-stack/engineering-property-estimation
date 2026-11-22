@@ -211,14 +211,14 @@ from pure models. No implicit aliases or interaction defaults are provided.
 The CLI supports `model: GERG-2008` with `calculation: homogeneous-trho`
 ([T-density case](../examples/gerg-natural-gas.json)) or `homogeneous-tp`
 ([pressure inversion case](../examples/gerg-tp-natural-gas.json)). The TP mode
-requires `pressure_pa` and `density_bracket_mol_per_m3`; density is an output.
+requires `pressure_Pa` and `density_bracket_mol_per_m3`; density is an output.
 The T-density mode rejects pressure/bracket inputs. Both modes return ln(phi)
 and native caloric-reference metadata; TP also reports convergence evidence.
 The strict schema rejects mixed or ambiguous input specifications and cubic
 interaction matrices. GERG `tp-flash` and `ph-flash` select exterior roots through
 the native equilibrium adapter; they reject user density inputs. PH requires
-`enthalpy_j_per_mol` on the native GERG reference and optionally accepts
-`temperature_bracket_k`; temperature is an output. See the
+`enthalpy_J_per_mol` on the native GERG reference and optionally accepts
+`temperature_bracket_K`; temperature is an output. See the
 [binary TP example](../examples/gerg-tp-flash-binary.json) and
 [natural-gas PH valve example](../examples/gerg-ph-flash-natural-gas.json).
 

@@ -49,20 +49,43 @@ impl fmt::Display for InputError {
 
 impl std::error::Error for InputError {}
 
-/// Failure vocabulary for future calculations; no model or solver is implemented.
+/// Failure vocabulary shared by models, solvers, packages and their hosts.
+///
+/// Kinds are chosen by what is wrong, so equivalent mistakes map to the same kind
+/// across entry points:
+/// - invalid solver or package options (search bounds, tolerances, thresholds,
+///   oversized iteration budgets) are
+///   [`UnsupportedCapability`](Self::UnsupportedCapability);
+/// - a zero iteration limit is [`NonConvergence`](Self::NonConvergence);
+/// - a requested state (temperature, pressure, density) outside the declared
+///   range of a model, solver or package is
+///   [`OutsideValidityDomain`](Self::OutsideValidityDomain).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CalculationError {
+    /// A quantity or composition failed its input invariants.
     InvalidInput(InputError),
+    /// A required parameter (component, interaction, coefficient) is unavailable.
     MissingParameter(String),
+    /// The request, or an option it carries, is not supported by this implementation.
     UnsupportedCapability(String),
+    /// The requested state is outside the declared validity range.
     OutsideValidityDomain(String),
+    /// An iterative method did not converge within its budget.
     NonConvergence(String),
+    /// Arithmetic or numerical breakdown, such as a singular system.
     NumericalFailure(String),
 }
 
 impl fmt::Display for CalculationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "calculation failed: {self:?}")
+        match self {
+            Self::InvalidInput(error) => write!(f, "{error}"),
+            Self::MissingParameter(m) => write!(f, "missing parameter: {m}"),
+            Self::UnsupportedCapability(m) => write!(f, "unsupported: {m}"),
+            Self::OutsideValidityDomain(m) => write!(f, "outside validity domain: {m}"),
+            Self::NonConvergence(m) => write!(f, "did not converge: {m}"),
+            Self::NumericalFailure(m) => write!(f, "numerical failure: {m}"),
+        }
     }
 }
 

@@ -167,7 +167,7 @@ pub fn info() -> Value {
         "calculations": ["tp-flash", "ph-flash"],
         "units": {"temperature": "K", "pressure": "Pa (absolute)", "molar_enthalpy": "J/mol",
                   "molar_entropy": "J/(mol K)", "composition": "mole fraction"},
-        "temperature_envelope_K": [200.0, 600.0],
+        "temperature_envelope_K": property_packages::CUBIC_TEMPERATURE_RANGE_K,
         "max_phases": 2,
         "data": data,
         "components": components,
@@ -176,6 +176,13 @@ pub fn info() -> Value {
 
 /// Evaluates one v1 request. Always returns a complete v1 response.
 pub fn calculate(request: &str) -> Value {
+    calculate_recording_id(request, &mut None)
+}
+
+/// [`calculate`], storing the request's `request_id` in `request_id` as soon
+/// as the request is parsed, so that the C ABI can still echo it if the
+/// evaluation panics.
+pub(crate) fn calculate_recording_id(request: &str, request_id: &mut Option<String>) -> Value {
     let parsed: Result<Request, _> = serde_json::from_str(request);
     let request = match parsed {
         Ok(r) => r,
@@ -191,6 +198,7 @@ pub fn calculate(request: &str) -> Value {
         }
     };
     let id = request.request_id.clone();
+    request_id.clone_from(&id);
     match evaluate(request) {
         Ok(result) => {
             let mut v = envelope(id.as_deref());
@@ -316,18 +324,6 @@ fn validity(v: ValidityStatus) -> &'static str {
     }
 }
 
-fn vapor_fraction(state: &EquilibriumState) -> Option<f64> {
-    match state.phases.as_slice() {
-        [single] => match single.phase {
-            Phase::Vapor => Some(1.0),
-            Phase::Liquid => Some(0.0),
-            Phase::Supercritical => None,
-        },
-        [vapor, _] => Some(vapor.phase_fraction),
-        _ => None,
-    }
-}
-
 fn result_json(
     calculation: &str,
     components: &[String],
@@ -375,7 +371,7 @@ fn result_json(
         "enthalpy_J_per_mol": state.enthalpy(),
         "entropy_J_per_mol_K": state.entropy(),
         "phase_count": state.phases.len(),
-        "molar_vapor_fraction": vapor_fraction(state),
+        "molar_vapor_fraction": state.vapor_fraction(),
         "phases": phases,
         "convergence": {
             "iterations": state.iterations,
@@ -488,7 +484,7 @@ mod tests {
             ),
             (
                 Box::new(|v| v["state"]["temperature_K"] = json!(150.0)),
-                "unsupported-capability",
+                "outside-validity-domain",
             ),
             (
                 Box::new(|v| v["package"]["components"][4] = json!("hydrogen")),

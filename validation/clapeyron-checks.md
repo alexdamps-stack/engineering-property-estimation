@@ -13,14 +13,30 @@ root, run:
 julia --project=validation/julia validation/julia/check.jl
 ```
 
-The script instantiates `validation/julia/Manifest.toml`, verifies the committed
-fixture's input, generator and environment hashes, generates a temporary Julia
-candidate, checks that the candidate reproduces the committed fixture (identical
-structure, strings and inputs; numbers within the fixture's own declared
-tolerances) and runs `cargo test -p thermo-solvers --test clapeyron --locked`
+The script instantiates `validation/julia/Manifest.toml` and checks three
+committed fixtures in turn:
+
+| Fixture | Generator | Rust test (`cargo test -p thermo-solvers --locked --test …`) | Candidate variable |
+|---|---|---|---|
+| `clapeyron-v1.json` (PR/PR-BM homogeneous and PH) | `generate.jl` | `clapeyron` | `THERMO_CLAPEYRON_REFERENCE` |
+| `nrtl-v1.json` (A7 NRTL/gamma–phi) | `generate_nrtl.jl` | `nrtl_clapeyron` | `THERMO_NRTL_REFERENCE` |
+| `a13-v1.json` (A13 bubble/dew and envelope) | `generate_a13.jl` | `a13_clapeyron` | `THERMO_A13_REFERENCE` |
+
+For each fixture it verifies the committed input, generator and environment
+hashes, generates a temporary Julia candidate, checks that the candidate
+reproduces the committed fixture (identical structure, strings and inputs;
+numbers within the fixture's own declared tolerances) and runs the Rust test
 against that candidate. It inherits `CARGO_TARGET_DIR` and other environment
 settings. Instantiation needs network access on the first run; the Rust engine
 has no Julia dependency. Julia's first compilation can take several minutes.
+The sections below describe the PR/PR-BM check; the NRTL and A13 checks are
+summarized at the end of this document.
+
+On Windows machines where Smart App Control (or another App Control for
+Business policy) is enforcing, locally built Rust binaries and the Julia
+toolchain may be blocked from running. Run the check, and local `cargo`
+builds, inside WSL2 (for example an Ubuntu distribution with the pinned Rust
+toolchain and Julia 1.11.7) instead.
 
 The check runs in an Ubuntu job on pushes to main, on every pull request and in
 the monthly/manual numerical workflow; both call the reusable
@@ -200,3 +216,17 @@ generator before comparison and are not widened. The phase molar volume keeps
 its 1e-12 relative budget. This requires the engine's split to be converged
 close to machine precision (ln-fugacity tolerance 1e-13). Details are in
 [A7 checks](a7-checks.md).
+
+## A13 bubble/dew and envelope check
+
+`check.jl` also verifies `fixtures/a13-v1.json` (input, generator and manifest
+hashes), regenerates it live with `generate_a13.jl` from
+`validation/a13-inputs.json` and runs
+`cargo test -p thermo-solvers --test a13_clapeyron` with
+`THERMO_A13_REFERENCE`. The generator uses Clapeyron's native
+`bubble_pressure`, `dew_pressure`, `bubble_temperature` and `dew_temperature`
+on models built by the unchanged `generate.jl` adapter, without Rust calls or
+supplied solutions. The fixture's `fugacity_residual` entries are solver
+diagnostics; the live comparison treats them as a bound (`1e-8`) rather than a
+reference value. Scope, the 62 points and the tolerances are in
+[A13 status](../docs/a13-status.md).

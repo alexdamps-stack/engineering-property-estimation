@@ -1,7 +1,7 @@
 //! Deterministic sequential-modular execution. No GUI dependencies.
 use crate::{
     Diagnostic, ExchangerSpec, Flowsheet, MixerPressure, PortDirection, PortRef, PressureSpec,
-    SeparatorThermal, StreamId, ThermalSpec, UnitId, UnitKind, UnitSpec,
+    SeparatorThermal, Stream, StreamId, ThermalSpec, UnitId, UnitKind, UnitSpec,
 };
 use property_packages::{CubicPackage, EquilibriumState};
 use std::collections::{BTreeMap, BTreeSet};
@@ -150,6 +150,18 @@ pub struct SolveProgress {
     pub unit: UnitId,
 }
 
+impl SolveError {
+    /// The error returned when the progress callback stops a solve.
+    pub(crate) fn cancelled() -> Self {
+        Self {
+            unit: None,
+            message: "Calculation cancelled; no results were produced.".into(),
+            diagnostics: Vec::new(),
+            cancelled: true,
+        }
+    }
+}
+
 impl fmt::Display for SolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.message)
@@ -175,8 +187,15 @@ impl Flowsheet {
                 cancelled: false,
             });
         }
+        Ok(self.kahn_order(|_| true))
+    }
+
+    /// Kahn topological order over the streams accepted by `keep`, ties broken by
+    /// unit identifier. Each kept connection counts individually. Units on a cycle
+    /// of kept streams are omitted, so a short result means the kept graph is cyclic.
+    pub(crate) fn kahn_order(&self, keep: impl Fn(&Stream) -> bool) -> Vec<UnitId> {
         let mut incoming: BTreeMap<_, usize> = self.units().map(|u| (u.id, 0)).collect();
-        for s in self.streams() {
+        for s in self.streams().filter(|s| keep(s)) {
             *incoming.get_mut(&s.to.unit).expect("checked topology") += 1;
         }
         let mut ready: BTreeSet<_> = incoming
@@ -186,7 +205,7 @@ impl Flowsheet {
         let mut order = Vec::new();
         while let Some(id) = ready.pop_first() {
             order.push(id);
-            for s in self.streams().filter(|s| s.from.unit == id) {
+            for s in self.streams().filter(|s| s.from.unit == id && keep(s)) {
                 let n = incoming.get_mut(&s.to.unit).expect("checked topology");
                 *n -= 1;
                 if *n == 0 {
@@ -194,7 +213,7 @@ impl Flowsheet {
                 }
             }
         }
-        Ok(order)
+        order
     }
 
     /// Solves all units with a single immutable package. Each call computes a
@@ -218,6 +237,7 @@ impl Flowsheet {
         progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
     ) -> Result<Calculation, SolveError> {
         let order = self.calculation_order()?;
+        self.validate_inputs(package, feeds)?;
         self.solve_pass(package, feeds, order, &BTreeMap::new(), progress)
     }
 
@@ -279,6 +299,9 @@ impl Flowsheet {
         Ok(())
     }
 
+    /// One sequential pass over `order`. Callers must have run
+    /// [`Self::validate_inputs`] once for these inputs; recycle iterations
+    /// reuse the same inputs and do not repeat it.
     pub(crate) fn solve_pass(
         &self,
         package: &CubicPackage,
@@ -287,7 +310,6 @@ impl Flowsheet {
         tears: &BTreeMap<StreamId, MaterialStream>,
         mut progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
     ) -> Result<Calculation, SolveError> {
-        self.validate_inputs(package, feeds)?;
         let fail = |id: UnitId, message: String| SolveError {
             unit: Some(id),
             message: format!("{}: {message}", self.unit(id).expect("unit exists").name),
@@ -312,12 +334,7 @@ impl Flowsheet {
                 unit: id,
             };
             if progress(step).is_break() {
-                return Err(SolveError {
-                    unit: None,
-                    message: "Calculation cancelled; no results were produced.".into(),
-                    diagnostics: Vec::new(),
-                    cancelled: true,
-                });
+                return Err(SolveError::cancelled());
             }
             let u = self.unit(id).expect("checked topology");
             let mut inlets = Vec::new();

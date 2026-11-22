@@ -1,9 +1,17 @@
 //! Pinned pure-liquid correlations and directed NRTL binary records (A7).
 //! Source transcription: `data/source-extracts/liquid-nrtl.provisional.json`.
+use crate::ComponentDatabase;
 use serde::Deserialize;
 use thermo_types::{CalculationError, ComponentId, DataMetadata, Temperature};
 
 pub const LIQUID_DATA_VERSION: &str = "2026-11-08.1";
+const EMBEDDED_EXTRACT: &str =
+    include_str!("../../../data/source-extracts/liquid-nrtl.provisional.json");
+
+/// Accepted NRTL non-randomness interval (lower bound exclusive). Regressed values
+/// sit near 0.2..0.47 (Renon & Prausnitz 1968); alpha <= 0 removes the
+/// local-composition effect and alpha > 1 has no physical interpretation here.
+const ALPHA_RANGE: (f64, f64) = (0.0, 1.0);
 
 #[derive(Debug, Clone, Deserialize)]
 struct Ancillary {
@@ -173,6 +181,40 @@ impl PureLiquid {
     }
 }
 
+/// CAS Registry Number: `NNNNNNN-NN-N` (2..=7 leading digits). The check digit
+/// is Σ (position-from-right × digit) mod 10 over the other digits.
+fn check_cas(id: &str, cas: &str) -> Result<(), CalculationError> {
+    let invalid = || {
+        CalculationError::MissingParameter(format!(
+            "invalid embedded pure liquid {id}: CAS number {cas:?}"
+        ))
+    };
+    let parts: Vec<&str> = cas.split('-').collect();
+    let [head, mid, check] = parts[..] else {
+        return Err(invalid());
+    };
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|c| c.is_ascii_digit());
+    if !(digits(head) && digits(mid) && digits(check))
+        || !(2..=7).contains(&head.len())
+        || mid.len() != 2
+        || check.len() != 1
+        || head.starts_with('0')
+    {
+        return Err(invalid());
+    }
+    let sum: u32 = head
+        .bytes()
+        .chain(mid.bytes())
+        .rev()
+        .zip(1..)
+        .map(|(c, w)| u32::from(c - b'0') * w)
+        .sum();
+    if sum % 10 != u32::from(check.as_bytes()[0] - b'0') {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
 fn check_range(id: &str, what: &str, range: [f64; 2], t: f64) -> Result<(), CalculationError> {
     if !(range[0]..=range[1]).contains(&t) {
         return Err(CalculationError::OutsideValidityDomain(format!(
@@ -211,11 +253,22 @@ pub struct LiquidDatabase {
 }
 
 impl LiquidDatabase {
+    /// The embedded dataset. It is parsed and checked once per process; later calls
+    /// return a clone of that result.
     pub fn embedded() -> Result<Self, CalculationError> {
-        let extract: Extract = serde_json::from_str(include_str!(
-            "../../../data/source-extracts/liquid-nrtl.provisional.json"
-        ))
-        .map_err(|e| CalculationError::MissingParameter(e.to_string()))?;
+        static EMBEDDED: std::sync::OnceLock<Result<LiquidDatabase, CalculationError>> =
+            std::sync::OnceLock::new();
+        EMBEDDED
+            .get_or_init(|| Self::from_extract(EMBEDDED_EXTRACT, &ComponentDatabase::embedded()?))
+            .clone()
+    }
+
+    /// Pure-liquid IDs and CAS numbers must match `components`, NRTL pairs must name
+    /// pure liquids in this extract, and every binary must carry a physical alpha
+    /// over its regression interval and a finite positive regression pressure.
+    fn from_extract(text: &str, components: &ComponentDatabase) -> Result<Self, CalculationError> {
+        let extract: Extract = serde_json::from_str(text)
+            .map_err(|e| CalculationError::MissingParameter(e.to_string()))?;
         let bad =
             |what: &str| CalculationError::MissingParameter(format!("invalid embedded {what}"));
         if extract.schema != "a7-liquid-nrtl-source-extract-v1"
@@ -228,6 +281,21 @@ impl LiquidDatabase {
             ComponentId::new(&p.id)?;
             if extract.pure_liquid[..k].iter().any(|o| o.id == p.id) {
                 return Err(bad("duplicate pure liquid"));
+            }
+            check_cas(&p.id, &p.cas)?;
+            let component = components.get(&p.id).map_err(|_| {
+                CalculationError::MissingParameter(format!(
+                    "invalid embedded pure liquid {}: not in the component database",
+                    p.id
+                ))
+            })?;
+            if component.cas() != p.cas {
+                return Err(CalculationError::MissingParameter(format!(
+                    "invalid embedded pure liquid {}: CAS {} differs from component database CAS {}",
+                    p.id,
+                    p.cas,
+                    component.cas()
+                )));
             }
             for (a, form, tau) in [
                 (&p.vapor_pressure, "pV", true),
@@ -249,6 +317,14 @@ impl LiquidDatabase {
         for (k, b) in extract.nrtl_binary.iter().enumerate() {
             ComponentId::new(&b.i)?;
             ComponentId::new(&b.j)?;
+            for id in [&b.i, &b.j] {
+                if !extract.pure_liquid.iter().any(|p| &p.id == id) {
+                    return Err(CalculationError::MissingParameter(format!(
+                        "invalid embedded NRTL binary {}/{}: no pure-liquid record for {id}",
+                        b.i, b.j
+                    )));
+                }
+            }
             let terms = [b.tau_ij, b.tau_ji];
             let finite = terms
                 .iter()
@@ -261,11 +337,29 @@ impl LiquidDatabase {
             if b.i == b.j
                 || duplicate
                 || !finite
-                || b.regression_temperature[0] >= b.regression_temperature[1]
+                || !(b.regression_temperature[0] > 0.0
+                    && b.regression_temperature[0] < b.regression_temperature[1]
+                    && b.regression_temperature[1].is_finite())
                 || b.source.trim().is_empty()
                 || b.regression_temperature_basis.trim().is_empty()
             {
                 return Err(bad("NRTL binary"));
+            }
+            if !(b.regression_pressure.is_finite() && b.regression_pressure > 0.0) {
+                return Err(CalculationError::MissingParameter(format!(
+                    "invalid embedded NRTL binary {}/{}: regression pressure {} Pa must be finite and positive",
+                    b.i, b.j, b.regression_pressure
+                )));
+            }
+            // alpha = a0 + a1 T is linear, so the interval endpoints bound it.
+            for t in b.regression_temperature {
+                let alpha = b.alpha_ij.a0 + b.alpha_ij.a1 * t;
+                if !(alpha > ALPHA_RANGE.0 && alpha <= ALPHA_RANGE.1) {
+                    return Err(CalculationError::MissingParameter(format!(
+                        "invalid embedded NRTL binary {}/{}: alpha {alpha} at {t} K outside ({}, {}]",
+                        b.i, b.j, ALPHA_RANGE.0, ALPHA_RANGE.1
+                    )));
+                }
             }
         }
         Ok(Self {
@@ -318,6 +412,103 @@ impl LiquidDatabase {
             identifier: "coolprop-7.2-ancillaries-chemsep-dechema-nrtl".into(),
             version: self.version.clone(),
             source: "data/source-extracts/liquid-nrtl.provisional.json; upstream URLs, hashes and notices retained".into(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn load(text: &str) -> Result<LiquidDatabase, CalculationError> {
+        LiquidDatabase::from_extract(text, &ComponentDatabase::embedded().unwrap())
+    }
+
+    fn rejected(from: &str, to: &str) -> String {
+        let edited = EMBEDDED_EXTRACT.replacen(from, to, 1);
+        assert_ne!(
+            edited, EMBEDDED_EXTRACT,
+            "fixture edit {from:?} did not apply"
+        );
+        match load(&edited) {
+            Err(CalculationError::MissingParameter(m)) => m,
+            other => panic!("{from:?} -> {to:?} should be rejected, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn committed_extract_loads() {
+        let db = LiquidDatabase::embedded().unwrap();
+        assert_eq!(db.metadata().version, LIQUID_DATA_VERSION);
+        assert!(db.nrtl_binary("methanol", "water").is_ok());
+    }
+
+    #[test]
+    fn cas_format_and_check_digit() {
+        for ok in ["7732-18-5", "67-56-1", "124-38-9", "7727-37-9"] {
+            assert!(check_cas("x", ok).is_ok(), "{ok}");
+        }
+        for bad in [
+            "7732-18-4",
+            "7732185",
+            "7-18-5",
+            "12345678-18-5",
+            "7732-1-5",
+            "7732-18-55",
+            "07732-18-5",
+            "7732-18-",
+            "77a2-18-5",
+            "7732-18-5-1",
+            "",
+        ] {
+            assert!(check_cas("x", bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn wrong_check_digit_is_rejected() {
+        let m = rejected(r#""cas": "7732-18-5""#, r#""cas": "7732-18-4""#);
+        assert!(m.contains("CAS number"), "{m}");
+    }
+
+    #[test]
+    fn cas_mismatch_with_component_database_is_rejected() {
+        // Valid CAS (carbon dioxide) attached to the wrong component.
+        let m = rejected(r#""cas": "7732-18-5""#, r#""cas": "124-38-9""#);
+        assert!(m.contains("differs from component database"), "{m}");
+    }
+
+    #[test]
+    fn pure_liquid_absent_from_component_database_is_rejected() {
+        let m = rejected(r#""id": "methanol""#, r#""id": "ethanol""#);
+        assert!(m.contains("not in the component database"), "{m}");
+    }
+
+    #[test]
+    fn binary_without_pure_liquid_record_is_rejected() {
+        let m = rejected(r#""j": "water""#, r#""j": "methane""#);
+        assert!(m.contains("no pure-liquid record"), "{m}");
+    }
+
+    #[test]
+    fn non_physical_alpha_is_rejected() {
+        for a0 in ["0.0", "-0.2", "1.2"] {
+            let m = rejected(r#""a0": 0.2999"#, &format!(r#""a0": {a0}"#));
+            assert!(m.contains("alpha"), "{m}");
+        }
+        // Positive at the lower regression bound, negative at the upper one.
+        let m = rejected(r#""a1_per_K": 0.0"#, r#""a1_per_K": -0.00085"#);
+        assert!(m.contains("373.13"), "{m}");
+    }
+
+    #[test]
+    fn non_positive_regression_pressure_is_rejected() {
+        for p in ["0.0", "-101325.0"] {
+            let m = rejected(
+                r#""regression_pressure_Pa": 101325.0"#,
+                &format!(r#""regression_pressure_Pa": {p}"#),
+            );
+            assert!(m.contains("regression pressure"), "{p}: {m}");
         }
     }
 }

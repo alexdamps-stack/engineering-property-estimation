@@ -70,21 +70,21 @@ pub fn calculate(
         }
         let p = if calculation.ends_with("pressure") {
             if case.pressure_pa.is_some() {
-                return Err("pressure is an output; omit pressure_pa".into());
+                return Err("pressure is an output; omit pressure_Pa".into());
             }
             saturation_pressure(
                 model,
-                Temperature::new(case.temperature_k.ok_or("temperature_k required")?)?,
+                Temperature::new(case.temperature_k.ok_or("temperature_K required")?)?,
                 kind,
                 o,
             )?
         } else {
             if case.temperature_k.is_some() {
-                return Err("temperature is an output; omit temperature_k".into());
+                return Err("temperature is an output; omit temperature_K".into());
             }
             saturation_temperature(
                 model,
-                Pressure::new(case.pressure_pa.ok_or("pressure_pa required")?)?,
+                Pressure::new(case.pressure_pa.ok_or("pressure_Pa required")?)?,
                 kind,
                 o,
             )?
@@ -111,7 +111,7 @@ mod tests {
     fn saturation_input_conflicts_are_rejected() {
         let input = include_str!("../../../examples/a13-bubble-pressure-binary.json");
         let mut value: serde_json::Value = serde_json::from_str(input).unwrap();
-        value["pressure_pa"] = json!(1e6);
+        value["pressure_Pa"] = json!(1e6);
         let case = serde_json::from_value(value.clone()).unwrap();
         assert!(
             super::super::calculate(case)
@@ -119,8 +119,8 @@ mod tests {
                 .to_string()
                 .contains("output")
         );
-        value.as_object_mut().unwrap().remove("pressure_pa");
-        value["envelope_step_k"] = json!(5.);
+        value.as_object_mut().unwrap().remove("pressure_Pa");
+        value["envelope_step_K"] = json!(5.);
         let case = serde_json::from_value(value.clone()).unwrap();
         assert!(super::super::calculate(case).is_err());
         value["calculation"] = json!("tp-flash");

@@ -1,3 +1,5 @@
+mod common;
+
 use serde_json::Value;
 use thermo_data::ComponentDatabase;
 use thermo_models::{CubicModel, CubicVariant};
@@ -21,6 +23,7 @@ fn inputs() -> Value {
 fn model(c: &Value) -> CubicModel {
     let ids = c["ids"].as_array().unwrap();
     let z = values(&c["z"]);
+    assert_eq!(ids.len(), z.len(), "{}: component count", c["id"]);
     let composition = Composition::new(
         CompositionBasis::Mole,
         ids.iter()
@@ -33,10 +36,10 @@ fn model(c: &Value) -> CubicModel {
     CubicModel::new(
         &ComponentDatabase::embedded().unwrap(),
         &composition,
-        if c["variant"] == "PR" {
-            CubicVariant::PengRobinson
-        } else {
-            CubicVariant::PengRobinsonBostonMathias
+        match c["variant"].as_str().unwrap() {
+            "PR" => CubicVariant::PengRobinson,
+            "PR-BM" => CubicVariant::PengRobinsonBostonMathias,
+            other => panic!("{}: unknown A13 variant {other}", c["id"]),
         },
         c["kij"].as_array().unwrap().iter().map(values).collect(),
         "explicit A13 fixture interactions",
@@ -57,6 +60,7 @@ fn independent_native_clapeyron_boundaries() {
         .unwrap_or_else(|| include_str!("../../../validation/fixtures/a13-v1.json").into());
     let f: Value = serde_json::from_str(&text).unwrap();
     assert_eq!(f["schema"], "a13-clapeyron-v1");
+    common::assert_input_hashes("a13-v1.json", &f);
     assert_eq!(f["julia_version"], "1.11.7");
     assert_eq!(f["clapeyron_version"], "0.6.30");
     let inputs = inputs();
@@ -118,11 +122,12 @@ fn independent_native_clapeyron_boundaries() {
             reference["vv"].as_f64().unwrap(),
             id,
         );
-        for (a, b) in r.liquid_composition.iter().zip(values(&reference["x"])) {
-            close(&f, "composition", *a, b, id);
-        }
-        for (a, b) in r.vapor_composition.iter().zip(values(&reference["y"])) {
-            close(&f, "composition", *a, b, id);
+        for (actual, key) in [(&r.liquid_composition, "x"), (&r.vapor_composition, "y")] {
+            let expected = values(&reference[key]);
+            assert_eq!(actual.len(), expected.len(), "{id} {key}: component count");
+            for (a, b) in actual.iter().zip(expected) {
+                close(&f, "composition", *a, b, id);
+            }
         }
         assert!(r.max_ln_fugacity_residual < 1e-9);
         println!("PASS {id}: T={} p={}", r.temperature_k, r.pressure_pa);
@@ -161,12 +166,44 @@ fn bounded_trace_retains_verified_points_and_stops_near_critical() {
         minimum_temperature_k: f64::NAN,
         ..o
     };
-    assert!(saturation_pressure(&m, Temperature::new(300.).unwrap(), Kind::Bubble, bad).is_err());
+    // Invalid options use the PH/flash kinds: bad bounds and oversized budgets are
+    // unsupported, a zero iteration limit is non-convergence.
+    assert!(matches!(
+        saturation_pressure(&m, Temperature::new(300.).unwrap(), Kind::Bubble, bad),
+        Err(thermo_types::CalculationError::UnsupportedCapability(_))
+    ));
+    for bad in [
+        SaturationOptions {
+            minimum_temperature_k: 150.,
+            ..o
+        },
+        SaturationOptions {
+            minimum_pressure_pa: 2e7,
+            maximum_pressure_pa: 1e7,
+            ..o
+        },
+        SaturationOptions {
+            max_iterations: 2001,
+            ..o
+        },
+    ] {
+        assert!(matches!(
+            bad.validate(),
+            Err(thermo_types::CalculationError::UnsupportedCapability(_))
+        ));
+    }
     let bad = SaturationOptions {
         max_iterations: 0,
         ..o
     };
-    assert!(saturation_temperature(&m, Pressure::new(1e6).unwrap(), Kind::Dew, bad).is_err());
+    assert!(matches!(
+        saturation_temperature(&m, Pressure::new(1e6).unwrap(), Kind::Dew, bad),
+        Err(thermo_types::CalculationError::NonConvergence(_))
+    ));
+    assert!(matches!(
+        trace_phase_envelope(&m, Kind::Dew, 5., 10, bad),
+        Err(thermo_types::CalculationError::NonConvergence(_))
+    ));
     let empty = trace_phase_envelope(
         &m,
         Kind::Dew,
@@ -229,6 +266,7 @@ fn sampled_mixture_envelopes_match_independent_native_points() {
         .map(|p| std::fs::read_to_string(p).unwrap())
         .unwrap_or_else(|| include_str!("../../../validation/fixtures/a13-v1.json").into());
     let f: Value = serde_json::from_str(&text).unwrap();
+    common::assert_input_hashes("a13-v1.json", &f);
     let input = inputs();
     let all = input["cases"].as_array().unwrap();
     for (group, kind, lo, hi, step) in [

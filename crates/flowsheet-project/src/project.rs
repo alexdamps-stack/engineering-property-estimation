@@ -17,15 +17,28 @@ use crate::{Fingerprints, PackageSelection, PreparedPackage, ProjectError, Resul
 
 /// Project file format version written by this program.
 ///
-/// Version 2 adds the optional `results.recycle` closure evidence (A10).
-/// Version 1 files have the same schema without that requirement and are
-/// still read; they are written back as version 2. Files declaring any other
-/// version are rejected, so older programs that only read version 1 report
-/// an unsupported version instead of an unknown field.
-pub const FORMAT_VERSION: u64 = 2;
+/// Version 3 adds the optional heat-exchanger
+/// `results.units.<id>.transferred_duty_w` (#152). Version 2 added the
+/// optional `results.recycle` closure evidence (A10). Version 1 and 2 files
+/// are still read (stored exchanger results from them have no transferred
+/// duty until recalculated) and are written back as version 3. Files
+/// declaring any other version are rejected, so older programs report an
+/// unsupported version instead of an unknown field.
+pub const FORMAT_VERSION: u64 = 3;
 
 /// Oldest project file format version this program reads.
 pub const OLDEST_READABLE_FORMAT_VERSION: u64 = 1;
+
+/// Largest project file, in bytes, that [`Project::load`] and
+/// [`Project::from_json`] accept. Generous for any hand-built flowsheet while
+/// bounding the memory a crafted file can claim.
+pub const MAX_PROJECT_FILE_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Largest number of units a project file may contain.
+pub const MAX_UNITS: usize = 10_000;
+
+/// Largest number of streams a project file may contain.
+pub const MAX_STREAMS: usize = 20_000;
 
 /// Feed mole fractions in package component order, per feed unit.
 pub type FeedFractions = BTreeMap<UnitId, Vec<f64>>;
@@ -268,7 +281,14 @@ impl Project {
     /// package component ([`ProjectError::Invalid`] otherwise). Mismatched
     /// results are rejected rather than dropped, so a hand-edited component
     /// list cannot silently discard or misattribute stored values.
+    ///
+    /// Text longer than [`MAX_PROJECT_FILE_BYTES`], more than [`MAX_UNITS`]
+    /// units or [`MAX_STREAMS`] streams, and duplicate feed or layout entries
+    /// are rejected with [`ProjectError::Invalid`].
     pub fn from_json(text: &str) -> Result<Self, ProjectError> {
+        if text.len() as u64 > MAX_PROJECT_FILE_BYTES {
+            return Err(too_large());
+        }
         let value: serde_json::Value =
             serde_json::from_str(text).map_err(|e| ProjectError::Format(e.to_string()))?;
         match value
@@ -280,6 +300,18 @@ impl Project {
         }
         let file: ProjectFile =
             serde_json::from_value(value).map_err(|e| ProjectError::Format(e.to_string()))?;
+        if file.units.len() > MAX_UNITS {
+            return Err(ProjectError::Invalid(format!(
+                "{} units exceed the limit of {MAX_UNITS}",
+                file.units.len()
+            )));
+        }
+        if file.streams.len() > MAX_STREAMS {
+            return Err(ProjectError::Invalid(format!(
+                "{} streams exceed the limit of {MAX_STREAMS}",
+                file.streams.len()
+            )));
+        }
         // Fails clearly for, e.g., an empty component list or a kij matrix
         // of the wrong size, which the editor would otherwise index.
         file.package.build()?;
@@ -343,7 +375,11 @@ impl Project {
                     "layout entry for {id} is invalid"
                 )));
             }
-            layout.insert(id, [l.x, l.y]);
+            if layout.insert(id, [l.x, l.y]).is_some() {
+                return Err(ProjectError::Invalid(format!(
+                    "layout entry for {id} appears twice"
+                )));
+            }
         }
         Ok(Self {
             flowsheet,
@@ -362,9 +398,20 @@ impl Project {
         write_atomically(path, text.as_bytes())
     }
 
-    /// Reads a project file.
+    /// Reads a project file. Files larger than [`MAX_PROJECT_FILE_BYTES`]
+    /// are rejected before they are read into memory.
     pub fn load(path: &Path) -> Result<Self, ProjectError> {
-        let text = std::fs::read_to_string(path).map_err(|e| ProjectError::Io(e.to_string()))?;
+        use std::io::Read;
+        let io = |e: std::io::Error| ProjectError::Io(e.to_string());
+        let file = std::fs::File::open(path).map_err(io)?;
+        if file.metadata().map_err(io)?.len() > MAX_PROJECT_FILE_BYTES {
+            return Err(too_large());
+        }
+        // The length can change after the check; never read past the limit.
+        let mut text = String::new();
+        file.take(MAX_PROJECT_FILE_BYTES + 1)
+            .read_to_string(&mut text)
+            .map_err(io)?;
         Self::from_json(&text)
     }
 
@@ -382,6 +429,13 @@ impl Project {
     pub fn feed_compositions(&self) -> Result<FeedCompositions, Vec<InputIssue>> {
         feed_compositions(&self.flowsheet, &self.feeds, &self.package)
     }
+}
+
+fn too_large() -> ProjectError {
+    ProjectError::Invalid(format!(
+        "the project file exceeds the {} MiB limit",
+        MAX_PROJECT_FILE_BYTES / (1024 * 1024)
+    ))
 }
 
 fn non_finite(what: &str) -> ProjectError {
@@ -440,8 +494,9 @@ pub fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), ProjectError
     Ok(())
 }
 
-/// Feed composition problems of a flowsheet with the given package.
-pub(crate) fn input_issues(
+/// Feed composition problems of a flowsheet with the given package, without
+/// assembling a [`Project`] (as [`Project::input_issues`] does).
+pub fn input_issues(
     fs: &Flowsheet,
     feeds: &FeedFractions,
     package: &PackageSelection,

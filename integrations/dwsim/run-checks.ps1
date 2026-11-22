@@ -49,7 +49,11 @@ if ($LASTEXITCODE -ne 0) { throw "csc BridgeClientTests failed" }
 $cli = Join-Path $root "target\release\thermo-cli.exe"
 $cliOut = & $cli (Join-Path $root "examples\tp-flash-natural-gas.json") | Out-String
 if ($LASTEXITCODE -ne 0) { throw "thermo-cli failed" }
-$cliBeta = [regex]::Match($cliOut, '"molar_vapor_fraction":\s*([0-9eE.+-]+)').Groups[1].Value
+$cliMatch = [regex]::Match($cliOut, '"molar_vapor_fraction":\s*([0-9eE.+-]+)')
+if (-not $cliMatch.Success) {
+    throw "thermo-cli output has no numeric molar_vapor_fraction (null or missing); output was:`n$cliOut"
+}
+$cliBeta = $cliMatch.Groups[1].Value
 Write-Host "thermo-cli molar_vapor_fraction = $cliBeta"
 
 Write-Host "== CLR bridge tests"

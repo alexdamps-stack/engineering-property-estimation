@@ -56,7 +56,8 @@ No model, solver, data, fixture or tolerance was changed.
 - **Status (proposal §4.6).** Each unit has exactly one status, shown by
   colour *and* badge shape: underspecified `!`, ready (no badge), solved
   (green check), warning (amber triangle), failed (red cross) or stale (grey
-  dots with a dashed outline). The properties panel shows duty, outlet T/p/flow
+  dots with a dashed outline). The properties panel shows duty (for a heat exchanger the
+  transferred duty, hot to cold), outlet T/p/flow
   per port, balance residuals and warnings. The stream panel shows flows, T, p,
   vapor fraction, h, s, a phase table (fraction, density, Z, compositions),
   provenance, iterations, residuals and solver diagnostics. The stream table
@@ -92,7 +93,9 @@ a bad file leaves the current project unchanged. Floats round-trip exactly
 New units after a reload never reuse an identifier or a generated tag.
 
 *Later changes:* A10 introduced format version 2 (optional
-`results.recycle`); version 1 is still read (#90). Saving is atomic (temporary
+`results.recycle`); version 1 is still read (#90). Format version 3 adds the
+heat-exchanger `results.units.<id>.transferred_duty_w` (W, heat moved from
+the hot to the cold side; #152); versions 1 and 2 are still read. Saving is atomic (temporary
 file, sync, rename; #100) and refuses non-finite numbers (#101). Loading also
 requires the package selection to build and stored stream results to have one
 mole fraction per component (#96, #112).

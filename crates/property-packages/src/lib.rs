@@ -2,6 +2,9 @@
 //! The initial adapter supports exact PR and PR-BM on their existing TP/PH domain.
 
 use thermo_models::CubicModel;
+// The cubic homogeneous envelope, re-exported for interfaces that build packages
+// without depending on `thermo-models` directly.
+pub use thermo_models::{CUBIC_PRESSURE_RANGE_PA, CUBIC_TEMPERATURE_RANGE_K};
 use thermo_solvers::{FlashPhase, PhFlashOptions, ph_flash, tp_flash};
 use thermo_types::{CalculationError, Diagnostic, Pressure, Temperature};
 
@@ -43,6 +46,13 @@ impl EquilibriumState {
             .map(|p| p.phase_fraction * p.state.entropy)
             .sum()
     }
+
+    /// Molar vapor fraction, as [`thermo_solvers::TpFlash::vapor_fraction`]: the
+    /// first phase's fraction for a split, 1/0 for a single vapor/liquid phase and
+    /// `None` for a single supercritical phase.
+    pub fn vapor_fraction(&self) -> Option<f64> {
+        thermo_solvers::vapor_fraction_of(&self.phases)
+    }
 }
 
 /// Fixed cubic package. Component order, interactions and source are supplied
@@ -81,10 +91,11 @@ impl CubicPackage {
     fn validate_options(&self) -> Result<(), CalculationError> {
         let lo = self.options.minimum_temperature_k;
         let hi = self.options.maximum_temperature_k;
-        if !lo.is_finite() || !hi.is_finite() || lo < 200.0 || hi > 600.0 || lo >= hi {
-            return Err(CalculationError::UnsupportedCapability(
-                "package requires ordered finite temperature bounds within 200..=600 K".into(),
-            ));
+        let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
+        if !lo.is_finite() || !hi.is_finite() || lo < t_lo || hi > t_hi || lo >= hi {
+            return Err(CalculationError::UnsupportedCapability(format!(
+                "package requires ordered finite temperature bounds within {t_lo}..={t_hi} K"
+            )));
         }
         Ok(())
     }
@@ -100,7 +111,7 @@ impl CubicPackage {
         if temperature_k < self.options.minimum_temperature_k
             || temperature_k > self.options.maximum_temperature_k
         {
-            return Err(CalculationError::UnsupportedCapability(
+            return Err(CalculationError::OutsideValidityDomain(
                 "temperature outside package search interval".into(),
             ));
         }

@@ -1,6 +1,6 @@
 {
   "schema": "a2-approved-tolerances-v1",
-  "version": "2026-11-09.1",
+  "version": "2026-11-21.1",
   "status": "approved for the listed fixed reference sets",
   "comparison": "abs(actual-expected) <= atol + rtol*abs(expected); reject nonfinite values",
   "reference_sets": [
@@ -324,6 +324,99 @@
       },
       "domain": "62 native Clapeyron saturation points: 32 PR/PR-BM bubble/dew p/T cases and 30 PR-BM envelope samples; docs/a13-status.md",
       "rationale": "Existing A13 pre-comparison budgets, copied unchanged from its independently generated fixture; bounded dry cubic VLE and explicit near-critical/ambiguous-branch stops, not experimental accuracy or global stability proof."
+    },
+    {
+      "fixture": "validation/fixtures/nrtl-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "g_excess": [
+          1e-09,
+          1e-11
+        ],
+        "composition": [
+          1e-10,
+          1e-09
+        ],
+        "molar_volume": [
+          0,
+          1e-12
+        ],
+        "pressure": [
+          0,
+          1e-10
+        ],
+        "cp_excess": [
+          1e-07,
+          1e-07
+        ],
+        "liquid_molar_density": [
+          0,
+          1e-12
+        ],
+        "s_excess": [
+          1e-10,
+          1e-09
+        ],
+        "ln_gamma": [
+          1e-12,
+          1e-11
+        ],
+        "d2lnpsat_dT2": [
+          0,
+          1e-08
+        ],
+        "h": [
+          2e-05,
+          2e-09
+        ],
+        "d_ln_gamma_dT": [
+          1e-14,
+          1e-09
+        ],
+        "cp": [
+          2e-05,
+          1e-08
+        ],
+        "temperature": [
+          1e-08,
+          0.0
+        ],
+        "psat": [
+          0,
+          1e-12
+        ],
+        "dlnpsat_dT": [
+          0,
+          1e-10
+        ],
+        "h_excess": [
+          1e-08,
+          1e-09
+        ],
+        "s": [
+          2e-07,
+          2e-09
+        ],
+        "fraction": [
+          1e-09,
+          0.0
+        ]
+      },
+      "domain": "30 binary activity, 9 ternary, 10 pure, 36 saturation, 8 TP and 16 PH NRTL/gamma-phi states; docs/a7-status.md",
+      "rationale": "Existing A7 pre-comparison budgets, copied unchanged from the independently generated Clapeyron fixture; matched formulation and parameters, not experimental accuracy."
+    },
+    {
+      "fixture": "validation/fixtures/helmholtz-dilute-v1.json",
+      "budget_key": null,
+      "budget_source": "crates/thermo-models/tests/reference.rs::helmholtz_matches_high_precision_reference_through_dilute_limit",
+      "budgets": {
+        "energy_J": [
+          0.0,
+          5e-14
+        ]
+      },
+      "domain": "6 regular and dilute-limit PR/PR-BM residual Helmholtz energies evaluated at 80 decimal digits; validation/a1-a3-checks.md",
+      "rationale": "Existing regression budget from the Rust test (the fixture declares none): relative agreement only, because an absolute floor would hide a wrong-sign dilute result."
     }
   ],
   "deferred": [

@@ -1,6 +1,8 @@
 //! Mandatory offline A7 NRTL/gamma–phi checks against independent Clapeyron.jl
 //! references. The live check supplies a fresh candidate through
 //! THERMO_NRTL_REFERENCE without replacing the committed fixture.
+mod common;
+
 use serde_json::Value;
 use thermo_data::{AlphaTerms, ComponentDatabase, LiquidDatabase, TauTerms};
 use thermo_models::{ActivityModel, NrtlModel, NrtlParameters, VaporModel};
@@ -21,6 +23,7 @@ fn fixture() -> Value {
     assert_eq!(f["schema"], "clapeyron-nrtl-reference-v1");
     assert_eq!(f["clapeyron_version"], "0.6.30");
     assert_eq!(f["julia_version"], "1.11.7");
+    common::assert_input_hashes("nrtl-v1.json", &f);
     for (key, count) in [
         ("activity", 30),
         ("ternary", 9),
@@ -101,7 +104,9 @@ fn model(z: &[f64]) -> ActivityModel {
 
 fn check_excess(f: &Value, nrtl: &NrtlModel, case: &Value, context: &str) {
     let t = case["T"].as_f64().unwrap();
-    let ex = nrtl.excess(t, &numbers(&case["x"])).unwrap();
+    let ex = nrtl
+        .excess_at(Temperature::new(t).unwrap(), &numbers(&case["x"]))
+        .unwrap();
     let c = format!("{context} T={t} x={}", case["x"]);
     close_all(
         f,

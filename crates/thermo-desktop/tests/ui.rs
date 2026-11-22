@@ -7,9 +7,15 @@
 //!
 //! Update snapshots after an intended visual change with
 //! `UPDATE_SNAPSHOTS=1 cargo test -p thermo-desktop --test ui` and review the
-//! changed PNGs before committing. On CI (`CI` set) the snapshots are rendered
-//! but not compared pixel by pixel, because the baselines are recorded on a
-//! developer machine and software renderers on CI differ slightly.
+//! changed PNGs before committing. The snapshots are compared everywhere,
+//! including CI (Mesa lavapipe on Linux; egui_kittest prefers a CPU adapter
+//! on every platform), with a per-pixel
+//! tolerance and a small allowed count of differing pixels that absorb
+//! anti-aliasing differences between renderers (see [`PIXEL_THRESHOLD`] and
+//! [`MAX_FAILED_PIXELS`]). A failing comparison writes `<name>.new.png` and
+//! `<name>.diff.png` next to the baseline; CI uploads them as an artifact.
+//! Snapshot content must not depend on solver round-off: values that are
+//! round-off by nature, such as balance residuals, are displayed as a bound.
 
 use eframe::egui::{self, Event, Key, Modifiers, PointerButton, Pos2, Vec2, vec2};
 use egui_kittest::Harness;
@@ -202,14 +208,28 @@ fn key(h: &mut Harness<FlowsheetApp>, key: Key) {
 /// threads crashed the Windows driver in a local run.
 static RENDER: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// Pixel comparison locally; render-only on CI (see module docs).
+/// Per-pixel tolerance: the weighted squared YIQ distance from which a pixel
+/// counts as differing. Renderer drift between the Windows baselines and
+/// Mesa lavapipe stays below it except for a few glyph edge pixels, and all
+/// drift is gone at 3.0.
+const PIXEL_THRESHOLD: f32 = 0.6;
+
+/// Pixels allowed to exceed [`PIXEL_THRESHOLD`]: 6–14 glyph edge pixels per
+/// image were measured between the baselines and lavapipe, plus a small
+/// margin. A real change such as a moved label or a changed value differs
+/// by far more (the residual text change of #150 alone was 261 pixels).
+const MAX_FAILED_PIXELS: usize = 20;
+
+fn snapshot_options() -> egui_kittest::SnapshotOptions {
+    egui_kittest::SnapshotOptions::new()
+        .threshold(PIXEL_THRESHOLD)
+        .max_failed_pixels(MAX_FAILED_PIXELS)
+}
+
+/// Renders and compares with the baseline (see module docs for tolerances).
 fn check_snapshot(h: &mut Harness<FlowsheetApp>, name: &str) {
     let _gpu = RENDER.lock().unwrap_or_else(|e| e.into_inner());
-    if std::env::var_os("CI").is_some() {
-        h.render().expect("headless render");
-    } else {
-        h.snapshot(name);
-    }
+    h.snapshot_options(name, &snapshot_options());
 }
 
 fn two_units(a: UnitKind, b: UnitKind) -> FlowsheetApp {
@@ -636,6 +656,85 @@ fn failed_solve_is_shown_at_the_unit_and_values_are_not_current() {
     // The properties panel names the cause.
     let message = h.state().editor().failure.as_ref().unwrap().message.clone();
     h.get_by_label(&format!("✖ {message}"));
+}
+
+/// The demonstration feeds routed through a heat exchanger that moves 1 kW
+/// from the 350 K feed (hot side) to the 330 K feed (cold side).
+fn exchanger_app() -> (FlowsheetApp, UnitId) {
+    let mut project =
+        flowsheet_project::demonstration(flowsheet_project::CubicVariantChoice::PengRobinson);
+    let fs = &mut project.flowsheet;
+    let feed_at = |fs: &flowsheet_core::Flowsheet, t: f64| {
+        fs.units()
+            .find(|u| matches!(u.spec, UnitSpec::Feed { temperature_k: Some(x), .. } if x == t))
+            .unwrap()
+            .id
+    };
+    let (cold, hot) = (feed_at(fs, 330.0), feed_at(fs, 350.0));
+    let others: Vec<_> = fs
+        .units()
+        .filter(|u| u.kind != UnitKind::Feed)
+        .map(|u| u.id)
+        .collect();
+    for id in others {
+        fs.remove_unit(id);
+    }
+    let ex = fs.add_unit(UnitKind::HeatExchanger);
+    fs.set_spec(
+        ex,
+        UnitSpec::HeatExchanger {
+            thermal: flowsheet_core::ExchangerSpec::Duty(Some(1000.0)),
+            hot_pressure_drop_pa: 0.0,
+            cold_pressure_drop_pa: 0.0,
+        },
+    );
+    fs.connect(PortRef::new(hot, 0), PortRef::new(ex, 0))
+        .unwrap();
+    fs.connect(PortRef::new(cold, 0), PortRef::new(ex, 1))
+        .unwrap();
+    for port in [2, 3] {
+        let product = fs.add_unit(UnitKind::Product);
+        fs.connect(PortRef::new(ex, port), PortRef::new(product, 0))
+            .unwrap();
+    }
+    let mut app = FlowsheetApp::default();
+    app.editor_mut().load_project(project);
+    (app, ex)
+}
+
+#[test]
+fn exchanger_shows_transferred_duty_in_display_units() {
+    let (mut app, ex) = exchanger_app();
+    solve_now(&mut app);
+    let stored = &app.editor().results.as_ref().unwrap().units[&ex];
+    assert_eq!(
+        (stored.duty_w, stored.transferred_duty_w),
+        (0.0, Some(1000.0))
+    );
+    app.editor_mut().selection = Some(Selection::Unit(ex));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Transferred duty (hot to cold)");
+    let shown = thermo_desktop::units::format_quantity(
+        thermo_desktop::units::DisplayUnits::ProcessMetric,
+        thermo_desktop::units::Quantity::Duty,
+        1000.0,
+    );
+    assert!(shown.ends_with(" kW"), "{shown}");
+    h.get_by_label(&shown);
+
+    // A result without a stored transferred duty (read from a version-2
+    // file) asks for a recalculation instead of showing a number.
+    h.state_mut()
+        .editor_mut()
+        .results
+        .as_mut()
+        .unwrap()
+        .units
+        .get_mut(&ex)
+        .unwrap()
+        .transferred_duty_w = None;
+    h.run();
+    h.get_by_label("not stored — recalculate");
 }
 
 #[test]

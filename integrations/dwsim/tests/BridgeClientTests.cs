@@ -114,8 +114,8 @@ internal static class BridgeClientTests
             var q = Load(args[1]);
             ThermoCoreBridge.Obj(q["state"])["temperature_K"] = 150.0;
             ThermoCoreBridge.Calculate(q);
-        }, "unsupported-capability");
-        Check(e == null, "150 K outside package interval -> unsupported-capability " + e);
+        }, "outside-validity-domain");
+        Check(e == null, "150 K outside package interval -> outside-validity-domain " + e);
         e = Expect(delegate
         {
             var q = Load(args[1]);
@@ -141,6 +141,17 @@ internal static class BridgeClientTests
         }
         catch (ArgumentException) { rejected = true; }
         Check(rejected, "NaN rejected by the client before the call");
+
+        // A JSON null (e.g. molar_vapor_fraction of a supercritical phase) is
+        // a missing value, never 0.
+        bool nullRejected = false;
+        try { ThermoCoreBridge.Num(null); }
+        catch (InvalidOperationException) { nullRejected = true; }
+        Check(nullRejected, "Num(null) throws instead of returning 0");
+        Check(ThermoCoreBridge.NumOrNull(null) == null, "NumOrNull(null) is null");
+        Check(ThermoCoreBridge.NumOrNull(0.25) == 0.25, "NumOrNull(number) is the number");
+        var withNull = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>("{\"molar_vapor_fraction\":null}");
+        Check(ThermoCoreBridge.NumOrNull(withNull["molar_vapor_fraction"]) == null, "parsed JSON null vapor fraction stays null");
 
         // Reentrancy: concurrent calls give identical results.
         var results = new double[16];

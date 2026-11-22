@@ -89,8 +89,16 @@ pub struct StreamResult {
 pub struct UnitResult {
     /// Fingerprint of the unit inputs when calculated.
     pub fingerprint: Fingerprint,
-    /// Duty, W, positive into the unit.
+    /// External duty, W, positive into the unit. It enters the energy
+    /// balance and is zero for heat exchangers.
     pub duty_w: f64,
+    /// Heat exchangers only: heat transferred internally from the hot side
+    /// (inlet port 0) to the cold side (inlet port 1), W. A solved exchanger
+    /// never reports a negative value. It is not an external duty and is not
+    /// part of `duty_w`. `None` for other units, and for exchanger results
+    /// read from format version 1 or 2 files, which did not store it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transferred_duty_w: Option<f64>,
     /// Engine warnings (for example a single-phase separator).
     pub warnings: Vec<String>,
     /// Largest scaled component balance residual (internal units only).
@@ -150,6 +158,7 @@ impl ResultSet {
                     UnitResult {
                         fingerprint: *fingerprints.units.get(id)?,
                         duty_w: u.duty_w,
+                        transferred_duty_w: u.transferred_duty_w,
                         warnings: u.warnings.clone(),
                         max_scaled_component_residual: u
                             .balance
@@ -219,6 +228,7 @@ impl ResultSet {
         }
         for (id, u) in &self.units {
             if bad(u.duty_w)
+                || opt(u.transferred_duty_w)
                 || opt(u.max_scaled_component_residual)
                 || opt(u.scaled_energy_residual)
             {

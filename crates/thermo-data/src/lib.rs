@@ -128,10 +128,18 @@ pub struct ComponentDatabase {
 }
 
 impl ComponentDatabase {
+    /// The embedded dataset. It is parsed and checked once per process; later calls
+    /// return a clone of that result.
     pub fn embedded() -> Result<Self, CalculationError> {
-        Self::from_extract(include_str!(
-            "../../../data/source-extracts/components.provisional.json"
-        ))
+        static EMBEDDED: std::sync::OnceLock<Result<ComponentDatabase, CalculationError>> =
+            std::sync::OnceLock::new();
+        EMBEDDED
+            .get_or_init(|| {
+                Self::from_extract(include_str!(
+                    "../../../data/source-extracts/components.provisional.json"
+                ))
+            })
+            .clone()
     }
 
     /// The header must match this crate's `DATA_VERSION`, which `metadata()` reports,
