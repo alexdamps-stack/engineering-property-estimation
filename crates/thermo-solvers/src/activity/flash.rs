@@ -1,15 +1,13 @@
 //! Gamma–phi TP flash with the NRTL liquid tangent-plane check.
 
 use thermo_models::{ActivityModel, ActivityPhaseState};
-use thermo_types::{
-    CalculationError as Error, Diagnostic, DiagnosticSeverity, Phase, Pressure, Temperature,
-};
+use thermo_types::{CalculationError as Error, DiagnosticSeverity, Phase, Pressure, Temperature};
 
 use super::saturation::{bubble_at, dew_at};
 use super::stability::liquid_stability;
 use super::{
     ActivityFlashPhase, ActivityOptions, ActivityTpFlash, LiquidStability, active, diagnostic,
-    excess, flag_inferred_interval, pures,
+    excess, pures,
 };
 use crate::rachford_rice::{RACHFORD_RICE_MAX_ITERATIONS, rachford_rice_negative};
 use crate::stability::normalized as normalize;
@@ -94,26 +92,23 @@ pub(super) fn tp_flash(
     )];
     let single = |phase: Phase,
                   stability: Option<LiquidStability>,
-                  mut diagnostics: Vec<Diagnostic>|
+                  diagnostics|
      -> Result<ActivityTpFlash, Error> {
-        let phases = vec![ActivityFlashPhase {
-            phase,
-            phase_fraction: 1.0,
-            composition: z.clone(),
-            state: phase_state(model, phase, t, p, &z)?,
-        }];
-        let inferred_regression_interval = flag_inferred_interval(&phases, &mut diagnostics);
         Ok(ActivityTpFlash {
             temperature_k: t,
             pressure_pa: p,
-            phases,
+            phases: vec![ActivityFlashPhase {
+                phase,
+                phase_fraction: 1.0,
+                composition: z.clone(),
+                state: phase_state(model, phase, t, p, &z)?,
+            }],
             bubble_pressure_pa: p_bubble,
             dew_pressure_pa: p_dew,
             iterations: 0,
             max_ln_fugacity_residual: 0.0,
             max_component_balance_residual: 0.0,
             liquid_stability: stability,
-            inferred_regression_interval,
             diagnostics,
         })
     };
@@ -190,32 +185,29 @@ pub(super) fn tp_flash(
             DiagnosticSeverity::Information,
         ));
     }
-    let phases = vec![
-        ActivityFlashPhase {
-            phase: Phase::Vapor,
-            phase_fraction: beta,
-            state: phase_state(model, Phase::Vapor, t, p, &y)?,
-            composition: y,
-        },
-        ActivityFlashPhase {
-            phase: Phase::Liquid,
-            phase_fraction: 1.0 - beta,
-            state: phase_state(model, Phase::Liquid, t, p, &x)?,
-            composition: x,
-        },
-    ];
-    let inferred_regression_interval = flag_inferred_interval(&phases, &mut diagnostics);
     Ok(ActivityTpFlash {
         temperature_k: t,
         pressure_pa: p,
-        phases,
+        phases: vec![
+            ActivityFlashPhase {
+                phase: Phase::Vapor,
+                phase_fraction: beta,
+                state: phase_state(model, Phase::Vapor, t, p, &y)?,
+                composition: y,
+            },
+            ActivityFlashPhase {
+                phase: Phase::Liquid,
+                phase_fraction: 1.0 - beta,
+                state: phase_state(model, Phase::Liquid, t, p, &x)?,
+                composition: x,
+            },
+        ],
         bubble_pressure_pa: p_bubble,
         dew_pressure_pa: p_dew,
         iterations,
         max_ln_fugacity_residual: r,
         max_component_balance_residual: balance,
         liquid_stability,
-        inferred_regression_interval,
         diagnostics,
     })
 }

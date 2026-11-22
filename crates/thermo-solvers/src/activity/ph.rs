@@ -2,8 +2,7 @@
 
 use thermo_models::{ActivityModel, ActivityPhaseState};
 use thermo_types::{
-    CalculationError as Error, Diagnostic, DiagnosticSeverity, InputError, Phase, Pressure,
-    Temperature,
+    CalculationError as Error, DiagnosticSeverity, InputError, Phase, Pressure, Temperature,
 };
 
 use super::flash::{activity_tp_flash, phase_state, require_stable_liquid, tp_flash};
@@ -12,7 +11,7 @@ use super::saturation::{
 };
 use super::{
     ActivityFlashPhase, ActivityOptions, ActivityPhFlash, ActivitySaturation, SaturationKind,
-    active, check_pressure, diagnostic, flag_inferred_interval, pures,
+    active, check_pressure, diagnostic, pures,
 };
 
 /// Position of a feed saturation temperature at p relative to the option bracket.
@@ -123,39 +122,33 @@ pub fn activity_ph_flash(
             DiagnosticSeverity::Information,
         ));
     }
-    let finish = |t: f64,
-                  phases: Vec<ActivityFlashPhase>,
-                  iterations,
-                  tp,
-                  mut diagnostics: Vec<Diagnostic>,
-                  scale: f64| {
-        let enthalpy: f64 = phases
-            .iter()
-            .map(|ph: &ActivityFlashPhase| ph.phase_fraction * ph.state.enthalpy)
-            .sum();
-        let scaled = (enthalpy - target_enthalpy) / scale;
-        if !scaled.is_finite() || scaled.abs() > options.energy_tolerance {
-            return Err(Error::NonConvergence(format!(
-                "PH energy residual {scaled:e} exceeds tolerance"
-            )));
-        }
-        let inferred_regression_interval = flag_inferred_interval(&phases, &mut diagnostics);
-        Ok(ActivityPhFlash {
-            temperature_k: t,
-            pressure_pa: p,
-            target_enthalpy,
-            enthalpy,
-            scaled_energy_residual: scaled,
-            energy_scale: scale,
-            phases,
-            bubble_temperature_k: tb,
-            dew_temperature_k: td,
-            iterations,
-            tp,
-            inferred_regression_interval,
-            diagnostics,
-        })
-    };
+    let finish =
+        |t: f64, phases: Vec<ActivityFlashPhase>, iterations, tp, diagnostics, scale: f64| {
+            let enthalpy: f64 = phases
+                .iter()
+                .map(|ph: &ActivityFlashPhase| ph.phase_fraction * ph.state.enthalpy)
+                .sum();
+            let scaled = (enthalpy - target_enthalpy) / scale;
+            if !scaled.is_finite() || scaled.abs() > options.energy_tolerance {
+                return Err(Error::NonConvergence(format!(
+                    "PH energy residual {scaled:e} exceeds tolerance"
+                )));
+            }
+            Ok(ActivityPhFlash {
+                temperature_k: t,
+                pressure_pa: p,
+                target_enthalpy,
+                enthalpy,
+                scaled_energy_residual: scaled,
+                energy_scale: scale,
+                phases,
+                bubble_temperature_k: tb,
+                dew_temperature_k: td,
+                iterations,
+                tp,
+                diagnostics,
+            })
+        };
     let one = |phase, state: ActivityPhaseState| {
         vec![ActivityFlashPhase {
             phase,

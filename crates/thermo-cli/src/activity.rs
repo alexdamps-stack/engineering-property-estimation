@@ -3,18 +3,15 @@
 use crate::{Case, phase_label};
 use serde_json::{Value, json};
 use thermo_data::{ComponentDatabase, LiquidDatabase};
-use thermo_models::{
-    ActivityModel, ActivityPhaseState, INFERRED_REGRESSION_INTERVAL_CODE,
-    INFERRED_REGRESSION_INTERVAL_WARNING, VaporModel,
-};
+use thermo_models::{ActivityModel, ActivityPhaseState, VaporModel};
 use thermo_solvers::{
     ActivityFlashPhase, ActivityOptions, ActivitySaturation, activity_bubble_pressure,
     activity_bubble_temperature, activity_dew_pressure, activity_dew_temperature,
     activity_ph_flash, activity_tp_flash,
 };
 use thermo_types::{
-    ComponentId, Composition, CompositionBasis, Diagnostic, DiagnosticSeverity,
-    NormalizationPolicy, Pressure, Temperature, ValidityStatus,
+    ComponentId, Composition, CompositionBasis, Diagnostic, NormalizationPolicy, Pressure,
+    Temperature, ValidityStatus,
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -28,21 +25,7 @@ fn state_json(s: &ActivityPhaseState) -> Value {
         "gibbs_energy_J_per_mol": s.gibbs_energy, "cp_J_per_mol_K": s.cp,
         "molar_volume_m3_per_mol": s.molar_volume, "mass_density_kg_per_m3": s.mass_density,
         "validity": validity(s.validity),
-        "nrtl_regression_interval_inferred": s.inferred_regression_interval,
     })
-}
-
-/// Diagnostic entries for a saturation result whose liquid rests on an inferred
-/// NRTL regression interval (flashes carry the solver's own diagnostic).
-fn saturation_diagnostics(inferred: bool) -> Vec<Value> {
-    if !inferred {
-        return Vec::new();
-    }
-    vec![json!({
-        "code": INFERRED_REGRESSION_INTERVAL_CODE,
-        "severity": format!("{:?}", DiagnosticSeverity::Warning),
-        "message": INFERRED_REGRESSION_INTERVAL_WARNING,
-    })]
 }
 
 fn validity(v: ValidityStatus) -> &'static str {
@@ -97,10 +80,10 @@ fn saturation_json(
     model: &ActivityModel,
 ) -> Result<Value> {
     // NRTL validity of the saturated liquid (feed for bubble, incipient for dew).
-    let liquid = model
+    let liquid_validity = model
         .nrtl()
-        .excess_at(Temperature::new(s.temperature_k)?, &s.liquid)?;
-    let (liquid_validity, inferred) = (liquid.validity, liquid.inferred_regression_interval);
+        .excess_at(Temperature::new(s.temperature_k)?, &s.liquid)?
+        .validity;
     Ok(json!({
         "case": case.id, "calculation": kind, "components": case.components,
         "temperature_K": s.temperature_k, "pressure_Pa_absolute": s.pressure_pa,
@@ -108,9 +91,7 @@ fn saturation_json(
         "convergence": {"iterations": s.iterations, "max_abs_ln_fugacity_residual": s.max_ln_fugacity_residual},
         "incipient_phase": if kind.starts_with("bubble") { "vapor" } else { "liquid" },
         "liquid_validity": validity(liquid_validity),
-        "liquid_nrtl_regression_interval_inferred": inferred,
         "provenance": provenance(model)?,
-        "diagnostics": saturation_diagnostics(inferred),
     }))
 }
 
@@ -201,7 +182,6 @@ pub(crate) fn calculate(case: Case) -> Result<Value> {
                     "max_abs_ln_fugacity_residual": r.max_ln_fugacity_residual,
                     "max_abs_component_balance_residual": r.max_component_balance_residual},
                 "liquid_stability_finite_trials": r.liquid_stability.as_ref().map(|s| s.stable_in_trials),
-                "nrtl_regression_interval_inferred": r.inferred_regression_interval,
                 "provenance": provenance(&model)?,
                 "diagnostics": diagnostics(&r.diagnostics),
             }))
@@ -221,7 +201,6 @@ pub(crate) fn calculate(case: Case) -> Result<Value> {
                 "phase_count": r.phases.len(), "phases": phases_json(&r.phases),
                 "convergence": {"temperature_iterations": r.iterations,
                     "scaled_energy_residual": r.scaled_energy_residual, "energy_scale_J_per_mol": r.energy_scale},
-                "nrtl_regression_interval_inferred": r.inferred_regression_interval,
                 "provenance": provenance(&model)?,
                 "diagnostics": diagnostics(&r.diagnostics),
             }))
@@ -239,57 +218,6 @@ mod tests {
 
     fn case(json: &str) -> Case {
         serde_json::from_str(json).unwrap()
-    }
-
-    fn warnings(out: &Value) -> usize {
-        out["diagnostics"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|d| {
-                d["code"] == INFERRED_REGRESSION_INTERVAL_CODE
-                    && d["severity"] == "Warning"
-                    && d["message"] == INFERRED_REGRESSION_INTERVAL_WARNING
-            })
-            .count()
-    }
-
-    #[test]
-    fn inferred_regression_interval_is_reported() {
-        let tp = include_str!("../../../examples/nrtl-tp-flash-methanol-water.json");
-        let out = crate::calculate(case(tp)).unwrap();
-        assert_eq!(out["nrtl_regression_interval_inferred"], true);
-        assert_eq!(warnings(&out), 1);
-        for phase in out["phases"].as_array().unwrap() {
-            let liquid = phase["label"] != "vapor";
-            assert_eq!(
-                phase["nrtl_regression_interval_inferred"], liquid,
-                "{phase}"
-            );
-        }
-        let mut ph = case(tp);
-        ph.calculation = Some("ph-flash".into());
-        ph.temperature_k = None;
-        ph.enthalpy_j_per_mol = out["enthalpy_J_per_mol"].as_f64();
-        let out = crate::calculate(ph).unwrap();
-        assert_eq!(out["nrtl_regression_interval_inferred"], true);
-        assert_eq!(warnings(&out), 1);
-        let bubble = include_str!("../../../examples/nrtl-bubble-temperature-methanol-water.json");
-        let out = crate::calculate(case(bubble)).unwrap();
-        assert_eq!(out["liquid_nrtl_regression_interval_inferred"], true);
-        assert_eq!(warnings(&out), 1);
-        // A pure feed has no interacting pair, so no interval and no warning.
-        let mut pure = case(bubble);
-        pure.mole_fractions = vec![1.0, 0.0];
-        let out = crate::calculate(pure).unwrap();
-        assert_eq!(out["liquid_nrtl_regression_interval_inferred"], false);
-        assert_eq!(warnings(&out), 0);
-        let mut pure = case(tp);
-        pure.mole_fractions = vec![1.0, 0.0];
-        pure.temperature_k = Some(320.0);
-        let out = crate::calculate(pure).unwrap();
-        assert_eq!(out["nrtl_regression_interval_inferred"], false);
-        assert_eq!(warnings(&out), 0);
     }
 
     #[test]

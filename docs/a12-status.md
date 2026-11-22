@@ -33,10 +33,6 @@ real flowsheets from .NET without the GUI.
 **Bridge v1 scope.** `PR` and `PR-BM`, `tp-flash` and `ph-flash`, at most two
 fluid phases, through `property_packages::CubicPackage` (200–600 K search
 interval). GERG-2008, NRTL, saturation points and flowsheets are not exposed in v1.
-Because NRTL is not exposed, v1 has no inferred-regression-interval flag (#121);
-an NRTL request must add it as an optional, additive result field (and pass
-the `A7-NRTL-INFERRED-REGRESSION-INTERVAL` warning through the diagnostics) so
-that existing hosts and the DWSIM client are unaffected.
 No solver or model code was changed.
 
 ## 2. Contract (bridge v1)

@@ -24,8 +24,7 @@ pub use saturation::{
 pub use stability::liquid_stability;
 
 use thermo_models::{
-    ACTIVITY_TEMPERATURE_RANGE_K, ActivityModel, ActivityPhaseState, ExcessState,
-    INFERRED_REGRESSION_INTERVAL_CODE, INFERRED_REGRESSION_INTERVAL_WARNING, PureLiquidState,
+    ACTIVITY_TEMPERATURE_RANGE_K, ActivityModel, ActivityPhaseState, ExcessState, PureLiquidState,
 };
 use thermo_types::{CalculationError as Error, Diagnostic, DiagnosticSeverity, Phase, Temperature};
 
@@ -149,10 +148,6 @@ pub struct ActivityTpFlash {
     pub max_component_balance_residual: f64,
     /// NRTL liquid tangent-plane trials of the liquid phase, if one is present.
     pub liquid_stability: Option<LiquidStability>,
-    /// True when any reported phase's NRTL validity rests on an inferred regression
-    /// interval ([`ActivityPhaseState::inferred_regression_interval`]); a warning
-    /// diagnostic is then included. Phase validity statuses are unchanged.
-    pub inferred_regression_interval: bool,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -191,26 +186,7 @@ pub struct ActivityPhFlash {
     pub iterations: usize,
     /// TP evidence for a two-phase mixture result.
     pub tp: Option<ActivityTpFlash>,
-    /// As [`ActivityTpFlash::inferred_regression_interval`], over `phases`.
-    pub inferred_regression_interval: bool,
     pub diagnostics: Vec<Diagnostic>,
-}
-
-/// Whether any phase rests on an inferred NRTL regression interval; if so, appends
-/// the warning diagnostic. Only a flag is added: no result value changes.
-fn flag_inferred_interval(
-    phases: &[ActivityFlashPhase],
-    diagnostics: &mut Vec<Diagnostic>,
-) -> bool {
-    let inferred = phases.iter().any(|p| p.state.inferred_regression_interval);
-    if inferred {
-        diagnostics.push(diagnostic(
-            INFERRED_REGRESSION_INTERVAL_CODE,
-            INFERRED_REGRESSION_INTERVAL_WARNING,
-            DiagnosticSeverity::Warning,
-        ));
-    }
-    inferred
 }
 
 fn diagnostic(code: &str, message: impl Into<String>, severity: DiagnosticSeverity) -> Diagnostic {
