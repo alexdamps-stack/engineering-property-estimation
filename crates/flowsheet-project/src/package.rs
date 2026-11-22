@@ -237,6 +237,45 @@ impl PreparedPackage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fingerprint::package_fingerprint;
+    use crate::{Currency, Fingerprints, Project, demonstration, solve_project};
+    use std::ops::ControlFlow;
+
+    #[test]
+    fn previous_engine_results_load_as_stale() {
+        let mut project = demonstration(CubicVariantChoice::PengRobinson);
+        let package = project.package.prepare().unwrap();
+        let mut results =
+            solve_project(&project, &package, |_| ControlFlow::Continue(()), 0).unwrap();
+        results.provenance.engine = "flowsheet-core a10-tears-v1".into();
+        let old_package = package_fingerprint(&project.package, &results.provenance);
+        let old = Fingerprints::compute_with(&project.flowsheet, &project.feeds, Some(old_package));
+        for (id, result) in &mut results.units {
+            result.fingerprint = old.units[id];
+        }
+        for (id, result) in &mut results.streams {
+            result.fingerprint = old.stream(&project.flowsheet, *id).unwrap();
+        }
+        project.results = Some(results);
+
+        let loaded = Project::from_json(&project.to_json().unwrap()).unwrap();
+        let results = loaded.results.as_ref().unwrap();
+        let current = loaded.fingerprints();
+        for unit in loaded.flowsheet.units() {
+            assert_eq!(results.unit_currency(unit.id, &old), Currency::Current);
+            assert_eq!(results.unit_currency(unit.id, &current), Currency::Stale);
+        }
+        for stream in loaded.flowsheet.streams() {
+            assert_eq!(
+                results.stream_currency(&loaded.flowsheet, stream.id, &old),
+                Currency::Current
+            );
+            assert_eq!(
+                results.stream_currency(&loaded.flowsheet, stream.id, &current),
+                Currency::Stale
+            );
+        }
+    }
 
     #[test]
     fn invalid_selections_are_rejected_without_defaults() {
