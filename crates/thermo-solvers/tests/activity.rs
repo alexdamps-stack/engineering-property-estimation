@@ -391,3 +391,79 @@ fn unsupported_states_and_targets_fail_explicitly() {
         Err(CalculationError::OutsideValidityDomain(_))
     ));
 }
+
+/// Embedded methanol/water parameters with the same interval declared by the source
+/// rather than inferred (synthetic: only the interval basis differs).
+fn declared_model(z: [f64; 2]) -> ActivityModel {
+    let liquids = LiquidDatabase::embedded().unwrap();
+    let ids = ["methanol", "water"].map(|n| ComponentId::new(n).unwrap());
+    let parameters = NrtlParameters::from_database(&liquids, &ids)
+        .unwrap()
+        .with_regression_interval(0, 1, [337.69, 373.13])
+        .unwrap();
+    ActivityModel::new(
+        &ComponentDatabase::embedded().unwrap(),
+        &liquids,
+        &composition(["methanol", "water"], z),
+        VaporModel::IdealGas,
+        parameters,
+    )
+    .unwrap()
+}
+
+#[test]
+fn inferred_regression_interval_is_flagged_without_changing_results() {
+    const CODE: &str = thermo_models::INFERRED_REGRESSION_INTERVAL_CODE;
+    let o = ActivityOptions::default();
+    let warned = |d: &[thermo_types::Diagnostic]| {
+        d.iter()
+            .filter(|d| d.code == CODE)
+            .inspect(|d| {
+                assert_eq!(d.severity, thermo_types::DiagnosticSeverity::Warning);
+                assert_eq!(
+                    d.message,
+                    thermo_models::INFERRED_REGRESSION_INTERVAL_WARNING
+                );
+            })
+            .count()
+    };
+    let (inferred, declared) = (model([0.4, 0.6]), declared_model([0.4, 0.6]));
+    // Two-phase (355 K) and subcooled liquid (330 K) at 1 atm.
+    for temperature in [355.0, 330.0] {
+        let a = activity_tp_flash(&inferred, t(temperature), p(101_325.0), o).unwrap();
+        let b = activity_tp_flash(&declared, t(temperature), p(101_325.0), o).unwrap();
+        assert!(a.inferred_regression_interval, "{temperature}");
+        assert_eq!(warned(&a.diagnostics), 1);
+        let liquid = a.phases.iter().find(|ph| ph.phase == Phase::Liquid);
+        assert!(liquid.unwrap().state.inferred_regression_interval);
+        assert!(!b.inferred_regression_interval, "{temperature}");
+        assert_eq!(warned(&b.diagnostics), 0);
+        assert!(
+            b.phases
+                .iter()
+                .all(|ph| !ph.state.inferred_regression_interval)
+        );
+        // Only the flag and its diagnostic differ.
+        assert_eq!(a.phases.len(), b.phases.len());
+        assert_eq!(a.enthalpy(), b.enthalpy());
+        assert_eq!(a.vapor_fraction(), b.vapor_fraction());
+        assert_eq!(a.diagnostics.len(), b.diagnostics.len() + 1);
+        for (x, y) in a.phases.iter().zip(&b.phases) {
+            assert_eq!(x.state.validity, y.state.validity);
+        }
+        let pa = activity_ph_flash(&inferred, p(101_325.0), a.enthalpy(), o).unwrap();
+        let pb = activity_ph_flash(&declared, p(101_325.0), b.enthalpy(), o).unwrap();
+        assert!(pa.inferred_regression_interval);
+        assert_eq!(warned(&pa.diagnostics), 1);
+        assert!(!pb.inferred_regression_interval);
+        assert_eq!(warned(&pb.diagnostics), 0);
+        assert_eq!(pa.temperature_k, pb.temperature_k);
+        assert_eq!(pa.enthalpy, pb.enthalpy);
+    }
+    // Superheated vapor has no NRTL liquid; a pure feed has no interacting pair.
+    let vapor = activity_tp_flash(&inferred, t(400.0), p(101_325.0), o).unwrap();
+    assert!(!vapor.inferred_regression_interval);
+    assert_eq!(warned(&vapor.diagnostics), 0);
+    let pure = activity_tp_flash(&model([1.0, 0.0]), t(320.0), p(101_325.0), o).unwrap();
+    assert!(!pure.inferred_regression_interval);
+}

@@ -74,6 +74,10 @@ pub struct ActivityPhaseState {
     pub caloric_reference: CaloricReference,
     /// Liquid: NRTL regression-interval status. Vapor: unassessed.
     pub validity: ValidityStatus,
+    /// Liquid: `validity` rests on at least one inferred (not source-reported) NRTL
+    /// regression interval, copied from [`ExcessState::inferred_regression_interval`].
+    /// Vapor: false. Does not change `validity`.
+    pub inferred_regression_interval: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -313,7 +317,7 @@ impl ActivityModel {
         h += ex.excess_enthalpy;
         s += ex.excess_entropy;
         cp += ex.excess_heat_capacity;
-        let validity = ex.validity;
+        let (validity, inferred) = (ex.validity, ex.inferred_regression_interval);
         self.finish(
             Phase::Liquid,
             t,
@@ -326,6 +330,7 @@ impl ActivityModel {
             mass,
             Some(ex),
             validity,
+            inferred,
         )
     }
 
@@ -362,6 +367,7 @@ impl ActivityModel {
             mass,
             None,
             ValidityStatus::Unassessed,
+            false,
         )
     }
 
@@ -379,6 +385,7 @@ impl ActivityModel {
         mass: f64,
         excess: Option<ExcessState>,
         validity: ValidityStatus,
+        inferred_regression_interval: bool,
     ) -> Result<ActivityPhaseState, Error> {
         if ![h, s, cp, v, mass / v]
             .iter()
@@ -412,6 +419,7 @@ impl ActivityModel {
             data: self.data.clone(),
             caloric_reference: Self::caloric_reference(),
             validity,
+            inferred_regression_interval,
         })
     }
 }
