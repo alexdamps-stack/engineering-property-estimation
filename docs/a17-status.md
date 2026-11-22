@@ -31,6 +31,8 @@ feasible in steady state* (with the reason).
 | Component splitter | #172 | calculated | Overhead recovery from 0 to 1 for each package component. Bottoms receives the remainder. | Analytic component split, empty outlet, signed duty and failure cases through `flowsheet-project/tests/component_splitter.rs`. Desktop form exercised headlessly. | The isothermal, zero-pressure-drop mode reuses the cubic TP flash at each flowing outlet. It calculates the net duty and can report it on its optional energy inlet. Recoveries are stored by component ID in project format 4. |
 | Stream multiplier | #173 | calculated | Finite flow factor ≥ 0. Factor 2 doubles the stream into one outlet. | Analytic flow and enthalpy accounting in `flowsheet-project/tests/logical_streams.rs`. | Logical block with one inlet and one outlet. |
 | Stream selector | #174 | calculated | Choose one of 2–12 connected inlets by its one-based port number. | Analytic forwarding and boundary accounting in `flowsheet-project/tests/logical_streams.rs`. | Retains ISO asset `s6-2103-valve-three-way-type-general`. |
+| Tank | #178 | calculated | Adiabatic, specified outlet temperature, or signed duty, with a specified pressure drop. | Matched isenthalpic outlet reference, closure, failure and v4 reload checks in `flowsheet-project/tests/tank.rs`. | One inlet and one bulk outlet. Retains ISO asset `s1-x2063-tank-with-conical-roof-and-flat-bottom`. |
+| Balance | #215 | drawn only | General envelope around selected existing streams. | Requires the prerequisites below. | The engine's unit balance checks remain available on all calculable units. |
 
 The splitter prescribes component recoveries. Both outlets can contain vapor
 and liquid depending on their composition at the inlet temperature and pressure.
@@ -52,6 +54,26 @@ Both specifications and the optional result field are stored in project format
 4. Older records preserve their ports and load with the factor or selection
 unset. Specify the missing value before solving. The engine revision marks
 results from older balance rules stale.
+
+The steady-state tank carries the inlet flow and overall composition to a
+single equilibrium outlet, including both phases when the fluid splits.
+It uses TP for an assigned outlet temperature and PH for an assigned duty
+or adiabatic pressure loss. Adiabatic service at unchanged pressure preserves
+the inlet phase state. The optional energy inlet reports the calculated or
+specified duty to a calculated energy source. Empty inlets give empty
+outlets and a zero-duty warning. Inventory, level and time-dependent
+operations are outside the steady-state model. Existing v4 tank records
+default to adiabatic operation and zero pressure drop.
+
+A Balance block can form an envelope around streams already connected
+elsewhere and solve for an unknown stream variable. An audit-only first
+step needs signed, non-consuming material and energy stream references
+and result fingerprints for those references. It would report residuals
+after recycle closure and account for heat duty and logical material exchange
+exactly once. Solving unknowns additionally needs degree-of-freedom and rank
+checks, explicit ownership of each calculated variable, and a reflash and
+atomic update path that works within recycle sequencing.
+[Aspen Plus User Guide, chapter 25](https://web.ist.utl.pt/ist11038/acad/Aspen/AspUserGuide10.pdf).
 
 ## Reactors
 

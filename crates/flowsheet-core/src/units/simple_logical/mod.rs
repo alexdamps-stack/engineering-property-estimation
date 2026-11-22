@@ -9,8 +9,10 @@
 //! ports; the variable links they need are part of this group's design.
 
 mod component_splitter;
+mod tank;
 
 pub use component_splitter::ComponentSplitterSpec;
+pub use tank::TankSpec;
 
 use super::{CalcContext, DRAWN_ONLY, GroupSpec, UnitInputs, UnitOutput, kind_info, numbered};
 use crate::engine::{MaterialExchange, MaterialStream, empty};
@@ -54,9 +56,13 @@ pub(crate) fn info(kind: UnitKind) -> KindInfo {
 /// Calculation status of a simple/logical kind.
 pub(crate) fn status(kind: UnitKind) -> CalculationStatus {
     match kind {
-        UnitKind::ComponentSplitter | UnitKind::Multiplier | UnitKind::Selector => {
-            CalculationStatus::Calculated
-        }
+        UnitKind::ComponentSplitter
+        | UnitKind::Multiplier
+        | UnitKind::Selector
+        | UnitKind::Tank => CalculationStatus::Calculated,
+        UnitKind::Balance => CalculationStatus::DrawnOnly(
+            "requires stream references and a solver for unknown balance variables",
+        ),
         _ => DRAWN_ONLY,
     }
 }
@@ -123,10 +129,6 @@ impl Default for SelectorSpec {
 /// Stream cutter specification (#175).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct StreamCutterSpec {}
-
-/// Tank specification (#178).
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct TankSpec {}
 
 /// Adjust specification (#212).
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -224,6 +226,7 @@ impl GroupSpec for SimpleLogicalSpec {
                 }
                 issues
             }
+            SimpleLogicalSpec::Tank(s) => s.issues(),
             _ => Vec::new(),
         }
     }
@@ -247,6 +250,7 @@ pub(crate) fn calculate(
         SimpleLogicalSpec::ComponentSplitter(s) => {
             component_splitter::calculate(s, &inputs.material[0], ctx)
         }
+        SimpleLogicalSpec::Tank(s) => tank::calculate(s, &inputs.material[0], ctx),
         SimpleLogicalSpec::Multiplier(s) => {
             let factor = s.factor.ok_or("missing flow factor")?;
             let inlet = &inputs.material[0];

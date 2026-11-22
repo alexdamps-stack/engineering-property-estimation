@@ -5,7 +5,7 @@ use eframe::egui::{ComboBox, Ui};
 use flowsheet_core::units::simple_logical::MAX_SELECTOR_INLETS;
 use flowsheet_core::units::{GroupSpec, SimpleLogicalSpec};
 
-use super::{count_field, drawn_only_note, note_row, opt_field};
+use super::{count_field, drawn_only_note, note_row, opt_field, vessel_thermal_fields};
 use crate::units::{DisplayUnits, Quantity};
 
 /// Form of a [`SimpleLogicalSpec`].
@@ -85,6 +85,13 @@ pub(super) fn form(
             note_row(
                 ui,
                 "Forwards the selected inlet. Results show the material and enthalpy removed with the other inlets.",
+            );
+        }
+        SimpleLogicalSpec::Tank(s) => {
+            vessel_thermal_fields(ui, &mut s.thermal, &mut s.pressure_drop_pa, u);
+            note_row(
+                ui,
+                "Steady state with one bulk outlet. Outlet flow equals inlet flow.",
             );
         }
         _ => {}

@@ -631,6 +631,61 @@ fn solids_are_absent_from_add_palette_and_existing_projects_still_open() {
     );
 }
 
+#[test]
+fn tank_thermal_mode_is_editable_and_duty_is_reported() {
+    use flowsheet_core::SeparatorThermal;
+    use flowsheet_core::units::{SimpleLogicalSpec, simple_logical::TankSpec};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["methane".into()],
+        "single-component tank UI test",
+    ));
+    let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(0.0, 0.0));
+    let product = ed.add_unit_at(UnitKind::Product, egui::pos2(300.0, 0.0));
+    let tank = ed.add_unit_at(UnitKind::Tank, egui::pos2(150.0, 0.0));
+    ed.fs.set_spec(
+        feed,
+        UnitSpec::Feed {
+            temperature_k: Some(330.0),
+            pressure_pa: Some(2e6),
+            molar_flow_mol_s: Some(2.0),
+        },
+    );
+    ed.feeds.insert(feed, vec![1.0]);
+    ed.fs
+        .connect(PortRef::new(feed, 0), PortRef::new(tank, 0))
+        .unwrap();
+    let outlet = ed
+        .fs
+        .connect(PortRef::new(tank, 1), PortRef::new(product, 0))
+        .unwrap();
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Outlet T").click();
+    h.run();
+    h.get_by_label("Enter value").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(tank).unwrap().spec,
+        UnitSpec::SimpleLogical(SimpleLogicalSpec::Tank(TankSpec {
+            thermal: SeparatorThermal::OutletTemperature(Some(298.15)),
+            pressure_drop_pa: 0.0,
+        })),
+    );
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("Duty (+ into unit)");
+    let r = h.state().editor().results.as_ref().unwrap();
+    assert_eq!(
+        r.streams[&outlet].state.as_ref().unwrap().temperature_k,
+        298.15
+    );
+    assert!(r.units[&tank].duty_w < 0.0);
+}
+
 /// Splitter, pump, compressor, expander, and two-stream heat exchanger
 /// wired into one small flowsheet.
 fn equipment_gallery() -> FlowsheetApp {

@@ -4,16 +4,21 @@
 
 use std::collections::BTreeMap;
 
+use flowsheet_core::SeparatorThermal;
 use flowsheet_core::units::SimpleLogicalSpec;
 use flowsheet_core::units::simple_logical::{
-    ComponentSplitterSpec, MAX_SELECTOR_INLETS, MultiplierSpec, SelectorSpec,
+    ComponentSplitterSpec, MAX_SELECTOR_INLETS, MultiplierSpec, SelectorSpec, TankSpec,
 };
 use serde::{Deserialize, Serialize};
 
-use super::count_in;
+use super::{ThermalRecord, count_in};
 
 fn default_inlets() -> u16 {
     SelectorSpec::default().inlets
+}
+
+fn adiabatic() -> ThermalRecord {
+    ThermalRecord::Adiabatic
 }
 
 /// Simple/logical specification, tagged by unit kind.
@@ -35,7 +40,12 @@ pub(crate) enum SimpleLogicalRecord {
         selected_inlet: Option<u16>,
     },
     StreamCutter {},
-    Tank {},
+    Tank {
+        #[serde(default = "adiabatic")]
+        thermal: ThermalRecord,
+        #[serde(default)]
+        pressure_drop_pa: f64,
+    },
     Adjust {},
     Set {},
     Spreadsheet {},
@@ -53,6 +63,18 @@ impl SimpleLogicalRecord {
                 overhead_recovery.values().copied().collect()
             }
             Self::Multiplier { factor } => factor.iter().copied().collect(),
+            Self::Tank {
+                thermal,
+                pressure_drop_pa,
+            } => {
+                let set_value = match *thermal {
+                    ThermalRecord::OutletTemperatureK(t) | ThermalRecord::DutyW(t) => t,
+                    _ => None,
+                };
+                std::iter::once(*pressure_drop_pa)
+                    .chain(set_value)
+                    .collect()
+            }
             _ => Vec::new(),
         }
     }
@@ -71,7 +93,14 @@ impl From<&SimpleLogicalSpec> for SimpleLogicalRecord {
                 selected_inlet: s.selected_inlet,
             },
             S::StreamCutter(_) => Self::StreamCutter {},
-            S::Tank(_) => Self::Tank {},
+            S::Tank(s) => Self::Tank {
+                thermal: match s.thermal {
+                    SeparatorThermal::Adiabatic => ThermalRecord::Adiabatic,
+                    SeparatorThermal::OutletTemperature(t) => ThermalRecord::OutletTemperatureK(t),
+                    SeparatorThermal::Duty(q) => ThermalRecord::DutyW(q),
+                },
+                pressure_drop_pa: s.pressure_drop_pa,
+            },
             S::Adjust(_) => Self::Adjust {},
             S::Set(_) => Self::Set {},
             S::Spreadsheet(_) => Self::Spreadsheet {},
@@ -101,7 +130,22 @@ impl TryFrom<SimpleLogicalRecord> for SimpleLogicalSpec {
                 selected_inlet,
             }),
             R::StreamCutter {} => Self::StreamCutter(Default::default()),
-            R::Tank {} => Self::Tank(Default::default()),
+            R::Tank {
+                thermal,
+                pressure_drop_pa,
+            } => Self::Tank(TankSpec {
+                thermal: match thermal {
+                    ThermalRecord::Adiabatic => SeparatorThermal::Adiabatic,
+                    ThermalRecord::OutletTemperatureK(t) => SeparatorThermal::OutletTemperature(t),
+                    ThermalRecord::DutyW(q) => SeparatorThermal::Duty(q),
+                    ThermalRecord::EnergyStream => {
+                        return Err(
+                            "tank thermal mode cannot take its duty from an energy stream".into(),
+                        );
+                    }
+                },
+                pressure_drop_pa,
+            }),
             R::Adjust {} => Self::Adjust(Default::default()),
             R::Set {} => Self::Set(Default::default()),
             R::Spreadsheet {} => Self::Spreadsheet(Default::default()),

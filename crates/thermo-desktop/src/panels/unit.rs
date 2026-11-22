@@ -201,7 +201,9 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
             .show(ui, |ui| {
                 if matches!(
                     kind,
-                    Some(UnitKind::Heater | UnitKind::Cooler | UnitKind::Separator)
+                    Some(
+                        UnitKind::Heater | UnitKind::Cooler | UnitKind::Separator | UnitKind::Tank
+                    )
                 ) {
                     ui.label("Duty (+ into unit)");
                     ui.label(value_text(

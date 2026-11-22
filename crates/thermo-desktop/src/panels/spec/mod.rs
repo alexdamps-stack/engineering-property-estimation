@@ -139,35 +139,7 @@ pub(super) fn spec_form(
         UnitSpec::Separator {
             thermal,
             pressure_drop_pa,
-        } => {
-            let current = match thermal {
-                SeparatorThermal::Adiabatic => 0,
-                SeparatorThermal::OutletTemperature(_) => 1,
-                SeparatorThermal::Duty(_) => 2,
-            };
-            match choice(ui, "Thermal", current, &["Adiabatic", "Outlet T", "Duty"]) {
-                Some(0) => *thermal = SeparatorThermal::Adiabatic,
-                Some(1) => *thermal = SeparatorThermal::OutletTemperature(None),
-                Some(_) => *thermal = SeparatorThermal::Duty(None),
-                None => {}
-            }
-            match thermal {
-                SeparatorThermal::Adiabatic => {}
-                SeparatorThermal::OutletTemperature(t) => {
-                    opt_field(ui, "Outlet temperature", t, Quantity::Temperature, u)
-                }
-                SeparatorThermal::Duty(q) => {
-                    opt_field(ui, "Duty (+ into unit)", q, Quantity::Duty, u)
-                }
-            }
-            value_field(
-                ui,
-                "Pressure drop",
-                pressure_drop_pa,
-                Quantity::PressureDrop,
-                u,
-            );
-        }
+        } => vessel_thermal_fields(ui, thermal, pressure_drop_pa, u),
         UnitSpec::Splitter { fraction_to_first } => {
             opt_field(
                 ui,
@@ -220,6 +192,40 @@ pub(super) fn spec_form(
         }
         UnitSpec::Pressurize { .. } | UnitSpec::Expand { .. } => rotating::core_form(ui, spec, u),
     }
+}
+
+/// Specification controls shared by the separator and steady-state tank.
+fn vessel_thermal_fields(
+    ui: &mut Ui,
+    thermal: &mut SeparatorThermal,
+    pressure_drop_pa: &mut f64,
+    u: DisplayUnits,
+) {
+    let current = match thermal {
+        SeparatorThermal::Adiabatic => 0,
+        SeparatorThermal::OutletTemperature(_) => 1,
+        SeparatorThermal::Duty(_) => 2,
+    };
+    match choice(ui, "Thermal", current, &["Adiabatic", "Outlet T", "Duty"]) {
+        Some(0) => *thermal = SeparatorThermal::Adiabatic,
+        Some(1) => *thermal = SeparatorThermal::OutletTemperature(None),
+        Some(_) => *thermal = SeparatorThermal::Duty(None),
+        None => {}
+    }
+    match thermal {
+        SeparatorThermal::Adiabatic => {}
+        SeparatorThermal::OutletTemperature(t) => {
+            opt_field(ui, "Outlet temperature", t, Quantity::Temperature, u)
+        }
+        SeparatorThermal::Duty(q) => opt_field(ui, "Duty (+ into unit)", q, Quantity::Duty, u),
+    }
+    value_field(
+        ui,
+        "Pressure drop",
+        pressure_drop_pa,
+        Quantity::PressureDrop,
+        u,
+    );
 }
 
 /// A row of radio buttons; returns the newly chosen index if it changed.

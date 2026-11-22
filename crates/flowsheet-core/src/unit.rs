@@ -774,7 +774,7 @@ pub enum ThermalSpec {
     EnergyStream,
 }
 
-/// Separator thermal specification.
+/// Thermal specification for a separator or steady-state tank.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SeparatorThermal {
     /// No heat exchange (default).
