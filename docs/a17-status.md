@@ -10,7 +10,7 @@ feasible in steady state* (with the reason).
 | Item | Issue | Status | Notes |
 |---|---|---|---|
 | Energy streams, energy source/sink, heater/cooler energy ports | #171 | calculated | Tests in `crates/flowsheet-core/tests/energy.rs`; project format 4. |
-| All A17 kinds in `UnitKind`, grouped palette, ISO 10628 symbols | #170 | drawn only | Every group kind fails explicitly in preflight. |
+| All A17 kinds in `UnitKind`, grouped palette, ISO 10628 symbols | #170 | done | Individual groups enable calculation as implementations become available. |
 | Variable/numbered ports, group modules, format version 4 | #170 | done | See the architecture document. |
 
 ## Rotating
@@ -28,6 +28,13 @@ feasible in steady state* (with the reason).
 
 | Kind | Issue | Status | Specification | Validation / reference | Notes |
 |---|---|---|---|---|---|
+| Component splitter | #172 | calculated | Overhead recovery from 0 to 1 for each package component. Bottoms receives the remainder. | Analytic component split, empty outlet, signed duty and failure cases through `flowsheet-project/tests/component_splitter.rs`. Desktop form exercised headlessly. | The isothermal, zero-pressure-drop mode reuses the cubic TP flash at each flowing outlet. It calculates the net duty and can report it on its optional energy inlet. Recoveries are stored by component ID in project format 4. |
+
+The splitter prescribes component recoveries. Both outlets can contain vapor
+and liquid depending on their composition at the inlet temperature and pressure.
+An empty outlet has no thermodynamic state. Adiabatic and prescribed-duty
+splitting would require a separate outlet-temperature solve. The existing
+palette drawing retains ISO reference asset `s3-x2616-impact-separator`.
 
 ## Reactors
 

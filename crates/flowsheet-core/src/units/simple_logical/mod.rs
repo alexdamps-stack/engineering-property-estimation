@@ -8,6 +8,10 @@
 //! Logical blocks (adjust, set, spreadsheet, control) have no material
 //! ports; the variable links they need are part of this group's design.
 
+mod component_splitter;
+
+pub use component_splitter::ComponentSplitterSpec;
+
 use super::{CalcContext, DRAWN_ONLY, GroupSpec, UnitInputs, UnitOutput, kind_info, numbered};
 use crate::unit::{
     CalculationStatus, KindInfo, PaletteCategory, PortSpec, SpecIssue, SpecProblem, UnitKind,
@@ -46,8 +50,11 @@ pub(crate) fn info(kind: UnitKind) -> KindInfo {
 }
 
 /// Calculation status of a simple/logical kind.
-pub(crate) fn status(_kind: UnitKind) -> CalculationStatus {
-    DRAWN_ONLY
+pub(crate) fn status(kind: UnitKind) -> CalculationStatus {
+    match kind {
+        UnitKind::ComponentSplitter => CalculationStatus::Calculated,
+        _ => DRAWN_ONLY,
+    }
 }
 
 /// Specifications of the simple/logical kinds.
@@ -78,10 +85,6 @@ pub enum SimpleLogicalSpec {
     /// User / CAPE-OPEN unit (#218).
     UserUnit(UserUnitSpec),
 }
-
-/// Component splitter specification (#172).
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct ComponentSplitterSpec {}
 
 /// Stream multiplier / duplicator specification (#173).
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -181,6 +184,7 @@ impl GroupSpec for SimpleLogicalSpec {
 
     fn issues(&self) -> Vec<SpecIssue> {
         match self {
+            SimpleLogicalSpec::ComponentSplitter(s) => s.issues(),
             SimpleLogicalSpec::Selector(s) if !(2..=MAX_SELECTOR_INLETS).contains(&s.inlets) => {
                 vec![SpecIssue {
                     field: "inlets",
@@ -202,11 +206,16 @@ impl GroupSpec for SimpleLogicalSpec {
 /// Calculates a simple/logical unit.
 pub(crate) fn calculate(
     kind: UnitKind,
-    _spec: &SimpleLogicalSpec,
-    _inputs: &UnitInputs,
-    _ctx: &CalcContext,
+    spec: &SimpleLogicalSpec,
+    inputs: &UnitInputs,
+    ctx: &CalcContext,
 ) -> Result<UnitOutput, String> {
-    Err(super::not_implemented(kind))
+    match spec {
+        SimpleLogicalSpec::ComponentSplitter(s) => {
+            component_splitter::calculate(s, &inputs.material[0], ctx)
+        }
+        _ => Err(super::not_implemented(kind)),
+    }
 }
 
 #[cfg(test)]

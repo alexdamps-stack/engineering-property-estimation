@@ -24,7 +24,13 @@ mod solids;
 
 /// Specification form; mutually exclusive choices use radio buttons
 /// (proposal section 3).
-pub(super) fn spec_form(ui: &mut Ui, kind: UnitKind, spec: &mut UnitSpec, u: DisplayUnits) {
+pub(super) fn spec_form(
+    ui: &mut Ui,
+    kind: UnitKind,
+    spec: &mut UnitSpec,
+    u: DisplayUnits,
+    components: &[String],
+) {
     match spec {
         UnitSpec::Product | UnitSpec::EnergySink => {
             ui.label(RichText::new("No specification.").weak());
@@ -50,7 +56,7 @@ pub(super) fn spec_form(ui: &mut Ui, kind: UnitKind, spec: &mut UnitSpec, u: Dis
         }
         UnitSpec::Rotating(s) => rotating::form(ui, s, u),
         UnitSpec::HeatTransport(s) => heat_transport::form(ui, s, u),
-        UnitSpec::SimpleLogical(s) => simple_logical::form(ui, s, u),
+        UnitSpec::SimpleLogical(s) => simple_logical::form(ui, s, u, components),
         UnitSpec::Reactors(s) => reactors::form(ui, s, u),
         UnitSpec::Columns(s) => columns::form(ui, s, u),
         UnitSpec::Multiphase(s) => multiphase::form(ui, s, u),

@@ -39,10 +39,14 @@ pub(super) fn unit_properties(ui: &mut Ui, ed: &mut Editor, id: UnitId) {
     ui.strong("Specification");
     let mut spec = unit.spec.clone();
     let u = ed.units;
+    let components = ed
+        .package
+        .as_ref()
+        .map_or(&[][..], |p| p.components.as_slice());
     egui::Grid::new(("spec", id))
         .num_columns(2)
         .spacing([8.0, 6.0])
-        .show(ui, |ui| spec_form(ui, unit.kind, &mut spec, u));
+        .show(ui, |ui| spec_form(ui, unit.kind, &mut spec, u, components));
     let issues = spec.issues();
     if let Err(e) = ed.fs.try_set_spec(id, spec) {
         // For example fewer column feeds while the last one is connected.

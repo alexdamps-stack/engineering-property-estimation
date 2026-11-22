@@ -4,8 +4,10 @@ use std::collections::BTreeMap;
 use std::ops::ControlFlow;
 use std::path::Path;
 
+use flowsheet_core::units::SimpleLogicalSpec;
 use flowsheet_core::{
     FeedCompositions, Flowsheet, PortRef, SolveProgress, Stream, StreamId, Unit, UnitId, UnitKind,
+    UnitSpec,
 };
 use serde::{Deserialize, Serialize};
 use thermo_types::{
@@ -427,7 +429,7 @@ impl Project {
         Fingerprints::compute(&self.flowsheet, &self.feeds, &self.package)
     }
 
-    /// Feed composition problems; the engine diagnostics cover everything else.
+    /// Input problems that depend on the selected package.
     pub fn input_issues(&self) -> Vec<InputIssue> {
         input_issues(&self.flowsheet, &self.feeds, &self.package)
     }
@@ -527,7 +529,7 @@ pub fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), ProjectError
     Ok(())
 }
 
-/// Feed composition problems of a flowsheet with the given package, without
+/// Input problems of a flowsheet that depend on the given package, without
 /// assembling a [`Project`] (as [`Project::input_issues`] does).
 pub fn input_issues(
     fs: &Flowsheet,
@@ -558,6 +560,17 @@ pub fn input_issues(
                     )));
                 }
             }
+        }
+    }
+    let components: Vec<_> = package.components.iter().map(String::as_str).collect();
+    for u in fs.units() {
+        if let UnitSpec::SimpleLogical(SimpleLogicalSpec::ComponentSplitter(spec)) = &u.spec
+            && let Err(message) = spec.check_components(&components)
+        {
+            out.push(InputIssue {
+                unit: u.id,
+                message: format!("{}: {message}.", u.name),
+            });
         }
     }
     out

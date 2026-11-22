@@ -2,8 +2,12 @@
 //! #212–#218); owned by the simple/logical work package. Add fields with
 //! `#[serde(default)]` behind format version 4.
 
+use std::collections::BTreeMap;
+
 use flowsheet_core::units::SimpleLogicalSpec;
-use flowsheet_core::units::simple_logical::{MAX_SELECTOR_INLETS, SelectorSpec};
+use flowsheet_core::units::simple_logical::{
+    ComponentSplitterSpec, MAX_SELECTOR_INLETS, SelectorSpec,
+};
 use serde::{Deserialize, Serialize};
 
 use super::count_in;
@@ -16,7 +20,10 @@ fn default_inlets() -> u16 {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum SimpleLogicalRecord {
-    ComponentSplitter {},
+    ComponentSplitter {
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+        overhead_recovery: BTreeMap<String, f64>,
+    },
     Multiplier {},
     Selector {
         #[serde(default = "default_inlets")]
@@ -36,7 +43,12 @@ pub(crate) enum SimpleLogicalRecord {
 impl SimpleLogicalRecord {
     /// Every number set in the record (counts are integers and always finite).
     pub(crate) fn numbers(&self) -> Vec<f64> {
-        Vec::new()
+        match self {
+            Self::ComponentSplitter { overhead_recovery } => {
+                overhead_recovery.values().copied().collect()
+            }
+            _ => Vec::new(),
+        }
     }
 }
 
@@ -44,7 +56,9 @@ impl From<&SimpleLogicalSpec> for SimpleLogicalRecord {
     fn from(s: &SimpleLogicalSpec) -> Self {
         use SimpleLogicalSpec as S;
         match s {
-            S::ComponentSplitter(_) => Self::ComponentSplitter {},
+            S::ComponentSplitter(s) => Self::ComponentSplitter {
+                overhead_recovery: s.overhead_recovery.clone(),
+            },
             S::Multiplier(_) => Self::Multiplier {},
             S::Selector(x) => Self::Selector { inlets: x.inlets },
             S::StreamCutter(_) => Self::StreamCutter {},
@@ -66,7 +80,9 @@ impl TryFrom<SimpleLogicalRecord> for SimpleLogicalSpec {
     fn try_from(r: SimpleLogicalRecord) -> Result<Self, String> {
         use SimpleLogicalRecord as R;
         Ok(match r {
-            R::ComponentSplitter {} => Self::ComponentSplitter(Default::default()),
+            R::ComponentSplitter { overhead_recovery } => {
+                Self::ComponentSplitter(ComponentSplitterSpec { overhead_recovery })
+            }
             R::Multiplier {} => Self::Multiplier(Default::default()),
             R::Selector { inlets } => Self::Selector(SelectorSpec {
                 inlets: count_in(inlets, "inlets", 2..=MAX_SELECTOR_INLETS)?,

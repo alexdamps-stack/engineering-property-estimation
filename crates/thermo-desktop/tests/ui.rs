@@ -439,6 +439,36 @@ fn valve_specification_is_edited_from_the_properties_panel() {
 }
 
 #[test]
+fn component_splitter_recovery_is_edited_from_the_properties_panel() {
+    use flowsheet_core::units::SimpleLogicalSpec;
+    use flowsheet_core::units::simple_logical::ComponentSplitterSpec;
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    app.editor_mut()
+        .new_project(PackageSelection::zero_interactions(
+            CubicVariantChoice::PengRobinson,
+            vec!["methane".into()],
+            "single-component UI test; no interactions",
+        ));
+    let splitter = app
+        .editor_mut()
+        .add_unit_at(UnitKind::ComponentSplitter, egui::pos2(0.0, 0.0));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("methane");
+    h.get_by_label("Enter value").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(splitter).unwrap().spec,
+        UnitSpec::SimpleLogical(SimpleLogicalSpec::ComponentSplitter(
+            ComponentSplitterSpec {
+                overhead_recovery: [("methane".into(), 0.5)].into(),
+            }
+        ))
+    );
+}
+
+#[test]
 fn snapshot_demonstration_dark() {
     let mut h = harness(FlowsheetApp::with_demonstration(), egui::Theme::Dark);
     check_snapshot(&mut h, "demonstration_dark");
