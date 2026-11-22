@@ -233,9 +233,10 @@ back as version 4. **Only the integrator bumps `FORMAT_VERSION`** and adds a
 
 ## 9. Palette and symbols
 
-The palette is grouped into collapsible categories (`PaletteCategory`):
+The desktop add palette is grouped into collapsible categories (`PaletteCategory`):
 Streams, Mixing/splitting, Separators, Heat transfer, Pressure change,
-Columns, Reactors, Solids, Logical, Extensibility. Kinds that are drawn only
+Columns, Reactors, Logical and Extensibility. The deferred Solids category
+stays in the project registry for saved units. Kinds that are drawn only
 are shown in grey with the reason and sub-issue in the hover text, in the
 specification form, and as a warning message; a solve stops in preflight at
 the first of them (`"<kind> is drawn only; … (#nnn)"`).

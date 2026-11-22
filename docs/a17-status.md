@@ -2,7 +2,7 @@
 
 Work package A17 (#170). One section per group; each group edits only its
 own section. Conventions: [a17-architecture.md](a17-architecture.md).
-Status values: *drawn only*, *calculated*, *calculated (partial)*, *not
+Status values: *deferred*, *drawn only*, *calculated*, *calculated (partial)*, *not
 feasible in steady state* (with the reason).
 
 ## Foundation (integrator)
@@ -70,5 +70,6 @@ results from older balance rules stale.
 
 ## Solids
 
-| Kind | Issue | Status | Specification | Validation / reference | Notes |
-|---|---|---|---|---|---|
+Solids handling (#198–#211) is deferred. The desktop add palette omits the
+Solids category and its 14 units. Projects containing those units still
+load, display and save with their existing kinds, ports and specifications.

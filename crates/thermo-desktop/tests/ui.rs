@@ -569,7 +569,10 @@ fn snapshot_selected_cooler_properties() {
 #[test]
 fn every_palette_entry_places_its_unit_kind() {
     let mut h = harness(FlowsheetApp::default(), egui::Theme::Dark);
-    for kind in UnitKind::ALL {
+    let available = UnitKind::ALL
+        .into_iter()
+        .filter(|kind| kind.category() != PaletteCategory::Solids);
+    for kind in available.clone() {
         // Only the kind's palette category is expanded, so it is in view.
         for category in PaletteCategory::ALL {
             h.state_mut()
@@ -586,7 +589,46 @@ fn every_palette_entry_places_its_unit_kind() {
         };
         assert_eq!(ed.fs.unit(id).map(|u| u.kind), Some(kind));
     }
-    assert_eq!(h.state().editor().fs.units().count(), UnitKind::ALL.len());
+    assert_eq!(h.state().editor().fs.units().count(), available.count());
+}
+
+#[test]
+fn solids_are_absent_from_add_palette_and_existing_projects_still_open() {
+    use flowsheet_project::{CubicVariantChoice, Project, demonstration};
+
+    let mut project = demonstration(CubicVariantChoice::PengRobinson);
+    let existing = project.flowsheet.add_unit(UnitKind::Cyclone);
+    project.layout.insert(existing, [160.0, 190.0]);
+    let path = std::env::temp_dir().join(format!(
+        "thermo-existing-solids-{}.json",
+        std::process::id()
+    ));
+    project.save(&path).unwrap();
+    let mut h = harness(FlowsheetApp::with_file(path.clone()), egui::Theme::Dark);
+    for category in PaletteCategory::ALL {
+        h.state_mut()
+            .set_palette_category_open(category, category == PaletteCategory::Solids);
+    }
+    h.run();
+    assert!(h.query_by_label("Solids").is_none());
+    for kind in PaletteCategory::Solids.kinds() {
+        assert!(h.query_by_label(kind.label()).is_none(), "{kind}");
+    }
+    let ed = h.state_mut().editor_mut();
+    let unit = ed.fs.unit(existing).unwrap();
+    assert_eq!(unit.kind, UnitKind::Cyclone);
+    assert_eq!(
+        unit.ports(),
+        project.flowsheet.unit(existing).unwrap().ports()
+    );
+    ed.save_to(&path).unwrap();
+    let reopened = Project::load(&path).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    assert!(
+        reopened
+            .flowsheet
+            .same_calculation_inputs(&project.flowsheet)
+    );
 }
 
 /// Splitter, pump, compressor, expander, and two-stream heat exchanger

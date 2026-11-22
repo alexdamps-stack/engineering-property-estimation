@@ -667,7 +667,11 @@ fn palette_items(ui: &mut Ui, ed: &mut Editor, toggled: &mut BTreeSet<PaletteCat
             .weak(),
     );
     ui.add_space(4.0);
-    for category in PaletteCategory::ALL {
+    // Keep the full project registry available to load and display saved units.
+    for category in PaletteCategory::ALL
+        .into_iter()
+        .filter(|&category| category != PaletteCategory::Solids)
+    {
         let open = palette_open_by_default(category) != toggled.contains(&category);
         let kinds: Vec<UnitKind> = category.kinds().collect();
         let calculated = kinds.iter().filter(|k| k.calculation_planned()).count();

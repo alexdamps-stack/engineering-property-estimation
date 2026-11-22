@@ -7,6 +7,9 @@ reference for formulations and specification sets) and the Aspen suite
 (HYSYS/Aspen Plus specification sets and user expectations). Never copy
 proprietary text or code; cite open literature for every correlation.
 
+Solids handling (#198–#211) is deferred from this palette effort. The
+foundation's project records for existing solids units remain supported.
+
 ## Rules
 
 1. Read `AGENTS.md`, `CONTRIBUTING.md`, `docs/flowsheet-and-ui.md`,
