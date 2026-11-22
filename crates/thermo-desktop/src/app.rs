@@ -661,7 +661,7 @@ fn palette_items(ui: &mut Ui, ed: &mut Editor) {
                 .content_bounds()
                 .map(|b| egui::pos2(b.right() + 100.0, b.center().y))
                 .unwrap_or(egui::Pos2::ZERO);
-            ed.add_unit_near(kind, hint);
+            ed.try_add_unit_near(kind, hint);
         }
     }
     ui.add_space(12.0);

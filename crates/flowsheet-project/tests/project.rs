@@ -337,7 +337,7 @@ fn oversized_duplicated_and_out_of_range_content_is_rejected() {
         }),
         "appears twice",
     );
-    // Identifiers that leave no room for allocation are rejected (#132).
+    // Identifiers outside the persisted range are rejected (#132).
     for id in [0, MAX_IDENTIFIER + 1, u64::MAX] {
         invalid(
             load(&|v| v["units"][0]["id"] = id.into()),
@@ -383,20 +383,55 @@ fn oversized_duplicated_and_out_of_range_content_is_rejected() {
 }
 
 #[test]
-fn restored_identifiers_near_the_limit_still_allocate() {
-    // The largest accepted identifier leaves room for new units and streams.
-    let project = demonstration(CubicVariantChoice::PengRobinsonBostonMathias);
+fn the_last_allocated_identifiers_save_and_reopen() {
+    let mut project = demonstration(CubicVariantChoice::PengRobinsonBostonMathias);
+    let feed = project.flowsheet.add_unit(UnitKind::Feed);
+    let last_unit = project.flowsheet.add_unit(UnitKind::Product);
     let mut value: serde_json::Value = serde_json::from_str(&project.to_json().unwrap()).unwrap();
-    value["streams"][0]["id"] = MAX_IDENTIFIER.into();
+    value["units"][last_unit.0 as usize - 1]["id"] = (MAX_IDENTIFIER - 1).into();
+    value["streams"][0]["id"] = (MAX_IDENTIFIER - 1).into();
     let mut loaded = Project::from_json(&value.to_string()).unwrap();
-    let feed = loaded.flowsheet.add_unit(UnitKind::Feed);
-    let product = loaded.flowsheet.add_unit(UnitKind::Product);
+    let product = loaded.flowsheet.try_add_unit(UnitKind::Product).unwrap();
+    assert_eq!(product, UnitId(MAX_IDENTIFIER));
     assert_eq!(
         loaded
             .flowsheet
             .connect(PortRef::new(feed, 0), PortRef::new(product, 0)),
-        Ok(StreamId(MAX_IDENTIFIER + 1))
+        Ok(StreamId(MAX_IDENTIFIER))
     );
+    let reopened = Project::from_json(&loaded.to_json().unwrap()).unwrap();
+    assert!(
+        reopened
+            .flowsheet
+            .same_calculation_inputs(&loaded.flowsheet)
+    );
+}
+
+#[test]
+fn oversized_projects_do_not_replace_an_existing_file() {
+    let path = scratch("write-limits").join("project.json");
+    let baseline = demonstration(CubicVariantChoice::PengRobinson);
+    baseline.save(&path).unwrap();
+    let original = std::fs::read(&path).unwrap();
+
+    let mut oversized = Project::new(baseline.package.clone());
+    for _ in 0..=MAX_UNITS {
+        oversized.flowsheet.add_unit(UnitKind::Product);
+    }
+    assert!(
+        matches!(oversized.save(&path), Err(ProjectError::Invalid(message)) if message.contains("units exceed"))
+    );
+
+    let mut oversized = baseline;
+    let product = unit(&oversized, UnitKind::Product);
+    oversized
+        .flowsheet
+        .rename_unit(product, "\\".repeat(MAX_PROJECT_FILE_BYTES as usize / 2));
+    assert!(
+        matches!(oversized.save(&path), Err(ProjectError::Invalid(message)) if message.contains("MiB limit"))
+    );
+    assert_eq!(std::fs::read(&path).unwrap(), original);
+    std::fs::remove_file(&path).unwrap();
 }
 
 #[test]

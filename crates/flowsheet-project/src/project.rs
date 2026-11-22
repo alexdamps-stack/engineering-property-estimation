@@ -29,9 +29,7 @@ pub const FORMAT_VERSION: u64 = 3;
 /// Oldest project file format version this program reads.
 pub const OLDEST_READABLE_FORMAT_VERSION: u64 = 1;
 
-/// Largest project file, in bytes, that [`Project::load`] and
-/// [`Project::from_json`] accept. Generous for any hand-built flowsheet while
-/// bounding the memory a crafted file can claim.
+/// Largest serialized project file, in bytes, supported for reading and writing.
 pub const MAX_PROJECT_FILE_BYTES: u64 = 64 * 1024 * 1024;
 
 /// Largest number of units a project file may contain.
@@ -173,9 +171,11 @@ impl Project {
     /// fails to load or silently reads as "unset"), so any non-finite
     /// number in the package, specifications, feeds, layout or results is
     /// rejected with [`ProjectError::Invalid`].
+    /// File sizes and topology counts use the same limits as [`Self::from_json`].
     pub fn to_json(&self) -> Result<String, ProjectError> {
-        self.check_finite()?;
         let fs = &self.flowsheet;
+        check_topology_size(fs.units().count(), fs.streams().count())?;
+        self.check_finite()?;
         let port = |p: PortRef| PortRecord {
             unit: p.unit.0,
             port: p.port,
@@ -236,6 +236,9 @@ impl Project {
         let mut text =
             serde_json::to_string_pretty(&file).map_err(|e| ProjectError::Format(e.to_string()))?;
         text.push('\n');
+        if text.len() as u64 > MAX_PROJECT_FILE_BYTES {
+            return Err(too_large());
+        }
         Ok(text)
     }
 
@@ -300,18 +303,7 @@ impl Project {
         }
         let file: ProjectFile =
             serde_json::from_value(value).map_err(|e| ProjectError::Format(e.to_string()))?;
-        if file.units.len() > MAX_UNITS {
-            return Err(ProjectError::Invalid(format!(
-                "{} units exceed the limit of {MAX_UNITS}",
-                file.units.len()
-            )));
-        }
-        if file.streams.len() > MAX_STREAMS {
-            return Err(ProjectError::Invalid(format!(
-                "{} streams exceed the limit of {MAX_STREAMS}",
-                file.streams.len()
-            )));
-        }
+        check_topology_size(file.units.len(), file.streams.len())?;
         // Fails clearly for, e.g., an empty component list or a kij matrix
         // of the wrong size, which the editor would otherwise index.
         file.package.build()?;
@@ -436,6 +428,20 @@ fn too_large() -> ProjectError {
         "the project file exceeds the {} MiB limit",
         MAX_PROJECT_FILE_BYTES / (1024 * 1024)
     ))
+}
+
+fn check_topology_size(units: usize, streams: usize) -> Result<(), ProjectError> {
+    if units > MAX_UNITS {
+        return Err(ProjectError::Invalid(format!(
+            "{units} units exceed the limit of {MAX_UNITS}"
+        )));
+    }
+    if streams > MAX_STREAMS {
+        return Err(ProjectError::Invalid(format!(
+            "{streams} streams exceed the limit of {MAX_STREAMS}"
+        )));
+    }
+    Ok(())
 }
 
 fn non_finite(what: &str) -> ProjectError {
