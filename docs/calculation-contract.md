@@ -136,7 +136,11 @@ future data/package boundaries must reject absent or inconsistent metadata.
 
 `ValidityStatus` distinguishes within-declared-domain, extrapolated and
 unassessed. Within-domain is a caller/model assessment against a separately
-specified domain, never inferred from finite numbers. `Phase` labels individual
+specified domain, never inferred from finite numbers. A domain that is itself
+weaker than source-reported (for example an NRTL regression interval inferred
+from pure-component boiling points) keeps its `ValidityStatus` and is marked by
+a separate flag and warning diagnostic on the result, not by a new status value
+([A7](a7-status.md), #121). `Phase` labels individual
 vapor, liquid or supercritical results without claiming stability. Diagnostics
 carry a stable code, severity and human-readable explanation.
 
