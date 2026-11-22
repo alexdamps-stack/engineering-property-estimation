@@ -1,7 +1,7 @@
 """Compare a freshly generated reference candidate with its committed fixture.
 
 Never writes or replaces fixtures. Structure, strings, input hashes and other
-non-numeric values must match exactly. Numbers are compared as
+non-numeric values must match exactly. Numbers must be finite and are compared as
 |candidate - committed| <= atol + rtol*|committed| with:
 
 * the fixture's own declared "tolerances" entry for the quantity, when the
@@ -23,6 +23,7 @@ usage: python validation/compare-reference-candidate.py CANDIDATE COMMITTED [--r
 
 import argparse
 import json
+import math
 from pathlib import Path
 import sys
 
@@ -69,6 +70,9 @@ def compare(candidate, committed, path, key, declared, args, failures, worst):
     elif isinstance(committed, (int, float)) and not isinstance(committed, bool):
         if isinstance(candidate, bool) or not isinstance(candidate, (int, float)):
             failures.append(f"{path}: type differs")
+            return
+        if any(isinstance(value, float) and not math.isfinite(value) for value in (candidate, committed)):
+            failures.append(f"{path}: expected finite numbers (candidate {candidate!r}, committed {committed!r})")
             return
         deviation = abs(candidate - committed)
         if deviation > worst[0]:

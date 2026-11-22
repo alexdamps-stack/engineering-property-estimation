@@ -71,6 +71,11 @@ python validation/generate-gerg-fugacity-references.py
 The density check requires g++ and the pinned Python reference dependencies.
 Both accept `--output <candidate.json>` for explicit candidate generation;
 review any differences before replacing a fixture. They never call Rust.
+The GERG reproduction job uses Ubuntu 24.04 to reproduce these fixtures exactly.
+Ubuntu 26.04's amd64v3 build of glibc yields a one-ULP difference in the teqp
+oxygen fugacity coefficient for `all21-400K-20MPa`. It shifts the recorded
+logarithm by `1.94e-16`, even with NumPy AVX2 and AVX-512 disabled. The baseline
+amd64 build and the Ubuntu 24.04 runtime reproduce all 45 states exactly.
 
 GERG equilibrium references add 13 TP cases and 15 PH targets, including pure
 coexistence, a narrow-boiling mixture and a valve. Generate an explicit temporary
@@ -130,7 +135,7 @@ The [testing strategy](../docs/testing-strategy.md) defines the reference-case r
 
 Record the reference implementation and version, model formulation, composition, parameters, units, reference states, domain, and per-property absolute/relative tolerances. Keep comparison code separate from the production implementation to avoid comparing a model with itself.
 
-Report implementation verification, model-to-model comparisons, and experimental validation separately. Historical prototype test counts are not current repository results. Ordinary CI runs the offline numerical comparisons; the monthly/manual numerical-validation workflow adds a fixed-seed release sweep and re-runs the Python reference generators into temporary candidates, comparing each with its committed fixture via `compare-reference-candidate.py`. Neither replaces expected values.
+Report implementation verification, model-to-model comparisons, and experimental validation separately. Historical prototype test counts are not current repository results. Ordinary CI runs the offline numerical comparisons. The monthly/manual numerical-validation workflow adds a fixed-seed release sweep and reruns the Python reference generators. It checks GERG reproduction exactly and compares cubic and dilute-limit candidates with `compare-reference-candidate.py`. Both workflows preserve the committed expected values.
 
 Run `powershell -NoProfile -ExecutionPolicy Bypass -File validation/check-preparation.ps1` from the repository root for offline artifact-integrity checks. The explicitly invoked `prepare-source-data.ps1 -OutputDirectory <directory>` downloads pinned sources and transcribes selected records; it does not implement or evaluate any model. Review regeneration before adopting changes. Exact commands, hashes, checks and limitations are in [preparation checks](preparation-checks.md) and [reference qualification](../docs/reference-qualification.md). These files are provisional and do not finalize A1 integration or A2 acceptance.
 
