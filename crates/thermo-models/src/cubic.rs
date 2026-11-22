@@ -7,17 +7,10 @@ use thermo_types::{
 
 pub const OMEGA_A: f64 = 0.457_235_528_921_382_2;
 pub const OMEGA_B: f64 = 0.077_796_073_903_888_46;
-/// Homogeneous T,p envelope of the PR/PR-BM evaluators (`evaluate`, `ln_fugacity`,
-/// `compressibility_roots`, `residual_helmholtz`), in K. Solvers, packages and
-/// interfaces that expose the cubic domain use this constant rather than a copy.
+/// Temperature envelope of the homogeneous PR/PR-BM evaluators, in K.
 pub const CUBIC_TEMPERATURE_RANGE_K: [f64; 2] = [200.0, 600.0];
 /// Pressure part of the homogeneous PR/PR-BM envelope, in Pa (absolute).
 pub const CUBIC_PRESSURE_RANGE_PA: [f64; 2] = [0.01, 100_000_000.0];
-/// Identifier of the NASA7 ideal-gas caloric zero shared by the cubic and gamma-phi
-/// models: pure ideal gas h = s = 0 at 298.15 K and 100000 Pa. Values on this
-/// reference are comparable between those models; each model's
-/// `CaloricReference::definition` states how its phase departures are formed.
-pub const IDEAL_GAS_CALORIC_REFERENCE_ID: &str = "ideal-pure-zero-298.15K-1bar-cp-integrated-v1";
 /// Temperature envelope of `CubicModel::pressure_derivatives` (K).
 pub const MECHANICAL_TEMPERATURE_RANGE_K: [f64; 2] = [100.0, 1000.0];
 
@@ -170,7 +163,7 @@ impl CubicModel {
             .into(),
             implementation_version: "a3-v1".into(),
             formulation: format!(
-                "OmegaA={OMEGA_A}; OmegaB={OMEGA_B}; R={R}; quadratic attraction; linear b; no translation; constant symmetric kij: {}; ordered components={:?}; kij={:?}",
+                "OmegaA={OMEGA_A}; OmegaB={OMEGA_B}; R={R}; quadratic attraction; linear b; no translation; caloric EOS departures at same T,p,x; constant symmetric kij: {}; ordered components={:?}; kij={:?}",
                 self.interaction_source,
                 self.component_ids(),
                 self.kij
@@ -237,7 +230,9 @@ impl CubicModel {
         let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
         let [p_lo, p_hi] = CUBIC_PRESSURE_RANGE_PA;
         if !(t_lo..=t_hi).contains(&t) || !(p_lo..=p_hi).contains(&p) {
-            return Err(Error::OutsideValidityDomain("homogeneous EOS envelope: 200..=600 K, 0.01..=1e8 Pa; no phase/stability qualification".into()));
+            return Err(Error::OutsideValidityDomain(format!(
+                "homogeneous EOS envelope: {t_lo}..={t_hi} K, {p_lo}..={p_hi:e} Pa; no phase/stability qualification"
+            )));
         }
         Ok(())
     }
@@ -246,9 +241,9 @@ impl CubicModel {
     fn check_temperature(t: f64) -> Result<(), Error> {
         let [lo, hi] = CUBIC_TEMPERATURE_RANGE_K;
         if !(lo..=hi).contains(&t) {
-            return Err(Error::OutsideValidityDomain(
-                "homogeneous EOS envelope: 200..=600 K; no phase/stability qualification".into(),
-            ));
+            return Err(Error::OutsideValidityDomain(format!(
+                "homogeneous EOS envelope: {lo}..={hi} K; no phase/stability qualification"
+            )));
         }
         Ok(())
     }
@@ -362,10 +357,7 @@ impl CubicModel {
 
     /// Caloric reference of every [`HomogeneousState`] from this model (both variants).
     pub fn caloric_reference() -> CaloricReference {
-        CaloricReference {
-            identifier: IDEAL_GAS_CALORIC_REFERENCE_ID.into(),
-            definition: "NASA7 cp integrals; pure ideal h=s=0 at 298.15 K, 100000 Pa; ideal mixing entropy; EOS departures at same T,p,x; J/mol and J/(mol K)".into(),
-        }
+        crate::ideal_gas_caloric_reference()
     }
 
     /// The same model and interactions at another mole-fraction vector in model order.
@@ -416,7 +408,7 @@ impl CubicModel {
     /// stability and flash iterations. MinimumGibbs compares roots at this composition
     /// only. The selected root must pass the same mechanical acceptance test as
     /// `evaluate` (see `accepted_root_slope`), so a flash cannot converge on a root
-    /// that `evaluate` would refuse.
+    /// that `evaluate` would refuse on mechanical grounds.
     pub fn ln_fugacity(
         &self,
         temperature: Temperature,

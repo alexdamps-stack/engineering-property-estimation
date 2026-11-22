@@ -382,18 +382,9 @@ impl NrtlModel {
     /// nonnegative and sum to one within 1e-10; zero entries give infinite-dilution
     /// ln γ.
     pub fn excess_at(&self, temperature: Temperature, x: &[f64]) -> Result<ExcessState, Error> {
-        self.excess_kelvin(temperature.value(), x)
-    }
-
-    /// [`NrtlModel::excess_at`] with the temperature in kelvin, validated again
-    /// here (finite, positive).
-    fn excess_kelvin(&self, temperature: f64, x: &[f64]) -> Result<ExcessState, Error> {
         let n = self.parameters.ids.len();
         if x.len() != n {
             return Err(InputError::ComponentMismatch.into());
-        }
-        if !temperature.is_finite() || temperature <= 0.0 {
-            return Err(InputError::NotPositive("temperature").into());
         }
         if x.iter().any(|v| !v.is_finite()) {
             return Err(InputError::NonFinite("mole fraction").into());
@@ -404,7 +395,7 @@ impl NrtlModel {
         if (x.iter().sum::<f64>() - 1.0).abs() > COMPOSITION_SUM_TOLERANCE {
             return Err(InputError::NotNormalized.into());
         }
-        let t = temperature;
+        let t = temperature.value();
         let (tau, g) = self.matrices(t)?;
         // Column sums over the first index: S_i = Σ_k x_k G_ki, C_i = Σ_j x_j τ_ji G_ji.
         let mut s = vec![Jet::constant(0.0); n];
@@ -523,10 +514,14 @@ mod tests {
         let parameters =
             NrtlParameters::checked(ids, tau, alpha, regression, "synthetic".into()).unwrap();
         let model = NrtlModel::new(parameters);
-        let state = model.excess_kelvin(350.0, &[0.3, 0.3, 0.4]).unwrap();
+        let state = model
+            .excess_at(Temperature::new(350.0).unwrap(), &[0.3, 0.3, 0.4])
+            .unwrap();
         assert_eq!(state.validity, ValidityStatus::Extrapolated);
         // Within the (b,c) interval the missing (a,b) interval leaves it unassessed.
-        let state = model.excess_kelvin(310.0, &[0.3, 0.3, 0.4]).unwrap();
+        let state = model
+            .excess_at(Temperature::new(310.0).unwrap(), &[0.3, 0.3, 0.4])
+            .unwrap();
         assert_eq!(state.validity, ValidityStatus::Unassessed);
     }
 }

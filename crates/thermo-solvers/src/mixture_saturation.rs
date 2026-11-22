@@ -56,7 +56,9 @@ impl SaturationOptions {
             || self.minimum_pressure_pa >= self.maximum_pressure_pa
             || self.max_iterations > 2000
         {
-            return Err(Error::UnsupportedCapability("A13 requires ordered finite bounds inside 200..600 K, 0.01..1e8 Pa and iteration budget 1..2000".into()));
+            return Err(Error::UnsupportedCapability(format!(
+                "A13 requires ordered finite bounds inside {t_lo}..{t_hi} K, {p_lo}..{p_hi:e} Pa and iteration budget 1..2000"
+            )));
         }
         if self.max_iterations == 0 {
             return Err(Error::NonConvergence(

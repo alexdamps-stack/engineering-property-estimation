@@ -78,13 +78,15 @@ c_p,i^L = c_p,i^ig − R (2T L' + T² L'')
 h^L = Σ x_i h_i^L + h^E,  s^L = Σ x_i s_i^L − R Σ x_i ln x_i + s^E
 ```
 
-Liquid h, s and g are pressure independent. The caloric reference is the A3/A5
-one: pure ideal gas h = s = 0 at 298.15 K and 1 bar, NASA7 integrals. Flowsheet
-streams can therefore move between the cubic and gamma–phi packages without a
-reference shift. The latent heat implied by the vapor-pressure slope reflects
-the selected ideal-gas/zero-volume model. For water at 373 K it is about
-41.3 kJ/mol, against the measured 40.7 kJ/mol. This is model error, not an
-implementation discrepancy.
+Liquid h, s and g are pressure independent. The cubic and gamma–phi packages
+report the same NASA7 caloric reference, with pure ideal gas h = s = 0 at 298.15 K
+and 1 bar. Their model metadata describes how each model computes its caloric
+departures. The latent heat implied by the vapor-pressure slope reflects the
+ideal-gas vapor and negligible-liquid-volume assumptions. For water at 373 K it
+is about 41.3 kJ/mol, against the measured 40.7 kJ/mol. Near 450 K the pure-liquid
+enthalpy can deviate by a few kJ/mol for methanol, whose saturation pressure is
+about 4 MPa. The liquid standard state uses that saturation pressure even at
+much lower system pressure.
 
 Liquid molar volume comes from the saturated-liquid density ancillaries with
 ideal (Amagat) mixing. It is reported as a separately labelled property and is

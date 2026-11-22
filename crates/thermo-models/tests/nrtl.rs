@@ -2,7 +2,9 @@
 //! parameters, explicit missing-data and domain failures. Engine-only checks; the
 //! independent references live in `thermo-solvers/tests/nrtl_clapeyron.rs`.
 use thermo_data::{AlphaTerms, ComponentDatabase, LiquidDatabase, TauTerms};
-use thermo_models::{ActivityModel, NrtlModel, NrtlParameters, VaporModel};
+use thermo_models::{
+    ActivityModel, CubicModel, NrtlModel, NrtlParameters, VaporModel, gerg_caloric_reference,
+};
 use thermo_types::{
     CalculationError, ComponentId, Composition, CompositionBasis, InputError,
     MOLAR_GAS_CONSTANT as R, NormalizationPolicy, Pressure, Temperature, ValidityStatus,
@@ -79,6 +81,13 @@ fn package(z: &[f64]) -> ActivityModel {
         VaporModel::IdealGas,
     )
     .unwrap()
+}
+
+#[test]
+fn cubic_and_gamma_phi_report_the_same_caloric_reference() {
+    let cubic = CubicModel::caloric_reference();
+    assert_eq!(ActivityModel::caloric_reference(), cubic);
+    assert_ne!(gerg_caloric_reference().identifier, cubic.identifier);
 }
 
 #[test]

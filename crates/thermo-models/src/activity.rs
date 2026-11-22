@@ -191,17 +191,15 @@ impl ActivityModel {
             identifier: format!("gamma-phi/{}/{:?}", nrtl.identifier, self.vapor),
             implementation_version: "a7-v1".into(),
             formulation: format!(
-                "modified Raoult y_i p = x_i gamma_i psat_i; vapor {:?} (phi=1); no Poynting, no phi_sat; liquid g_i = g_i^ig(T,p0) + RT ln(psat_i/p0); psat: CoolProp pV ancillaries; liquid volume: saturated-liquid ancillary with ideal mixing, uncoupled; {}",
+                "modified Raoult y_i p = x_i gamma_i psat_i; vapor {:?} (phi=1); no Poynting, no phi_sat; liquid g_i = g_i^ig(T,p0) + RT ln(psat_i/p0); pure-liquid caloric terms from Clausius-Clapeyron with ideal-gas vapor and negligible liquid volume, plus NRTL excess for mixtures; psat: CoolProp pV ancillaries; liquid volume: saturated-liquid ancillary with ideal mixing, uncoupled; {}",
                 self.vapor, nrtl.formulation
             ),
         }
     }
 
+    /// Caloric zero shared by the vapor and liquid phases.
     pub fn caloric_reference() -> CaloricReference {
-        CaloricReference {
-            identifier: crate::IDEAL_GAS_CALORIC_REFERENCE_ID.into(),
-            definition: "NASA7 cp integrals; pure ideal h=s=0 at 298.15 K, 100000 Pa; ideal mixing entropy; liquid pure states from the vapor-pressure correlation via Clausius-Clapeyron with an ideal-gas vapor and negligible liquid volume, plus NRTL excess; J/mol and J/(mol K)".into(),
-        }
+        crate::ideal_gas_caloric_reference()
     }
 
     /// Package envelope: 273.16..=450 K and 100..=5e5 Pa; every pure correlation must
