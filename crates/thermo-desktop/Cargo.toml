@@ -19,6 +19,8 @@ property-packages = { path = "../property-packages" }
 thermo-types = { path = "../thermo-types" }
 rfd = "0.18"
 serde_json = { workspace = true }
+# Parses the embedded ISO 10628 reference SVGs (see `src/symbols.rs`).
+usvg = { version = "0.50.0", default-features = false }
 
 [dev-dependencies]
 egui_kittest = { version = "0.37.0", features = ["eframe", "snapshot", "wgpu"] }
