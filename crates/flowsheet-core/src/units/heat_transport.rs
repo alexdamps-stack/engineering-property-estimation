@@ -5,15 +5,19 @@
 
 use super::{CalcContext, DRAWN_ONLY, GroupSpec, UnitInputs, UnitOutput, kind_info, numbered};
 use crate::unit::{
-    CalculationStatus, KindInfo, PaletteCategory, PortSpec, SpecIssue, SpecProblem, ThermalSpec,
-    UnitKind,
+    CalculationStatus, KindInfo, PaletteCategory, PortSpec, SpecIssue, ThermalSpec, UnitKind,
 };
 
 mod air_cooler;
 mod fired_heater;
+mod multi_stream_exchanger;
 
 pub use air_cooler::{AirCoolerSpec, AirCoolerThermal};
 pub use fired_heater::FiredHeaterSpec;
+pub use multi_stream_exchanger::{
+    ExchangerPassDirection, ExchangerPassSpec, ExchangerPassThermal, MAX_PASSES,
+    MultiStreamExchangerSpec,
+};
 
 const SINGLE: [PortSpec; 2] = [PortSpec::inlet("in"), PortSpec::outlet("out")];
 
@@ -39,7 +43,9 @@ pub(crate) fn info(kind: UnitKind) -> KindInfo {
 /// Calculation status of a heat-transport kind.
 pub(crate) fn status(kind: UnitKind) -> CalculationStatus {
     match kind {
-        UnitKind::AirCooler | UnitKind::FiredHeater => CalculationStatus::Calculated,
+        UnitKind::AirCooler | UnitKind::FiredHeater | UnitKind::MultiStreamExchanger => {
+            CalculationStatus::Calculated
+        }
         _ => DRAWN_ONLY,
     }
 }
@@ -57,23 +63,6 @@ pub enum HeatTransportSpec {
     PipeSegment(PipeSegmentSpec),
     /// Relief valve (#184).
     ReliefValve(ReliefValveSpec),
-}
-
-/// Largest number of passes of a multi-stream exchanger.
-pub const MAX_PASSES: u16 = 12;
-
-/// Multi-stream exchanger specification (#181). Each pass `k` has the
-/// variable ports `in k` and `out k`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct MultiStreamExchangerSpec {
-    /// Number of passes (streams), 2 to [`MAX_PASSES`].
-    pub passes: u16,
-}
-
-impl Default for MultiStreamExchangerSpec {
-    fn default() -> Self {
-        Self { passes: 3 }
-    }
 }
 
 /// Pipe segment specification (#183).
@@ -113,22 +102,20 @@ impl GroupSpec for HeatTransportSpec {
         match self {
             HeatTransportSpec::AirCooler(s) => s.issues(),
             HeatTransportSpec::FiredHeater(s) => s.issues(),
-            HeatTransportSpec::MultiStreamExchanger(s) if !(2..=MAX_PASSES).contains(&s.passes) => {
-                vec![SpecIssue {
-                    field: "passes",
-                    problem: SpecProblem::CountOutOfRange,
-                }]
-            }
+            HeatTransportSpec::MultiStreamExchanger(s) => s.issues(),
             _ => Vec::new(),
         }
     }
 
     fn variable_ports(&self) -> Vec<PortSpec> {
         match self {
-            HeatTransportSpec::MultiStreamExchanger(s) => numbered(PortSpec::inlet("in"), s.passes)
-                .zip(numbered(PortSpec::outlet("out"), s.passes))
-                .flat_map(|(a, b)| [a, b])
-                .collect(),
+            HeatTransportSpec::MultiStreamExchanger(s) => {
+                let count = s.passes.len().min(usize::from(MAX_PASSES)) as u16;
+                numbered(PortSpec::inlet("in"), count)
+                    .zip(numbered(PortSpec::outlet("out"), count))
+                    .flat_map(|(a, b)| [a, b])
+                    .collect()
+            }
             _ => Vec::new(),
         }
     }
@@ -151,6 +138,9 @@ pub(crate) fn calculate(
         HeatTransportSpec::FiredHeater(s) => {
             fired_heater::calculate(s, &inputs.material[0], inputs.energy, ctx)
         }
+        HeatTransportSpec::MultiStreamExchanger(s) => {
+            multi_stream_exchanger::calculate(s, inputs.material, ctx)
+        }
         _ => Err(super::not_implemented(kind)),
     }
 }
@@ -158,7 +148,7 @@ pub(crate) fn calculate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::UnitGroup;
+    use crate::{SpecProblem, UnitGroup};
 
     #[test]
     fn heat_transport_kinds_follow_the_scaffolding_contract() {
@@ -167,10 +157,16 @@ mod tests {
 
     #[test]
     fn exchanger_passes_are_numbered_port_pairs() {
-        let spec = HeatTransportSpec::MultiStreamExchanger(MultiStreamExchangerSpec { passes: 2 });
+        let spec =
+            HeatTransportSpec::MultiStreamExchanger(MultiStreamExchangerSpec::with_pass_count(2));
         let labels: Vec<_> = spec.variable_ports().iter().map(|p| p.label()).collect();
         assert_eq!(labels, ["in 1", "out 1", "in 2", "out 2"]);
-        let one = HeatTransportSpec::MultiStreamExchanger(MultiStreamExchangerSpec { passes: 1 });
-        assert_eq!(one.issues()[0].problem, SpecProblem::CountOutOfRange);
+        let one =
+            HeatTransportSpec::MultiStreamExchanger(MultiStreamExchangerSpec::with_pass_count(1));
+        assert!(
+            one.issues()
+                .iter()
+                .any(|i| i.problem == SpecProblem::CountOutOfRange)
+        );
     }
 }

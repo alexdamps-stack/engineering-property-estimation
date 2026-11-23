@@ -3,6 +3,7 @@
 
 use eframe::egui::{self, DragValue, RichText, Ui};
 use flowsheet_core::units::HeatTransportSpec;
+use flowsheet_core::units::heat_transport::{ExchangerPassDirection, ExchangerPassThermal};
 use flowsheet_core::{PortDirection, PortMedium, PortRef, SpecProblem, UnitId, UnitKind, UnitSpec};
 use flowsheet_project::Fingerprints;
 use thermo_types::COMPOSITION_SUM_TOLERANCE;
@@ -242,15 +243,56 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                     ));
                     ui.end_row();
                 }
-                if kind == Some(UnitKind::HeatExchanger) {
-                    // Internal heat moved from the hot to the cold side; the
-                    // external duty of an exchanger is zero.
+                if matches!(kind, Some(UnitKind::HeatExchanger | UnitKind::MultiStreamExchanger)) {
+                    // An exchanger reports internal transfer and has zero external duty.
                     ui.label("Transferred duty (hot to cold)");
                     ui.label(match r.transferred_duty_w {
                         Some(q) => value_text(format_quantity(u, Quantity::Duty, q), stale),
                         None => RichText::new("not stored — recalculate").weak(),
                     });
                     ui.end_row();
+                }
+                if !stale
+                    && let Some(UnitSpec::HeatTransport(HeatTransportSpec::MultiStreamExchanger(s))) =
+                        unit.map(|x| &x.spec)
+                    && let Some(result) = &ed.results
+                {
+                    let stream = |port| {
+                        let connected = ed.fs.stream_at(PortRef::new(id, port))?;
+                        result.streams.get(&connected.id)
+                    };
+                    for (i, pass) in s.passes.iter().enumerate() {
+                        let (Some(inlet), Some(outlet)) = (stream(i * 2), stream(i * 2 + 1)) else {
+                            continue;
+                        };
+                        let q = match (&inlet.state, &outlet.state) {
+                            (Some(a), Some(b)) => {
+                                inlet.molar_flow_mol_s * (b.enthalpy_j_mol - a.enthalpy_j_mol)
+                            }
+                            _ => 0.0,
+                        };
+                        ui.label(format!("Pass {} duty (+ into fluid)", i + 1));
+                        ui.label(value_text(format_quantity(u, Quantity::Duty, q), false));
+                        ui.end_row();
+                        if let ExchangerPassThermal::TerminalApproach { reference_pass, .. } =
+                            pass.thermal
+                            && let Some(index) = reference_pass.checked_sub(1)
+                            && let Some(reference) =
+                                stream(usize::from(index) * 2).and_then(|s| s.state.as_ref())
+                            && let Some(out) = &outlet.state
+                        {
+                            let approach = match pass.direction {
+                                ExchangerPassDirection::Hot => out.temperature_k - reference.temperature_k,
+                                ExchangerPassDirection::Cold => reference.temperature_k - out.temperature_k,
+                            };
+                            ui.label(format!("Pass {} terminal approach", i + 1));
+                            ui.label(value_text(
+                                format_quantity(u, Quantity::TemperatureDifference, approach),
+                                false,
+                            ));
+                            ui.end_row();
+                        }
+                    }
                 }
                 if let Some(x) = &r.material_exchange {
                     ui.label("External material (+ into unit)");

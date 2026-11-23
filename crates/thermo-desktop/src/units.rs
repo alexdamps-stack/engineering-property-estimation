@@ -12,6 +12,8 @@ pub use flowsheet_project::DisplayUnitSet as DisplayUnits;
 pub enum Quantity {
     /// Temperature, stored in K.
     Temperature,
+    /// Temperature difference, stored in K.
+    TemperatureDifference,
     /// Absolute pressure, stored in Pa.
     Pressure,
     /// Pressure difference, stored in Pa.
@@ -75,7 +77,7 @@ impl DisplayUnitsExt for DisplayUnits {
 
     fn symbol(self, q: Quantity) -> &'static str {
         match (self, q) {
-            (DisplayUnits::Si, Quantity::Temperature) => "K",
+            (DisplayUnits::Si, Quantity::Temperature | Quantity::TemperatureDifference) => "K",
             (DisplayUnits::Si, Quantity::Pressure) => "Pa(a)",
             (DisplayUnits::Si, Quantity::PressureDrop) => "Pa",
             (DisplayUnits::Si, Quantity::MolarFlow) => "mol/s",
@@ -86,7 +88,10 @@ impl DisplayUnitsExt for DisplayUnits {
             (DisplayUnits::Si, Quantity::MolarEnthalpy) => "J/mol",
             (DisplayUnits::Si, Quantity::MolarEntropy) => "J/(mol K)",
             (_, Quantity::Density) => "kg/m³",
-            (DisplayUnits::ProcessMetric, Quantity::Temperature) => "°C",
+            (
+                DisplayUnits::ProcessMetric,
+                Quantity::Temperature | Quantity::TemperatureDifference,
+            ) => "°C",
             (DisplayUnits::ProcessMetric, Quantity::Pressure) => "bar(a)",
             (DisplayUnits::ProcessMetric, Quantity::PressureDrop) => "bar",
             (DisplayUnits::ProcessMetric, Quantity::MolarFlow) => "kmol/h",
@@ -115,6 +120,7 @@ impl DisplayUnitsExt for DisplayUnits {
                 Quantity::MolarEnthalpy
                 | Quantity::MolarEntropy
                 | Quantity::Density
+                | Quantity::TemperatureDifference
                 | Quantity::Factor,
             ) => si,
         }
@@ -136,6 +142,7 @@ impl DisplayUnitsExt for DisplayUnits {
                 Quantity::MolarEnthalpy
                 | Quantity::MolarEntropy
                 | Quantity::Density
+                | Quantity::TemperatureDifference
                 | Quantity::Factor,
             ) => shown,
         }
@@ -177,7 +184,7 @@ pub fn starting_value(q: Quantity) -> f64 {
         Quantity::Temperature => 298.15,
         Quantity::Pressure => 101_325.0,
         Quantity::MolarFlow => 1.0,
-        Quantity::PressureDrop | Quantity::Duty => 0.0,
+        Quantity::TemperatureDifference | Quantity::PressureDrop | Quantity::Duty => 0.0,
         Quantity::Fraction => 0.5,
         Quantity::Factor => 1.0,
         Quantity::MassFlow => 1.0,
@@ -228,13 +235,14 @@ pub fn format_quantity(u: DisplayUnits, q: Quantity, si: f64) -> String {
 mod tests {
     use super::*;
 
-    const ALL_Q: [Quantity; 10] = [
+    const ALL_Q: [Quantity; 11] = [
         Quantity::MassFlow,
         Quantity::MolarEnthalpy,
         Quantity::MolarEntropy,
         Quantity::Density,
         Quantity::Fraction,
         Quantity::Temperature,
+        Quantity::TemperatureDifference,
         Quantity::Pressure,
         Quantity::PressureDrop,
         Quantity::MolarFlow,
@@ -257,6 +265,7 @@ mod tests {
         let m = DisplayUnits::ProcessMetric;
         assert_eq!(DisplayUnits::default(), m);
         assert!(m.si_to_display(Quantity::Temperature, 273.15).abs() < 1e-12);
+        assert_eq!(m.si_to_display(Quantity::TemperatureDifference, 5.0), 5.0);
         assert!((m.si_to_display(Quantity::Pressure, 101_325.0) - 1.01325).abs() < 1e-12);
         assert!((m.si_to_display(Quantity::MolarFlow, 1.0) - 3.6).abs() < 1e-12);
         assert!((m.si_to_display(Quantity::Duty, -2500.0) + 2.5).abs() < 1e-12);

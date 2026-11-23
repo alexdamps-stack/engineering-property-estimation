@@ -6,6 +6,7 @@ use crate::units::{CalcContext, UnitOutput};
 
 /// Largest number of passes of a multi-stream exchanger.
 pub const MAX_PASSES: u16 = 12;
+const TERMINAL_TOLERANCE_K: f64 = 1e-9;
 
 /// Heat transfer direction of one material pass.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +33,14 @@ pub enum ExchangerPassThermal {
     OutletTemperature(Option<f64>),
     /// Specified duty in W, positive into the pass.
     Duty(Option<f64>),
+    /// Set the outlet temperature from the hot-minus-cold difference to
+    /// an opposite-direction inlet at the same terminal.
+    TerminalApproach {
+        /// One-based pass number of the reference inlet.
+        reference_pass: u16,
+        /// Specified nonnegative temperature difference in K.
+        approach_k: Option<f64>,
+    },
     /// Determine the duty from the other passes by closing the heat balance.
     Balance,
 }
@@ -41,7 +50,7 @@ pub enum ExchangerPassThermal {
 pub struct ExchangerPassSpec {
     /// Whether the pass supplies or receives heat.
     pub direction: ExchangerPassDirection,
-    /// Temperature, duty, or an unknown duty solved by the energy balance.
+    /// Temperature, duty, terminal approach, or an unknown duty solved by the energy balance.
     pub thermal: ExchangerPassThermal,
     /// Pressure loss in Pa, subtracted from the inlet absolute pressure.
     pub pressure_drop_pa: f64,
@@ -93,7 +102,7 @@ impl MultiStreamExchangerSpec {
 
     pub(super) fn issues(&self) -> Vec<SpecIssue> {
         use ExchangerPassDirection::{Cold, Hot};
-        use ExchangerPassThermal::{Balance, Duty, OutletTemperature};
+        use ExchangerPassThermal::{Balance, Duty, OutletTemperature, TerminalApproach};
 
         if !(2..=usize::from(MAX_PASSES)).contains(&self.passes.len()) {
             return vec![SpecIssue {
@@ -123,7 +132,9 @@ impl MultiStreamExchangerSpec {
                 });
             }
         }
-        for (pass, &(temperature, duty, drop)) in self.passes.iter().zip(&PASS_FIELDS) {
+        for (pass, &(temperature, duty, drop, approach, reference)) in
+            self.passes.iter().zip(&PASS_FIELDS)
+        {
             match pass.thermal {
                 OutletTemperature(t) => check_optional(&mut issues, temperature, t, Sign::Positive),
                 Duty(Some(q)) if q.is_finite() && !pass.direction.allows_duty(q) => {
@@ -133,6 +144,22 @@ impl MultiStreamExchangerSpec {
                     });
                 }
                 Duty(q) => check_optional(&mut issues, duty, q, Sign::Any),
+                TerminalApproach {
+                    reference_pass,
+                    approach_k,
+                } => {
+                    check_optional(&mut issues, approach, approach_k, Sign::NonNegative);
+                    let opposite = reference_pass
+                        .checked_sub(1)
+                        .and_then(|i| self.passes.get(usize::from(i)))
+                        .is_some_and(|p| p.direction != pass.direction);
+                    if !opposite {
+                        issues.push(SpecIssue {
+                            field: reference,
+                            problem: SpecProblem::Missing,
+                        });
+                    }
+                }
                 Balance => {}
             }
             check_value(&mut issues, drop, pass.pressure_drop_pa, Sign::NonNegative);
@@ -149,11 +176,13 @@ macro_rules! pass_fields {
                 concat!("pass ", $number, " outlet temperature"),
                 concat!("pass ", $number, " duty"),
                 concat!("pass ", $number, " pressure drop"),
+                concat!("pass ", $number, " fixed terminal approach"),
+                concat!("pass ", $number, " valid opposite-direction reference inlet"),
             ),
         )+]
     };
 }
-const PASS_FIELDS: [(&str, &str, &str); MAX_PASSES as usize] =
+const PASS_FIELDS: [(&str, &str, &str, &str, &str); MAX_PASSES as usize] =
     pass_fields!(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
 
 pub(super) fn calculate(
@@ -183,7 +212,7 @@ pub(super) fn calculate(
     let mut transferred_duty = 0.0;
     for i in order {
         let pass = spec.passes[i];
-        let (outlet, duty) = calculate_pass(pass, &inlets[i], -net_duty, ctx)
+        let (outlet, duty) = calculate_pass(pass, &inlets[i], inlets, -net_duty, ctx)
             .map_err(|error| format!("pass {} {error}", i + 1))?;
         if outlet.state.is_none() {
             warnings.push(format!(
@@ -213,10 +242,11 @@ pub(super) fn calculate(
 fn calculate_pass(
     pass: ExchangerPassSpec,
     inlet: &MaterialStream,
+    inlets: &[MaterialStream],
     balance_duty: f64,
     ctx: &CalcContext,
 ) -> Result<(MaterialStream, f64), String> {
-    use ExchangerPassThermal::{Balance, Duty, OutletTemperature};
+    use ExchangerPassThermal::{Balance, Duty, OutletTemperature, TerminalApproach};
 
     let flow = inlet.molar_flow_mol_s;
     if !flow.is_finite() || flow < 0.0 {
@@ -247,6 +277,34 @@ fn calculate_pass(
     let z = &state.mole_fractions;
     let thermal = match pass.thermal {
         Balance => Duty(Some(balance_duty)),
+        TerminalApproach {
+            reference_pass,
+            approach_k: Some(delta),
+        } => {
+            let reference = &inlets[usize::from(reference_pass - 1)];
+            if reference.molar_flow_mol_s <= 0.0 || !reference.molar_flow_mol_s.is_finite() {
+                return Err(format!(
+                    "reference inlet on pass {reference_pass} must have positive flow"
+                ));
+            }
+            let t = reference
+                .state
+                .as_ref()
+                .ok_or_else(|| {
+                    format!("reference inlet on pass {reference_pass} has no thermodynamic state")
+                })?
+                .temperature_k;
+            let target = match pass.direction {
+                ExchangerPassDirection::Hot => t + delta,
+                ExchangerPassDirection::Cold => t - delta,
+            };
+            if !target.is_finite() || target <= 0.0 {
+                return Err(
+                    "fixed approach requires a finite, positive absolute outlet temperature".into(),
+                );
+            }
+            OutletTemperature(Some(target))
+        }
         specified => specified,
     };
     let (outlet, duty) = match thermal {
@@ -322,7 +380,9 @@ fn check_terminals(
     let min = spec.minimum_approach_k;
     for (hot, _, hot_in, hot_out) in flowing.clone().filter(|p| p.1 == Hot) {
         for (cold, _, cold_in, cold_out) in flowing.clone().filter(|p| p.1 == Cold) {
-            if hot_in - cold_out < min || hot_out - cold_in < min {
+            if hot_in - cold_out < min - TERMINAL_TOLERANCE_K
+                || hot_out - cold_in < min - TERMINAL_TOLERANCE_K
+            {
                 return Err(format!(
                     "hot pass {hot} and cold pass {cold} violate the minimum terminal approach of {min} K"
                 ));

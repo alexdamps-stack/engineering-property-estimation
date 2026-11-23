@@ -770,6 +770,89 @@ fn heat_transport_forms_solve_and_report_process_duty_and_fan_power() {
     h.get_by_label("Duty (+ into unit)");
 }
 
+#[test]
+fn multi_stream_exchanger_solves_a_fixed_terminal_approach_from_properties() {
+    use flowsheet_core::units::HeatTransportSpec;
+    use flowsheet_core::units::heat_transport::{ExchangerPassThermal, MultiStreamExchangerSpec};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["methane".into()],
+        "multi-stream exchanger UI test",
+    ));
+    let exchanger = ed.add_unit_at(UnitKind::MultiStreamExchanger, egui::pos2(220.0, 150.0));
+    let mut spec = MultiStreamExchangerSpec::with_pass_count(2);
+    spec.passes[0].thermal = ExchangerPassThermal::Balance;
+    spec.passes[1].thermal = ExchangerPassThermal::Duty(Some(0.0));
+    ed.fs.set_spec(
+        exchanger,
+        UnitSpec::HeatTransport(HeatTransportSpec::MultiStreamExchanger(spec.clone())),
+    );
+    let mut cold_outlet = None;
+    for (i, (t, n, y)) in [(390.0, 3.0, 120.0), (300.0, 1.0, 220.0)]
+        .into_iter()
+        .enumerate()
+    {
+        let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(40.0, y));
+        let product = ed.add_unit_at(UnitKind::Product, egui::pos2(420.0, y));
+        ed.fs.set_spec(
+            feed,
+            UnitSpec::Feed {
+                temperature_k: Some(t),
+                pressure_pa: Some(2e6),
+                molar_flow_mol_s: Some(n),
+            },
+        );
+        ed.feeds.insert(feed, vec![1.0]);
+        ed.fs
+            .connect(PortRef::new(feed, 0), PortRef::new(exchanger, i * 2))
+            .unwrap();
+        let outlet = ed
+            .fs
+            .connect(PortRef::new(exchanger, i * 2 + 1), PortRef::new(product, 0))
+            .unwrap();
+        if i == 1 {
+            cold_outlet = Some(outlet);
+        }
+    }
+    ed.selection = Some(Selection::Unit(exchanger));
+
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_all_by_label("Fixed approach").nth(1).unwrap().click();
+    h.run();
+    h.get_by_label("Hot inlet − cold outlet");
+    h.get_by_label("Enter value").click();
+    h.run();
+    spec.passes[1].thermal = ExchangerPassThermal::TerminalApproach {
+        reference_pass: 1,
+        approach_k: Some(0.0),
+    };
+    assert_eq!(
+        h.state().editor().fs.unit(exchanger).unwrap().spec,
+        UnitSpec::HeatTransport(HeatTransportSpec::MultiStreamExchanger(spec)),
+    );
+
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("Transferred duty (hot to cold)");
+    h.get_by_label("Pass 1 duty (+ into fluid)");
+    h.get_by_label("Pass 2 duty (+ into fluid)");
+    h.get_by_label("Pass 2 terminal approach");
+    let result = h.state().editor().results.as_ref().unwrap();
+    assert!(result.units[&exchanger].transferred_duty_w.unwrap() > 0.0);
+    assert_eq!(
+        result.streams[&cold_outlet.unwrap()]
+            .state
+            .as_ref()
+            .unwrap()
+            .temperature_k,
+        390.0
+    );
+}
+
 /// Splitter, pump, compressor, expander, and two-stream heat exchanger
 /// wired into one small flowsheet.
 fn equipment_gallery() -> FlowsheetApp {

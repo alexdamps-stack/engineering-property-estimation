@@ -25,8 +25,9 @@ feasible in steady state* (with the reason).
 |---|---|---|---|---|---|
 | Air cooler | #179 | calculated (partial) | Specify process outlet temperature or nonpositive process duty, pressure drop, ambient air temperature, dry-air mass flow, and optional nonnegative fan power. | Analytic sensible-air and fan energy balance, TP/PH agreement and failure cases. | One material inlet and one outlet. ISO asset `s2-x2505-heat-exchanger-with-finned-tube-and-fan`. |
 | Fired heater | #180 | calculated | Specify process outlet temperature, nonnegative process duty, or duty from an energy stream, with an assigned pressure drop. | Reverse of the independent process cooler reference for PR and PR-BM, plus sign, connection and zero-flow checks. | Duty-only model with one material inlet and one outlet. ISO asset `s2-2533-furnace`. |
+| Multi-stream exchanger | #181 | calculated (partial) | For 2–12 material passes, assign each direction and pressure drop. Specify outlet temperature, signed duty or a fixed terminal approach on all but one pass. The last degree of freedom closes the heat balance. | Independent dilute-gas heat-capacity integral, endpoint feasibility and closure tests, and fixed-approach solve and v4 reload checks. | Full-span countercurrent core with two checked terminals. Retains ISO asset `s2-2516-heat-exchanger-of-plate-type`. |
 
-Both units carry the process molar flow and overall composition through one
+The air cooler and fired heater carry the process molar flow and overall composition through one
 equilibrium outlet. Assigned outlet temperature uses TP and derives process duty
 from the enthalpy change. Assigned duty uses PH at outlet pressure. Pressure
 loss must leave positive absolute outlet pressure. The engine closes component
@@ -59,6 +60,49 @@ flue gas, emissions and furnace design require additional models.
 Existing version 4 records retain their kinds and port identities. Old
 records load with the outlet temperature unset and zero pressure drop.
 The air cooler also requires assigned ambient temperature and airflow.
+
+### Multi-stream exchanger
+
+Each `in k` connects through its own pass to `out k` with the same molar
+flow and composition. The hot streams share one flow direction and the cold
+streams run countercurrent across the same two terminal planes. Both directions
+are required. Each pass takes a nonnegative pressure drop that must leave
+positive absolute outlet pressure when flowing. Pressure drop is an input.
+
+With $N$ passes, there are $N-1$ independent thermal specifications. In
+outlet-temperature mode, TP determines enthalpy and duty from the setpoint.
+In fixed-duty mode, PH determines the outlet. Positive signed duty heats the
+pass. The one **Heat balance** pass uses PH with duty equal to minus the sum
+of the other duties. The sum of duties must close to zero and the external
+duty is zero. The results report the total internal transfer, the signed
+duty into each pass, and the attained difference for fixed-approach passes.
+
+**Fixed approach** replaces an outlet-temperature or duty input on the
+selected pass. Choose the flowing inlet of an opposite-direction pass at the
+same terminal. For a hot outlet the equality is $T_{h,out}-T_{c,in}=\Delta T$.
+For a cold outlet it is $T_{h,in}-T_{c,out}=\Delta T$. The chosen gap fixes
+the selected outlet temperature, TP gives its duty, and the heat balance
+pass absorbs the remaining duty. Several independent fixed approaches can
+reference known inlets. They cannot also prescribe duty or outlet temperature
+on those passes.
+
+The separate **Minimum terminal approach** is a feasibility bound. For
+every flowing hot/cold pair the engine checks both $T_{h,out}-T_{c,in}$
+and $T_{h,in}-T_{c,out}$ against it within $10^{-9}$ K. A zero-flow pass
+requires explicitly zero duty and produces an empty outlet. It does not take
+part in terminal comparisons or provide a reference for a fixed approach.
+A zero-flow balancing pass cannot determine an outlet state.
+
+Passing the terminal checks establishes endpoint feasibility for the
+full-span core. Interior pinch, intermediate entries and exits, detailed
+pressure profiles, UA, area, and plate-fin rating require a zone or
+composite-curve model with heat-transfer and hydraulic data.
+[Simulation and Design Methods for Multiphase Multistream Heat Exchangers](https://skoge.folk.ntnu.no/prost/proceedings/dycops-cab-2016/proceedings/media/papers/0172.pdf).
+
+Legacy v4 exchanger records keep their count, numbering and connections.
+They load with zero drops and minimum approach, one hot pass first, cold
+passes after it, and the last pass selected for heat balance. Specify the
+other thermal settings before solving.
 
 ## Simple and logical
 

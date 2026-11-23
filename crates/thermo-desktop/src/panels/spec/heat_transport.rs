@@ -1,8 +1,11 @@
 //! Specification forms of the heat-transport group; owned by the
 //! heat-transport work package.
 
-use eframe::egui::Ui;
-use flowsheet_core::units::heat_transport::{AirCoolerThermal, MAX_PASSES};
+use eframe::egui::{ComboBox, Ui};
+use flowsheet_core::units::heat_transport::{
+    AirCoolerThermal, ExchangerPassDirection, ExchangerPassSpec, ExchangerPassThermal, MAX_PASSES,
+    MultiStreamExchangerSpec,
+};
 use flowsheet_core::units::{GroupSpec, HeatTransportSpec};
 
 use super::{
@@ -69,11 +72,145 @@ pub(super) fn form(ui: &mut Ui, spec: &mut HeatTransportSpec, u: DisplayUnits) {
                 "Process-side heat duty only. Combustion and fuel use are outside this model.",
             );
         }
-        HeatTransportSpec::MultiStreamExchanger(s) => {
-            count_field(ui, "Passes", &mut s.passes, 2..=MAX_PASSES);
-            note_row(ui, "Each pass k has the ports in k and out k.");
-        }
+        HeatTransportSpec::MultiStreamExchanger(s) => multi_stream_form(ui, s, u),
         HeatTransportSpec::PipeSegment(_) | HeatTransportSpec::ReliefValve(_) => {}
     }
     drawn_only_note(ui, kind);
+}
+
+fn multi_stream_form(ui: &mut Ui, spec: &mut MultiStreamExchangerSpec, u: DisplayUnits) {
+    use ExchangerPassDirection::{Cold, Hot};
+    use ExchangerPassThermal::{Balance, Duty, OutletTemperature, TerminalApproach};
+
+    let mut count = spec.passes.len() as u16;
+    if count_field(ui, "Passes", &mut count, 2..=MAX_PASSES) {
+        spec.passes.resize(
+            usize::from(count),
+            ExchangerPassSpec {
+                direction: Cold,
+                thermal: OutletTemperature(None),
+                pressure_drop_pa: 0.0,
+            },
+        );
+    }
+    note_row(
+        ui,
+        "Countercurrent flow. Each inlet goes to the outlet with the same number.",
+    );
+    value_field(
+        ui,
+        "Minimum terminal approach",
+        &mut spec.minimum_approach_k,
+        Quantity::TemperatureDifference,
+        u,
+    );
+    note_row(
+        ui,
+        "Assign one pass to heat balance. Approach checks cover the two ends of the exchanger.",
+    );
+
+    for i in 0..spec.passes.len() {
+        let number = i + 1;
+        let cold = spec.passes[i].direction == Cold;
+        if let Some(pick) = choice(
+            ui,
+            &format!("Pass {number}"),
+            usize::from(cold),
+            &["Hot", "Cold"],
+        ) {
+            spec.passes[i].direction = if pick == 0 { Hot } else { Cold };
+        }
+        let references: Vec<u16> = spec
+            .passes
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.direction != spec.passes[i].direction)
+            .map(|(j, _)| (j + 1) as u16)
+            .collect();
+        let mode = match spec.passes[i].thermal {
+            OutletTemperature(_) => 0,
+            Duty(_) => 1,
+            TerminalApproach { .. } => 2,
+            Balance => 3,
+        };
+        if let Some(pick) = choice(
+            ui,
+            "Specify",
+            mode,
+            &["Outlet T", "Duty", "Fixed approach", "Heat balance"],
+        ) {
+            let thermal = match pick {
+                0 => OutletTemperature(None),
+                1 => Duty(None),
+                2 => TerminalApproach {
+                    reference_pass: references.first().copied().unwrap_or(0),
+                    approach_k: None,
+                },
+                _ => {
+                    for pass in &mut spec.passes {
+                        if pass.thermal == Balance {
+                            pass.thermal = OutletTemperature(None);
+                        }
+                    }
+                    Balance
+                }
+            };
+            spec.passes[i].thermal = thermal;
+        }
+        let pass = &mut spec.passes[i];
+        match &mut pass.thermal {
+            OutletTemperature(t) => {
+                opt_field(ui, "Outlet temperature", t, Quantity::Temperature, u)
+            }
+            Duty(q) => {
+                let label = match pass.direction {
+                    Hot => "Duty (≤ 0)",
+                    Cold => "Duty (≥ 0)",
+                };
+                opt_field(ui, label, q, Quantity::Duty, u);
+            }
+            TerminalApproach {
+                reference_pass,
+                approach_k,
+            } => {
+                let label = ui.label("Reference inlet");
+                let selected = if references.contains(reference_pass) {
+                    format!("Pass {reference_pass} inlet")
+                } else {
+                    "Select opposite-direction inlet".into()
+                };
+                ComboBox::from_id_salt(("exchanger-reference-inlet", number))
+                    .selected_text(selected)
+                    .show_ui(ui, |ui| {
+                        for reference in &references {
+                            ui.selectable_value(
+                                reference_pass,
+                                *reference,
+                                format!("Pass {reference} inlet"),
+                            );
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+                ui.end_row();
+                let label = if pass.direction == Hot {
+                    "Hot outlet − cold inlet"
+                } else {
+                    "Hot inlet − cold outlet"
+                };
+                opt_field(ui, label, approach_k, Quantity::TemperatureDifference, u);
+            }
+            Balance => note_row(
+                ui,
+                "Calculates duty and outlet temperature from the other passes.",
+            ),
+        }
+        value_field(
+            ui,
+            "Pressure drop",
+            &mut pass.pressure_drop_pa,
+            Quantity::PressureDrop,
+            u,
+        );
+    }
 }
