@@ -15,6 +15,9 @@ mod shortcut;
 
 pub use shortcut::{ShortcutColumnResult, ShortcutColumnSpec, ShortcutReflux};
 
+// Equilibrium-stage (MESH) foundation for #186 and #187.
+pub mod stages;
+
 /// Condenser duty leaves the column; reboiler duty enters it.
 const CONDENSER_REBOILER: [PortSpec; 2] = [
     PortSpec::energy_outlet("condenser duty"),
