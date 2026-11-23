@@ -147,7 +147,7 @@ pub fn ph_flash(
         let top = hi.min(0.95 * model.components()[index].critical_temperature());
         if top >= lo
             && let Some(sat) =
-                saturation_temperature(model, index, pressure, lo, top, options.max_iterations)?
+                pure_coexistence_temperature(model, index, pressure, lo, top, options.max_iterations)?
         {
             let t = Temperature::new(sat.temperature_k)?;
             let liquid = model.evaluate(t, pressure, RootSelection::SmallestVolume)?;
@@ -239,7 +239,7 @@ pub fn ph_flash(
 /// critical volume. With three roots use the actual outer-root Gibbs difference.
 /// This brackets coexistence without evaluating saturation pressures outside the
 /// EOS pressure envelope (e.g. water at the 200 K lower temperature bound).
-fn saturation_temperature(
+pub(crate) fn pure_coexistence_temperature(
     model: &CubicModel,
     index: usize,
     pressure: Pressure,
