@@ -2,7 +2,8 @@
 //! and results.
 
 use eframe::egui::{self, DragValue, RichText, Ui};
-use flowsheet_core::{PortDirection, PortMedium, PortRef, SpecProblem, UnitId, UnitKind};
+use flowsheet_core::units::HeatTransportSpec;
+use flowsheet_core::{PortDirection, PortMedium, PortRef, SpecProblem, UnitId, UnitKind, UnitSpec};
 use flowsheet_project::Fingerprints;
 use thermo_types::COMPOSITION_SUM_TOLERANCE;
 
@@ -171,7 +172,8 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
     ui.strong("Results");
     let theme = Theme::from_visuals(ui.visuals());
     let u = ed.units;
-    let kind = ed.fs.unit(id).map(|x| x.kind);
+    let unit = ed.fs.unit(id);
+    let kind = unit.map(|x| x.kind);
     egui::Frame::group(ui.style()).show(ui, |ui| {
         ui.set_width(ui.available_width());
         if status == ItemStatus::Failed
@@ -202,13 +204,41 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                 if matches!(
                     kind,
                     Some(
-                        UnitKind::Heater | UnitKind::Cooler | UnitKind::Separator | UnitKind::Tank
+                        UnitKind::Heater
+                            | UnitKind::Cooler
+                            | UnitKind::Separator
+                            | UnitKind::Tank
+                            | UnitKind::AirCooler
+                            | UnitKind::FiredHeater
                     )
                 ) {
-                    ui.label("Duty (+ into unit)");
+                    ui.label(if kind == Some(UnitKind::AirCooler) {
+                        "Process duty (+ into fluid)"
+                    } else {
+                        "Duty (+ into unit)"
+                    });
                     ui.label(value_text(
                         format_quantity(u, Quantity::Duty, r.duty_w),
                         stale,
+                    ));
+                    ui.end_row();
+                }
+                // These quantities combine the solved duty with the current specification.
+                if !stale
+                    && let Some(UnitSpec::HeatTransport(HeatTransportSpec::AirCooler(s))) =
+                        unit.map(|x| &x.spec)
+                    && let Some(t) = s.air_outlet_temperature_k(r.duty_w)
+                {
+                    ui.label("Air discharge temperature");
+                    ui.label(value_text(
+                        format_quantity(u, Quantity::Temperature, t),
+                        false,
+                    ));
+                    ui.end_row();
+                    ui.label("Fan power");
+                    ui.label(value_text(
+                        format_quantity(u, Quantity::Duty, s.fan_power_w),
+                        false,
                     ));
                     ui.end_row();
                 }

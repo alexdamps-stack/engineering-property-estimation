@@ -23,6 +23,42 @@ feasible in steady state* (with the reason).
 
 | Kind | Issue | Status | Specification | Validation / reference | Notes |
 |---|---|---|---|---|---|
+| Air cooler | #179 | calculated (partial) | Specify process outlet temperature or nonpositive process duty, pressure drop, ambient air temperature, dry-air mass flow, and optional nonnegative fan power. | Analytic sensible-air and fan energy balance, TP/PH agreement and failure cases. | One material inlet and one outlet. ISO asset `s2-x2505-heat-exchanger-with-finned-tube-and-fan`. |
+| Fired heater | #180 | calculated | Specify process outlet temperature, nonnegative process duty, or duty from an energy stream, with an assigned pressure drop. | Reverse of the independent process cooler reference for PR and PR-BM, plus sign, connection and zero-flow checks. | Duty-only model with one material inlet and one outlet. ISO asset `s2-2533-furnace`. |
+
+Both units carry the process molar flow and overall composition through one
+equilibrium outlet. Assigned outlet temperature uses TP and derives process duty
+from the enthalpy change. Assigned duty uses PH at outlet pressure. Pressure
+loss must leave positive absolute outlet pressure. The engine closes component
+and process enthalpy balances using the signed process duty.
+
+The air cooler models a dry, near-atmospheric air stream with constant
+\(c_p = 1005\) J/(kg K). The air-side flow is imposed. Positive heat rejection
+requires the process inlet to be warmer than ambient. The model accepts zero
+terminal approach at either end. The process outlet must be at least as warm
+as the air inlet, and the air leaving the exchanger must be at most as warm
+as the process inlet. Sizing or predicting operating duty
+from fan speed would require exchanger conductance, geometry and fan curves.
+Humidity and evaporative cooling are outside the model.
+[WMO dry-air heat capacity, summarized in Table 1](https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=929976).
+
+The process duty \(Q\) is negative for heat rejection. Fan power \(W_f\) is
+assigned independently and dissipates into the air downstream of the
+exchanger. The discharge air gains \(-Q + W_f\). Fan power stays outside
+the process enthalpy balance, and a calculated energy source connected to
+the existing fan power port reports only \(W_f\). A stopped process has an
+empty outlet and zero process duty, with independent fan operation.
+
+The fired heater's optional duty port reports process duty with a calculated
+energy source in temperature or assigned-duty mode. In energy-stream mode
+the connected stream supplies that duty. The model reports heat absorbed by
+the process fluid and rejects heat removal. Applying a nonzero assigned
+heat input to an empty process stream fails. Fuel use, combustion efficiency,
+flue gas, emissions and furnace design require additional models.
+
+Existing version 4 records retain their kinds and port identities. Old
+records load with the outlet temperature unset and zero pressure drop.
+The air cooler also requires assigned ambient temperature and airflow.
 
 ## Simple and logical
 

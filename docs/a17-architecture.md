@@ -188,6 +188,8 @@ convention "positive into the unit".
 | Energy sink | `Q` in (required) | Records the duty it receives. |
 | Heater | `Q` in (optional) | Determines (outlet T or duty), or consumes with the thermal choice *Energy stream*. |
 | Cooler | `Q` out (optional) | Determines; the stream carries the removed heat (−duty). |
+| Air cooler | `fan power` in (optional) | Reports assigned fan power. Process duty enters the process balance, and the discharge air carries rejected process heat plus fan work. |
+| Fired heater | `duty` in (optional) | Determines or consumes process heat duty, like Heater. |
 | Pump, compressor | `power` in | Rotating group (A14). |
 | Expander | `power` out | Rotating group (A14). |
 | A17 kinds | see `info()` | Owning group; default role *determines*. |

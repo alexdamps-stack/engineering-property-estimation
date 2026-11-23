@@ -86,38 +86,10 @@ pub(super) fn spec_form(
             thermal,
             pressure_drop_pa,
         } => {
-            let current = match thermal {
-                ThermalSpec::OutletTemperature(_) => 0,
-                ThermalSpec::Duty(_) => 1,
-                ThermalSpec::EnergyStream => 2,
-            };
-            // Only a heater can take its duty from an energy stream: a
-            // cooler's energy port is an outlet (#171).
-            let options: &[&str] = if kind == UnitKind::Heater {
-                &["Outlet T", "Duty", "Energy stream"]
-            } else {
-                &["Outlet T", "Duty"]
-            };
-            match choice(ui, "Specify", current, options) {
-                Some(0) => *thermal = ThermalSpec::OutletTemperature(None),
-                Some(1) => *thermal = ThermalSpec::Duty(None),
-                Some(_) => *thermal = ThermalSpec::EnergyStream,
-                None => {}
-            }
-            match thermal {
-                ThermalSpec::OutletTemperature(t) => {
-                    opt_field(ui, "Outlet temperature", t, Quantity::Temperature, u)
-                }
-                ThermalSpec::Duty(q) => opt_field(ui, "Duty (+ into unit)", q, Quantity::Duty, u),
-                ThermalSpec::EnergyStream => note_row(ui, "Duty from the energy stream at port Q."),
-            }
-            value_field(
-                ui,
-                "Pressure drop",
-                pressure_drop_pa,
-                Quantity::PressureDrop,
-                u,
-            );
+            // The cooler's energy port is an outlet (#171).
+            let energy_note =
+                (kind == UnitKind::Heater).then_some("Duty from the energy stream at port Q.");
+            process_thermal_fields(ui, thermal, pressure_drop_pa, u, energy_note);
         }
         UnitSpec::Valve { pressure } => {
             let current = matches!(pressure, PressureSpec::PressureDrop(_)) as usize;
@@ -192,6 +164,50 @@ pub(super) fn spec_form(
         }
         UnitSpec::Pressurize { .. } | UnitSpec::Expand { .. } => rotating::core_form(ui, spec, u),
     }
+}
+
+/// Specification controls shared by heaters and the general cooler.
+fn process_thermal_fields(
+    ui: &mut Ui,
+    thermal: &mut ThermalSpec,
+    pressure_drop_pa: &mut f64,
+    u: DisplayUnits,
+    energy_note: Option<&str>,
+) {
+    let current = match thermal {
+        ThermalSpec::OutletTemperature(_) => 0,
+        ThermalSpec::Duty(_) => 1,
+        ThermalSpec::EnergyStream => 2,
+    };
+    let options: &[&str] = if energy_note.is_some() {
+        &["Outlet T", "Duty", "Energy stream"]
+    } else {
+        &["Outlet T", "Duty"]
+    };
+    match choice(ui, "Specify", current, options) {
+        Some(0) => *thermal = ThermalSpec::OutletTemperature(None),
+        Some(1) => *thermal = ThermalSpec::Duty(None),
+        Some(_) => *thermal = ThermalSpec::EnergyStream,
+        None => {}
+    }
+    match thermal {
+        ThermalSpec::OutletTemperature(t) => {
+            opt_field(ui, "Outlet temperature", t, Quantity::Temperature, u)
+        }
+        ThermalSpec::Duty(q) => opt_field(ui, "Duty (+ into unit)", q, Quantity::Duty, u),
+        ThermalSpec::EnergyStream => {
+            if let Some(note) = energy_note {
+                note_row(ui, note);
+            }
+        }
+    }
+    value_field(
+        ui,
+        "Pressure drop",
+        pressure_drop_pa,
+        Quantity::PressureDrop,
+        u,
+    );
 }
 
 /// Specification controls shared by the separator and steady-state tank.

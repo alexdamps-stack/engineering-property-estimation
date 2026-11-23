@@ -686,6 +686,90 @@ fn tank_thermal_mode_is_editable_and_duty_is_reported() {
     assert!(r.units[&tank].duty_w < 0.0);
 }
 
+#[test]
+fn heat_transport_forms_solve_and_report_process_duty_and_fan_power() {
+    use flowsheet_core::units::HeatTransportSpec;
+    use flowsheet_core::units::heat_transport::{AirCoolerSpec, FiredHeaterSpec};
+    use flowsheet_core::{EnergySourceDuty, ThermalSpec};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["methane".into()],
+        "single-component heat-transport UI test",
+    ));
+    let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(30.0, 150.0));
+    let source = ed.add_unit_at(UnitKind::EnergySource, egui::pos2(210.0, 50.0));
+    let furnace = ed.add_unit_at(UnitKind::FiredHeater, egui::pos2(210.0, 150.0));
+    let cooler = ed.add_unit_at(UnitKind::AirCooler, egui::pos2(360.0, 150.0));
+    let product = ed.add_unit_at(UnitKind::Product, egui::pos2(510.0, 150.0));
+    ed.fs.set_spec(
+        feed,
+        UnitSpec::Feed {
+            temperature_k: Some(320.0),
+            pressure_pa: Some(2e6),
+            molar_flow_mol_s: Some(2.0),
+        },
+    );
+    ed.feeds.insert(feed, vec![1.0]);
+    ed.fs.set_spec(
+        source,
+        UnitSpec::EnergySource {
+            duty: EnergySourceDuty::Specified(Some(1_000.0)),
+        },
+    );
+    ed.fs.set_spec(
+        cooler,
+        UnitSpec::HeatTransport(HeatTransportSpec::AirCooler(AirCoolerSpec {
+            ambient_temperature_k: Some(280.0),
+            air_mass_flow_kg_s: Some(2.0),
+            fan_power_w: 75.0,
+            ..Default::default()
+        })),
+    );
+    for ((a, ap), (b, bp)) in [
+        ((feed, 0), (furnace, 0)),
+        ((source, 0), (furnace, 2)),
+        ((furnace, 1), (cooler, 0)),
+        ((cooler, 1), (product, 0)),
+    ] {
+        ed.fs
+            .connect(PortRef::new(a, ap), PortRef::new(b, bp))
+            .unwrap();
+    }
+    ed.selection = Some(Selection::Unit(furnace));
+
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Energy stream").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(furnace).unwrap().spec,
+        UnitSpec::HeatTransport(HeatTransportSpec::FiredHeater(FiredHeaterSpec {
+            thermal: ThermalSpec::EnergyStream,
+            ..Default::default()
+        })),
+    );
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(cooler));
+    h.run();
+    h.get_by_label("Dry-air mass flow");
+    h.get_by_label("Fan power (≥ 0)");
+    h.get_by_label("Enter value").click();
+    h.run();
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("Process duty (+ into fluid)");
+    h.get_by_label("Air discharge temperature");
+    h.get_by_label("Fan power");
+    let r = h.state().editor().results.as_ref().unwrap();
+    assert!(r.units[&cooler].duty_w < 0.0);
+    assert_eq!(r.units[&furnace].duty_w, 1_000.0);
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(furnace));
+    h.run();
+    h.get_by_label("Duty (+ into unit)");
+}
+
 /// Splitter, pump, compressor, expander, and two-stream heat exchanger
 /// wired into one small flowsheet.
 fn equipment_gallery() -> FlowsheetApp {

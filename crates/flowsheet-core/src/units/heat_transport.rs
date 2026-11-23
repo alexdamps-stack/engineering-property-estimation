@@ -5,8 +5,15 @@
 
 use super::{CalcContext, DRAWN_ONLY, GroupSpec, UnitInputs, UnitOutput, kind_info, numbered};
 use crate::unit::{
-    CalculationStatus, KindInfo, PaletteCategory, PortSpec, SpecIssue, SpecProblem, UnitKind,
+    CalculationStatus, KindInfo, PaletteCategory, PortSpec, SpecIssue, SpecProblem, ThermalSpec,
+    UnitKind,
 };
+
+mod air_cooler;
+mod fired_heater;
+
+pub use air_cooler::{AirCoolerSpec, AirCoolerThermal};
+pub use fired_heater::FiredHeaterSpec;
 
 const SINGLE: [PortSpec; 2] = [PortSpec::inlet("in"), PortSpec::outlet("out")];
 
@@ -30,8 +37,11 @@ pub(crate) fn info(kind: UnitKind) -> KindInfo {
 }
 
 /// Calculation status of a heat-transport kind.
-pub(crate) fn status(_kind: UnitKind) -> CalculationStatus {
-    DRAWN_ONLY
+pub(crate) fn status(kind: UnitKind) -> CalculationStatus {
+    match kind {
+        UnitKind::AirCooler | UnitKind::FiredHeater => CalculationStatus::Calculated,
+        _ => DRAWN_ONLY,
+    }
 }
 
 /// Specifications of the heat-transport kinds.
@@ -48,14 +58,6 @@ pub enum HeatTransportSpec {
     /// Relief valve (#184).
     ReliefValve(ReliefValveSpec),
 }
-
-/// Air cooler specification (#179).
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct AirCoolerSpec {}
-
-/// Fired heater specification (#180).
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct FiredHeaterSpec {}
 
 /// Largest number of passes of a multi-stream exchanger.
 pub const MAX_PASSES: u16 = 12;
@@ -109,6 +111,8 @@ impl GroupSpec for HeatTransportSpec {
 
     fn issues(&self) -> Vec<SpecIssue> {
         match self {
+            HeatTransportSpec::AirCooler(s) => s.issues(),
+            HeatTransportSpec::FiredHeater(s) => s.issues(),
             HeatTransportSpec::MultiStreamExchanger(s) if !(2..=MAX_PASSES).contains(&s.passes) => {
                 vec![SpecIssue {
                     field: "passes",
@@ -128,16 +132,27 @@ impl GroupSpec for HeatTransportSpec {
             _ => Vec::new(),
         }
     }
+
+    fn consumes_energy(&self, port: &PortSpec) -> bool {
+        matches!(self, Self::FiredHeater(s) if s.thermal == ThermalSpec::EnergyStream)
+            && port.same_port(&PortSpec::energy_inlet("duty"))
+    }
 }
 
 /// Calculates a heat-transport unit.
 pub(crate) fn calculate(
     kind: UnitKind,
-    _spec: &HeatTransportSpec,
-    _inputs: &UnitInputs,
-    _ctx: &CalcContext,
+    spec: &HeatTransportSpec,
+    inputs: &UnitInputs,
+    ctx: &CalcContext,
 ) -> Result<UnitOutput, String> {
-    Err(super::not_implemented(kind))
+    match spec {
+        HeatTransportSpec::AirCooler(s) => air_cooler::calculate(s, &inputs.material[0], ctx),
+        HeatTransportSpec::FiredHeater(s) => {
+            fired_heater::calculate(s, &inputs.material[0], inputs.energy, ctx)
+        }
+        _ => Err(super::not_implemented(kind)),
+    }
 }
 
 #[cfg(test)]
