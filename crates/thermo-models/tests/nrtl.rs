@@ -483,7 +483,11 @@ fn package_rejects_unsupported_inputs_and_domains() {
     assert!(m.with_fractions(&[0.5]).is_err());
     let state = m.liquid(Temperature::new(350.0).unwrap(), p).unwrap();
     assert!(state.model.formulation.contains("no Poynting"));
-    assert!(state.data.identifier.contains("chemsep"));
+    assert_eq!(
+        state.data.identifier,
+        "cubic-constants-nasa7+liquid-ancillaries-nrtl"
+    );
+    assert!(state.model.formulation.contains("dwsim_chemsep_nrtl"));
     assert!(state.excess.is_some());
 }
 

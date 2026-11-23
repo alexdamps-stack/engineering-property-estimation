@@ -20,6 +20,16 @@ pub enum CubicVariant {
     PengRobinsonBostonMathias,
 }
 
+impl CubicVariant {
+    /// Identifier reported in model provenance.
+    pub const fn identifier(self) -> &'static str {
+        match self {
+            Self::PengRobinson => "PR-exact-1976",
+            Self::PengRobinsonBostonMathias => "PR-exact-BM",
+        }
+    }
+}
+
 /// Root request by volume, deliberately without a stable-phase assertion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RootSelection {
@@ -156,11 +166,7 @@ impl CubicModel {
 
     pub fn metadata(&self) -> ModelMetadata {
         ModelMetadata {
-            identifier: match self.variant {
-                CubicVariant::PengRobinson => "PR-exact-1976",
-                CubicVariant::PengRobinsonBostonMathias => "PR-exact-BM-Clapeyron-0.6.30",
-            }
-            .into(),
+            identifier: self.variant.identifier().into(),
             implementation_version: "a3-v1".into(),
             formulation: format!(
                 "OmegaA={OMEGA_A}; OmegaB={OMEGA_B}; R={R}; quadratic attraction; linear b; no translation; caloric EOS departures at same T,p,x; constant symmetric kij: {}; ordered components={:?}; kij={:?}",

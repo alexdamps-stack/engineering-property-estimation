@@ -9,6 +9,8 @@ use thermo_types::{
 };
 
 pub const DATA_VERSION: &str = "2026-11-07.1";
+/// Identifier of the embedded component constants and ideal-gas NASA7 data.
+pub const COMPONENT_DATASET_ID: &str = "cubic-constants-nasa7";
 const COMPONENT_SCHEMA: &str = "a2-source-extract-provisional-v1";
 pub const REFERENCE_TEMPERATURE: f64 = 298.15;
 pub const REFERENCE_PRESSURE: f64 = 100_000.0;
@@ -196,8 +198,11 @@ impl ComponentDatabase {
         &self.components
     }
     pub fn metadata(&self) -> DataMetadata {
-        DataMetadata { identifier: "coolprop-7.2-cubic-cantera-3.2-nasa7".into(), version: DATA_VERSION.into(),
-            source: "data/source-extracts/components.provisional.json; upstream URLs, hashes and notices retained".into() }
+        DataMetadata {
+            identifier: COMPONENT_DATASET_ID.into(),
+            version: DATA_VERSION.into(),
+            source: "data/source-extracts/components.provisional.json; upstream URLs, hashes and notices retained".into(),
+        }
     }
 }
 

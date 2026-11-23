@@ -182,6 +182,7 @@ impl Project {
         };
         let results = self.results.clone().map(|mut r| {
             r.retain_existing(fs);
+            r.provenance.update_identifiers();
             r
         });
         if let Some(what) = results.as_ref().and_then(ResultSet::first_non_finite) {
@@ -301,7 +302,7 @@ impl Project {
             Some(v) if (OLDEST_READABLE_FORMAT_VERSION..=FORMAT_VERSION).contains(&v) => {}
             other => return Err(ProjectError::UnsupportedVersion(other)),
         }
-        let file: ProjectFile =
+        let mut file: ProjectFile =
             serde_json::from_value(value).map_err(|e| ProjectError::Format(e.to_string()))?;
         check_topology_size(file.units.len(), file.streams.len())?;
         // Fails clearly for, e.g., an empty component list or a kij matrix
@@ -315,6 +316,9 @@ impl Project {
             return Err(ProjectError::Invalid(format!(
                 "{problem}; recalculate or remove the stored results"
             )));
+        }
+        if let Some(results) = &mut file.results {
+            results.provenance.update_identifiers();
         }
 
         let mut units = Vec::new();

@@ -148,7 +148,8 @@ impl Fingerprints {
 
 /// Package fingerprint of a selection whose provenance is already known.
 pub(crate) fn package_fingerprint(package: &PackageSelection, prov: &Provenance) -> Fingerprint {
-    let text = serde_json::to_string(&(package, prov)).expect("serializable selection");
+    let text = serde_json::to_string(&(package, prov.fingerprint_identity()))
+        .expect("serializable selection");
     Fnv::new().field("package").field(&text).finish()
 }
 
@@ -216,4 +217,47 @@ fn stream_fp(source: Fingerprint, port: usize) -> Fingerprint {
         .number(source.0)
         .number(port as u64)
         .finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CubicVariantChoice, Currency, Project, demonstration, solve_project};
+    use std::ops::ControlFlow;
+
+    #[test]
+    fn legacy_labels_load_with_current_results() {
+        for variant in CubicVariantChoice::ALL {
+            let mut project = demonstration(variant);
+            let package = project.package.prepare().unwrap();
+            let provenance = package.provenance();
+            let mut old = provenance.clone();
+            if variant == CubicVariantChoice::PengRobinsonBostonMathias {
+                old.model = "PR-exact-BM-Clapeyron-0.6.30".into();
+            }
+            old.data = "coolprop-7.2-cubic-cantera-3.2-nasa7".into();
+            let old_input = serde_json::to_string(&(&project.package, &old)).unwrap();
+            let old_hash = Fnv::new().field("package").field(&old_input).finish();
+            assert_eq!(package.fingerprint(), old_hash);
+
+            project.results =
+                Some(solve_project(&project, &package, |_| ControlFlow::Continue(()), 0).unwrap());
+            let legacy_json = project
+                .to_json()
+                .unwrap()
+                .replace(&provenance.model, &old.model)
+                .replace(&provenance.data, &old.data);
+            let loaded = Project::from_json(&legacy_json).unwrap();
+            let results = loaded.results.as_ref().unwrap();
+            assert_eq!(&results.provenance, provenance);
+            let current = loaded.fingerprints();
+            for stream in loaded.flowsheet.streams() {
+                assert_eq!(
+                    results.stream_currency(&loaded.flowsheet, stream.id, &current),
+                    Currency::Current
+                );
+            }
+            assert_eq!(loaded.to_json().unwrap(), project.to_json().unwrap());
+        }
+    }
 }

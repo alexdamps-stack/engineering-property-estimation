@@ -14,7 +14,7 @@ as history. No recovered candidate source or numerical fixture was imported.
 - A2: load the eight pinned CoolProp 7.2 cubic/Cantera 3.2 NASA7 records through
   an immutable database; reject unknown identities. Preserve upstream constants,
   a6/a7, source hashes and notices in the original extract. No alias guessing.
-- A3: separate `PR-exact-1976` and `PR-exact-BM-Clapeyron-0.6.30` selections;
+- A3: separate `PR-exact-1976` and `PR-exact-BM` selections;
   exact critical-constraint factors `OmegaA=0.4572355289213822`,
   `OmegaB=0.07779607390388846`, `R=8.31446261815324 J/(mol K)`.
   These are deliberately distinct from rounded-factor CoolProp PR.

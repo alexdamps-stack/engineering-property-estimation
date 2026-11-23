@@ -409,7 +409,7 @@ impl LiquidDatabase {
 
     pub fn metadata(&self) -> DataMetadata {
         DataMetadata {
-            identifier: "coolprop-7.2-ancillaries-chemsep-dechema-nrtl".into(),
+            identifier: "liquid-ancillaries-nrtl".into(),
             version: self.version.clone(),
             source: "data/source-extracts/liquid-nrtl.provisional.json; upstream URLs, hashes and notices retained".into(),
         }
