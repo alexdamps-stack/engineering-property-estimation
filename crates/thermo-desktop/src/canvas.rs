@@ -9,12 +9,13 @@ use eframe::egui::{
 };
 use std::collections::HashMap;
 
-use flowsheet_core::{PortDirection, PortRef, StreamId, UnitId, UnitKind};
+use flowsheet_core::{PortDirection, PortMedium, PortRef, StreamId, UnitId, UnitKind};
 
 use crate::editor::{Drag, Editor, ItemStatus, Selection};
 use crate::symbols::{Theme, arrowhead, draw_unit};
 use crate::view::{
-    SNAP, block_rect, distance_to_polyline, place_tag, port_exit, port_pos, snap, stream_route,
+    SNAP, block_rect, distance_to_polyline, place_tag, snap, stream_route_into, unit_port_exit,
+    unit_port_pos,
 };
 
 const PORT_HIT_RADIUS: f32 = 9.0;
@@ -113,7 +114,18 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, dialog_open: bool) {
         } else {
             process_w
         };
-        painter.line(route.clone(), Stroke::new(width, color));
+        // Energy streams (#171) are dashed, as utility/signal lines on a PFD.
+        if ed.fs.stream_medium(*id) == Some(PortMedium::Energy) {
+            let dash = 7.0 * scale;
+            painter.extend(Shape::dashed_line(
+                route,
+                Stroke::new(width * 0.8, color),
+                dash,
+                dash * 0.6,
+            ));
+        } else {
+            painter.line(route.clone(), Stroke::new(width, color));
+        }
         let n = route.len();
         arrowhead(
             &painter,
@@ -272,17 +284,22 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, dialog_open: bool) {
         }
 
         // Nozzles: free ones carry a snap marker; connected ones are plain
-        // line ends, as on a drawing.
-        for (index, spec) in unit.kind.ports().iter().enumerate() {
+        // line ends, as on a drawing. Free optional nozzles (energy ports)
+        // are only marked on the hovered or selected unit or while
+        // connecting, so they do not read as missing connections.
+        let show_optional = selected
+            || hovered_unit == Some(unit.id)
+            || matches!(ed.drag, Some(Drag::Connecting { .. }));
+        for (index, spec) in unit.ports().iter().enumerate() {
             let port = PortRef::new(unit.id, index);
             let p = ed
                 .viewport
-                .to_screen(canvas, port_pos(unit.kind, center, index));
+                .to_screen(canvas, unit_port_pos(unit, center, index));
             let free = ed.fs.stream_at(port).is_none();
             let target =
                 matches!(ed.drag, Some(Drag::Connecting { from }) if ed.can_connect(from, port));
             let hovered = hovered_port == Some(port);
-            if free || hovered {
+            if (free && (!spec.optional || show_optional)) || hovered {
                 let size = if hovered || target { 10.0 } else { 7.0 };
                 let marker = Rect::from_center_size(p, Vec2::splat(size));
                 let fill = if target {
@@ -299,7 +316,7 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, dialog_open: bool) {
                 );
             }
             if hovered {
-                let exit = port_exit(unit.kind, index);
+                let exit = unit_port_exit(unit, index);
                 let (align, offset) = match (spec.direction, exit.y) {
                     (_, y) if y < 0.0 => (Align2::LEFT_BOTTOM, vec2(8.0, -6.0)),
                     (_, y) if y > 0.0 => (Align2::LEFT_TOP, vec2(8.0, 6.0)),
@@ -309,7 +326,7 @@ pub fn show(ui: &mut Ui, ed: &mut Editor, dialog_open: bool) {
                 painter.text(
                     p + offset,
                     align,
-                    spec.name,
+                    spec.label(),
                     FontId::monospace(11.0),
                     theme.snap,
                 );
@@ -582,8 +599,8 @@ fn port_world(ed: &Editor, port: PortRef) -> Option<(Pos2, Vec2)> {
     let unit = ed.fs.unit(port.unit)?;
     let center = *ed.layout.get(&port.unit)?;
     Some((
-        port_pos(unit.kind, center, port.port),
-        port_exit(unit.kind, port.port),
+        unit_port_pos(unit, center, port.port),
+        unit_port_exit(unit, port.port),
     ))
 }
 
@@ -597,8 +614,8 @@ fn to_screen(ed: &Editor, canvas: Rect, route: Vec<Pos2>) -> Vec<Pos2> {
 fn stream_screen_route(ed: &Editor, canvas: Rect, id: StreamId) -> Option<Vec<Pos2>> {
     let stream = ed.fs.stream(id)?;
     let (a, exit) = port_world(ed, stream.from)?;
-    let (b, _) = port_world(ed, stream.to)?;
-    Some(to_screen(ed, canvas, stream_route(a, exit, b)))
+    let (b, entry) = port_world(ed, stream.to)?;
+    Some(to_screen(ed, canvas, stream_route_into(a, exit, b, entry)))
 }
 
 /// Route from the nozzle being connected to the pointer.
@@ -606,15 +623,15 @@ fn pending_route(ed: &Editor, canvas: Rect, from: PortRef, pointer: Pos2) -> Opt
     let (p, exit) = port_world(ed, from)?;
     let cursor = ed.viewport.to_world(canvas, pointer);
     let route = match ed.fs.port_spec(from)?.direction {
-        PortDirection::Outlet => stream_route(p, exit, cursor),
-        PortDirection::Inlet => stream_route(cursor, vec2(1.0, 0.0), p),
+        PortDirection::Outlet => stream_route_into(p, exit, cursor, vec2(-1.0, 0.0)),
+        PortDirection::Inlet => stream_route_into(cursor, vec2(1.0, 0.0), p, exit),
     };
     Some(to_screen(ed, canvas, route))
 }
 
 fn port_at(ed: &Editor, canvas: Rect, p: Pos2) -> Option<PortRef> {
     ed.fs.units().find_map(|unit| {
-        (0..unit.kind.ports().len()).find_map(|i| {
+        (0..unit.ports().len()).find_map(|i| {
             let port = PortRef::new(unit.id, i);
             let (pos, _) = port_world(ed, port)?;
             (ed.viewport.to_screen(canvas, pos).distance(p) <= PORT_HIT_RADIUS).then_some(port)

@@ -4,8 +4,10 @@ use std::collections::BTreeMap;
 use std::ops::ControlFlow;
 use std::path::Path;
 
+use flowsheet_core::units::SimpleLogicalSpec;
 use flowsheet_core::{
     FeedCompositions, Flowsheet, PortRef, SolveProgress, Stream, StreamId, Unit, UnitId, UnitKind,
+    UnitSpec,
 };
 use serde::{Deserialize, Serialize};
 use thermo_types::{
@@ -17,17 +19,19 @@ use crate::{Fingerprints, PackageSelection, PreparedPackage, ProjectError, Resul
 
 /// Project file format version written by this program.
 ///
-/// Version 4 adds the conversion and yield reactors (#191, #192): their unit
-/// kinds and specifications, and the optional
-/// `results.units.<id>.reaction` record. Older files cannot contain reactors
-/// and are read unchanged; a reactor in a file declaring an older version is
-/// rejected. Version 3 added the optional heat-exchanger
-/// `results.units.<id>.transferred_duty_w` (#152). Version 2 added the
-/// optional `results.recycle` closure evidence (A10). Version 1 and 2 files
-/// are still read (stored exchanger results from them have no transferred
-/// duty until recalculated) and are written back as version 4. Files
-/// declaring any other version are rejected, so older programs report an
-/// unsupported version instead of an unknown field.
+/// Version 4 (A17 foundation, #170/#171) adds energy streams (energy ports,
+/// the `energy_source` / `energy_sink` specifications, the heater
+/// `energy_stream` thermal choice and `results.energy_streams`), every A17
+/// unit kind, reactor specifications and results, and nested group specification records
+/// `{"type": "<group>", "unit": {"kind": ...}}`. Group work packages add
+/// fields to their records with serde defaults behind version 4; only the
+/// integrator bumps this number. Version 3 added the optional heat-exchanger
+/// `results.units.<id>.transferred_duty_w` (#152), version 2 the optional
+/// `results.recycle` closure evidence (A10). Versions 1 to 3 are still read
+/// through migration (stored exchanger results from versions 1 and 2 have
+/// no transferred duty until recalculated) and are written back as version
+/// 4. Files declaring any other version are rejected, so older programs
+/// report an unsupported version instead of an unknown field.
 pub const FORMAT_VERSION: u64 = 4;
 
 /// Oldest project file format version this program reads.
@@ -186,6 +190,7 @@ impl Project {
         };
         let results = self.results.clone().map(|mut r| {
             r.retain_existing(fs);
+            r.provenance.update_identifiers();
             r
         });
         if let Some(what) = results.as_ref().and_then(ResultSet::first_non_finite) {
@@ -201,7 +206,7 @@ impl Project {
                     id: u.id.0,
                     kind: u.kind.into(),
                     tag: u.name.clone(),
-                    spec: u.spec.clone().into(),
+                    spec: (&u.spec).into(),
                 })
                 .collect(),
             streams: fs
@@ -257,7 +262,7 @@ impl Project {
             return Err(non_finite("package PH search interval"));
         }
         for u in self.flowsheet.units() {
-            if SpecRecord::from(u.spec.clone())
+            if SpecRecord::from(&u.spec)
                 .numbers()
                 .iter()
                 .any(|v| !v.is_finite())
@@ -305,7 +310,8 @@ impl Project {
             Some(v) if (OLDEST_READABLE_FORMAT_VERSION..=FORMAT_VERSION).contains(&v) => v,
             other => return Err(ProjectError::UnsupportedVersion(other)),
         };
-        let file: ProjectFile =
+        let value = migrate(value, version)?;
+        let mut file: ProjectFile =
             serde_json::from_value(value).map_err(|e| ProjectError::Format(e.to_string()))?;
         check_topology_size(file.units.len(), file.streams.len())?;
         // Fails clearly for, e.g., an empty component list or a kij matrix
@@ -319,6 +325,10 @@ impl Project {
             return Err(ProjectError::Invalid(format!(
                 "{problem}; recalculate or remove the stored results"
             )));
+        }
+
+        if let Some(results) = &mut file.results {
+            results.provenance.update_identifiers();
         }
 
         let mut units = Vec::new();
@@ -423,7 +433,7 @@ impl Project {
         Fingerprints::compute(&self.flowsheet, &self.feeds, &self.package)
     }
 
-    /// Feed composition problems; the engine diagnostics cover everything else.
+    /// Input problems that depend on the selected package.
     pub fn input_issues(&self) -> Vec<InputIssue> {
         input_issues(&self.flowsheet, &self.feeds, &self.package)
     }
@@ -432,6 +442,32 @@ impl Project {
     pub fn feed_compositions(&self) -> Result<FeedCompositions, Vec<InputIssue>> {
         feed_compositions(&self.flowsheet, &self.feeds, &self.package)
     }
+}
+
+/// Upgrades the JSON of a file of format `version` to the current format,
+/// one version step at a time. Each step is a pure JSON transformation, so
+/// later format changes add a step here instead of keeping old record
+/// types.
+///
+/// - 1 → 2 → 3: no change to stored inputs or results; the additions are
+///   optional fields.
+/// - 3 → 4: no change. Version-3 records are a subset of version 4: material
+///   streams keep their port indices (energy ports follow the material
+///   ports), and the new energy and group records did not exist before.
+pub(crate) fn migrate(
+    mut value: serde_json::Value,
+    version: u64,
+) -> Result<serde_json::Value, ProjectError> {
+    for from in version..FORMAT_VERSION {
+        match from {
+            1..=3 => {}
+            _ => return Err(ProjectError::UnsupportedVersion(Some(version))),
+        }
+    }
+    if let Some(v) = value.get_mut("format_version") {
+        *v = FORMAT_VERSION.into();
+    }
+    Ok(value)
 }
 
 fn too_large() -> ProjectError {
@@ -511,7 +547,7 @@ pub fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), ProjectError
     Ok(())
 }
 
-/// Feed composition problems of a flowsheet with the given package, without
+/// Input problems of a flowsheet that depend on the given package, without
 /// assembling a [`Project`] (as [`Project::input_issues`] does).
 pub fn input_issues(
     fs: &Flowsheet,
@@ -542,6 +578,17 @@ pub fn input_issues(
                     )));
                 }
             }
+        }
+    }
+    let components: Vec<_> = package.components.iter().map(String::as_str).collect();
+    for u in fs.units() {
+        if let UnitSpec::SimpleLogical(SimpleLogicalSpec::ComponentSplitter(spec)) = &u.spec
+            && let Err(message) = spec.check_components(&components)
+        {
+            out.push(InputIssue {
+                unit: u.id,
+                message: format!("{}: {message}.", u.name),
+            });
         }
     }
     out

@@ -1,14 +1,14 @@
 //! Stream properties view: connections, results, phases and provenance.
 
 use eframe::egui::{self, RichText, Ui};
-use flowsheet_core::{PortRef, StreamId, UnitId};
+use flowsheet_core::{PortMedium, PortRef, Stream, StreamId, UnitId};
 use flowsheet_project::format_utc;
 
 use super::presentation::{StreamProperty, component_names, fraction_text, stream_result};
 use super::{status_line, value_text};
 use crate::editor::{Editor, ItemStatus, Selection};
 use crate::symbols::Theme;
-use crate::units::{DisplayUnitsExt, Quantity, format_value};
+use crate::units::{DisplayUnitsExt, Quantity, format_quantity, format_value};
 
 pub(super) fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
     let Some(stream) = ed.fs.stream(id).cloned() else {
@@ -24,8 +24,20 @@ pub(super) fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
         {
             ed.fs.rename_stream(id, name);
         }
-        ui.label(RichText::new("(Material stream)").weak());
+        let energy = ed.fs.stream_medium(id) == Some(PortMedium::Energy);
+        ui.label(
+            RichText::new(if energy {
+                "(Energy stream)"
+            } else {
+                "(Material stream)"
+            })
+            .weak(),
+        );
     });
+    if ed.fs.stream_medium(id) == Some(PortMedium::Energy) {
+        energy_stream_properties(ui, ed, &stream);
+        return;
+    }
     let (from_unit, from) = endpoint(ed, stream.from);
     let (to_unit, to) = endpoint(ed, stream.to);
     egui::Grid::new(("stream", id))
@@ -149,6 +161,57 @@ pub(super) fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
                 ui.label(RichText::new(d).small());
             }
         });
+    });
+    ui.add_space(12.0);
+    if ui.button("Delete stream").clicked() {
+        ed.delete_selection();
+    }
+}
+
+/// Connections and duty of an energy stream (#171).
+fn energy_stream_properties(ui: &mut Ui, ed: &mut Editor, stream: &Stream) {
+    let id = stream.id;
+    let (from_unit, from) = endpoint(ed, stream.from);
+    let (to_unit, to) = endpoint(ed, stream.to);
+    egui::Grid::new(("energy_stream", id))
+        .num_columns(2)
+        .show(ui, |ui| {
+            ui.label("From");
+            if ui.link(from).clicked() {
+                ed.selection = Some(Selection::Unit(from_unit));
+            }
+            ui.end_row();
+            ui.label("To");
+            if ui.link(to).clicked() {
+                ed.selection = Some(Selection::Unit(to_unit));
+            }
+            ui.end_row();
+        });
+    let fps = ed.fingerprints();
+    let status = ed.stream_status(id, &fps);
+    ui.add_space(8.0);
+    ui.strong("Results");
+    let u = ed.units;
+    egui::Frame::group(ui.style()).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        let (Some(status), Some(r)) = (
+            status,
+            ed.results.as_ref().and_then(|r| r.energy_streams.get(&id)),
+        ) else {
+            ui.label(RichText::new("Not solved — no values.").weak());
+            return;
+        };
+        status_line(ui, status);
+        egui::Grid::new(("energy_stream_results", id))
+            .num_columns(2)
+            .show(ui, |ui| {
+                ui.label("Duty (+ from → to)");
+                ui.label(value_text(
+                    format_quantity(u, Quantity::Duty, r.duty_w),
+                    status == ItemStatus::Stale,
+                ));
+                ui.end_row();
+            });
     });
     ui.add_space(12.0);
     if ui.button("Delete stream").clicked() {

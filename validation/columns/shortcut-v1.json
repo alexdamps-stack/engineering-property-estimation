@@ -1,0 +1,575 @@
+{
+  "schema": "a17-shortcut-reference-v1",
+  "generator": "validation/columns/generate-shortcut-references.py",
+  "python": "3.14.4",
+  "packages": {
+    "teqp": "0.23.2",
+    "numpy": "2.3.4",
+    "scipy": "1.16.3",
+    "cantera": "3.2.0"
+  },
+  "input_sha256": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147",
+  "adapter_sha256": {
+    "generate-references.py": "eea4700cf5b1f18d64ed0db77c4c73b7a4ec98052930bf755f3f192bb898d2a6",
+    "generate-flash-references.py": "13dbb9f40fa221ecae9472e15a8b11bc81a98233c83d7d9e298b1b0ec7809e31",
+    "rotating/generate-ps-references.py": "ebf162770f3cd94748c1227190b82dee00edbddb37550a726dad776628748d4c",
+    "columns/generate-shortcut-references.py": "987a88e183fe6aeb0ccabcc922c05dedbaad160583c70b792c70136449454d8c"
+  },
+  "method": "Fenske-Underwood-Gilliland(Molokanov)-Kirkbride, A17 #185 contract: alpha by successive substitution (geometric mean of top dew and bottom bubble), Hengstebeck-Geddes Fenske distribution, total condenser, partial reboiler counted in N, Q_R by overall balance",
+  "units": {
+    "T": "K",
+    "p": "Pa",
+    "h": "J/mol",
+    "flow": "mol/s",
+    "duty": "W (Q_C leaves, Q_R enters)"
+  },
+  "alpha_iterations_counting": "number of top-dew/bottom-bubble alpha updates until max |d ln alpha| < 1e-10, starting from alpha at the feed bubble point",
+  "independence": "teqp residual AD fugacities and Cantera NASA7 caloric adapter, SciPy brentq bubble/dew temperatures over inner ln K substitution, multi-start TPD feed flash; shared component parameters and explicit zero kij; no Rust calls",
+  "scope": "Implementation agreement for the shortcut column contract on regular subcritical PR/PR-BM states (200..350 K); not experimental or rigorous-column accuracy",
+  "tolerances": {
+    "temperature_K": [
+      2e-06,
+      0.0
+    ],
+    "enthalpy_J_per_mol": [
+      2e-05,
+      2e-09
+    ],
+    "saturated_enthalpy_J_per_mol": [
+      0.0005,
+      2e-09
+    ],
+    "composition": [
+      2e-08,
+      1e-07
+    ],
+    "relative_volatility": [
+      0.0,
+      5e-08
+    ],
+    "stages": [
+      0.0,
+      1e-06
+    ],
+    "shortcut_scalar": [
+      1e-07,
+      1e-06
+    ],
+    "molar_flow_mol_s": [
+      1e-06,
+      1e-06
+    ],
+    "duty_W": [
+      0.01,
+      1e-06
+    ],
+    "alpha_iterations": [
+      1,
+      0
+    ]
+  },
+  "cases": [
+    {
+      "id": "c2c3-binary-PR-BM",
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "F_mol_s": 100.0,
+      "feed_T": 295.0,
+      "feed_p": 2000000.0,
+      "variant": "PR-BM",
+      "light_key": "ethane",
+      "heavy_key": "propane",
+      "r_LK": 0.98,
+      "r_HK": 0.97,
+      "p": 2000000.0,
+      "reflux": {
+        "kind": "multiple_of_minimum",
+        "value": 1.3
+      },
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "feed_state": {
+        "phases": 1,
+        "vapor_fraction": null,
+        "vapor": null,
+        "liquid": null,
+        "feed_min_tm": -5.773159728050814e-15
+      },
+      "feed_phase_count": 1,
+      "feed_isenthalpic_letdown": false,
+      "feed_two_phase_at_column_p_by_q": false,
+      "feed_bubble_T": 297.6589902468236,
+      "feed_dew_T": 311.63562355486323,
+      "h_bub_z": -13763.072065795472,
+      "h_dew_z": -1208.2893811423437,
+      "h_F": -14094.35779371134,
+      "q": 1.0263872132427134,
+      "alpha_initial": [
+        2.668884206427689,
+        1.0
+      ],
+      "alpha": [
+        2.6052017963318392,
+        1.0
+      ],
+      "alpha_iterations": 2,
+      "alpha_top": [
+        3.0804664336773575,
+        1.0
+      ],
+      "alpha_bottom": [
+        2.2032625726450323,
+        1.0
+      ],
+      "N_min": 7.694873089732829,
+      "theta": 1.576991352357895,
+      "R_min": 1.3463990753653374,
+      "R": 1.7503187979749386,
+      "X": 0.14686287382648422,
+      "Y": 0.5080290135289345,
+      "N": 16.673548499478848,
+      "kirkbride_NR_over_NS": 0.7221269644472365,
+      "N_R": 6.991597723665592,
+      "N_S": 9.681950775813256,
+      "feed_stage_from_top": 7.991597723665592,
+      "D": 41.00000000000001,
+      "B": 58.99999999999999,
+      "d": [
+        39.2,
+        1.8000000000000014
+      ],
+      "b": [
+        0.7999999999999972,
+        58.199999999999996
+      ],
+      "x_D": [
+        0.9560975609756096,
+        0.04390243902439027
+      ],
+      "x_B": [
+        0.013559322033898258,
+        0.9864406779661017
+      ],
+      "T_top": 271.113698687605,
+      "top_liquid": [
+        0.8760786800759717,
+        0.12392131992402843
+      ],
+      "T_D": 267.6383556013655,
+      "T_bot": 328.96808927382324,
+      "bottom_vapor": [
+        0.029395152352569214,
+        0.9706048476474307
+      ],
+      "h_D": -13340.529778686983,
+      "h_B": -11893.196106466865,
+      "h_V_top": -3162.2278073052953,
+      "Q_C": 1147736.584977614,
+      "Q_R": 1308512.0731410368,
+      "net_duty_W": 160775.4881634228,
+      "max_fugacity_residual": 1.867950238931826e-14
+    },
+    {
+      "id": "c2c3-binary-PR",
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "F_mol_s": 100.0,
+      "feed_T": 295.0,
+      "feed_p": 2000000.0,
+      "variant": "PR",
+      "light_key": "ethane",
+      "heavy_key": "propane",
+      "r_LK": 0.98,
+      "r_HK": 0.97,
+      "p": 2000000.0,
+      "reflux": {
+        "kind": "multiple_of_minimum",
+        "value": 1.3
+      },
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "feed_state": {
+        "phases": 1,
+        "vapor_fraction": null,
+        "vapor": null,
+        "liquid": null,
+        "feed_min_tm": -5.773159728050814e-15
+      },
+      "feed_phase_count": 1,
+      "feed_isenthalpic_letdown": false,
+      "feed_two_phase_at_column_p_by_q": false,
+      "feed_bubble_T": 297.6589902468236,
+      "feed_dew_T": 311.63722294349583,
+      "h_bub_z": -13763.072065795472,
+      "h_dew_z": -1206.598047174732,
+      "h_F": -14094.35779371134,
+      "q": 1.0263836589335975,
+      "alpha_initial": [
+        2.668884206427689,
+        1.0
+      ],
+      "alpha": [
+        2.6034599811559618,
+        1.0
+      ],
+      "alpha_iterations": 2,
+      "alpha_top": [
+        3.0804664336773575,
+        1.0
+      ],
+      "alpha_bottom": [
+        2.20031739329464,
+        1.0
+      ],
+      "N_min": 7.700251667635326,
+      "theta": 1.5766196852534735,
+      "R_min": 1.3479606243075941,
+      "R": 1.7523488115998724,
+      "X": 0.14692475953192047,
+      "Y": 0.5079711537044923,
+      "N": 16.682401617587356,
+      "kirkbride_NR_over_NS": 0.7221269644472365,
+      "N_R": 6.9953100372391965,
+      "N_S": 9.68709158034816,
+      "feed_stage_from_top": 7.9953100372391965,
+      "D": 41.00000000000001,
+      "B": 58.99999999999999,
+      "d": [
+        39.2,
+        1.8000000000000014
+      ],
+      "b": [
+        0.7999999999999972,
+        58.199999999999996
+      ],
+      "x_D": [
+        0.9560975609756096,
+        0.04390243902439027
+      ],
+      "x_B": [
+        0.013559322033898258,
+        0.9864406779661017
+      ],
+      "T_top": 271.113698687605,
+      "top_liquid": [
+        0.8760786800759717,
+        0.12392131992402843
+      ],
+      "T_D": 267.6383556013655,
+      "T_bot": 328.9710821040926,
+      "bottom_vapor": [
+        0.02935701234924299,
+        0.970642987650757
+      ],
+      "h_D": -13340.529778686983,
+      "h_B": -11891.373216833548,
+      "h_V_top": -3162.2278073052953,
+      "Q_C": 1148583.7307365183,
+      "Q_R": 1309466.7693883067,
+      "net_duty_W": 160883.03865178837,
+      "max_fugacity_residual": 1.867950238931826e-14
+    },
+    {
+      "id": "c1c2c3-ternary-PR-BM",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane"
+      ],
+      "z": [
+        0.2,
+        0.45,
+        0.35
+      ],
+      "F_mol_s": 100.0,
+      "feed_T": 260.0,
+      "feed_p": 2500000.0,
+      "variant": "PR-BM",
+      "light_key": "ethane",
+      "heavy_key": "propane",
+      "r_LK": 0.95,
+      "r_HK": 0.95,
+      "p": 2500000.0,
+      "reflux": {
+        "kind": "ratio",
+        "value": 1.1
+      },
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "feed_state": {
+        "phases": 2,
+        "vapor_fraction": 0.17104776444664155,
+        "vapor": [
+          0.5502850033396481,
+          0.3613973007914679,
+          0.08831769586888388
+        ],
+        "liquid": [
+          0.1277214486303481,
+          0.4682824690899602,
+          0.4039960822796917
+        ],
+        "feed_min_tm": -0.23923015712458406
+      },
+      "feed_phase_count": 2,
+      "feed_isenthalpic_letdown": false,
+      "feed_two_phase_at_column_p_by_q": true,
+      "feed_bubble_T": 240.07483697817736,
+      "feed_dew_T": 299.64975030797314,
+      "h_bub_z": -16322.282275462265,
+      "h_dew_z": -1879.8319201696133,
+      "h_F": -13350.88552380774,
+      "q": 0.7942595142405587,
+      "alpha_initial": [
+        31.033016308716356,
+        4.279878166400877,
+        1.0
+      ],
+      "alpha": [
+        8.904451619448153,
+        2.5253709186708546,
+        1.0
+      ],
+      "alpha_iterations": 3,
+      "alpha_top": [
+        15.455576315242864,
+        3.201823282776717,
+        1.0
+      ],
+      "alpha_bottom": [
+        5.130139247211042,
+        1.9918333129671413,
+        1.0
+      ],
+      "N_min": 6.356816229796996,
+      "theta": 1.3508480862878811,
+      "R_min": 0.7132839629996717,
+      "R": 1.1,
+      "X": 0.18415049380968018,
+      "Y": 0.4742274856649843,
+      "N": 12.992394104324221,
+      "kirkbride_NR_over_NS": 1.1909805145094285,
+      "N_R": 7.062449032570225,
+      "N_S": 5.9299450717539965,
+      "feed_stage_from_top": 8.062449032570225,
+      "D": 64.49965062028598,
+      "B": 35.500349379714024,
+      "d": [
+        19.999650620285987,
+        42.74999999999999,
+        1.7500000000000018
+      ],
+      "b": [
+        0.0003493797140130539,
+        2.250000000000007,
+        33.25
+      ],
+      "x_D": [
+        0.31007378222907517,
+        0.6627942878585852,
+        0.027131929912339776
+      ],
+      "x_B": [
+        9.841585227121739e-06,
+        0.06337965792769705,
+        0.9366105004870757
+      ],
+      "T_top": 262.1552762791026,
+      "top_liquid": [
+        0.07892329765413948,
+        0.8143418959269375,
+        0.10673480641892302
+      ],
+      "T_D": 217.6232887775815,
+      "T_bot": 335.5868762805669,
+      "bottom_vapor": [
+        4.750077544796514e-05,
+        0.11877071498929694,
+        0.8811817842352551
+      ],
+      "h_D": -14786.28575727722,
+      "h_B": -10571.51057624229,
+      "h_V_top": -3336.243499017247,
+      "Q_C": 1550899.8230150847,
+      "Q_R": 1556985.7911518242,
+      "net_duty_W": 6085.968136739451,
+      "max_fugacity_residual": 1.3766765505351941e-14
+    },
+    {
+      "id": "c1c2c3-letdown-PR-BM",
+      "ids": [
+        "methane",
+        "ethane",
+        "propane"
+      ],
+      "z": [
+        0.1,
+        0.5,
+        0.4
+      ],
+      "F_mol_s": 100.0,
+      "feed_T": 270.0,
+      "feed_p": 4000000.0,
+      "variant": "PR-BM",
+      "light_key": "ethane",
+      "heavy_key": "propane",
+      "r_LK": 0.97,
+      "r_HK": 0.96,
+      "p": 2500000.0,
+      "reflux": {
+        "kind": "multiple_of_minimum",
+        "value": 1.4
+      },
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "feed_state": {
+        "phases": 1,
+        "vapor_fraction": null,
+        "vapor": null,
+        "liquid": null,
+        "feed_min_tm": -1.1546319456101628e-14
+      },
+      "feed_phase_count": 1,
+      "feed_isenthalpic_letdown": true,
+      "feed_two_phase_at_column_p_by_q": true,
+      "feed_bubble_T": 267.7216957235326,
+      "feed_dew_T": 306.17074618995366,
+      "h_bub_z": -14938.430044081113,
+      "h_dew_z": -1726.0319038695447,
+      "h_F": -14746.455175466244,
+      "q": 0.9854700966033866,
+      "alpha_initial": [
+        16.419328798416334,
+        3.2681728094588873,
+        1.0
+      ],
+      "alpha": [
+        7.907659167818831,
+        2.4018241545300083,
+        1.0
+      ],
+      "alpha_iterations": 3,
+      "alpha_top": [
+        12.592650587347999,
+        2.9360432639252254,
+        1.0
+      ],
+      "alpha_bottom": [
+        4.965680027461017,
+        1.964807310629162,
+        1.0
+      ],
+      "N_min": 7.594083530912189,
+      "theta": 1.327061705664349,
+      "R_min": 0.9219622384109201,
+      "R": 1.290747133775288,
+      "X": 0.16098891489458655,
+      "Y": 0.4949769095350427,
+      "N": 16.01720910028077,
+      "kirkbride_NR_over_NS": 1.0118969627271697,
+      "N_R": 8.055961880856024,
+      "N_S": 7.961247219424745,
+      "feed_stage_from_top": 9.055961880856024,
+      "D": 60.099963662204615,
+      "B": 39.900036337795385,
+      "d": [
+        9.99996366220462,
+        48.49999999999999,
+        1.6000000000000012
+      ],
+      "b": [
+        3.633779538070314e-05,
+        1.500000000000007,
+        38.4
+      ],
+      "x_D": [
+        0.16638884706170545,
+        0.806988840668808,
+        0.026622312269486473
+      ],
+      "x_B": [
+        9.10720859326188e-07,
+        0.0375939507247799,
+        0.9624051385543608
+      ],
+      "T_top": 269.60968765831007,
+      "top_liquid": [
+        0.04198771060205971,
+        0.8734141310149753,
+        0.08459815838296494
+      ],
+      "T_D": 241.51935344317167,
+      "T_bot": 337.8371335615428,
+      "bottom_vapor": [
+        4.364044710444443e-06,
+        0.07127924799113618,
+        0.9287163879641535
+      ],
+      "h_D": -14167.946958314515,
+      "h_B": -10363.544234879968,
+      "h_V_top": -3300.6198906939126,
+      "Q_C": 1496146.425146306,
+      "Q_R": 1705793.053770125,
+      "net_duty_W": 209646.62862381898,
+      "max_fugacity_residual": 1.1102230246251565e-14
+    }
+  ]
+}

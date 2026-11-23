@@ -36,11 +36,11 @@ A material stream holds:
 | Properties | Molar enthalpy and entropy, molar mass, mass flow, per-phase density, Z, and further properties the package supports |
 | Provenance | Property package, model and data versions, calculation status, solver diagnostics |
 
-Energy streams would carry a duty in W with sign convention "positive into the unit"; they are not implemented, and unit duties use the same sign convention (section 2.3). One property package applies to the whole flowsheet initially; mixing packages between streams is deferred, because it needs explicit conversion rules.
+Energy streams (#171, A17) carry a duty in W, positive in the stream direction, that is, into the destination unit; unit duties keep the convention "positive into the unit" (section 2.3). An energy stream connects energy ports only and is determined by exactly one end: an energy source (specified, or reporting the duty its unit calculates), a heater or cooler that calculates its duty, or a heater set to take its duty from the stream. Details: [A17 architecture](a17-architecture.md), section 7. One property package applies to the whole flowsheet initially; mixing packages between streams is deferred, because it needs explicit conversion rules.
 
 ### 2.3 Unit operations and specifications — *implemented (A8)*
 
-Each unit has a fixed set of material ports and one specification set (`flowsheet_core::UnitKind::ports` and `UnitSpec`). Where the table says "one of", the specification is an enum, so exactly one choice is stored. The implemented ports carry material. Duties are recorded in unit results.
+Each unit has material and optional energy ports, with variable ports where the specification defines them (`flowsheet_core::Unit::ports` and `UnitSpec`). A specification enum stores mutually exclusive choices. Heaters may take their duty from an optional energy inlet and coolers may report duty to an optional energy outlet. The [A17 status](a17-status.md) and [reactor documentation](a17-reactors.md) describe the expanded unit palette and its calculations.
 
 | Unit | Material ports | Specification (choose one where listed) | Defaults | Calculation |
 |---|---|---|---|---|
@@ -51,7 +51,7 @@ Each unit has a fixed set of material ports and one specification set (`flowshee
 | Valve | 1 in, 1 out | One of: outlet pressure or pressure drop | Outlet pressure | Isenthalpic PH flash |
 | Two-phase separator | 1 in, 2 out (`vapor`, `liquid`) | Adiabatic, or one of outlet T / duty; plus pressure drop | Adiabatic, pressure drop 0 | Flash at outlet conditions; if single phase, the absent outlet carries zero flow, no state and a warning |
 | Splitter | 1 in, 2 out (`out 1`, `out 2`) | Fraction of the inlet flow to `out 1`, 0 to 1 | — | Inlet state copied to both outlets |
-| Heat exchanger (two-stream) | 2 in (`hot in`, `cold in`), 2 out (`hot out`, `cold out`) | One of: hot outlet T, cold outlet T or transferred duty; plus hot- and cold-side pressure drops | Hot outlet T; pressure drops 0 | PH flash of both sides; hot-to-cold duty without terminal temperature crossover |
+| Heat exchanger (two-stream) | 2 in (`hot in`, `cold in`), 2 out (`hot out`, `cold out`) | Choose hot outlet T, cold outlet T, transferred duty, or a fixed hot- or cold-end approach. Assign both pressure drops. | Hot outlet T; pressure drops 0 | Hot-to-cold duty with terminal crossover checks. Fixed approach uses the opposite inlet to set the selected outlet. |
 | Pump / compressor | 1 in, 1 out | One of: outlet pressure or pressure increase; plus efficiency | Outlet pressure; efficiency 0.75 | Not calculable yet (see below) |
 | Expander | 1 in, 1 out | One of: outlet pressure or pressure drop; plus efficiency | Outlet pressure; efficiency 0.75 | Not calculable yet (see below) |
 | Conversion reactor (A17, #191) | 1 in, 1 out | Reactions, each with stoichiometric coefficients by component and one of: fractional conversion of a key reactant or molar extent (mol/s); adiabatic, or one of outlet T / duty; plus pressure drop | Outlet T (required); pressure drop 0 | Reactions applied in order; element balance checked before solving; formation-basis energy balance, then TP or PH flash ([reactors](a17-reactors.md)) |
@@ -62,7 +62,7 @@ Each unit has a fixed set of material ports and one specification set (`flowshee
 | Plug-flow reactor (A17, #196) | 1 in, 1 out | Kinetic reactions; length and diameter; one of isothermal T, adiabatic, or coolant T and U; plus linear pressure drop | Isothermal T, length, diameter (required) | Adaptive integration along the length ([reactors](a17-reactors.md)) |
 | Batch reactor (A17, #197) | 1 in, 1 out | Kinetic reactions; reaction time; isothermal T or adiabatic | Isothermal T and time (required) | Constant-pressure time integration; outlet is the averaged product ([reactors](a17-reactors.md)) |
 
-Pumps, compressors, and expanders can be placed and specified, but a solve containing one stops in preflight, before any property calculation, because they need a PS flash and efficiency models. They are scheduled as A14 in the [development plan](development-plan.md) (section 5.1).
+Pumps, compressors, and expanders can be placed and specified. The cubic pressure–entropy flash is available, and flowsheets containing these units still stop in preflight while their equipment models are pending. They are scheduled as A14 in the [development plan](development-plan.md) (section 5.1).
 
 *Original proposal, not implemented.* The first version of this table also proposed feed flows as mass or standard volume, feed compositions as mass fractions, n-inlet mixers and n-outlet splitters (n−1 split fractions), energy ports on heaters, coolers and separators, and outlet vapor-fraction specifications. These are scheduled in the development plan: extended specifications and n-port units as A15, vapor-fraction specifications after A13.
 
@@ -82,7 +82,7 @@ Empty streams can pass through thermal units with a warning. A final result requ
 
 ### 2.6 Project file — *implemented*
 
-Project files use JSON with a top-level `format_version`. Writers use version 4, and readers accept versions 1 through 4. Version 4 adds the reactor kinds, their specifications and an optional reactor result record; a reactor in a file declaring an older version is rejected. A project stores the components, property package selection, units, streams, specifications, canvas layout, and display settings. Results include their engine, model, and data provenance. Results with incompatible provenance are shown as stale until recalculated.
+Project files use JSON with a top-level `format_version`. Writers use version 4, and readers accept versions 1 through 4. Version 4 adds energy connections and A17 units, including the reactor specifications and result records. Projects declaring versions 1 through 3 cannot contain A17 unit kinds. A project stores the components, property package selection, units, streams, specifications, canvas layout, and display settings. Results include their engine, model, and data provenance. Results with incompatible provenance are shown as stale until recalculated.
 
 Reading and writing support up to 64 MiB, 10,000 units, and 20,000 streams. New identifiers stay within the range of integers that JSON readers can exchange exactly. Duplicate layout entries and stored compositions that have the wrong number of components are rejected. Both the editor and the project API save through an atomic replacement of the destination file.
 
@@ -208,10 +208,10 @@ Evaluation criteria: canvas performance with about 100 units, table and form qua
 - The pre-solve statuses *Underspecified* and *Ready*.
 - The message list, a stream table without values, and the status bar.
 - The SI and Process metric unit sets.
-- Additional units beyond the demonstration: splitter (two outlets, one split fraction), two-stream shell-and-tube heat exchanger, pump, compressor, and expander. Pumps, compressors, and expanders can be drawn and specified (pressure plus an editable 75 % default efficiency) but are marked as not yet calculable, because they need a PS flash (section 2.3).
+- Additional units beyond the demonstration: splitter (two outlets, one split fraction), two-stream shell-and-tube heat exchanger, pump, compressor, and expander. Pumps, compressors, and expanders can be drawn and specified (pressure plus an editable 75 % default efficiency) but were marked as not yet calculable at A9 (section 2.3).
 - Stream numbers placed beside their lines, avoiding equipment, status badges, other numbers, and all stream lines.
 
-**A9 status (November 8, 2026).** The editor now also covers background solving with progress and cancel, an auto-solve toggle, the section 4.6 statuses on canvas and in tables, results in the properties panel and stream table with tab-separated copy, feed compositions, a new-project dialog, versioned save/load, and a Windows installer. It does not cover energy streams, splitters with more than two outlets, undo/redo, typed-unit input, CSV export, or localization.
+**A9 status (November 8, 2026).** The editor now also covers background solving with progress and cancel, an auto-solve toggle, the section 4.6 statuses on canvas and in tables, results in the properties panel and stream table with tab-separated copy, feed compositions, a new-project dialog, versioned save/load, and a Windows installer. The A17 work adds energy streams. The A9 work deferred splitters with more than two outlets, undo/redo, typed-unit input, CSV export, and localization.
 
 **Evaluation and decision (#52).** The criteria were assessed on the A9 editor, which is the prototype's full successor; details and measurements are in [A9 status](a9-status.md), section 4.
 

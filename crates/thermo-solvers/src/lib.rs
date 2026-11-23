@@ -1,5 +1,5 @@
 //! Rachford–Rice, tangent-plane stability, bounded pure/mixture bubble/dew boundaries and
-//! two-phase TP/PH flash for the PR/PR-BM cubic models.
+//! two-phase TP/PH/PS flash for the PR/PR-BM cubic models.
 //! Native GERG adds bracketed density inversion and dry-gas TPD/TP/PH integration
 //! with an explicit exterior-root search and native caloric reference.
 //! (A7) adds gamma–phi bubble/dew points and TP/PH flash for the NRTL activity package.
@@ -16,6 +16,7 @@ mod gerg_flash;
 mod gerg_ph;
 mod mixture_saturation;
 mod ph;
+mod ps;
 mod rachford_rice;
 mod saturation;
 mod stability;
@@ -27,6 +28,7 @@ pub use gerg_flash::*;
 pub use gerg_ph::*;
 pub use mixture_saturation::*;
 pub use ph::*;
+pub use ps::*;
 pub use rachford_rice::*;
 pub use saturation::*;
 pub use stability::*;

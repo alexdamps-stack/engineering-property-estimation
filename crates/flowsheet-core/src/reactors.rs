@@ -17,9 +17,10 @@
 //! temperature interval, then close the energy balance exactly with a PH
 //! flash at the converged composition.
 
-use crate::engine::{MaterialStream, UnitOutput, react};
+use crate::engine::{MaterialStream, react};
 use crate::numerics::{bracketed_root, integrate, minimize_gibbs, null_space, rank, solve_dense};
 use crate::reaction::{Chemistry, ReactionTerms};
+use crate::units::UnitOutput;
 use crate::{
     BatchThermal, ConcentrationBasis, EquilibriumConstant, EquilibriumOptions, EquilibriumReaction,
     FugacityBasis, KineticReaction, Kinetics, PlugFlowThermal, RateBasis, RateLaw, ReactingPhase,

@@ -469,8 +469,8 @@ fn version_4_is_written_and_version_1_to_3_files_still_load() {
     let text = project.to_json().unwrap();
     assert!(text.contains("\"format_version\": 4"));
 
-    // Version-1 to version-3 files without exchangers or reactors have the
-    // same content and are written back as version 4.
+    // Versions 1 to 3 have neither reactor nor energy records. A compatible
+    // project is written back as version 4.
     for old in [1, 2, 3] {
         let older = text.replacen(
             "\"format_version\": 4",
@@ -785,5 +785,54 @@ fn packages_without_components_are_rejected_on_load() {
     assert!(
         matches!(&err, ProjectError::Package(m) if m.contains("at least one component")),
         "{err}"
+    );
+}
+
+#[test]
+fn energy_streams_and_every_unit_kind_round_trip_in_version_4() {
+    let mut project = demonstration(CubicVariantChoice::PengRobinsonBostonMathias);
+    let cooler = unit(&project, UnitKind::Cooler);
+    let fs = &mut project.flowsheet;
+    let sink = fs.add_unit(UnitKind::EnergySink);
+    // Cooler energy port follows its two material ports.
+    let q = fs
+        .connect(PortRef::new(cooler, 2), PortRef::new(sink, 0))
+        .unwrap();
+    let results = solve(&project);
+    let removed = -results.units[&cooler].duty_w;
+    assert!(removed > 0.0);
+    assert_eq!(results.energy_streams[&q].duty_w, removed);
+    assert!(!results.streams.contains_key(&q));
+    project.results = Some(results);
+    // Every kind's default record is written and read back.
+    for kind in UnitKind::ALL {
+        project.flowsheet.add_unit(kind);
+    }
+    let text = project.to_json().unwrap();
+    assert!(text.contains("\"energy_streams\""));
+    assert!(text.contains("\"type\": \"cstr\""));
+    let loaded = Project::from_json(&text).unwrap();
+    assert!(loaded.flowsheet.same_calculation_inputs(&project.flowsheet));
+    assert_eq!(loaded.results, project.results);
+    assert_eq!(loaded.to_json().unwrap(), text);
+    let fps = loaded.fingerprints();
+    let stored = loaded.results.as_ref().unwrap();
+    assert_eq!(
+        stored.stream_currency(&loaded.flowsheet, q, &fps),
+        Currency::Current
+    );
+    // The energy stream depends on both ends: editing the cooler makes it stale.
+    let mut edited = loaded.clone();
+    edited.flowsheet.set_spec(
+        cooler,
+        UnitSpec::HeatExchange {
+            thermal: flowsheet_core::ThermalSpec::OutletTemperature(Some(250.0)),
+            pressure_drop_pa: 0.0,
+        },
+    );
+    let fps = edited.fingerprints();
+    assert_eq!(
+        stored.stream_currency(&edited.flowsheet, q, &fps),
+        Currency::Stale
     );
 }

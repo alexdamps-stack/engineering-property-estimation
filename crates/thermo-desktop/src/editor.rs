@@ -504,7 +504,13 @@ impl Editor {
     pub fn stream_status(&self, id: StreamId, fps: &Fingerprints) -> Option<ItemStatus> {
         let results = self.results.as_ref()?;
         match results.stream_currency(&self.fs, id, fps) {
-            Currency::Current if results.streams[&id].warnings.is_empty() => {
+            // Energy streams carry no warnings.
+            Currency::Current
+                if results
+                    .streams
+                    .get(&id)
+                    .is_none_or(|r| r.warnings.is_empty()) =>
+            {
                 Some(ItemStatus::Solved)
             }
             Currency::Current => Some(ItemStatus::Warning),
@@ -603,7 +609,7 @@ impl Editor {
         let job = self.job.take().expect("job present");
         match outcome {
             SolveOutcome::Solved(results) => {
-                self.results = Some(results);
+                self.results = Some(*results);
                 self.failure = None;
                 self.status = None;
             }

@@ -11,10 +11,10 @@ workspace = true
 
 [dependencies]
 property-packages = { path = "../property-packages" }
+thermo-models = { path = "../thermo-models" }
+thermo-solvers = { path = "../thermo-solvers" }
 thermo-types = { path = "../thermo-types" }
 
 [dev-dependencies]
 thermo-data = { path = "../thermo-data" }
-thermo-models = { path = "../thermo-models" }
-thermo-solvers = { path = "../thermo-solvers" }
 serde_json = { workspace = true }

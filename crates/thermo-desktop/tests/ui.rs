@@ -20,7 +20,9 @@
 use eframe::egui::{self, Event, Key, Modifiers, PointerButton, Pos2, Vec2, vec2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use flowsheet_core::{PortRef, PressureSpec, StreamId, UnitId, UnitKind, UnitSpec};
+use flowsheet_core::{
+    PaletteCategory, PortRef, PressureSpec, StreamId, UnitId, UnitKind, UnitSpec,
+};
 use thermo_desktop::FlowsheetApp;
 use thermo_desktop::editor::{ItemStatus, Selection};
 use thermo_desktop::view::{port_exit, port_pos, stream_route};
@@ -243,6 +245,9 @@ fn two_units(a: UnitKind, b: UnitKind) -> FlowsheetApp {
 #[test]
 fn palette_click_places_and_selects_a_unit() {
     let mut h = harness(FlowsheetApp::default(), egui::Theme::Dark);
+    // The grouped palette (A17) is taller than the window: scroll to the entry.
+    h.get_by_label("Valve").scroll_to_me();
+    h.run();
     h.get_by_label("Valve").click();
     h.run();
     let ed = h.state().editor();
@@ -433,6 +438,107 @@ fn valve_specification_is_edited_from_the_properties_panel() {
 }
 
 #[test]
+fn component_splitter_recovery_is_edited_from_the_properties_panel() {
+    use flowsheet_core::units::SimpleLogicalSpec;
+    use flowsheet_core::units::simple_logical::ComponentSplitterSpec;
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    app.editor_mut()
+        .new_project(PackageSelection::zero_interactions(
+            CubicVariantChoice::PengRobinson,
+            vec!["methane".into()],
+            "single-component UI test; no interactions",
+        ));
+    let splitter = app
+        .editor_mut()
+        .add_unit_at(UnitKind::ComponentSplitter, egui::pos2(0.0, 0.0));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("methane");
+    h.get_by_label("Enter value").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(splitter).unwrap().spec,
+        UnitSpec::SimpleLogical(SimpleLogicalSpec::ComponentSplitter(
+            ComponentSplitterSpec {
+                overhead_recovery: [("methane".into(), 0.5)].into(),
+            }
+        ))
+    );
+}
+
+#[test]
+fn logical_stream_specs_and_exchange_use_the_properties_panel() {
+    use flowsheet_core::units::SimpleLogicalSpec;
+    use flowsheet_core::units::simple_logical::{MultiplierSpec, SelectorSpec};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["methane".into()],
+        "single-component UI test",
+    ));
+    let first = ed.add_unit_at(UnitKind::Feed, egui::pos2(0.0, 0.0));
+    let second = ed.add_unit_at(UnitKind::Feed, egui::pos2(0.0, 170.0));
+    let scale = ed.add_unit_at(UnitKind::Multiplier, egui::pos2(150.0, 0.0));
+    let select = ed.add_unit_at(UnitKind::Selector, egui::pos2(320.0, 0.0));
+    let product = ed.add_unit_at(UnitKind::Product, egui::pos2(480.0, 0.0));
+    for (feed, flow) in [(first, 2.0), (second, 3.0)] {
+        ed.fs.set_spec(
+            feed,
+            UnitSpec::Feed {
+                temperature_k: Some(330.0),
+                pressure_pa: Some(2e6),
+                molar_flow_mol_s: Some(flow),
+            },
+        );
+        ed.feeds.insert(feed, vec![1.0]);
+    }
+    for (from, out, to, inlet) in [
+        (first, 0, scale, 0),
+        (scale, 1, select, 1),
+        (second, 0, select, 2),
+        (select, 0, product, 0),
+    ] {
+        ed.fs
+            .connect(PortRef::new(from, out), PortRef::new(to, inlet))
+            .unwrap();
+    }
+    ed.selection = Some(Selection::Unit(scale));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Enter value").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(scale).unwrap().spec,
+        UnitSpec::SimpleLogical(SimpleLogicalSpec::Multiplier(MultiplierSpec {
+            factor: Some(1.0)
+        })),
+    );
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(select));
+    h.run();
+    h.get_by_label("Selected inlet").click();
+    h.run();
+    h.get_by_label("Inlet 2").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(select).unwrap().spec,
+        UnitSpec::SimpleLogical(SimpleLogicalSpec::Selector(SelectorSpec {
+            inlets: 2,
+            selected_inlet: Some(2),
+        })),
+    );
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("External material (+ into unit)");
+    h.get_by_label("Enthalpy carried by material");
+    let r = h.state().editor().results.as_ref().unwrap();
+    let exchange = r.units[&select].material_exchange.as_ref().unwrap();
+    assert_eq!(exchange.component_flows_mol_s, [-2.0]);
+}
+
+#[test]
 fn snapshot_demonstration_dark() {
     let mut h = harness(FlowsheetApp::with_demonstration(), egui::Theme::Dark);
     check_snapshot(&mut h, "demonstration_dark");
@@ -462,8 +568,16 @@ fn snapshot_selected_cooler_properties() {
 #[test]
 fn every_palette_entry_places_its_unit_kind() {
     let mut h = harness(FlowsheetApp::default(), egui::Theme::Dark);
-    for kind in UnitKind::ALL {
-        // The palette scrolls once it is taller than the window.
+    let available = UnitKind::ALL
+        .into_iter()
+        .filter(|kind| kind.category() != PaletteCategory::Solids);
+    for kind in available.clone() {
+        // Only the kind's palette category is expanded, so it is in view.
+        for category in PaletteCategory::ALL {
+            h.state_mut()
+                .set_palette_category_open(category, category == kind.category());
+        }
+        h.run();
         h.get_by_label(kind.label()).scroll_to_me();
         h.run();
         h.get_by_label(kind.label()).click();
@@ -474,7 +588,383 @@ fn every_palette_entry_places_its_unit_kind() {
         };
         assert_eq!(ed.fs.unit(id).map(|u| u.kind), Some(kind));
     }
-    assert_eq!(h.state().editor().fs.units().count(), UnitKind::ALL.len());
+    assert_eq!(h.state().editor().fs.units().count(), available.count());
+}
+
+#[test]
+fn solids_are_absent_from_add_palette_and_existing_projects_still_open() {
+    use flowsheet_project::{CubicVariantChoice, Project, demonstration};
+
+    let mut project = demonstration(CubicVariantChoice::PengRobinson);
+    let existing = project.flowsheet.add_unit(UnitKind::Cyclone);
+    project.layout.insert(existing, [160.0, 190.0]);
+    let path = std::env::temp_dir().join(format!(
+        "thermo-existing-solids-{}.json",
+        std::process::id()
+    ));
+    project.save(&path).unwrap();
+    let mut h = harness(FlowsheetApp::with_file(path.clone()), egui::Theme::Dark);
+    for category in PaletteCategory::ALL {
+        h.state_mut()
+            .set_palette_category_open(category, category == PaletteCategory::Solids);
+    }
+    h.run();
+    assert!(h.query_by_label("Solids").is_none());
+    for kind in PaletteCategory::Solids.kinds() {
+        assert!(h.query_by_label(kind.label()).is_none(), "{kind}");
+    }
+    let ed = h.state_mut().editor_mut();
+    let unit = ed.fs.unit(existing).unwrap();
+    assert_eq!(unit.kind, UnitKind::Cyclone);
+    assert_eq!(
+        unit.ports(),
+        project.flowsheet.unit(existing).unwrap().ports()
+    );
+    ed.save_to(&path).unwrap();
+    let reopened = Project::load(&path).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    assert!(
+        reopened
+            .flowsheet
+            .same_calculation_inputs(&project.flowsheet)
+    );
+}
+
+#[test]
+fn tank_thermal_mode_is_editable_and_duty_is_reported() {
+    use flowsheet_core::SeparatorThermal;
+    use flowsheet_core::units::{SimpleLogicalSpec, simple_logical::TankSpec};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["methane".into()],
+        "single-component tank UI test",
+    ));
+    let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(0.0, 0.0));
+    let product = ed.add_unit_at(UnitKind::Product, egui::pos2(300.0, 0.0));
+    let tank = ed.add_unit_at(UnitKind::Tank, egui::pos2(150.0, 0.0));
+    ed.fs.set_spec(
+        feed,
+        UnitSpec::Feed {
+            temperature_k: Some(330.0),
+            pressure_pa: Some(2e6),
+            molar_flow_mol_s: Some(2.0),
+        },
+    );
+    ed.feeds.insert(feed, vec![1.0]);
+    ed.fs
+        .connect(PortRef::new(feed, 0), PortRef::new(tank, 0))
+        .unwrap();
+    let outlet = ed
+        .fs
+        .connect(PortRef::new(tank, 1), PortRef::new(product, 0))
+        .unwrap();
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Outlet T").click();
+    h.run();
+    h.get_by_label("Enter value").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(tank).unwrap().spec,
+        UnitSpec::SimpleLogical(SimpleLogicalSpec::Tank(TankSpec {
+            thermal: SeparatorThermal::OutletTemperature(Some(298.15)),
+            pressure_drop_pa: 0.0,
+        })),
+    );
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("Duty (+ into unit)");
+    let r = h.state().editor().results.as_ref().unwrap();
+    assert_eq!(
+        r.streams[&outlet].state.as_ref().unwrap().temperature_k,
+        298.15
+    );
+    assert!(r.units[&tank].duty_w < 0.0);
+}
+
+#[test]
+fn heat_transport_forms_solve_and_report_process_duty_and_fan_power() {
+    use flowsheet_core::units::HeatTransportSpec;
+    use flowsheet_core::units::heat_transport::{AirCoolerSpec, FiredHeaterSpec};
+    use flowsheet_core::{EnergySourceDuty, ThermalSpec};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["methane".into()],
+        "single-component heat-transport UI test",
+    ));
+    let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(30.0, 150.0));
+    let source = ed.add_unit_at(UnitKind::EnergySource, egui::pos2(210.0, 50.0));
+    let furnace = ed.add_unit_at(UnitKind::FiredHeater, egui::pos2(210.0, 150.0));
+    let cooler = ed.add_unit_at(UnitKind::AirCooler, egui::pos2(360.0, 150.0));
+    let product = ed.add_unit_at(UnitKind::Product, egui::pos2(510.0, 150.0));
+    ed.fs.set_spec(
+        feed,
+        UnitSpec::Feed {
+            temperature_k: Some(320.0),
+            pressure_pa: Some(2e6),
+            molar_flow_mol_s: Some(2.0),
+        },
+    );
+    ed.feeds.insert(feed, vec![1.0]);
+    ed.fs.set_spec(
+        source,
+        UnitSpec::EnergySource {
+            duty: EnergySourceDuty::Specified(Some(1_000.0)),
+        },
+    );
+    ed.fs.set_spec(
+        cooler,
+        UnitSpec::HeatTransport(HeatTransportSpec::AirCooler(AirCoolerSpec {
+            ambient_temperature_k: Some(280.0),
+            air_mass_flow_kg_s: Some(2.0),
+            fan_power_w: 75.0,
+            ..Default::default()
+        })),
+    );
+    for ((a, ap), (b, bp)) in [
+        ((feed, 0), (furnace, 0)),
+        ((source, 0), (furnace, 2)),
+        ((furnace, 1), (cooler, 0)),
+        ((cooler, 1), (product, 0)),
+    ] {
+        ed.fs
+            .connect(PortRef::new(a, ap), PortRef::new(b, bp))
+            .unwrap();
+    }
+    ed.selection = Some(Selection::Unit(furnace));
+
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Energy stream").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(furnace).unwrap().spec,
+        UnitSpec::HeatTransport(HeatTransportSpec::FiredHeater(FiredHeaterSpec {
+            thermal: ThermalSpec::EnergyStream,
+            ..Default::default()
+        })),
+    );
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(cooler));
+    h.run();
+    h.get_by_label("Dry-air mass flow");
+    h.get_by_label("Fan power (≥ 0)");
+    h.get_by_label("Enter value").click();
+    h.run();
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("Process duty (+ into fluid)");
+    h.get_by_label("Air discharge temperature");
+    h.get_by_label("Fan power");
+    let r = h.state().editor().results.as_ref().unwrap();
+    assert!(r.units[&cooler].duty_w < 0.0);
+    assert_eq!(r.units[&furnace].duty_w, 1_000.0);
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(furnace));
+    h.run();
+    h.get_by_label("Duty (+ into unit)");
+}
+
+#[test]
+fn two_stream_exchanger_and_air_cooler_solve_fixed_approaches_from_properties() {
+    use flowsheet_core::ExchangerSpec;
+    use flowsheet_core::units::HeatTransportSpec;
+    use flowsheet_core::units::heat_transport::{AirCoolerSpec, AirCoolerThermal};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["methane".into()],
+        "fixed terminal approach UI test",
+    ));
+    let hot = ed.add_unit_at(UnitKind::Feed, egui::pos2(30.0, 120.0));
+    let cold = ed.add_unit_at(UnitKind::Feed, egui::pos2(30.0, 220.0));
+    let exchanger = ed.add_unit_at(UnitKind::HeatExchanger, egui::pos2(190.0, 150.0));
+    let cooler = ed.add_unit_at(UnitKind::AirCooler, egui::pos2(340.0, 100.0));
+    let hot_product = ed.add_unit_at(UnitKind::Product, egui::pos2(510.0, 100.0));
+    let cold_product = ed.add_unit_at(UnitKind::Product, egui::pos2(510.0, 220.0));
+    for (feed, t, n) in [(hot, 430.0, 3.0), (cold, 300.0, 1.0)] {
+        ed.fs.set_spec(
+            feed,
+            UnitSpec::Feed {
+                temperature_k: Some(t),
+                pressure_pa: Some(2e6),
+                molar_flow_mol_s: Some(n),
+            },
+        );
+        ed.feeds.insert(feed, vec![1.0]);
+    }
+    let mut air_spec = AirCoolerSpec {
+        ambient_temperature_k: Some(295.0),
+        air_mass_flow_kg_s: Some(4.0),
+        fan_power_w: 500.0,
+        ..Default::default()
+    };
+    ed.fs.set_spec(
+        cooler,
+        UnitSpec::HeatTransport(HeatTransportSpec::AirCooler(air_spec.clone())),
+    );
+    for ((a, ap), (b, bp)) in [
+        ((hot, 0), (exchanger, 0)),
+        ((cold, 0), (exchanger, 1)),
+        ((exchanger, 2), (cooler, 0)),
+    ] {
+        ed.fs
+            .connect(PortRef::new(a, ap), PortRef::new(b, bp))
+            .unwrap();
+    }
+    let cold_out = ed
+        .fs
+        .connect(PortRef::new(exchanger, 3), PortRef::new(cold_product, 0))
+        .unwrap();
+    let cooled_out = ed
+        .fs
+        .connect(PortRef::new(cooler, 1), PortRef::new(hot_product, 0))
+        .unwrap();
+    ed.selection = Some(Selection::Unit(exchanger));
+
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Fixed hot-end approach").click();
+    h.run();
+    h.get_by_label("Hot inlet − cold outlet");
+    h.get_by_label("Enter value").click();
+    h.run();
+    assert!(matches!(
+        h.state().editor().fs.unit(exchanger).unwrap().spec,
+        UnitSpec::HeatExchanger {
+            thermal: ExchangerSpec::HotEndApproach(Some(0.0)),
+            ..
+        },
+    ));
+
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(cooler));
+    h.run();
+    h.get_by_label("Fixed cold-end approach").click();
+    h.run();
+    h.get_by_label("Process outlet − ambient air inlet");
+    h.get_by_label("Enter value").click();
+    h.run();
+    air_spec.thermal = AirCoolerThermal::ColdEndApproach(Some(0.0));
+    assert_eq!(
+        h.state().editor().fs.unit(cooler).unwrap().spec,
+        UnitSpec::HeatTransport(HeatTransportSpec::AirCooler(air_spec)),
+    );
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("Achieved cold-end approach");
+    h.get_by_label("Pre-fan air outlet temperature");
+    let result = h.state().editor().results.as_ref().unwrap();
+    assert_eq!(
+        result.streams[&cold_out]
+            .state
+            .as_ref()
+            .unwrap()
+            .temperature_k,
+        430.0
+    );
+    assert_eq!(
+        result.streams[&cooled_out]
+            .state
+            .as_ref()
+            .unwrap()
+            .temperature_k,
+        295.0
+    );
+    assert!(result.units[&exchanger].transferred_duty_w.unwrap() > 0.0);
+    assert!(result.units[&cooler].duty_w < 0.0);
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(exchanger));
+    h.run();
+    h.get_by_label("Achieved hot-end approach");
+    h.get_by_label("Transferred duty (hot to cold)");
+}
+
+#[test]
+fn multi_stream_exchanger_solves_a_fixed_terminal_approach_from_properties() {
+    use flowsheet_core::units::HeatTransportSpec;
+    use flowsheet_core::units::heat_transport::{ExchangerPassThermal, MultiStreamExchangerSpec};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["methane".into()],
+        "multi-stream exchanger UI test",
+    ));
+    let exchanger = ed.add_unit_at(UnitKind::MultiStreamExchanger, egui::pos2(220.0, 150.0));
+    let mut spec = MultiStreamExchangerSpec::with_pass_count(2);
+    spec.passes[0].thermal = ExchangerPassThermal::Balance;
+    spec.passes[1].thermal = ExchangerPassThermal::Duty(Some(0.0));
+    ed.fs.set_spec(
+        exchanger,
+        UnitSpec::HeatTransport(HeatTransportSpec::MultiStreamExchanger(spec.clone())),
+    );
+    let mut cold_outlet = None;
+    for (i, (t, n, y)) in [(390.0, 3.0, 120.0), (300.0, 1.0, 220.0)]
+        .into_iter()
+        .enumerate()
+    {
+        let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(40.0, y));
+        let product = ed.add_unit_at(UnitKind::Product, egui::pos2(420.0, y));
+        ed.fs.set_spec(
+            feed,
+            UnitSpec::Feed {
+                temperature_k: Some(t),
+                pressure_pa: Some(2e6),
+                molar_flow_mol_s: Some(n),
+            },
+        );
+        ed.feeds.insert(feed, vec![1.0]);
+        ed.fs
+            .connect(PortRef::new(feed, 0), PortRef::new(exchanger, i * 2))
+            .unwrap();
+        let outlet = ed
+            .fs
+            .connect(PortRef::new(exchanger, i * 2 + 1), PortRef::new(product, 0))
+            .unwrap();
+        if i == 1 {
+            cold_outlet = Some(outlet);
+        }
+    }
+    ed.selection = Some(Selection::Unit(exchanger));
+
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_all_by_label("Fixed approach").nth(1).unwrap().click();
+    h.run();
+    h.get_by_label("Hot inlet − cold outlet");
+    h.get_by_label("Enter value").click();
+    h.run();
+    spec.passes[1].thermal = ExchangerPassThermal::TerminalApproach {
+        reference_pass: 1,
+        approach_k: Some(0.0),
+    };
+    assert_eq!(
+        h.state().editor().fs.unit(exchanger).unwrap().spec,
+        UnitSpec::HeatTransport(HeatTransportSpec::MultiStreamExchanger(spec)),
+    );
+
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("Transferred duty (hot to cold)");
+    h.get_by_label("Pass 1 duty (+ into fluid)");
+    h.get_by_label("Pass 2 duty (+ into fluid)");
+    h.get_by_label("Pass 2 terminal approach");
+    let result = h.state().editor().results.as_ref().unwrap();
+    assert!(result.units[&exchanger].transferred_duty_w.unwrap() > 0.0);
+    assert_eq!(
+        result.streams[&cold_outlet.unwrap()]
+            .state
+            .as_ref()
+            .unwrap()
+            .temperature_k,
+        390.0
+    );
 }
 
 /// Splitter, pump, compressor, expander, and two-stream heat exchanger
@@ -1075,4 +1565,87 @@ fn snapshot_solved_kinetic_reactors() {
     app.editor_mut().selection = Some(Selection::Unit(cstr));
     let mut h = harness(app, egui::Theme::Dark);
     check_snapshot(&mut h, "kinetic_reactors_solved_dark");
+}
+
+#[test]
+fn shortcut_column_form_solves_and_reports_design_estimates() {
+    use flowsheet_core::units::ColumnSpec;
+    use flowsheet_core::units::columns::{ShortcutColumnSpec, ShortcutReflux};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinsonBostonMathias,
+        vec!["ethane".into(), "propane".into()],
+        "shortcut column UI test",
+    ));
+    let column = ed.add_unit_at(UnitKind::ShortcutColumn, egui::pos2(220.0, 150.0));
+    let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(40.0, 150.0));
+    let top = ed.add_unit_at(UnitKind::Product, egui::pos2(420.0, 100.0));
+    let bottom = ed.add_unit_at(UnitKind::Product, egui::pos2(420.0, 220.0));
+    ed.fs.set_spec(
+        feed,
+        UnitSpec::Feed {
+            temperature_k: Some(295.0),
+            pressure_pa: Some(2.0e6),
+            molar_flow_mol_s: Some(100.0),
+        },
+    );
+    ed.feeds.insert(feed, vec![0.4, 0.6]);
+    ed.fs
+        .connect(PortRef::new(feed, 0), PortRef::new(column, 0))
+        .unwrap();
+    let distillate = ed
+        .fs
+        .connect(PortRef::new(column, 1), PortRef::new(top, 0))
+        .unwrap();
+    ed.fs
+        .connect(PortRef::new(column, 2), PortRef::new(bottom, 0))
+        .unwrap();
+    let mut spec = ShortcutColumnSpec {
+        light_key: Some("ethane".into()),
+        heavy_key: Some("propane".into()),
+        light_key_recovery: Some(0.98),
+        heavy_key_recovery: Some(0.97),
+        pressure_pa: Some(2.0e6),
+        reflux: ShortcutReflux::Ratio(Some(1.75)),
+    };
+    ed.fs.set_spec(
+        column,
+        UnitSpec::Columns(ColumnSpec::Shortcut(spec.clone())),
+    );
+    ed.selection = Some(Selection::Unit(column));
+
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Light key");
+    h.get_by_label("Heavy key");
+    h.get_by_label("Reflux ratio L/D");
+    // Switching the reflux choice clears the value until it is entered.
+    h.get_by_label("Multiple of minimum").click();
+    h.run();
+    h.get_by_label("R / R_min (> 1)");
+    spec.reflux = ShortcutReflux::MinimumMultiple(None);
+    assert_eq!(
+        h.state().editor().fs.unit(column).unwrap().spec,
+        UnitSpec::Columns(ColumnSpec::Shortcut(spec.clone())),
+    );
+    spec.reflux = ShortcutReflux::MinimumMultiple(Some(1.3));
+    h.state_mut()
+        .editor_mut()
+        .fs
+        .set_spec(column, UnitSpec::Columns(ColumnSpec::Shortcut(spec)));
+    h.run();
+
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("Minimum stages (Fenske)");
+    h.get_by_label("Theoretical stages incl. reboiler");
+    h.get_by_label("Feed stage from top (Kirkbride)");
+    h.get_by_label("Condenser duty (+ removed)");
+    h.get_by_label("Reboiler duty (+ supplied)");
+    let result = h.state().editor().results.as_ref().unwrap();
+    let estimate = result.units[&column].shortcut_column.as_ref().unwrap();
+    assert!((estimate.reflux_ratio / estimate.minimum_reflux_ratio - 1.3).abs() < 1e-12);
+    assert!((result.streams[&distillate].molar_flow_mol_s - 41.0).abs() < 1e-9);
 }

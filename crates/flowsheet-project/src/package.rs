@@ -2,12 +2,15 @@
 
 use property_packages::CubicPackage;
 use serde::{Deserialize, Serialize};
-use thermo_data::ComponentDatabase;
+use thermo_data::{COMPONENT_DATASET_ID, ComponentDatabase};
 use thermo_models::{CUBIC_TEMPERATURE_RANGE_K, CubicModel, CubicVariant};
 use thermo_solvers::PhFlashOptions;
 use thermo_types::{ComponentId, Composition, CompositionBasis, DataMetadata, NormalizationPolicy};
 
 use crate::{Fingerprint, ProjectError};
+
+const LEGACY_PR_BM_ID: &str = "PR-exact-BM-Clapeyron-0.6.30";
+const LEGACY_COMPONENT_DATASET_ID: &str = "coolprop-7.2-cubic-cantera-3.2-nasa7";
 
 /// Cubic equation of state variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,14 +70,14 @@ pub struct PackageSelection {
     pub ph_maximum_temperature_k: f64,
 }
 
-/// Model, data and engine identity recorded with results. Results computed
-/// under a different provenance are never shown as current.
+/// Model, data and engine identity recorded with results. The fingerprint
+/// treats aliases of the same model and dataset as the same identity.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Provenance {
     /// [`crate::ENGINE_REVISION`] of the producing program.
     pub engine: String,
-    /// Model identifier, for example `PR-exact-BM-Clapeyron-0.6.30`.
+    /// Model identifier, for example `PR-exact-BM`.
     pub model: String,
     /// Model implementation version.
     pub model_version: String,
@@ -82,6 +85,30 @@ pub struct Provenance {
     pub data: String,
     /// Component dataset version.
     pub data_version: String,
+}
+
+impl Provenance {
+    pub(crate) fn update_identifiers(&mut self) {
+        if self.model == LEGACY_PR_BM_ID {
+            self.model = CubicVariant::PengRobinsonBostonMathias.identifier().into();
+        }
+        if self.data == LEGACY_COMPONENT_DATASET_ID {
+            self.data = COMPONENT_DATASET_ID.into();
+        }
+    }
+
+    /// Use the original identifiers in the serialized hash input so a label
+    /// change alone does not make existing results stale.
+    pub(crate) fn fingerprint_identity(&self) -> Self {
+        let mut identity = self.clone();
+        if self.model == CubicVariant::PengRobinsonBostonMathias.identifier() {
+            identity.model = LEGACY_PR_BM_ID.into();
+        }
+        if self.data == COMPONENT_DATASET_ID {
+            identity.data = LEGACY_COMPONENT_DATASET_ID.into();
+        }
+        identity
+    }
 }
 
 impl PackageSelection {
