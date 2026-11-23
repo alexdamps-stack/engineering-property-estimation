@@ -99,6 +99,12 @@ pub struct UnitResult {
     /// read from format version 1 or 2 files, which did not store it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transferred_duty_w: Option<f64>,
+    /// Material and enthalpy crossing the modeled flowsheet boundary at this unit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub material_exchange: Option<MaterialExchangeResult>,
+    /// Shortcut column design estimates (#185, added behind format version 4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shortcut_column: Option<ShortcutColumnEstimate>,
     /// Engine warnings (for example a single-phase separator).
     pub warnings: Vec<String>,
     /// Largest scaled component balance residual (internal units only).
@@ -124,6 +130,89 @@ pub struct ReactionResult {
     pub standard_reaction_enthalpy_w: f64,
     /// Outlet minus inlet mass flow, kg/s.
     pub mass_residual_kg_s: f64,
+}
+
+/// Fenske–Underwood–Gilliland estimates of a shortcut column (#185). Stage
+/// counts include the reboiler and exclude the total condenser.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShortcutColumnEstimate {
+    pub relative_volatility: f64,
+    pub feed_condition_q: f64,
+    pub minimum_stages: f64,
+    pub underwood_root: f64,
+    pub minimum_reflux_ratio: f64,
+    pub reflux_ratio: f64,
+    pub gilliland_x: f64,
+    pub theoretical_stages: f64,
+    pub rectifying_stages: f64,
+    /// W, positive out of the column.
+    pub condenser_duty_w: f64,
+    /// W, positive into the column.
+    pub reboiler_duty_w: f64,
+    pub top_vapor_temperature_k: f64,
+    pub volatility_iterations: usize,
+}
+
+impl ShortcutColumnEstimate {
+    fn numbers(&self) -> [f64; 12] {
+        [
+            self.relative_volatility,
+            self.feed_condition_q,
+            self.minimum_stages,
+            self.underwood_root,
+            self.minimum_reflux_ratio,
+            self.reflux_ratio,
+            self.gilliland_x,
+            self.theoretical_stages,
+            self.rectifying_stages,
+            self.condenser_duty_w,
+            self.reboiler_duty_w,
+            self.top_vapor_temperature_k,
+        ]
+    }
+}
+
+impl From<&flowsheet_core::units::columns::ShortcutColumnResult> for ShortcutColumnEstimate {
+    fn from(r: &flowsheet_core::units::columns::ShortcutColumnResult) -> Self {
+        Self {
+            relative_volatility: r.relative_volatility,
+            feed_condition_q: r.feed_condition_q,
+            minimum_stages: r.minimum_stages,
+            underwood_root: r.underwood_root,
+            minimum_reflux_ratio: r.minimum_reflux_ratio,
+            reflux_ratio: r.reflux_ratio,
+            gilliland_x: r.gilliland_x,
+            theoretical_stages: r.theoretical_stages,
+            rectifying_stages: r.rectifying_stages,
+            condenser_duty_w: r.condenser_duty_w,
+            reboiler_duty_w: r.reboiler_duty_w,
+            top_vapor_temperature_k: r.top_vapor_temperature_k,
+            volatility_iterations: r.volatility_iterations,
+        }
+    }
+}
+
+/// External material contribution, positive flow into the unit.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MaterialExchangeResult {
+    pub molar_flow_mol_s: f64,
+    /// Signed molar flow of each component in package order.
+    pub component_flows_mol_s: Vec<f64>,
+    /// Enthalpy carried by the signed flow, on the package reference.
+    pub enthalpy_flow_w: f64,
+}
+
+/// Result of one energy stream (#171, format version 4).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnergyStreamResult {
+    /// Fingerprint of both connected units when calculated.
+    pub fingerprint: Fingerprint,
+    /// Duty in W, positive in the stream direction (into the destination
+    /// unit, out of the source unit).
+    pub duty_w: f64,
 }
 
 /// Closure evidence for a successful cyclic network calculation.
@@ -156,6 +245,9 @@ pub struct ResultSet {
     /// Per-stream results.
     #[serde(with = "ids::map")]
     pub streams: BTreeMap<StreamId, StreamResult>,
+    /// Per-energy-stream results (format version 4); absent in older files.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty", with = "ids::map")]
+    pub energy_streams: BTreeMap<StreamId, EnergyStreamResult>,
 }
 
 impl ResultSet {
@@ -178,6 +270,14 @@ impl ResultSet {
                         fingerprint: *fingerprints.units.get(id)?,
                         duty_w: u.duty_w,
                         transferred_duty_w: u.transferred_duty_w,
+                        material_exchange: u.material_exchange.as_ref().map(|x| {
+                            MaterialExchangeResult {
+                                molar_flow_mol_s: x.molar_flow_mol_s,
+                                component_flows_mol_s: x.component_flows_mol_s.clone(),
+                                enthalpy_flow_w: x.enthalpy_flow_w,
+                            }
+                        }),
+                        shortcut_column: u.shortcut_column.as_ref().map(Into::into),
                         warnings: u.warnings.clone(),
                         max_scaled_component_residual: u
                             .balance
@@ -206,6 +306,19 @@ impl ResultSet {
             .iter()
             .filter_map(|(id, s)| Some((*id, stream_result(s, fingerprints.stream(fs, *id)?))))
             .collect();
+        let energy_streams = calc
+            .energy_streams
+            .iter()
+            .filter_map(|(id, e)| {
+                Some((
+                    *id,
+                    EnergyStreamResult {
+                        fingerprint: fingerprints.stream(fs, *id)?,
+                        duty_w: e.duty_w,
+                    },
+                ))
+            })
+            .collect();
         Self {
             recycle: calc.recycle.as_ref().map(|r| RecycleResult {
                 iterations: r.iterations,
@@ -217,6 +330,7 @@ impl ResultSet {
             order: calc.order.clone(),
             units,
             streams,
+            energy_streams,
         }
     }
 
@@ -237,10 +351,15 @@ impl ResultSet {
         id: StreamId,
         current: &Fingerprints,
     ) -> Currency {
-        match self.streams.get(&id) {
+        let stored = self
+            .streams
+            .get(&id)
+            .map(|r| r.fingerprint)
+            .or_else(|| self.energy_streams.get(&id).map(|r| r.fingerprint));
+        match stored {
             _ if fs.stream(id).is_none() => Currency::Missing,
             None => Currency::Missing,
-            Some(r) if current.stream(fs, id) == Some(r.fingerprint) => Currency::Current,
+            Some(fp) if current.stream(fs, id) == Some(fp) => Currency::Current,
             Some(_) => Currency::Stale,
         }
     }
@@ -258,6 +377,14 @@ impl ResultSet {
         for (id, u) in &self.units {
             if bad(u.duty_w)
                 || opt(u.transferred_duty_w)
+                || u.material_exchange.as_ref().is_some_and(|x| {
+                    bad(x.molar_flow_mol_s)
+                        || bad(x.enthalpy_flow_w)
+                        || x.component_flows_mol_s.iter().copied().any(bad)
+                })
+                || u.shortcut_column
+                    .as_ref()
+                    .is_some_and(|r| r.numbers().into_iter().any(bad))
                 || opt(u.max_scaled_component_residual)
                 || opt(u.scaled_energy_residual)
                 || u.reaction.as_ref().is_some_and(|r| {
@@ -270,6 +397,11 @@ impl ResultSet {
                 })
             {
                 return Some(format!("result of unit {id}"));
+            }
+        }
+        for (id, e) in &self.energy_streams {
+            if bad(e.duty_w) {
+                return Some(format!("result of energy stream {id}"));
             }
         }
         for (id, s) in &self.streams {
@@ -305,8 +437,8 @@ impl ResultSet {
         None
     }
 
-    /// Describes the first stream result whose overall or phase mole
-    /// fractions do not have one entry per package component, if any.
+    /// Describes the first stored composition or material exchange with a
+    /// component count different from the package, if any.
     pub(crate) fn first_component_mismatch(&self, components: usize) -> Option<String> {
         for (id, u) in &self.units {
             if let Some(r) = &u.reaction
@@ -315,6 +447,14 @@ impl ResultSet {
                 return Some(format!(
                     "stored reaction result of unit {id} has {} generation values for {components} components",
                     r.generation_mol_s.len()
+                ));
+            }
+            if let Some(x) = &u.material_exchange
+                && x.component_flows_mol_s.len() != components
+            {
+                return Some(format!(
+                    "stored material exchange of unit {id} has {} flows for {components} components",
+                    x.component_flows_mol_s.len()
                 ));
             }
         }
@@ -345,6 +485,7 @@ impl ResultSet {
     pub fn retain_existing(&mut self, fs: &Flowsheet) {
         self.units.retain(|id, _| fs.unit(*id).is_some());
         self.streams.retain(|id, _| fs.stream(*id).is_some());
+        self.energy_streams.retain(|id, _| fs.stream(*id).is_some());
         self.order.retain(|id| fs.unit(*id).is_some());
     }
 }

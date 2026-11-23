@@ -9,6 +9,8 @@ use thermo_types::{
 };
 
 pub const DATA_VERSION: &str = "2026-11-07.1";
+/// Identifier of the embedded component constants and ideal-gas NASA7 data.
+pub const COMPONENT_DATASET_ID: &str = "cubic-constants-nasa7";
 /// Version of the A17 reacting-component extension
 /// (`components-reacting.provisional.json`: hydrogen, carbon monoxide).
 pub const REACTING_DATA_VERSION: &str = "2026-11-23.1";
@@ -316,7 +318,7 @@ impl ComponentDatabase {
     /// Metadata of the base extract. Use [`Self::metadata_for`] for a
     /// selection that may include extension components.
     pub fn metadata(&self) -> DataMetadata {
-        DataMetadata { identifier: "coolprop-7.2-cubic-cantera-3.2-nasa7".into(), version: DATA_VERSION.into(),
+        DataMetadata { identifier: COMPONENT_DATASET_ID.into(), version: DATA_VERSION.into(),
             source: "data/source-extracts/components.provisional.json; upstream URLs, hashes and notices retained".into() }
     }
 

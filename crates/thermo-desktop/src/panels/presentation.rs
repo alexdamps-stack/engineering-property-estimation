@@ -128,14 +128,14 @@ pub(super) struct StreamColumn<'a> {
     pub(super) result: Option<&'a StreamResult>,
 }
 
-/// Every stream in flowsheet order with its status and, when it has a
+/// Every material stream in flowsheet order with its status and, when it has a
 /// status, its stored result.
 pub(super) fn stream_columns<'a>(
     ed: &'a Editor,
     fps: &Fingerprints,
 ) -> Vec<(StreamId, StreamColumn<'a>)> {
     ed.fs
-        .streams()
+        .material_streams()
         .map(|stream| {
             let (status, result) = stream_result(ed, stream.id, fps).unzip();
             (

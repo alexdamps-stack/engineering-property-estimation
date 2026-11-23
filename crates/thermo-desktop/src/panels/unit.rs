@@ -2,7 +2,13 @@
 //! and results.
 
 use eframe::egui::{self, DragValue, RichText, Ui};
-use flowsheet_core::{PortDirection, PortRef, SpecProblem, UnitId, UnitKind};
+use flowsheet_core::units::HeatTransportSpec;
+use flowsheet_core::units::heat_transport::{
+    AirCoolerThermal, ExchangerPassDirection, ExchangerPassThermal,
+};
+use flowsheet_core::{
+    ExchangerSpec, PortDirection, PortMedium, PortRef, SpecProblem, UnitId, UnitKind, UnitSpec,
+};
 use flowsheet_project::Fingerprints;
 use thermo_types::COMPOSITION_SUM_TOLERANCE;
 
@@ -40,18 +46,21 @@ pub(super) fn unit_properties(ui: &mut Ui, ed: &mut Editor, id: UnitId) {
     ui.strong("Specification");
     let mut spec = unit.spec.clone();
     let u = ed.units;
-    egui::Grid::new(("spec", id))
-        .num_columns(2)
-        .spacing([8.0, 6.0])
-        .show(ui, |ui| spec_form(ui, &mut spec, u));
     let components = ed
         .package
         .as_ref()
-        .map(|p| p.components.clone())
-        .unwrap_or_default();
-    chemistry_form(ui, &mut spec, &components, u);
-    ed.fs.set_spec(id, spec.clone());
-    for issue in spec.issues() {
+        .map_or(&[][..], |p| p.components.as_slice());
+    egui::Grid::new(("spec", id))
+        .num_columns(2)
+        .spacing([8.0, 6.0])
+        .show(ui, |ui| spec_form(ui, unit.kind, &mut spec, u, components));
+    chemistry_form(ui, &mut spec, components, u);
+    let issues = spec.issues();
+    if let Err(e) = ed.fs.try_set_spec(id, spec) {
+        // For example fewer column feeds while the last one is connected.
+        ed.status = Some(format!("Specification not changed: {e}."));
+    }
+    for issue in issues {
         if issue.problem != SpecProblem::Missing {
             ui.colored_label(
                 theme.warning,
@@ -68,14 +77,21 @@ pub(super) fn unit_properties(ui: &mut Ui, ed: &mut Editor, id: UnitId) {
     egui::Grid::new(("ports", id))
         .num_columns(2)
         .show(ui, |ui| {
-            for (i, port) in unit.kind.ports().iter().enumerate() {
-                ui.label(port.name);
+            for (i, port) in unit.ports().iter().enumerate() {
+                let label = match port.medium {
+                    PortMedium::Material => port.label(),
+                    PortMedium::Energy => format!("{port} (energy)"),
+                };
+                ui.label(label);
                 match ed.fs.stream_at(PortRef::new(id, i)) {
                     Some(s) => {
                         let sid = s.id;
                         if ui.link(s.name.clone()).clicked() {
                             ed.selection = Some(Selection::Stream(sid));
                         }
+                    }
+                    None if port.optional => {
+                        ui.label(RichText::new("optional, not connected").weak());
                     }
                     None => {
                         ui.label(RichText::new("not connected").color(theme.warning));
@@ -163,7 +179,8 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
     ui.strong("Results");
     let theme = Theme::from_visuals(ui.visuals());
     let u = ed.units;
-    let kind = ed.fs.unit(id).map(|x| x.kind);
+    let unit = ed.fs.unit(id);
+    let kind = unit.map(|x| x.kind);
     egui::Frame::group(ui.style()).show(ui, |ui| {
         ui.set_width(ui.available_width());
         if status == ItemStatus::Failed
@@ -191,6 +208,11 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
         egui::Grid::new(("unit_results", id))
             .num_columns(2)
             .show(ui, |ui| {
+                let stream = |port| {
+                    let connected = ed.fs.stream_at(PortRef::new(id, port))?;
+                    ed.results.as_ref()?.streams.get(&connected.id)
+                };
+                let temperature = |port| Some(stream(port)?.state.as_ref()?.temperature_k);
                 if matches!(
                     kind,
                     Some(
@@ -199,9 +221,16 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                             | UnitKind::Separator
                             | UnitKind::ConversionReactor
                             | UnitKind::YieldReactor
+                            | UnitKind::Tank
+                            | UnitKind::AirCooler
+                            | UnitKind::FiredHeater
                     )
                 ) {
-                    ui.label("Duty (+ into unit)");
+                    ui.label(if kind == Some(UnitKind::AirCooler) {
+                        "Process duty (+ into fluid)"
+                    } else {
+                        "Duty (+ into unit)"
+                    });
                     ui.label(value_text(
                         format_quantity(u, Quantity::Duty, r.duty_w),
                         stale,
@@ -226,9 +255,34 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         ui.end_row();
                     }
                 }
-                if kind == Some(UnitKind::HeatExchanger) {
-                    // Internal heat moved from the hot to the cold side; the
-                    // external duty of an exchanger is zero.
+                // These quantities combine the solved duty with the current specification.
+                if !stale
+                    && let Some(UnitSpec::HeatTransport(HeatTransportSpec::AirCooler(s))) =
+                        unit.map(|x| &x.spec)
+                    && let Some(t) = s.air_outlet_temperature_k(r.duty_w)
+                {
+                    ui.label("Air discharge temperature");
+                    ui.label(value_text(
+                        format_quantity(u, Quantity::Temperature, t),
+                        false,
+                    ));
+                    ui.end_row();
+                    if matches!(s.thermal, AirCoolerThermal::HotEndApproach(_) | AirCoolerThermal::ColdEndApproach(_))
+                        && let Some(pre_fan) = s.pre_fan_air_outlet_temperature_k(r.duty_w)
+                    {
+                        ui.label("Pre-fan air outlet temperature");
+                        ui.label(value_text(format_quantity(u, Quantity::Temperature, pre_fan), false));
+                        ui.end_row();
+                    }
+                    ui.label("Fan power");
+                    ui.label(value_text(
+                        format_quantity(u, Quantity::Duty, s.fan_power_w),
+                        false,
+                    ));
+                    ui.end_row();
+                }
+                if matches!(kind, Some(UnitKind::HeatExchanger | UnitKind::MultiStreamExchanger)) {
+                    // An exchanger reports internal transfer and has zero external duty.
                     ui.label("Transferred duty (hot to cold)");
                     ui.label(match r.transferred_duty_w {
                         Some(q) => value_text(format_quantity(u, Quantity::Duty, q), stale),
@@ -236,10 +290,156 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                     });
                     ui.end_row();
                 }
-                // Outlet summary from the first outlet stream.
-                if let Some(kind) = kind {
-                    for (i, port) in kind.ports().iter().enumerate() {
-                        if port.direction != PortDirection::Outlet {
+                if !stale {
+                    let approach = match unit.map(|x| &x.spec) {
+                        Some(UnitSpec::HeatExchanger { thermal: ExchangerSpec::HotEndApproach(_), .. }) => {
+                            temperature(0).zip(temperature(3)).map(|(hot, cold)| ("Achieved hot-end approach", hot - cold))
+                        }
+                        Some(UnitSpec::HeatExchanger { thermal: ExchangerSpec::ColdEndApproach(_), .. }) => {
+                            temperature(2).zip(temperature(1)).map(|(hot, cold)| ("Achieved cold-end approach", hot - cold))
+                        }
+                        Some(UnitSpec::HeatTransport(HeatTransportSpec::AirCooler(s))) => match s.thermal {
+                            AirCoolerThermal::HotEndApproach(_) => temperature(0)
+                                .zip(s.pre_fan_air_outlet_temperature_k(r.duty_w))
+                                .map(|(hot, cold)| ("Achieved hot-end approach", hot - cold)),
+                            AirCoolerThermal::ColdEndApproach(_) => temperature(1)
+                                .zip(s.ambient_temperature_k)
+                                .map(|(hot, cold)| ("Achieved cold-end approach", hot - cold)),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    if let Some((label, delta)) = approach {
+                        ui.label(label);
+                        ui.label(value_text(format_quantity(u, Quantity::TemperatureDifference, delta), false));
+                        ui.end_row();
+                    }
+                }
+                if !stale
+                    && let Some(UnitSpec::HeatTransport(HeatTransportSpec::MultiStreamExchanger(s))) =
+                        unit.map(|x| &x.spec)
+                {
+                    for (i, pass) in s.passes.iter().enumerate() {
+                        let (Some(inlet), Some(outlet)) = (stream(i * 2), stream(i * 2 + 1)) else {
+                            continue;
+                        };
+                        let q = match (&inlet.state, &outlet.state) {
+                            (Some(a), Some(b)) => {
+                                inlet.molar_flow_mol_s * (b.enthalpy_j_mol - a.enthalpy_j_mol)
+                            }
+                            _ => 0.0,
+                        };
+                        ui.label(format!("Pass {} duty (+ into fluid)", i + 1));
+                        ui.label(value_text(format_quantity(u, Quantity::Duty, q), false));
+                        ui.end_row();
+                        if let ExchangerPassThermal::TerminalApproach { reference_pass, .. } =
+                            pass.thermal
+                            && let Some(index) = reference_pass.checked_sub(1)
+                            && let Some(reference) =
+                                stream(usize::from(index) * 2).and_then(|s| s.state.as_ref())
+                            && let Some(out) = &outlet.state
+                        {
+                            let approach = match pass.direction {
+                                ExchangerPassDirection::Hot => out.temperature_k - reference.temperature_k,
+                                ExchangerPassDirection::Cold => reference.temperature_k - out.temperature_k,
+                            };
+                            ui.label(format!("Pass {} terminal approach", i + 1));
+                            ui.label(value_text(
+                                format_quantity(u, Quantity::TemperatureDifference, approach),
+                                false,
+                            ));
+                            ui.end_row();
+                        }
+                    }
+                }
+                if let Some(c) = &r.shortcut_column {
+                    let number = |v: f64, digits: usize| value_text(format!("{v:.digits$}"), stale);
+                    for (label, text) in [
+                        ("Minimum stages (Fenske)", number(c.minimum_stages, 2)),
+                        ("Minimum reflux ratio (Underwood)", number(c.minimum_reflux_ratio, 4)),
+                        ("Reflux ratio L/D", number(c.reflux_ratio, 4)),
+                        ("Theoretical stages incl. reboiler", number(c.theoretical_stages, 2)),
+                        ("Feed stage from top (Kirkbride)", number(c.rectifying_stages + 1.0, 2)),
+                        ("Key relative volatility", number(c.relative_volatility, 4)),
+                        ("Feed condition q", number(c.feed_condition_q, 4)),
+                        ("Gilliland X", number(c.gilliland_x, 4)),
+                        (
+                            "Condenser duty (+ removed)",
+                            value_text(format_quantity(u, Quantity::Duty, c.condenser_duty_w), stale),
+                        ),
+                        (
+                            "Reboiler duty (+ supplied)",
+                            value_text(format_quantity(u, Quantity::Duty, c.reboiler_duty_w), stale),
+                        ),
+                        (
+                            "Overhead vapour dew point",
+                            value_text(
+                                format_quantity(u, Quantity::Temperature, c.top_vapor_temperature_k),
+                                stale,
+                            ),
+                        ),
+                    ] {
+                        ui.label(label);
+                        ui.label(text);
+                        ui.end_row();
+                    }
+                }
+                if let Some(x) = &r.material_exchange {
+                    ui.label("External material (+ into unit)");
+                    ui.label(value_text(
+                        format_quantity(u, Quantity::MolarFlow, x.molar_flow_mol_s),
+                        stale,
+                    ));
+                    ui.end_row();
+                    if !stale && let Some(package) = &ed.package {
+                        for (id, &flow) in package.components.iter().zip(&x.component_flows_mol_s) {
+                            ui.label(id);
+                            ui.label(value_text(
+                                format_quantity(u, Quantity::MolarFlow, flow),
+                                false,
+                            ));
+                            ui.end_row();
+                        }
+                    }
+                    ui.label("Enthalpy carried by material");
+                    ui.label(value_text(
+                        format_quantity(u, Quantity::Duty, x.enthalpy_flow_w),
+                        stale,
+                    ));
+                    ui.end_row();
+                }
+                // Energy streams at the unit (#171), positive in the stream
+                // direction.
+                let ports = ed.fs.unit(id).map(|x| x.ports()).unwrap_or_default();
+                for (i, port) in ports.iter().enumerate() {
+                    if port.medium != PortMedium::Energy {
+                        continue;
+                    }
+                    let Some(s) = ed.fs.stream_at(PortRef::new(id, i)) else {
+                        continue;
+                    };
+                    let Some(e) = ed
+                        .results
+                        .as_ref()
+                        .and_then(|r| r.energy_streams.get(&s.id))
+                    else {
+                        continue;
+                    };
+                    let st = ed.stream_status(s.id, fps) == Some(ItemStatus::Stale) || stale;
+                    let arrow = match port.direction {
+                        PortDirection::Inlet => "in",
+                        PortDirection::Outlet => "out",
+                    };
+                    ui.label(format!("{port} ({}, {arrow})", s.name));
+                    ui.label(value_text(format_quantity(u, Quantity::Duty, e.duty_w), st));
+                    ui.end_row();
+                }
+                // Outlet summary of every connected material outlet.
+                if kind.is_some() {
+                    for (i, port) in ports.iter().enumerate() {
+                        if port.direction != PortDirection::Outlet
+                            || port.medium != PortMedium::Material
+                        {
                             continue;
                         }
                         let Some(s) = ed.fs.stream_at(PortRef::new(id, i)) else {
@@ -251,7 +451,7 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         };
                         let current = ed.stream_status(s.id, fps);
                         let st = current == Some(ItemStatus::Stale) || stale;
-                        ui.label(format!("{} ({})", port.name, s.name));
+                        ui.label(format!("{} ({})", port.label(), s.name));
                         ui.label(value_text(stream_summary(sr, u), st));
                         ui.end_row();
                     }

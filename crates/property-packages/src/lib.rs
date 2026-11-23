@@ -1,11 +1,11 @@
 //! One immutable model/data/interaction selection for a connected flowsheet.
-//! The initial adapter supports exact PR and PR-BM on their existing TP/PH domain.
+//! The initial adapter supports exact PR and PR-BM on their existing TP/PH/PS domain.
 
 use thermo_models::CubicModel;
 // The cubic homogeneous envelope, re-exported for interfaces that build packages
 // without depending on `thermo-models` directly.
 pub use thermo_models::{CUBIC_PRESSURE_RANGE_PA, CUBIC_TEMPERATURE_RANGE_K};
-use thermo_solvers::{FlashPhase, PhFlashOptions, ph_flash, tp_flash};
+use thermo_solvers::{FlashPhase, PhFlashOptions, ph_flash, ps_flash, tp_flash};
 use thermo_types::{CalculationError, Diagnostic, Pressure, Temperature};
 
 /// Equilibrium state in package component order. Phase states retain model,
@@ -28,6 +28,8 @@ pub struct Convergence {
     pub max_ln_fugacity_residual: f64,
     pub max_component_balance_residual: Option<f64>,
     pub scaled_energy_residual: Option<f64>,
+    /// PS only: (s − s_target) / max(|s_target|, 1 J/(mol K)).
+    pub scaled_entropy_residual: Option<f64>,
 }
 
 impl EquilibriumState {
@@ -161,6 +163,7 @@ impl CubicPackage {
                 max_ln_fugacity_residual: r.max_ln_fugacity_residual,
                 max_component_balance_residual: Some(r.max_component_balance_residual),
                 scaled_energy_residual: None,
+                scaled_entropy_residual: None,
             },
             diagnostics: r.diagnostics,
         })
@@ -200,6 +203,47 @@ impl CubicPackage {
                     .as_ref()
                     .map(|tp| tp.max_component_balance_residual),
                 scaled_energy_residual: Some(r.scaled_energy_residual),
+                scaled_entropy_residual: None,
+            },
+            diagnostics: r.diagnostics,
+        })
+    }
+
+    /// PS equilibrium (A14) on the same reference and bounded search interval.
+    pub fn ps(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        entropy: f64,
+    ) -> Result<EquilibriumState, CalculationError> {
+        self.validate_options()?;
+        let r = ps_flash(
+            &self.model.with_fractions(fractions)?,
+            Pressure::new(pressure_pa)?,
+            entropy,
+            self.options,
+        )?;
+        Ok(EquilibriumState {
+            temperature_k: r.temperature_k,
+            pressure_pa: r.pressure_pa,
+            mole_fractions: fractions.to_vec(),
+            phases: r.phases,
+            iterations: r.iterations,
+            convergence: Convergence {
+                max_ln_fugacity_residual: r.tp.as_ref().map_or_else(
+                    || {
+                        r.pure_saturation
+                            .as_ref()
+                            .map_or(0.0, |s| s.fugacity_residual)
+                    },
+                    |tp| tp.max_ln_fugacity_residual,
+                ),
+                max_component_balance_residual: r
+                    .tp
+                    .as_ref()
+                    .map(|tp| tp.max_component_balance_residual),
+                scaled_energy_residual: None,
+                scaled_entropy_residual: Some(r.scaled_entropy_residual),
             },
             diagnostics: r.diagnostics,
         })

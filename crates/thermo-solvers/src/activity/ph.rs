@@ -111,7 +111,7 @@ pub fn activity_ph_flash(
     };
     let mut diagnostics = vec![diagnostic(
         "A7-PH-GAMMA-PHI",
-        "PH energy uses phase-weighted gamma-phi enthalpy (NASA7 ideal gas; Clausius-Clapeyron pure liquids; NRTL excess); single-phase scale max(|h_target|, 1 J/mol), two-phase mixture scale max(|h_target|, two-phase enthalpy span, 1 J/mol).",
+        "PH energy uses phase-weighted gamma-phi enthalpy (NASA7 ideal gas; saturation-pressure slope for pure liquids; NRTL excess); single-phase scale max(|h_target|, 1 J/mol), two-phase mixture scale max(|h_target|, two-phase enthalpy span, 1 J/mol).",
         DiagnosticSeverity::Information,
     )];
     if tb.is_none() || td.is_none() {

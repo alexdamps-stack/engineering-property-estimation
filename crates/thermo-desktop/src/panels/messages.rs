@@ -1,7 +1,7 @@
 //! Message list of the bottom panel.
 
 use eframe::egui::{RichText, ScrollArea, Ui};
-use flowsheet_core::{DiagnosticKind, StreamId, UnitId};
+use flowsheet_core::{CalculationStatus, DiagnosticKind, StreamId, UnitId};
 use flowsheet_project::Currency;
 
 use super::status_style;
@@ -64,12 +64,34 @@ pub(super) fn messages_of(ed: &mut Editor) -> Vec<Message> {
             | DiagnosticKind::InvalidSpecification(u, _) => Some(u),
             DiagnosticKind::RecycleUnsupported(ref c) => c.first().copied(),
             DiagnosticKind::NoFeed => None,
+            DiagnosticKind::EnergyStreamMissing(p) => Some(p.unit),
+            DiagnosticKind::EnergyOverspecified(s)
+            | DiagnosticKind::EnergyUnderspecified(s)
+            | DiagnosticKind::EnergyAgainstFlow(s) => ed.fs.stream(s).map(|s| s.to.unit),
         };
         out.push(Message {
             unit,
             status: ItemStatus::Underspecified,
             text: d.message,
         });
+    }
+    // Drawn-only units (A17 palette items without a calculation yet) are
+    // named before a solve, which would stop at the first of them.
+    for u in ed.fs.units() {
+        if let CalculationStatus::DrawnOnly(reason) = u.kind.calculation_status() {
+            let issue = u
+                .kind
+                .issue()
+                .map_or_else(String::new, |n| format!(" (#{n})"));
+            out.push(Message {
+                unit: Some(u.id),
+                status: ItemStatus::Warning,
+                text: format!(
+                    "{}: {} {reason}{issue}; the flowsheet cannot be solved while it is placed.",
+                    u.name, u.kind
+                ),
+            });
+        }
     }
     for i in ed.input_issues() {
         out.push(Message {

@@ -1,0 +1,293 @@
+# A17 status
+
+Work package A17 (#170). One section per group; each group edits only its
+own section. Conventions: [a17-architecture.md](a17-architecture.md).
+Status values: *deferred*, *drawn only*, *calculated*, *calculated (partial)*, *not
+feasible in steady state* (with the reason).
+
+## Foundation (integrator)
+
+| Item | Issue | Status | Notes |
+|---|---|---|---|
+| Energy streams, energy source/sink, heater/cooler energy ports | #171 | calculated | Tests in `crates/flowsheet-core/tests/energy.rs`; project format 4. |
+| All A17 kinds in `UnitKind`, grouped palette, ISO 10628 symbols | #170 | done | Individual groups enable calculation as implementations become available. |
+| Variable/numbered ports, group modules, format version 4 | #170 | done | See the architecture document. |
+
+## Rotating
+
+| Kind | Issue | Status | Specification | Validation / reference | Notes |
+|---|---|---|---|---|---|
+| Cubic pressure–entropy flash | A14 | calculated | Overall mole fractions, absolute pressure, molar entropy on the cubic caloric reference | 28 matched PR/PR-BM states in `validation/rotating/ps-v1.json`, consumed by `thermo-solvers/tests/ps.rs` | Available through `CubicPackage::ps`. Pump, compressor, expander and multistage compressor remain drawable. The fixture also holds outlet and power references for subsequent rotating-unit work. |
+
+## Heat transport
+
+| Kind | Issue | Status | Specification | Validation / reference | Notes |
+|---|---|---|---|---|---|
+| Air cooler | #179 | calculated (partial) | Specify process outlet temperature, nonpositive process duty, or a fixed terminal approach. Assign pressure drop, ambient air temperature, dry-air mass flow, and optional nonnegative fan power. | Analytic sensible-air and fan energy balance, TP/PH agreement, approach targets and failure cases. | One material inlet and one outlet. ISO asset `s2-x2505-heat-exchanger-with-finned-tube-and-fan`. |
+| Fired heater | #180 | calculated | Specify process outlet temperature, nonnegative process duty, or duty from an energy stream, with an assigned pressure drop. | Reverse of the independent process cooler reference for PR and PR-BM, plus sign, connection and zero-flow checks. | Duty-only model with one material inlet and one outlet. ISO asset `s2-2533-furnace`. |
+| Multi-stream exchanger | #181 | calculated (partial) | For 2–12 material passes, assign each direction and pressure drop. Specify outlet temperature, signed duty or a fixed terminal approach on all but one pass. The last degree of freedom closes the heat balance. | Independent dilute-gas heat-capacity integral, endpoint feasibility and closure tests, and fixed-approach solve and v4 reload checks. | Full-span countercurrent core with two checked terminals. Retains ISO asset `s2-2516-heat-exchanger-of-plate-type`. |
+
+The air cooler and fired heater carry the process molar flow and overall composition through one
+equilibrium outlet. Assigned outlet temperature uses TP and derives process duty
+from the enthalpy change. Assigned duty uses PH at outlet pressure. Pressure
+loss must leave positive absolute outlet pressure. The engine closes component
+and process enthalpy balances using the signed process duty.
+
+The air cooler models a dry, near-atmospheric air stream with constant
+\(c_p = 1005\) J/(kg K). The air-side flow is imposed. Positive heat rejection
+requires the process inlet to be warmer than ambient. The model accepts zero
+terminal approach at either end. The process outlet must be at least as warm
+as the air inlet, and the air leaving the exchanger must be at most as warm
+as the process inlet. Sizing or predicting operating duty
+from fan speed would require exchanger conductance, geometry and fan curves.
+Humidity and evaporative cooling are outside the model.
+[WMO dry-air heat capacity, summarized in Table 1](https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=929976).
+
+The process duty \(Q\) is negative for heat rejection. Fan power \(W_f\) is
+assigned independently and dissipates into the air downstream of the
+exchanger. The discharge air gains \(-Q + W_f\). Fan power stays outside
+the process enthalpy balance, and a calculated energy source connected to
+the existing fan power port reports only \(W_f\). A stopped process has an
+empty outlet and zero process duty, with independent fan operation.
+
+The fired heater's optional duty port reports process duty with a calculated
+energy source in temperature or assigned-duty mode. In energy-stream mode
+the connected stream supplies that duty. The model reports heat absorbed by
+the process fluid and rejects heat removal. Applying a nonzero assigned
+heat input to an empty process stream fails. Fuel use, combustion efficiency,
+flue gas, emissions and furnace design require additional models.
+
+Existing version 4 records retain their kinds and port identities. Old
+records load with the outlet temperature unset and zero pressure drop.
+The air cooler also requires assigned ambient temperature and airflow.
+
+### Fixed approach in the two-stream exchanger and air cooler
+
+Both units offer a choice of hot-end or cold-end approach. The specified
+temperature difference is a nonnegative equality at the chosen terminal.
+Each setting replaces the outlet-temperature or duty specification.
+
+| Unit | Fixed hot end | Fixed cold end |
+|---|---|---|
+| Two-stream exchanger | Hot inlet temperature minus cold outlet temperature. The cold outlet setpoint and pressure give duty by TP. PH at the hot outlet pressure closes the hot stream. | Hot outlet temperature minus cold inlet temperature. The hot outlet setpoint and pressure give duty by TP. PH at the cold outlet pressure closes the cold stream. |
+| Air cooler | Process inlet temperature minus air outlet temperature before fan heat. The required rise from ambient determines process duty using the assigned dry-air heat-capacity rate. PH determines the process outlet. | Process outlet temperature minus ambient air inlet temperature. TP determines the process outlet and duty. The dry-air balance gives the air outlet before fan heat. |
+
+The two-stream exchanger still takes both pressure drops as inputs. The air
+cooler still takes its process pressure drop, ambient air temperature, dry-air
+mass flow and optional fan power. Fan power raises the discharge temperature
+after the hot-end reference point and reports on the existing fan port.
+
+Fixed approach needs flowing process streams on both sides of the two-stream
+exchanger and flowing process fluid through the air cooler. The solver rejects
+an approach that reverses heat transfer, crosses the other terminal, or cannot
+produce a valid outlet state. A zero approach is the limiting terminal case.
+These checks cover the two terminal planes. Internal pinch, area and
+predictive performance require further equipment models.
+
+The results show the achieved approach and solved duty. Version 4 records
+store the terminal choice and difference in kelvins. Earlier records keep
+their thermal choice and connection identities.
+
+### Multi-stream exchanger
+
+Each `in k` connects through its own pass to `out k` with the same molar
+flow and composition. The hot streams share one flow direction and the cold
+streams run countercurrent across the same two terminal planes. Both directions
+are required. Each pass takes a nonnegative pressure drop that must leave
+positive absolute outlet pressure when flowing. Pressure drop is an input.
+
+With $N$ passes, there are $N-1$ independent thermal specifications. In
+outlet-temperature mode, TP determines enthalpy and duty from the setpoint.
+In fixed-duty mode, PH determines the outlet. Positive signed duty heats the
+pass. The one **Heat balance** pass uses PH with duty equal to minus the sum
+of the other duties. The sum of duties must close to zero and the external
+duty is zero. The results report the total internal transfer, the signed
+duty into each pass, and the attained difference for fixed-approach passes.
+
+**Fixed approach** replaces an outlet-temperature or duty input on the
+selected pass. Choose the flowing inlet of an opposite-direction pass at the
+same terminal. For a hot outlet the equality is $T_{h,out}-T_{c,in}=\Delta T$.
+For a cold outlet it is $T_{h,in}-T_{c,out}=\Delta T$. The chosen gap fixes
+the selected outlet temperature, TP gives its duty, and the heat balance
+pass absorbs the remaining duty. Several independent fixed approaches can
+reference known inlets. They cannot also prescribe duty or outlet temperature
+on those passes.
+
+The separate **Minimum terminal approach** is a feasibility bound. For
+every flowing hot/cold pair the engine checks both $T_{h,out}-T_{c,in}$
+and $T_{h,in}-T_{c,out}$ against it within $10^{-9}$ K. A zero-flow pass
+requires explicitly zero duty and produces an empty outlet. It does not take
+part in terminal comparisons or provide a reference for a fixed approach.
+A zero-flow balancing pass cannot determine an outlet state.
+
+Passing the terminal checks establishes endpoint feasibility for the
+full-span core. Interior pinch, intermediate entries and exits, detailed
+pressure profiles, UA, area, and plate-fin rating require a zone or
+composite-curve model with heat-transfer and hydraulic data.
+[Simulation and Design Methods for Multiphase Multistream Heat Exchangers](https://skoge.folk.ntnu.no/prost/proceedings/dycops-cab-2016/proceedings/media/papers/0172.pdf).
+
+Legacy v4 exchanger records keep their count, numbering and connections.
+They load with zero drops and minimum approach, one hot pass first, cold
+passes after it, and the last pass selected for heat balance. Specify the
+other thermal settings before solving.
+
+## Simple and logical
+
+| Kind | Issue | Status | Specification | Validation / reference | Notes |
+|---|---|---|---|---|---|
+| Component splitter | #172 | calculated | Overhead recovery from 0 to 1 for each package component. Bottoms receives the remainder. | Analytic component split, empty outlet, signed duty and failure cases through `flowsheet-project/tests/component_splitter.rs`. Desktop form exercised headlessly. | The isothermal, zero-pressure-drop mode reuses the cubic TP flash at each flowing outlet. It calculates the net duty and can report it on its optional energy inlet. Recoveries are stored by component ID in project format 4. |
+| Stream multiplier | #173 | calculated | Finite flow factor ≥ 0. Factor 2 doubles the stream into one outlet. | Analytic flow and enthalpy accounting in `flowsheet-project/tests/logical_streams.rs`. | Logical block with one inlet and one outlet. |
+| Stream selector | #174 | calculated | Choose one of 2–12 connected inlets by its one-based port number. | Analytic forwarding and boundary accounting in `flowsheet-project/tests/logical_streams.rs`. | Retains ISO asset `s6-2103-valve-three-way-type-general`. |
+| Tank | #178 | calculated | Adiabatic, specified outlet temperature, or signed duty, with a specified pressure drop. | Matched isenthalpic outlet reference, closure, failure and v4 reload checks in `flowsheet-project/tests/tank.rs`. | One inlet and one bulk outlet. Retains ISO asset `s1-x2063-tank-with-conical-roof-and-flat-bottom`. |
+| Balance | #215 | drawn only | General envelope around selected existing streams. | Requires the prerequisites below. | The engine's unit balance checks remain available on all calculable units. |
+
+The splitter prescribes component recoveries. Both outlets can contain vapor
+and liquid depending on their composition at the inlet temperature and pressure.
+An empty outlet has no thermodynamic state. Adiabatic and prescribed-duty
+splitting would require a separate outlet-temperature solve. The existing
+palette drawing retains ISO reference asset `s3-x2616-impact-separator`.
+
+The multiplier and selector can exchange material with the modeled boundary.
+The multiplier's external material is the inlet scaled by `factor − 1` at its existing state.
+The selector forwards its chosen inlet as-is, including zero flow, and records
+the other inlets as external outflow. Each unselected inlet carries its own
+enthalpy across the boundary, so no mixing or flash is needed. These units
+have zero heat duty. Results record the signed total and component molar
+flows and their carried enthalpy, with positive flow into the flowsheet.
+The same component and energy closure checks include these terms in both
+acyclic solves and final recycle closure.
+
+Both specifications and the optional result field are stored in project format
+4. Older records preserve their ports and load with the factor or selection
+unset. Specify the missing value before solving. The engine revision marks
+results from older balance rules stale.
+
+The steady-state tank carries the inlet flow and overall composition to a
+single equilibrium outlet, including both phases when the fluid splits.
+It uses TP for an assigned outlet temperature and PH for an assigned duty
+or adiabatic pressure loss. Adiabatic service at unchanged pressure preserves
+the inlet phase state. The optional energy inlet reports the calculated or
+specified duty to a calculated energy source. Empty inlets give empty
+outlets and a zero-duty warning. Inventory, level and time-dependent
+operations are outside the steady-state model. Existing v4 tank records
+default to adiabatic operation and zero pressure drop.
+
+A Balance block can form an envelope around streams already connected
+elsewhere and solve for an unknown stream variable. An audit-only first
+step needs signed, non-consuming material and energy stream references
+and result fingerprints for those references. It would report residuals
+after recycle closure and account for heat duty and logical material exchange
+exactly once. Solving unknowns additionally needs degree-of-freedom and rank
+checks, explicit ownership of each calculated variable, and a reflash and
+atomic update path that works within recycle sequencing.
+[Aspen Plus User Guide, chapter 25](https://web.ist.utl.pt/ist11038/acad/Aspen/AspUserGuide10.pdf).
+
+## Reactors
+
+Conversion, yield, equilibrium, Gibbs, stirred-tank, plug-flow and batch reactors
+(#191–#197) run through the flowsheet engine and desktop. See the
+[reactor model and validation record](a17-reactors.md) for specifications,
+formation-basis balances, kinetic rate bases and supported limits.
+
+## Columns
+
+| Kind | Issue | Status | Specification | Validation / reference | Notes |
+|---|---|---|---|---|---|
+| Shortcut column | #185 | calculated (partial) | Light and heavy key, light-key recovery to distillate and heavy-key recovery to bottoms (each strictly 0–1, sum above 1), column pressure, and either reflux ratio or multiple of minimum reflux. | Four PR/PR-BM cases from the independent teqp/Cantera/SciPy generator `validation/columns/` (binary, ternary with distributing methane, high-pressure let-down feed), checked within the fixture's declared tolerances by `flowsheet-core/tests/shortcut_column.rs`. Project round trip, legacy reload and a headless desktop test. | Fenske–Underwood–Gilliland (Molokanov fit) with Kirkbride feed location. One feed, total condenser, partial reboiler. Retains ISO asset `s1-x8100-column-general`. |
+
+The [equilibrium-stage foundation](a17-columns-stages.md) supports stage
+balances and [ideal packed sections using HETP](a17-columns-packing.md).
+The rigorous distillation and absorber palette entries remain drawn only
+while the whole-column solve and specification forms are pending.
+
+### Shortcut column
+
+The column takes one feed and produces a distillate and a bottoms product.
+It has one uniform pressure with no pressure drop. The total condenser and
+partial reboiler both operate at that pressure, and both products leave as
+saturated liquid at their bubble points. The column pressure may not exceed
+the feed pressure: the feed is let down isenthalpically and keeps its own
+enthalpy. The four inputs are independent. The keys must be two different
+package components, and both must be present in the feed. The light key must
+be more volatile than the heavy key at column conditions.
+
+- **Feed condition.** The method takes
+  $q=(h_{dew}-h_F)/(h_{dew}-h_{bub})$, using the saturated enthalpies of the
+  feed composition at column pressure. Subcooled feeds give $q>1$ and
+  superheated feeds give $q<0$.
+- **Volatility and split.** Relative volatilities are package K-value ratios
+  to the heavy key. Each is the geometric mean of its value at the overhead
+  dew point and at the bottoms bubble point. These are iterated together with
+  the Fenske total-reflux split to a fixed point, with $\max|\Delta\ln\alpha|<10^{-10}$
+  in at most 100 iterations. Fenske (1932) gives $N_{min}$. The
+  Hengstebeck–Geddes form gives the non-key distribution, and the key
+  recoveries are met exactly.
+- **Minimum reflux.** Underwood (1948) gives the minimum reflux from the root
+  between the key volatilities. The keys must be adjacent: the model rejects
+  a feed component whose volatility lies between them.
+- **Stages and feed location.** Gilliland (1940) gives the stage count in the
+  Molokanov et al. (1972) form
+  $Y=1-\exp[(1+54.4X)/(11+117.2X)\cdot(X-1)/\sqrt X]$, with
+  $N=(N_{min}+Y)/(1-Y)$. Stage counts include the reboiler and exclude the
+  total condenser. Kirkbride (1944) gives the number of rectifying stages.
+- **Duties.** The condenser duty is $Q_C=(R+1)D(h_{V,top}-h_D)$, where the
+  overhead vapour is at the dew point of the distillate. The reboiler duty
+  $Q_R$ closes the overall enthalpy balance. Both must be positive. The
+  condenser-duty port reports $Q_C$ and the reboiler-duty port reports $Q_R$
+  to a calculated source or a sink. The net external duty is $Q_R-Q_C$.
+
+The solver fails explicitly when:
+
+- the feed has zero flow or no state;
+- a key is unknown, absent from the feed or the same as the other key;
+- the column pressure exceeds the feed pressure;
+- a bubble or dew point lies outside the A13 domain or is near critical;
+- the keys are inverted or not adjacent;
+- the volatilities do not converge;
+- $R_{min}\le 0$, $R\le R_{min}$ or the multiple of minimum reflux is at most 1;
+- either duty is not positive or the bottoms are not hotter than the overhead;
+- any result is not finite.
+
+It warns when the Gilliland abscissa lies outside 0.01–0.9 or when a non-key
+component distributes between the products.
+
+**Domain and limits.** Bubble and dew points use the bounded A13 saturation
+solver. Every feed component must be methane, ethane, propane, nitrogen or
+carbon dioxide, and states must lie within 200–350 K and 10 kPa–10 MPa.
+Water, methanol and oxygen are rejected. The results are design estimates.
+Several things are not modelled:
+
+- tray hydraulics, column diameter and efficiencies;
+- partial condensers, side draws and multiple feeds;
+- non-adjacent keys, or more than one Underwood root;
+- liquid–liquid phases;
+- temperature approaches at the condenser and reboiler utilities.
+
+Constant relative volatility and constant molar overflow are inherent
+assumptions of the method.
+
+**Persistence.** Version 4 records store the keys, recoveries, pressure and
+reflux choice. These fields were added behind format version 4 without a
+version bump. An earlier empty `shortcut_column` record loads with every
+input unset. Unit results carry the optional `shortcut_column` estimate.
+Unknown fields are refused.
+
+**Later column stages.** Item 9 covers trayed and ideal-stage packed
+equilibrium columns (#186, #187) and needs an equilibrium-stage (MESH)
+solver. It can initialise from this estimate: $N$, the feed stage, $R$,
+$D$ and the end temperatures. Rate-based packing, three-phase columns,
+extraction and petroleum fractionation are later batches. Mixtures beyond
+the dry hydrocarbon/N2/CO2 set need a bubble/dew solver qualified for them.
+Any future detailed condenser or reboiler heat-transfer model should expose
+a fixed temperature approach to a defined utility reference.
+
+## Multiphase
+
+| Kind | Issue | Status | Specification | Validation / reference | Notes |
+|---|---|---|---|---|---|
+
+## Solids
+
+Solids handling (#198–#211) is deferred. The desktop add palette omits the
+Solids category and its 14 units. Projects containing those units still
+load, display and save with their existing kinds, ports and specifications.

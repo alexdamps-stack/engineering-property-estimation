@@ -195,7 +195,7 @@ impl ActivityModel {
             identifier: format!("gamma-phi/{}/{:?}", nrtl.identifier, self.vapor),
             implementation_version: "a7-v1".into(),
             formulation: format!(
-                "modified Raoult y_i p = x_i gamma_i psat_i; vapor {:?} (phi=1); no Poynting, no phi_sat; liquid g_i = g_i^ig(T,p0) + RT ln(psat_i/p0); pure-liquid caloric terms from Clausius-Clapeyron with ideal-gas vapor and negligible liquid volume, plus NRTL excess for mixtures; psat: CoolProp pV ancillaries; liquid volume: saturated-liquid ancillary with ideal mixing, uncoupled; {}",
+                "modified Raoult y_i p = x_i gamma_i psat_i; vapor {:?} (phi=1); no Poynting, no phi_sat; liquid g_i = g_i^ig(T,p0) + RT ln(psat_i/p0); pure-liquid caloric terms from the saturation-pressure slope with ideal-gas vapor and negligible liquid volume, plus NRTL excess for mixtures; psat: exponential vapor-pressure correlations; liquid volume: saturated-liquid density correlations with ideal mixing, uncoupled; {}",
                 self.vapor, nrtl.formulation
             ),
         }
