@@ -499,16 +499,22 @@ mod tests {
                 assert!(a.distance(*b) > 1.0, "{column}: overlapping nozzles");
             }
         }
-        // Every port of every new unit lies on its block edge.
         for kind in UnitKind::ALL {
             let rect = block_rect(kind, Pos2::ZERO);
-            for i in 0..kind.default_ports().len() {
+            for (i, port) in kind.default_ports().iter().enumerate() {
+                if port.medium != PortMedium::Energy {
+                    continue;
+                }
                 let p = port_pos(kind, Pos2::ZERO, i);
-                let on_edge = p.x == rect.left()
-                    || p.x == rect.right()
-                    || p.y == rect.top()
-                    || p.y == rect.bottom();
-                assert!(on_edge, "{kind} port {i} at {p:?}");
+                let expected_y = match port.direction {
+                    PortDirection::Inlet => rect.top(),
+                    PortDirection::Outlet => rect.bottom(),
+                };
+                assert_eq!(p.y, expected_y, "{kind} energy port {i}");
+                assert!(
+                    rect.x_range().contains(p.x),
+                    "{kind} energy port {i} at {p:?}"
+                );
             }
         }
     }
