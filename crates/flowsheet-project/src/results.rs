@@ -102,12 +102,76 @@ pub struct UnitResult {
     /// Material and enthalpy crossing the modeled flowsheet boundary at this unit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material_exchange: Option<MaterialExchangeResult>,
+    /// Shortcut column design estimates (#185, added behind format version 4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shortcut_column: Option<ShortcutColumnEstimate>,
     /// Engine warnings (for example a single-phase separator).
     pub warnings: Vec<String>,
     /// Largest scaled component balance residual (internal units only).
     pub max_scaled_component_residual: Option<f64>,
     /// Scaled energy balance residual (internal units only).
     pub scaled_energy_residual: Option<f64>,
+}
+
+/// Fenske–Underwood–Gilliland estimates of a shortcut column (#185). Stage
+/// counts include the reboiler and exclude the total condenser.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShortcutColumnEstimate {
+    pub relative_volatility: f64,
+    pub feed_condition_q: f64,
+    pub minimum_stages: f64,
+    pub underwood_root: f64,
+    pub minimum_reflux_ratio: f64,
+    pub reflux_ratio: f64,
+    pub gilliland_x: f64,
+    pub theoretical_stages: f64,
+    pub rectifying_stages: f64,
+    /// W, positive out of the column.
+    pub condenser_duty_w: f64,
+    /// W, positive into the column.
+    pub reboiler_duty_w: f64,
+    pub top_vapor_temperature_k: f64,
+    pub volatility_iterations: usize,
+}
+
+impl ShortcutColumnEstimate {
+    fn numbers(&self) -> [f64; 12] {
+        [
+            self.relative_volatility,
+            self.feed_condition_q,
+            self.minimum_stages,
+            self.underwood_root,
+            self.minimum_reflux_ratio,
+            self.reflux_ratio,
+            self.gilliland_x,
+            self.theoretical_stages,
+            self.rectifying_stages,
+            self.condenser_duty_w,
+            self.reboiler_duty_w,
+            self.top_vapor_temperature_k,
+        ]
+    }
+}
+
+impl From<&flowsheet_core::units::columns::ShortcutColumnResult> for ShortcutColumnEstimate {
+    fn from(r: &flowsheet_core::units::columns::ShortcutColumnResult) -> Self {
+        Self {
+            relative_volatility: r.relative_volatility,
+            feed_condition_q: r.feed_condition_q,
+            minimum_stages: r.minimum_stages,
+            underwood_root: r.underwood_root,
+            minimum_reflux_ratio: r.minimum_reflux_ratio,
+            reflux_ratio: r.reflux_ratio,
+            gilliland_x: r.gilliland_x,
+            theoretical_stages: r.theoretical_stages,
+            rectifying_stages: r.rectifying_stages,
+            condenser_duty_w: r.condenser_duty_w,
+            reboiler_duty_w: r.reboiler_duty_w,
+            top_vapor_temperature_k: r.top_vapor_temperature_k,
+            volatility_iterations: r.volatility_iterations,
+        }
+    }
 }
 
 /// External material contribution, positive flow into the unit.
@@ -194,6 +258,7 @@ impl ResultSet {
                                 enthalpy_flow_w: x.enthalpy_flow_w,
                             }
                         }),
+                        shortcut_column: u.shortcut_column.as_ref().map(Into::into),
                         warnings: u.warnings.clone(),
                         max_scaled_component_residual: u
                             .balance
@@ -288,6 +353,9 @@ impl ResultSet {
                         || bad(x.enthalpy_flow_w)
                         || x.component_flows_mol_s.iter().copied().any(bad)
                 })
+                || u.shortcut_column
+                    .as_ref()
+                    .is_some_and(|r| r.numbers().into_iter().any(bad))
                 || opt(u.max_scaled_component_residual)
                 || opt(u.scaled_energy_residual)
             {

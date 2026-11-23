@@ -330,6 +330,38 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         }
                     }
                 }
+                if let Some(c) = &r.shortcut_column {
+                    let number = |v: f64, digits: usize| value_text(format!("{v:.digits$}"), stale);
+                    for (label, text) in [
+                        ("Minimum stages (Fenske)", number(c.minimum_stages, 2)),
+                        ("Minimum reflux ratio (Underwood)", number(c.minimum_reflux_ratio, 4)),
+                        ("Reflux ratio L/D", number(c.reflux_ratio, 4)),
+                        ("Theoretical stages incl. reboiler", number(c.theoretical_stages, 2)),
+                        ("Feed stage from top (Kirkbride)", number(c.rectifying_stages + 1.0, 2)),
+                        ("Key relative volatility", number(c.relative_volatility, 4)),
+                        ("Feed condition q", number(c.feed_condition_q, 4)),
+                        ("Gilliland X", number(c.gilliland_x, 4)),
+                        (
+                            "Condenser duty (+ removed)",
+                            value_text(format_quantity(u, Quantity::Duty, c.condenser_duty_w), stale),
+                        ),
+                        (
+                            "Reboiler duty (+ supplied)",
+                            value_text(format_quantity(u, Quantity::Duty, c.reboiler_duty_w), stale),
+                        ),
+                        (
+                            "Overhead vapour dew point",
+                            value_text(
+                                format_quantity(u, Quantity::Temperature, c.top_vapor_temperature_k),
+                                stale,
+                            ),
+                        ),
+                    ] {
+                        ui.label(label);
+                        ui.label(text);
+                        ui.end_row();
+                    }
+                }
                 if let Some(x) = &r.material_exchange {
                     ui.label("External material (+ into unit)");
                     ui.label(value_text(

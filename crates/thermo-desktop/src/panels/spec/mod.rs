@@ -58,7 +58,7 @@ pub(super) fn spec_form(
         UnitSpec::HeatTransport(s) => heat_transport::form(ui, s, u),
         UnitSpec::SimpleLogical(s) => simple_logical::form(ui, s, u, components),
         UnitSpec::Reactors(s) => reactors::form(ui, s, u),
-        UnitSpec::Columns(s) => columns::form(ui, s, u),
+        UnitSpec::Columns(s) => columns::form(ui, s, u, components),
         UnitSpec::Multiphase(s) => multiphase::form(ui, s, u),
         UnitSpec::Solids(s) => solids::form(ui, s, u),
         UnitSpec::Feed {

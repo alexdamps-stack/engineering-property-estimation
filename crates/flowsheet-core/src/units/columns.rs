@@ -11,6 +11,10 @@ use crate::unit::{
     CalculationStatus, KindInfo, PaletteCategory, PortSpec, SpecIssue, SpecProblem, UnitKind,
 };
 
+mod shortcut;
+
+pub use shortcut::{ShortcutColumnResult, ShortcutColumnSpec, ShortcutReflux};
+
 /// Condenser duty leaves the column; reboiler duty enters it.
 const CONDENSER_REBOILER: [PortSpec; 2] = [
     PortSpec::energy_outlet("condenser duty"),
@@ -70,8 +74,11 @@ pub(crate) fn info(kind: UnitKind) -> KindInfo {
 }
 
 /// Calculation status of a column kind.
-pub(crate) fn status(_kind: UnitKind) -> CalculationStatus {
-    DRAWN_ONLY
+pub(crate) fn status(kind: UnitKind) -> CalculationStatus {
+    match kind {
+        UnitKind::ShortcutColumn => CalculationStatus::Calculated,
+        _ => DRAWN_ONLY,
+    }
 }
 
 /// Specifications of the column kinds.
@@ -86,10 +93,6 @@ pub enum ColumnSpec {
     /// Petroleum fractionator (#190).
     PetroleumFractionator(PetroleumFractionatorSpec),
 }
-
-/// Shortcut column specification (#185).
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct ShortcutColumnSpec {}
 
 /// Largest number of feeds or side draws of a column.
 pub const MAX_COLUMN_PORTS: u16 = 20;
@@ -158,6 +161,7 @@ impl GroupSpec for ColumnSpec {
     fn issues(&self) -> Vec<SpecIssue> {
         let mut out = Vec::new();
         match self {
+            ColumnSpec::Shortcut(s) => return s.issues(),
             ColumnSpec::Distillation(s) => {
                 count_issue(&mut out, "feeds", s.feeds, 1);
                 count_issue(&mut out, "side draws", s.side_draws, 0);
@@ -185,11 +189,18 @@ impl GroupSpec for ColumnSpec {
 /// Calculates a column unit.
 pub(crate) fn calculate(
     kind: UnitKind,
-    _spec: &ColumnSpec,
-    _inputs: &UnitInputs,
-    _ctx: &CalcContext,
+    spec: &ColumnSpec,
+    inputs: &UnitInputs,
+    ctx: &CalcContext,
 ) -> Result<UnitOutput, String> {
-    Err(super::not_implemented(kind))
+    match spec {
+        ColumnSpec::Shortcut(s) => {
+            let (mut output, result) = shortcut::calculate(s, &inputs.material[0], ctx)?;
+            output.shortcut_column = Some(result);
+            Ok(output)
+        }
+        _ => Err(super::not_implemented(kind)),
+    }
 }
 
 #[cfg(test)]

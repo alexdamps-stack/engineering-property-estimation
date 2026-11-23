@@ -85,6 +85,8 @@ pub struct UnitOutput {
     pub duty_w: f64,
     /// Heat moved internally between sides of an exchanger, W.
     pub transferred_duty_w: Option<f64>,
+    /// Design estimates for a shortcut distillation column.
+    pub shortcut_column: Option<columns::ShortcutColumnResult>,
     /// Material crossing the flowsheet boundary at this unit.
     pub material_exchange: Option<MaterialExchange>,
     /// Warnings shown with the result.
@@ -104,6 +106,7 @@ impl UnitOutput {
             outlets,
             duty_w,
             transferred_duty_w: None,
+            shortcut_column: None,
             material_exchange: None,
             warnings,
             energy: Vec::new(),

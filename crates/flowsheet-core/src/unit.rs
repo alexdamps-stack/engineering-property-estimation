@@ -955,6 +955,12 @@ pub enum SpecProblem {
     NotAvailableForKind,
     /// A count is outside its admissible range (for example zero column feeds).
     CountOutOfRange,
+    /// A value lies outside a model-specific admissible range (for example a
+    /// key recovery of exactly 1 or a multiple of minimum reflux of 1 or less).
+    OutOfRange,
+    /// The selection repeats another selection (for example equal light and
+    /// heavy keys).
+    Duplicate,
 }
 
 impl fmt::Display for SpecProblem {
@@ -971,6 +977,8 @@ impl fmt::Display for SpecProblem {
             }
             SpecProblem::NotAvailableForKind => "is not available for this unit kind",
             SpecProblem::CountOutOfRange => "is outside the admissible range",
+            SpecProblem::OutOfRange => "is outside the admissible range",
+            SpecProblem::Duplicate => "duplicates another selection",
         })
     }
 }

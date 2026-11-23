@@ -47,7 +47,7 @@ pub use project::{
 };
 pub use results::{
     Currency, EnergyStreamResult, MaterialExchangeResult, PhaseResult, RecycleResult, ResultSet,
-    StateResult, StreamResult, UnitResult,
+    ShortcutColumnEstimate, StateResult, StreamResult, UnitResult,
 };
 pub use time::format_utc;
 

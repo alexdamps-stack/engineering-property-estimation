@@ -1363,3 +1363,86 @@ fn canvas_frame_time_with_100_units() {
         h.state().editor().fs.streams().count()
     );
 }
+
+#[test]
+fn shortcut_column_form_solves_and_reports_design_estimates() {
+    use flowsheet_core::units::ColumnSpec;
+    use flowsheet_core::units::columns::{ShortcutColumnSpec, ShortcutReflux};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinsonBostonMathias,
+        vec!["ethane".into(), "propane".into()],
+        "shortcut column UI test",
+    ));
+    let column = ed.add_unit_at(UnitKind::ShortcutColumn, egui::pos2(220.0, 150.0));
+    let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(40.0, 150.0));
+    let top = ed.add_unit_at(UnitKind::Product, egui::pos2(420.0, 100.0));
+    let bottom = ed.add_unit_at(UnitKind::Product, egui::pos2(420.0, 220.0));
+    ed.fs.set_spec(
+        feed,
+        UnitSpec::Feed {
+            temperature_k: Some(295.0),
+            pressure_pa: Some(2.0e6),
+            molar_flow_mol_s: Some(100.0),
+        },
+    );
+    ed.feeds.insert(feed, vec![0.4, 0.6]);
+    ed.fs
+        .connect(PortRef::new(feed, 0), PortRef::new(column, 0))
+        .unwrap();
+    let distillate = ed
+        .fs
+        .connect(PortRef::new(column, 1), PortRef::new(top, 0))
+        .unwrap();
+    ed.fs
+        .connect(PortRef::new(column, 2), PortRef::new(bottom, 0))
+        .unwrap();
+    let mut spec = ShortcutColumnSpec {
+        light_key: Some("ethane".into()),
+        heavy_key: Some("propane".into()),
+        light_key_recovery: Some(0.98),
+        heavy_key_recovery: Some(0.97),
+        pressure_pa: Some(2.0e6),
+        reflux: ShortcutReflux::Ratio(Some(1.75)),
+    };
+    ed.fs.set_spec(
+        column,
+        UnitSpec::Columns(ColumnSpec::Shortcut(spec.clone())),
+    );
+    ed.selection = Some(Selection::Unit(column));
+
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Light key");
+    h.get_by_label("Heavy key");
+    h.get_by_label("Reflux ratio L/D");
+    // Switching the reflux choice clears the value until it is entered.
+    h.get_by_label("Multiple of minimum").click();
+    h.run();
+    h.get_by_label("R / R_min (> 1)");
+    spec.reflux = ShortcutReflux::MinimumMultiple(None);
+    assert_eq!(
+        h.state().editor().fs.unit(column).unwrap().spec,
+        UnitSpec::Columns(ColumnSpec::Shortcut(spec.clone())),
+    );
+    spec.reflux = ShortcutReflux::MinimumMultiple(Some(1.3));
+    h.state_mut()
+        .editor_mut()
+        .fs
+        .set_spec(column, UnitSpec::Columns(ColumnSpec::Shortcut(spec)));
+    h.run();
+
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("Minimum stages (Fenske)");
+    h.get_by_label("Theoretical stages incl. reboiler");
+    h.get_by_label("Feed stage from top (Kirkbride)");
+    h.get_by_label("Condenser duty (+ removed)");
+    h.get_by_label("Reboiler duty (+ supplied)");
+    let result = h.state().editor().results.as_ref().unwrap();
+    let estimate = result.units[&column].shortcut_column.as_ref().unwrap();
+    assert!((estimate.reflux_ratio / estimate.minimum_reflux_ratio - 1.3).abs() < 1e-12);
+    assert!((result.streams[&distillate].molar_flow_mol_s - 41.0).abs() < 1e-9);
+}

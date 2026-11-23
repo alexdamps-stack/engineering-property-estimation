@@ -114,6 +114,8 @@ pub struct UnitCalculation {
     /// heat exchanger, W. `None` for other units. It is not an external duty
     /// and does not enter the energy balance.
     pub transferred_duty_w: Option<f64>,
+    /// Design estimates for a shortcut distillation column.
+    pub shortcut_column: Option<units::columns::ShortcutColumnResult>,
     /// Additional flowsheet boundary contribution from material and its enthalpy.
     pub material_exchange: Option<MaterialExchange>,
     pub balance: Option<Balance>,
@@ -390,6 +392,7 @@ impl Flowsheet {
                 outlets,
                 duty_w,
                 transferred_duty_w,
+                shortcut_column,
                 material_exchange,
                 warnings,
                 energy,
@@ -444,6 +447,7 @@ impl Flowsheet {
                 UnitCalculation {
                     duty_w,
                     transferred_duty_w,
+                    shortcut_column,
                     material_exchange,
                     balance,
                     warnings,
@@ -848,6 +852,7 @@ fn calculate_unit(
                 outlets,
                 duty_w: 0.0,
                 transferred_duty_w: Some(0.0),
+                shortcut_column: None,
                 material_exchange: None,
                 energy: Vec::new(),
                 warnings: vec![
@@ -935,6 +940,7 @@ fn calculate_unit(
                 outlets: vec![stream(nh, ho), stream(nc, co)],
                 duty_w: 0.0,
                 transferred_duty_w: Some(q),
+                shortcut_column: None,
                 material_exchange: None,
                 energy: Vec::new(),
                 warnings: vec![],

@@ -191,6 +191,88 @@ atomic update path that works within recycle sequencing.
 
 | Kind | Issue | Status | Specification | Validation / reference | Notes |
 |---|---|---|---|---|---|
+| Shortcut column | #185 | calculated (partial) | Light and heavy key, light-key recovery to distillate and heavy-key recovery to bottoms (each strictly 0–1, sum above 1), column pressure, and either reflux ratio or multiple of minimum reflux. | Four PR/PR-BM cases from the independent teqp/Cantera/SciPy generator `validation/columns/` (binary, ternary with distributing methane, high-pressure let-down feed), checked within the fixture's declared tolerances by `flowsheet-core/tests/shortcut_column.rs`. Project round trip, legacy reload and a headless desktop test. | Fenske–Underwood–Gilliland (Molokanov fit) with Kirkbride feed location. One feed, total condenser, partial reboiler. Retains ISO asset `s1-x8100-column-general`. |
+
+### Shortcut column
+
+The column takes one feed and produces a distillate and a bottoms product.
+It has one uniform pressure with no pressure drop. The total condenser and
+partial reboiler both operate at that pressure, and both products leave as
+saturated liquid at their bubble points. The column pressure may not exceed
+the feed pressure: the feed is let down isenthalpically and keeps its own
+enthalpy. The four inputs are independent. The keys must be two different
+package components, and both must be present in the feed. The light key must
+be more volatile than the heavy key at column conditions.
+
+- **Feed condition.** The method takes
+  $q=(h_{dew}-h_F)/(h_{dew}-h_{bub})$, using the saturated enthalpies of the
+  feed composition at column pressure. Subcooled feeds give $q>1$ and
+  superheated feeds give $q<0$.
+- **Volatility and split.** Relative volatilities are package K-value ratios
+  to the heavy key. Each is the geometric mean of its value at the overhead
+  dew point and at the bottoms bubble point. These are iterated together with
+  the Fenske total-reflux split to a fixed point, with $\max|\Delta\ln\alpha|<10^{-10}$
+  in at most 100 iterations. Fenske (1932) gives $N_{min}$. The
+  Hengstebeck–Geddes form gives the non-key distribution, and the key
+  recoveries are met exactly.
+- **Minimum reflux.** Underwood (1948) gives the minimum reflux from the root
+  between the key volatilities. The keys must be adjacent: the model rejects
+  a feed component whose volatility lies between them.
+- **Stages and feed location.** Gilliland (1940) gives the stage count in the
+  Molokanov et al. (1972) form
+  $Y=1-\exp[(1+54.4X)/(11+117.2X)\cdot(X-1)/\sqrt X]$, with
+  $N=(N_{min}+Y)/(1-Y)$. Stage counts include the reboiler and exclude the
+  total condenser. Kirkbride (1944) gives the number of rectifying stages.
+- **Duties.** The condenser duty is $Q_C=(R+1)D(h_{V,top}-h_D)$, where the
+  overhead vapour is at the dew point of the distillate. The reboiler duty
+  $Q_R$ closes the overall enthalpy balance. Both must be positive. The
+  condenser-duty port reports $Q_C$ and the reboiler-duty port reports $Q_R$
+  to a calculated source or a sink. The net external duty is $Q_R-Q_C$.
+
+The solver fails explicitly when:
+
+- the feed has zero flow or no state;
+- a key is unknown, absent from the feed or the same as the other key;
+- the column pressure exceeds the feed pressure;
+- a bubble or dew point lies outside the A13 domain or is near critical;
+- the keys are inverted or not adjacent;
+- the volatilities do not converge;
+- $R_{min}\le 0$, $R\le R_{min}$ or the multiple of minimum reflux is at most 1;
+- either duty is not positive or the bottoms are not hotter than the overhead;
+- any result is not finite.
+
+It warns when the Gilliland abscissa lies outside 0.01–0.9 or when a non-key
+component distributes between the products.
+
+**Domain and limits.** Bubble and dew points use the bounded A13 saturation
+solver. Every feed component must be methane, ethane, propane, nitrogen or
+carbon dioxide, and states must lie within 200–350 K and 10 kPa–10 MPa.
+Water, methanol and oxygen are rejected. The results are design estimates.
+Several things are not modelled:
+
+- tray hydraulics, column diameter and efficiencies;
+- partial condensers, side draws and multiple feeds;
+- non-adjacent keys, or more than one Underwood root;
+- liquid–liquid phases;
+- temperature approaches at the condenser and reboiler utilities.
+
+Constant relative volatility and constant molar overflow are inherent
+assumptions of the method.
+
+**Persistence.** Version 4 records store the keys, recoveries, pressure and
+reflux choice. These fields were added behind format version 4 without a
+version bump. An earlier empty `shortcut_column` record loads with every
+input unset. Unit results carry the optional `shortcut_column` estimate.
+Unknown fields are refused.
+
+**Later column stages.** Item 9 covers trayed and ideal-stage packed
+equilibrium columns (#186, #187) and needs an equilibrium-stage (MESH)
+solver. It can initialise from this estimate: $N$, the feed stage, $R$,
+$D$ and the end temperatures. Rate-based packing, three-phase columns,
+extraction and petroleum fractionation are later batches. Mixtures beyond
+the dry hydrocarbon/N2/CO2 set need a bubble/dew solver qualified for them.
+Any future detailed condenser or reboiler heat-transfer model should expose
+a fixed temperature approach to a defined utility reference.
 
 ## Multiphase
 
