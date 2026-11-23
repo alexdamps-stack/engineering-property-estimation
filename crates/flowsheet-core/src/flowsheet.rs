@@ -690,7 +690,7 @@ mod tests {
             pressure_pa: Some(5.0e6),
             molar_flow_mol_s: Some(1.0),
         };
-        assert!(fs.set_spec(feed, spec));
+        assert!(fs.set_spec(feed, spec.clone()));
         let r2 = fs.revision();
         assert!(r2 > r1);
         // Setting an identical spec is not a change.

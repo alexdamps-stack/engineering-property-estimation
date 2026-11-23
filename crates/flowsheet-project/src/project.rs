@@ -17,14 +17,18 @@ use crate::{Fingerprints, PackageSelection, PreparedPackage, ProjectError, Resul
 
 /// Project file format version written by this program.
 ///
-/// Version 3 adds the optional heat-exchanger
+/// Version 4 adds the conversion and yield reactors (#191, #192): their unit
+/// kinds and specifications, and the optional
+/// `results.units.<id>.reaction` record. Older files cannot contain reactors
+/// and are read unchanged; a reactor in a file declaring an older version is
+/// rejected. Version 3 added the optional heat-exchanger
 /// `results.units.<id>.transferred_duty_w` (#152). Version 2 added the
 /// optional `results.recycle` closure evidence (A10). Version 1 and 2 files
 /// are still read (stored exchanger results from them have no transferred
-/// duty until recalculated) and are written back as version 3. Files
+/// duty until recalculated) and are written back as version 4. Files
 /// declaring any other version are rejected, so older programs report an
 /// unsupported version instead of an unknown field.
-pub const FORMAT_VERSION: u64 = 3;
+pub const FORMAT_VERSION: u64 = 4;
 
 /// Oldest project file format version this program reads.
 pub const OLDEST_READABLE_FORMAT_VERSION: u64 = 1;
@@ -197,7 +201,7 @@ impl Project {
                     id: u.id.0,
                     kind: u.kind.into(),
                     tag: u.name.clone(),
-                    spec: u.spec.into(),
+                    spec: u.spec.clone().into(),
                 })
                 .collect(),
             streams: fs
@@ -253,7 +257,7 @@ impl Project {
             return Err(non_finite("package PH search interval"));
         }
         for u in self.flowsheet.units() {
-            if SpecRecord::from(u.spec)
+            if SpecRecord::from(u.spec.clone())
                 .numbers()
                 .iter()
                 .any(|v| !v.is_finite())
@@ -294,13 +298,13 @@ impl Project {
         }
         let value: serde_json::Value =
             serde_json::from_str(text).map_err(|e| ProjectError::Format(e.to_string()))?;
-        match value
+        let version = match value
             .get("format_version")
             .and_then(serde_json::Value::as_u64)
         {
-            Some(v) if (OLDEST_READABLE_FORMAT_VERSION..=FORMAT_VERSION).contains(&v) => {}
+            Some(v) if (OLDEST_READABLE_FORMAT_VERSION..=FORMAT_VERSION).contains(&v) => v,
             other => return Err(ProjectError::UnsupportedVersion(other)),
-        }
+        };
         let file: ProjectFile =
             serde_json::from_value(value).map_err(|e| ProjectError::Format(e.to_string()))?;
         check_topology_size(file.units.len(), file.streams.len())?;
@@ -319,6 +323,13 @@ impl Project {
 
         let mut units = Vec::new();
         for u in file.units {
+            if u.kind.since_format() > version {
+                return Err(ProjectError::Invalid(format!(
+                    "unit {}: this unit kind requires format version {} or later (file declares {version})",
+                    u.tag,
+                    u.kind.since_format()
+                )));
+            }
             let spec = flowsheet_core::UnitSpec::try_from(u.spec)
                 .map_err(|e| ProjectError::Invalid(format!("unit {}: {e}", u.tag)))?;
             units.push(Unit {

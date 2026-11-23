@@ -18,6 +18,20 @@ Review candidates before adopting them; the generator never calls Rust.
 See [stream qualification](../docs/a2-process-qualification.md) for the fixed
 state domain, phases, assumptions and separation from A8 flowsheet acceptance.
 
+The [A17 reactor fixture](fixtures/reactions-v1.json) covers the conversion
+and yield reactors (#191, #192). `generate-reaction-references.py` builds an
+ideal-gas Cantera mixture from the pinned NASA7 records, including the
+formation constant a6. It parses element counts from the source formulas and
+computes outlet flows by plain stoichiometric and mass-yield arithmetic. It
+reports the standard formation enthalpies, the standard heat of reaction,
+element generation, and the ideal-gas reactor duty `H_out(T_out) - H_in(T_in)`
+on the formation basis. `crates/flowsheet-core/tests/reactors.rs` removes the
+PR/PR-BM residual enthalpy of the solved inlet and outlet before comparing. The
+cubic departure is therefore not part of this fixture; it is covered by the A3
+and Clapeyron fixtures.
+
+The [A17 equilibrium and kinetic reactor fixture](fixtures/reactors-v1.json) covers the equilibrium, Gibbs, CSTR, plug-flow and batch reactors (#193–#197). `generate-reactor-references.py` uses Cantera `equilibrate("TP")` for the ideal-gas Gibbs and shift equilibria, and SciPy for the correlation-K equilibrium and the kinetic cases (`brentq` for the CSTR, `solve_ivp` DOP853 for the plug flow and batch). The batch reacting volume comes from a separate Python Peng–Robinson implementation. See [A17 reactors](../docs/a17-reactors.md) for the cases and budgets.
+
 ### Reference stability acceptance
 
 The independent cubic and GERG Python TPD searches require a successful finite

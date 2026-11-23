@@ -105,6 +105,25 @@ pub struct UnitResult {
     pub max_scaled_component_residual: Option<f64>,
     /// Scaled energy balance residual (internal units only).
     pub scaled_energy_residual: Option<f64>,
+    /// Reactors only (format 4): extents, generation and standard heat of
+    /// reaction of the solved state. `None` for other units.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reaction: Option<ReactionResult>,
+}
+
+/// Reacting terms of a solved reactor.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReactionResult {
+    /// Extent of each conversion-reactor reaction, mol/s; empty for a yield reactor.
+    pub extents_mol_s: Vec<f64>,
+    /// Net generation per package component, mol/s.
+    pub generation_mol_s: Vec<f64>,
+    /// Standard heat of reaction of the generation at 298.15 K, W
+    /// (negative when exothermic).
+    pub standard_reaction_enthalpy_w: f64,
+    /// Outlet minus inlet mass flow, kg/s.
+    pub mass_residual_kg_s: f64,
 }
 
 /// Closure evidence for a successful cyclic network calculation.
@@ -168,6 +187,16 @@ impl ResultSet {
                             .balance
                             .as_ref()
                             .map(|b| b.scaled_energy_residual),
+                        reaction: u
+                            .balance
+                            .as_ref()
+                            .and_then(|b| b.reaction.as_ref())
+                            .map(|r| ReactionResult {
+                                extents_mol_s: r.terms.extents_mol_s.clone(),
+                                generation_mol_s: r.terms.generation_mol_s.clone(),
+                                standard_reaction_enthalpy_w: r.terms.standard_reaction_enthalpy_w,
+                                mass_residual_kg_s: r.mass_residual_kg_s,
+                            }),
                     },
                 ))
             })
@@ -231,6 +260,14 @@ impl ResultSet {
                 || opt(u.transferred_duty_w)
                 || opt(u.max_scaled_component_residual)
                 || opt(u.scaled_energy_residual)
+                || u.reaction.as_ref().is_some_and(|r| {
+                    bad(r.standard_reaction_enthalpy_w)
+                        || bad(r.mass_residual_kg_s)
+                        || r.extents_mol_s
+                            .iter()
+                            .chain(&r.generation_mol_s)
+                            .any(|v| bad(*v))
+                })
             {
                 return Some(format!("result of unit {id}"));
             }
@@ -271,6 +308,16 @@ impl ResultSet {
     /// Describes the first stream result whose overall or phase mole
     /// fractions do not have one entry per package component, if any.
     pub(crate) fn first_component_mismatch(&self, components: usize) -> Option<String> {
+        for (id, u) in &self.units {
+            if let Some(r) = &u.reaction
+                && r.generation_mol_s.len() != components
+            {
+                return Some(format!(
+                    "stored reaction result of unit {id} has {} generation values for {components} components",
+                    r.generation_mol_s.len()
+                ));
+            }
+        }
         for (id, s) in &self.streams {
             let Some(state) = &s.state else { continue };
             if state.mole_fractions.len() != components {

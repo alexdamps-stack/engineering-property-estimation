@@ -1,4 +1,6 @@
 //! Deterministic sequential-modular execution. No GUI dependencies.
+use crate::reaction::{self, Chemistry, ReactionBalance, ReactionTerms};
+use crate::reactors;
 use crate::{
     Diagnostic, ExchangerSpec, Flowsheet, MixerPressure, PortDirection, PortRef, PressureSpec,
     SeparatorThermal, Stream, StreamId, ThermalSpec, UnitId, UnitKind, UnitSpec,
@@ -82,6 +84,10 @@ pub struct Balance {
     pub max_scaled_component_residual: f64,
     pub energy_residual_w: f64,
     pub scaled_energy_residual: f64,
+    /// Reactors only: the generation and standard heat of reaction that the
+    /// component and energy residuals account for, with mass and element
+    /// closure.
+    pub reaction: Option<ReactionBalance>,
 }
 
 #[derive(Debug, Clone)]
@@ -263,6 +269,7 @@ impl Flowsheet {
                     ),
                 ));
             }
+            check_chemistry(&u.spec, package).map_err(|e| fail(u.id, e))?;
             if u.kind == UnitKind::Feed {
                 let c = feeds
                     .get(&u.id)
@@ -356,10 +363,11 @@ impl Flowsheet {
                 duty_w,
                 transferred_duty_w,
                 warnings,
-            } = calculate_unit(u.kind, u.spec, &inlets, feeds.get(&id), package)
+                reaction,
+            } = calculate_unit(u.kind, &u.spec, &inlets, feeds.get(&id), package)
                 .map_err(|e| fail(id, e))?;
             if tears.is_empty() {
-                validate_empty_thermal_spec(u.spec, &inlets, &outlets, package)
+                validate_empty_thermal_spec(&u.spec, &inlets, &outlets, package)
                     .map_err(|e| fail(id, e))?;
             }
             if !duty_w.is_finite()
@@ -375,12 +383,19 @@ impl Flowsheet {
                     "nonfinite extensive stream property or duty".into(),
                 ));
             }
+            let chemistry = reaction.as_ref().map(|_| Chemistry::of(package));
             let balance = if matches!(u.kind, UnitKind::Feed | UnitKind::Product) {
                 None
             } else {
                 Some(
-                    balance(&inlets, &outlets, duty_w, package.model().fractions().len())
-                        .map_err(|e| fail(id, e))?,
+                    balance(
+                        &inlets,
+                        &outlets,
+                        duty_w,
+                        package.model().fractions().len(),
+                        reaction.as_ref().zip(chemistry.as_ref()),
+                    )
+                    .map_err(|e| fail(id, e))?,
                 )
             };
             let ports = u
@@ -409,11 +424,12 @@ impl Flowsheet {
     }
 }
 
-struct UnitOutput {
-    outlets: Vec<MaterialStream>,
-    duty_w: f64,
-    transferred_duty_w: Option<f64>,
-    warnings: Vec<String>,
+pub(crate) struct UnitOutput {
+    pub(crate) outlets: Vec<MaterialStream>,
+    pub(crate) duty_w: f64,
+    pub(crate) transferred_duty_w: Option<f64>,
+    pub(crate) warnings: Vec<String>,
+    pub(crate) reaction: Option<ReactionTerms>,
 }
 
 impl UnitOutput {
@@ -423,6 +439,7 @@ impl UnitOutput {
             duty_w,
             transferred_duty_w: None,
             warnings,
+            reaction: None,
         }
     }
 }
@@ -441,13 +458,13 @@ const SCALED_ENERGY_TOLERANCE: f64 = 2e-9;
 /// Empty paths propagate during recycle iteration. At a final state, require
 /// every explicit duty to be feasible with the material that is present.
 pub(crate) fn validate_empty_thermal_spec(
-    spec: UnitSpec,
+    spec: &UnitSpec,
     inputs: &[MaterialStream],
     outputs: &[MaterialStream],
     package: &CubicPackage,
 ) -> Result<(), String> {
     let zero = |s: &MaterialStream| s.molar_flow_mol_s == 0.0;
-    match spec {
+    match *spec {
         UnitSpec::HeatExchange {
             thermal: ThermalSpec::Duty(Some(q)),
             ..
@@ -455,8 +472,36 @@ pub(crate) fn validate_empty_thermal_spec(
         | UnitSpec::Separator {
             thermal: SeparatorThermal::Duty(Some(q)),
             ..
+        }
+        | UnitSpec::ConversionReactor {
+            thermal: SeparatorThermal::Duty(Some(q)),
+            ..
+        }
+        | UnitSpec::YieldReactor {
+            thermal: SeparatorThermal::Duty(Some(q)),
+            ..
+        }
+        | UnitSpec::EquilibriumReactor {
+            thermal: SeparatorThermal::Duty(Some(q)),
+            ..
+        }
+        | UnitSpec::GibbsReactor {
+            thermal: SeparatorThermal::Duty(Some(q)),
+            ..
+        }
+        | UnitSpec::Cstr {
+            thermal: SeparatorThermal::Duty(Some(q)),
+            ..
         } if q != 0.0 && zero(&inputs[0]) => {
             return Err("a nonzero specified duty requires positive inlet flow".into());
+        }
+        UnitSpec::ConversionReactor { ref reactions, .. }
+            if zero(&inputs[0])
+                && reactions.iter().any(
+                    |r| matches!(r.extent, crate::ReactionExtent::MolarExtent(Some(e)) if e > 0.0),
+                ) =>
+        {
+            return Err("a positive molar extent requires positive inlet flow".into());
         }
         UnitSpec::HeatExchanger { thermal, .. } if inputs.iter().any(zero) => {
             let infeasible = match thermal {
@@ -509,7 +554,7 @@ fn requires_heat(
 
 fn calculate_unit(
     kind: UnitKind,
-    spec: UnitSpec,
+    spec: &UnitSpec,
     inputs: &[MaterialStream],
     feed: Option<&Composition>,
     pkg: &CubicPackage,
@@ -546,7 +591,7 @@ fn calculate_unit(
         molar_flow_mol_s: flow,
         state: Some(state),
     };
-    match spec {
+    match *spec {
         UnitSpec::Feed {
             temperature_k: Some(t),
             pressure_pa: Some(p),
@@ -740,6 +785,7 @@ fn calculate_unit(
                 warnings: vec![
                     "Zero flow on one or both exchanger sides: no heat transferred; empty sides pass through as zero-flow outlets without a thermodynamic state.".into(),
                 ],
+                reaction: None,
             })
         }
         UnitSpec::HeatExchanger {
@@ -778,22 +824,282 @@ fn calculate_unit(
                 duty_w: 0.0,
                 transferred_duty_w: Some(q),
                 warnings: vec![],
+                reaction: None,
             })
         }
+        UnitSpec::ConversionReactor { .. } | UnitSpec::YieldReactor { .. } if zero(&inputs[0]) => {
+            Ok(pass_through(1))
+        }
+        UnitSpec::ConversionReactor {
+            ref reactions,
+            thermal,
+            pressure_drop_pa,
+        } => {
+            let chemistry = Chemistry::of(pkg);
+            let a = state(&inputs[0])?;
+            let inlet = inputs[0].component_flows_mol_s(a.mole_fractions.len());
+            let (flows, terms) = reaction::convert(&chemistry, reactions, &inlet)?;
+            react(
+                &inputs[0],
+                flows,
+                terms,
+                Vec::new(),
+                thermal,
+                pressure(a.pressure_pa, pressure_drop_pa)?,
+                pkg,
+            )
+        }
+        UnitSpec::YieldReactor {
+            ref mass_yields,
+            ref inerts,
+            thermal,
+            pressure_drop_pa,
+        } => {
+            let chemistry = Chemistry::of(pkg);
+            let a = state(&inputs[0])?;
+            let inlet = inputs[0].component_flows_mol_s(a.mole_fractions.len());
+            let (flows, terms, warnings) =
+                reaction::yields(&chemistry, mass_yields, inerts, &inlet)?;
+            react(
+                &inputs[0],
+                flows,
+                terms,
+                warnings,
+                thermal,
+                pressure(a.pressure_pa, pressure_drop_pa)?,
+                pkg,
+            )
+        }
+        UnitSpec::EquilibriumReactor {
+            ref reactions,
+            equilibrium,
+            thermal,
+            pressure_drop_pa,
+        } => reactors::equilibrium_reactor(
+            &reactor_feed(&inputs[0], pkg, pressure_drop_pa)?,
+            reactions,
+            equilibrium,
+            thermal,
+        ),
+        UnitSpec::GibbsReactor {
+            ref inerts,
+            equilibrium,
+            thermal,
+            pressure_drop_pa,
+        } => reactors::gibbs_reactor(
+            &reactor_feed(&inputs[0], pkg, pressure_drop_pa)?,
+            inerts,
+            equilibrium,
+            thermal,
+        ),
+        UnitSpec::Cstr {
+            ref kinetics,
+            volume_m3: Some(volume),
+            thermal,
+            pressure_drop_pa,
+        } => reactors::cstr(
+            &reactor_feed(&inputs[0], pkg, pressure_drop_pa)?,
+            kinetics,
+            volume,
+            thermal,
+        ),
+        UnitSpec::PlugFlow {
+            ref kinetics,
+            length_m: Some(length),
+            diameter_m: Some(diameter),
+            thermal,
+            pressure_drop_pa,
+        } => {
+            let feed = reactor_feed(&inputs[0], pkg, 0.0)?;
+            pressure(feed.pressure, pressure_drop_pa)?;
+            reactors::plug_flow(&feed, kinetics, length, diameter, thermal, pressure_drop_pa)
+        }
+        UnitSpec::Batch {
+            ref kinetics,
+            reaction_time_s: Some(time),
+            thermal,
+        } => reactors::batch(
+            &reactor_feed(&inputs[0], pkg, 0.0)?,
+            kinetics,
+            time,
+            thermal,
+        ),
         _ => Err("unsupported or incomplete unit specification".into()),
     }
 }
 
+/// Reactor inlet context at the outlet pressure `p_in - pressure_drop`.
+fn reactor_feed<'a>(
+    inlet: &'a MaterialStream,
+    pkg: &'a CubicPackage,
+    pressure_drop: f64,
+) -> Result<reactors::Feed<'a>, String> {
+    let state = inlet
+        .state
+        .as_ref()
+        .ok_or("inlet has no material phase; cannot apply a thermodynamic specification")?;
+    let p = state.pressure_pa - pressure_drop;
+    if !(p.is_finite() && p > 0.0) {
+        return Err("pressure drop leaves nonpositive absolute outlet pressure".into());
+    }
+    Ok(reactors::Feed {
+        inlet,
+        state,
+        flows: inlet.component_flows_mol_s(state.mole_fractions.len()),
+        pressure: p,
+        pkg,
+        chemistry: Chemistry::of(pkg),
+    })
+}
+
+/// Preflight of reactor chemistry against the package: every named component
+/// must exist and every conversion-reactor reaction must conserve elements.
+fn check_chemistry(spec: &UnitSpec, package: &CubicPackage) -> Result<(), String> {
+    match spec {
+        UnitSpec::ConversionReactor { reactions, .. } => {
+            let chemistry = Chemistry::of(package);
+            for (k, r) in reactions.iter().enumerate() {
+                chemistry.stoichiometry(k + 1, &r.coefficients)?;
+                if let crate::ReactionExtent::Conversion { key: Some(key), .. } = &r.extent {
+                    chemistry
+                        .index(key)
+                        .map_err(|e| format!("reaction {}: {e}", k + 1))?;
+                }
+            }
+        }
+        UnitSpec::YieldReactor {
+            mass_yields,
+            inerts,
+            ..
+        } => {
+            let chemistry = Chemistry::of(package);
+            for id in mass_yields.iter().map(|(id, _)| id).chain(inerts) {
+                chemistry.index(id)?;
+            }
+        }
+        UnitSpec::EquilibriumReactor { reactions, .. } => {
+            let chemistry = Chemistry::of(package);
+            let nu = reactions
+                .iter()
+                .enumerate()
+                .map(|(k, r)| chemistry.stoichiometry(k + 1, &r.coefficients))
+                .collect::<Result<Vec<_>, _>>()?;
+            if crate::numerics::rank(&nu) < nu.len() {
+                return Err(
+                    "equilibrium reactions are linearly dependent; remove the redundant ones"
+                        .into(),
+                );
+            }
+        }
+        UnitSpec::GibbsReactor { inerts, .. } => {
+            let chemistry = Chemistry::of(package);
+            for id in inerts {
+                chemistry.index(id)?;
+            }
+        }
+        UnitSpec::Cstr { kinetics, .. }
+        | UnitSpec::PlugFlow { kinetics, .. }
+        | UnitSpec::Batch { kinetics, .. } => {
+            let chemistry = Chemistry::of(package);
+            for (k, r) in kinetics.reactions.iter().enumerate() {
+                chemistry.stoichiometry(k + 1, &r.coefficients)?;
+                let orders: Vec<&(String, f64)> = match &r.rate {
+                    crate::RateLaw::PowerLaw { forward, reverse } => forward
+                        .orders
+                        .iter()
+                        .chain(reverse.iter().flat_map(|t| &t.orders))
+                        .collect(),
+                    crate::RateLaw::Lhhw {
+                        driving_forward,
+                        driving_reverse,
+                        adsorption,
+                        ..
+                    } => std::iter::once(driving_forward)
+                        .chain(driving_reverse)
+                        .chain(adsorption)
+                        .flat_map(|t| &t.orders)
+                        .collect(),
+                };
+                for (id, _) in orders {
+                    chemistry
+                        .index(id)
+                        .map_err(|e| format!("reaction {} rate: {e}", k + 1))?;
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Outlet state of a reactor from its outlet component flows, on the
+/// formation-enthalpy energy balance described in [`crate::reaction`].
+pub(crate) fn react(
+    inlet: &MaterialStream,
+    flows: Vec<f64>,
+    terms: ReactionTerms,
+    warnings: Vec<String>,
+    thermal: SeparatorThermal,
+    pressure: f64,
+    pkg: &CubicPackage,
+) -> Result<UnitOutput, String> {
+    let a = inlet
+        .state
+        .as_ref()
+        .expect("positive inlet flow has a state");
+    let n_in = inlet.molar_flow_mol_s;
+    let n_out: f64 = flows.iter().sum();
+    if !(n_out.is_finite() && n_out > 0.0) {
+        return Err("reactor outlet has no positive finite total flow".into());
+    }
+    let z: Vec<f64> = flows.iter().map(|n| n / n_out).collect();
+    let formation = terms.standard_reaction_enthalpy_w;
+    let target = |q: f64| (n_in * a.enthalpy() + q - formation) / n_out;
+    let out = match thermal {
+        SeparatorThermal::Adiabatic => pkg.ph(&z, pressure, target(0.0)),
+        SeparatorThermal::Duty(Some(q)) => pkg.ph(&z, pressure, target(q)),
+        SeparatorThermal::OutletTemperature(Some(t)) => pkg.tp(&z, t, pressure),
+        _ => return Err("missing reactor thermal specification".into()),
+    }
+    .map_err(|e| format!("reactor outlet: {e}"))?;
+    let q = match thermal {
+        SeparatorThermal::Adiabatic => 0.0,
+        SeparatorThermal::Duty(Some(q)) => q,
+        _ => n_out * out.enthalpy() - n_in * a.enthalpy() + formation,
+    };
+    Ok(UnitOutput {
+        outlets: vec![MaterialStream {
+            molar_flow_mol_s: n_out,
+            state: Some(out),
+        }],
+        duty_w: q,
+        transferred_duty_w: None,
+        warnings,
+        reaction: Some(terms),
+    })
+}
+
+/// Unit balance. A reactor passes its reacting terms and the package
+/// chemistry: generation enters the component residuals and the standard heat
+/// of reaction the energy residual, and mass must close.
 pub(crate) fn balance(
     inputs: &[MaterialStream],
     outputs: &[MaterialStream],
     duty: f64,
     count: usize,
+    reacting: Option<(&ReactionTerms, &Chemistry)>,
 ) -> Result<Balance, String> {
     let mut residual = vec![0.0; count];
     let mut energy = -duty;
     let mut energy_scale = duty.abs();
     let mut thermal_scale = 0.0;
+    if let Some((terms, _)) = reacting {
+        for (r, g) in residual.iter_mut().zip(&terms.generation_mol_s) {
+            *r -= g;
+        }
+        energy += terms.standard_reaction_enthalpy_w;
+        energy_scale += terms.standard_reaction_enthalpy_w.abs();
+    }
     for (sign, streams) in [(-1.0, inputs), (1.0, outputs)] {
         for s in streams {
             if !s.molar_flow_mol_s.is_finite() || s.molar_flow_mol_s < 0.0 {
@@ -829,10 +1135,67 @@ pub(crate) fn balance(
     {
         return Err("component or energy balance failed (1e-8 relative component; 2e-9 scaled energy budget)".into());
     }
+    let reaction = match reacting {
+        None => None,
+        Some((terms, chemistry)) => {
+            let net: Vec<f64> = (0..count)
+                .map(|i| {
+                    outputs
+                        .iter()
+                        .map(|s| s.component_flows_mol_s(count)[i])
+                        .sum::<f64>()
+                        - inputs
+                            .iter()
+                            .map(|s| s.component_flows_mol_s(count)[i])
+                            .sum::<f64>()
+                })
+                .collect();
+            let mass_residual = chemistry.mass_flow_kg_s(&net);
+            let element_residuals = chemistry.element_flows(&net);
+            if !terms.element_balanced {
+                // Yield reactor: outlet mass is distributed with the same
+                // molar masses, so mass closes to rounding.
+                let inlet_mass: f64 = inputs.iter().map(MaterialStream::mass_flow_kg_s).sum();
+                if !mass_residual.is_finite()
+                    || mass_residual.abs()
+                        > reaction::MASS_BALANCE_TOLERANCE * inlet_mass.max(f64::MIN_POSITIVE)
+                {
+                    return Err(format!(
+                        "reactor mass balance failed ({mass_residual:.6e} kg/s; 1e-8 relative budget)"
+                    ));
+                }
+            } else {
+                // Other reactors: elements are the conserved quantity. The
+                // tabulated molar masses are not atom-consistent beyond about
+                // 1e-6 relative, so the mass residual is reported, not enforced.
+                let entering = inputs.iter().fold(vec![0.0; count], |mut acc, s| {
+                    for (a, n) in acc.iter_mut().zip(s.component_flows_mol_s(count)) {
+                        *a += n;
+                    }
+                    acc
+                });
+                let atoms_in = chemistry.element_flows(&entering);
+                if element_residuals
+                    .iter()
+                    .zip(&atoms_in)
+                    .any(|(r, a)| !r.is_finite() || r.abs() > 1e-8 * a.max(f64::MIN_POSITIVE))
+                {
+                    return Err("reactor element balance failed (1e-8 relative atom budget)".into());
+                }
+            }
+            Some(ReactionBalance {
+                terms: terms.clone(),
+                mass_residual_kg_s: mass_residual,
+                elements: chemistry.elements().to_vec(),
+                element_residuals_mol_s: element_residuals,
+            })
+        }
+    };
     Ok(Balance {
         component_residuals_mol_s: residual,
         max_scaled_component_residual: max_scaled,
         energy_residual_w: energy,
         scaled_energy_residual: scaled_energy,
+        reaction,
     })
 }

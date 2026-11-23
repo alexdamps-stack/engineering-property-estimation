@@ -243,6 +243,11 @@ Mixture ideal entropy includes `-R sum(x_i ln(x_i))` and
 `-R ln(p/100000 Pa)`, using the limiting value `0 ln(0) = 0` for zero entries.
 Ideal h/s and consistent same-T,p,x EOS departures form the total properties;
 this does not make total real-fluid h/s zero at the reference state.
+Reacting units (A17) restore the formation basis explicitly: they add the
+ideal-gas standard formation enthalpy from the retained lower-interval NASA7
+constant a6 for each component they generate or consume
+([A17 reactors](a17-reactors.md)). Stream enthalpies stay on the zero-at-reference
+scale.
 No NASA7 evaluator, offset transformation or caloric calculation is implemented
 here, and their independent verification remains an A2/A3 gate.
 

@@ -141,7 +141,7 @@ pub fn info() -> Value {
                 })
             })
             .collect();
-        let m = db.metadata();
+        let m = db.metadata_for(db.components().iter().map(|c| c.id()));
         (
             components,
             json!({"id": m.identifier, "version": m.version, "source": m.source}),
@@ -487,7 +487,7 @@ mod tests {
                 "outside-validity-domain",
             ),
             (
-                Box::new(|v| v["package"]["components"][4] = json!("hydrogen")),
+                Box::new(|v| v["package"]["components"][4] = json!("helium")),
                 "missing-parameter",
             ),
             (

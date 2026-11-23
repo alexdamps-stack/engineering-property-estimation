@@ -9,6 +9,9 @@ use thermo_types::{
 };
 
 pub const DATA_VERSION: &str = "2026-11-07.1";
+/// Version of the A17 reacting-component extension
+/// (`components-reacting.provisional.json`: hydrogen, carbon monoxide).
+pub const REACTING_DATA_VERSION: &str = "2026-11-23.1";
 const COMPONENT_SCHEMA: &str = "a2-source-extract-provisional-v1";
 pub const REFERENCE_TEMPERATURE: f64 = 298.15;
 pub const REFERENCE_PRESSURE: f64 = 100_000.0;
@@ -34,8 +37,12 @@ struct Nasa7 {
 struct Record {
     id: String,
     cas: String,
+    formula: String,
     constants: Constants,
     ideal_gas: Nasa7,
+    /// From the reacting-component extension rather than the base extract.
+    #[serde(skip)]
+    extension: bool,
 }
 
 /// Immutable component from the checked embedded dataset.
@@ -57,6 +64,42 @@ impl Component {
     }
     pub fn cas(&self) -> &str {
         &self.0.cas
+    }
+    /// Molecular formula as recorded in the source extract, for example `CH3OH`.
+    pub fn formula(&self) -> &str {
+        &self.0.formula
+    }
+    /// Atoms per molecule by element symbol, in first-appearance order of the
+    /// formula. The embedded formulas are checked to parse when loading.
+    pub fn elements(&self) -> Vec<(String, u32)> {
+        parse_formula(&self.0.formula).expect("validated embedded formula")
+    }
+    /// Ideal-gas standard enthalpy of formation at 298.15 K, J/mol, from the
+    /// retained NASA7 integration constant a6 of the lower interval:
+    /// `R (a1 T + a2 T^2/2 + ... + a5 T^5/5 + a6)` at T = 298.15 K. The
+    /// engine caloric scale ([`Self::ideal_gas`]) is zero at that state; this
+    /// value restores the source formation basis for reacting balances.
+    pub fn standard_formation_enthalpy(&self) -> f64 {
+        let low = &self.0.ideal_gas.coefficients[0];
+        R * (primitive(low, REFERENCE_TEMPERATURE, false) + low[5])
+    }
+    /// Ideal-gas absolute (third-law) entropy at 298.15 K and 1 bar,
+    /// J/(mol K), from the retained NASA7 integration constant a7 of the
+    /// lower interval: `R (a1 ln T + a2 T + ... + a5 T^4/4 + a7)`.
+    pub fn standard_entropy(&self) -> f64 {
+        let low = &self.0.ideal_gas.coefficients[0];
+        R * (primitive(low, REFERENCE_TEMPERATURE, true) + low[6])
+    }
+    /// Ideal-gas standard Gibbs energy at T and 1 bar on the formation basis
+    /// (elements in their reference states at 298.15 K), J/mol:
+    /// `dHf + h(T) - T (S0 + s(T))`, with h and s the cp-integrated values
+    /// of [`Self::ideal_gas`]. Differences over a balanced reaction give
+    /// `-R T ln K`.
+    pub fn standard_gibbs_energy(&self, temperature: Temperature) -> Result<f64, CalculationError> {
+        let ig = self.ideal_gas(temperature)?;
+        let t = temperature.value();
+        Ok(self.standard_formation_enthalpy() + ig.enthalpy
+            - t * (self.standard_entropy() + ig.entropy))
     }
     pub fn critical_temperature(&self) -> f64 {
         self.0.constants.tc
@@ -105,6 +148,47 @@ impl Component {
     }
 }
 
+/// Parses a plain molecular formula (`CH3OH`, `C2H6`, `N2`): element symbols
+/// of one capital and optional lowercase letters, each followed by an optional
+/// positive count. Repeated symbols are summed. Charges, parentheses and
+/// hydrates are not supported and are rejected.
+pub fn parse_formula(formula: &str) -> Result<Vec<(String, u32)>, CalculationError> {
+    let bad = || CalculationError::MissingParameter(format!("unsupported formula {formula:?}"));
+    let mut out: Vec<(String, u32)> = Vec::new();
+    let mut chars = formula.chars().peekable();
+    while let Some(c) = chars.next() {
+        if !c.is_ascii_uppercase() {
+            return Err(bad());
+        }
+        let mut symbol = c.to_string();
+        while let Some(&l) = chars.peek().filter(|l| l.is_ascii_lowercase()) {
+            symbol.push(l);
+            chars.next();
+        }
+        let mut digits = String::new();
+        while let Some(&d) = chars.peek().filter(|d| d.is_ascii_digit()) {
+            digits.push(d);
+            chars.next();
+        }
+        let count = if digits.is_empty() {
+            1
+        } else {
+            digits.parse::<u32>().map_err(|_| bad())?
+        };
+        if count == 0 {
+            return Err(bad());
+        }
+        match out.iter_mut().find(|(s, _)| *s == symbol) {
+            Some((_, n)) => *n = n.checked_add(count).ok_or_else(bad)?,
+            None => out.push((symbol, count)),
+        }
+    }
+    if out.is_empty() {
+        return Err(bad());
+    }
+    Ok(out)
+}
+
 fn primitive(a: &[f64; 7], t: f64, entropy: bool) -> f64 {
     if entropy {
         a[0] * t.ln()
@@ -135,16 +219,39 @@ impl ComponentDatabase {
             std::sync::OnceLock::new();
         EMBEDDED
             .get_or_init(|| {
-                Self::from_extract(include_str!(
-                    "../../../data/source-extracts/components.provisional.json"
-                ))
+                let mut components = Self::from_extract(
+                    include_str!("../../../data/source-extracts/components.provisional.json"),
+                    DATA_VERSION,
+                    false,
+                )?;
+                components.extend(Self::from_extract(
+                    include_str!(
+                        "../../../data/source-extracts/components-reacting.provisional.json"
+                    ),
+                    REACTING_DATA_VERSION,
+                    true,
+                )?);
+                for (i, c) in components.iter().enumerate() {
+                    if components[..i].iter().any(|o| o.id() == c.id()) {
+                        return Err(CalculationError::MissingParameter(format!(
+                            "component {} is defined in both extracts",
+                            c.id()
+                        )));
+                    }
+                }
+                Ok(Self { components })
             })
             .clone()
     }
 
-    /// The header must match this crate's `DATA_VERSION`, which `metadata()` reports,
-    /// so a regenerated extract cannot silently carry a stale version label.
-    fn from_extract(text: &str) -> Result<Self, CalculationError> {
+    /// The header must match the expected version (`DATA_VERSION` or
+    /// `REACTING_DATA_VERSION`), which the metadata reports, so a regenerated
+    /// extract cannot silently carry a stale version label.
+    fn from_extract(
+        text: &str,
+        version: &str,
+        extension: bool,
+    ) -> Result<Vec<Component>, CalculationError> {
         #[derive(Deserialize)]
         struct Extract {
             schema: String,
@@ -153,9 +260,9 @@ impl ComponentDatabase {
         }
         let extract: Extract = serde_json::from_str(text)
             .map_err(|e| CalculationError::MissingParameter(e.to_string()))?;
-        if extract.schema != COMPONENT_SCHEMA || extract.version != DATA_VERSION {
+        if extract.schema != COMPONENT_SCHEMA || extract.version != version {
             return Err(CalculationError::MissingParameter(format!(
-                "invalid embedded component extract header: schema {} version {} (expected {COMPONENT_SCHEMA} {DATA_VERSION})",
+                "invalid embedded component extract header: schema {} version {} (expected {COMPONENT_SCHEMA} {version})",
                 extract.schema, extract.version
             )));
         }
@@ -180,10 +287,21 @@ impl ComponentDatabase {
                 )));
             }
             MolarMass::new(c.constants.molar_mass_kg_per_mol)?;
+            parse_formula(&c.formula).map_err(|_| {
+                CalculationError::MissingParameter(format!(
+                    "invalid embedded formula {} for {}",
+                    c.formula, c.id
+                ))
+            })?;
         }
-        Ok(Self {
-            components: extract.components.into_iter().map(Component).collect(),
-        })
+        Ok(extract
+            .components
+            .into_iter()
+            .map(|mut record| {
+                record.extension = extension;
+                Component(record)
+            })
+            .collect())
     }
 
     pub fn get(&self, id: &str) -> Result<&Component, CalculationError> {
@@ -195,9 +313,30 @@ impl ComponentDatabase {
     pub fn components(&self) -> &[Component] {
         &self.components
     }
+    /// Metadata of the base extract. Use [`Self::metadata_for`] for a
+    /// selection that may include extension components.
     pub fn metadata(&self) -> DataMetadata {
         DataMetadata { identifier: "coolprop-7.2-cubic-cantera-3.2-nasa7".into(), version: DATA_VERSION.into(),
             source: "data/source-extracts/components.provisional.json; upstream URLs, hashes and notices retained".into() }
+    }
+
+    /// Metadata of the data a component selection uses: the base metadata
+    /// unless a selected component comes from the reacting extension, in
+    /// which case version and source name both extracts. Selections of base
+    /// components keep their provenance unchanged.
+    pub fn metadata_for<'a>(&self, ids: impl IntoIterator<Item = &'a str>) -> DataMetadata {
+        let base = self.metadata();
+        let extended = ids
+            .into_iter()
+            .any(|id| self.get(id).is_ok_and(|c| c.0.extension));
+        if !extended {
+            return base;
+        }
+        DataMetadata {
+            identifier: base.identifier,
+            version: format!("{DATA_VERSION}+reacting-{REACTING_DATA_VERSION}"),
+            source: "data/source-extracts/components.provisional.json and components-reacting.provisional.json; upstream URLs, hashes and notices retained".into(),
+        }
     }
 }
 
@@ -216,15 +355,79 @@ mod tests {
     }
 
     #[test]
+    fn formulas_parse_to_element_counts() {
+        let e = |f| parse_formula(f).unwrap();
+        assert_eq!(
+            e("CH3OH"),
+            [("C".into(), 1), ("H".into(), 4), ("O".into(), 1)]
+        );
+        assert_eq!(e("C3H8"), [("C".into(), 3), ("H".into(), 8)]);
+        assert_eq!(e("N2"), [("N".into(), 2)]);
+        assert_eq!(e("NaCl"), [("Na".into(), 1), ("Cl".into(), 1)]);
+        for bad in ["", "ch4", "C0", "H2O+", "Ca(OH)2", "2H"] {
+            assert!(parse_formula(bad).is_err(), "{bad}");
+        }
+        let db = ComponentDatabase::embedded().unwrap();
+        assert_eq!(
+            db.get("methanol").unwrap().elements(),
+            e("CH3OH"),
+            "embedded formula"
+        );
+    }
+
+    /// The pinned Cantera NASA7 constants reproduce tabulated ideal-gas
+    /// formation enthalpies (CODATA/JANAF/ATcT values as compiled in the NIST
+    /// Chemistry WebBook) to well within their source uncertainty. Independent
+    /// Cantera values for the exact reacting balances are in the
+    /// `flowsheet-core` reaction reference test.
+    #[test]
+    fn formation_enthalpies_match_tabulated_values() {
+        let db = ComponentDatabase::embedded().unwrap();
+        for (id, kj_per_mol) in [
+            ("methane", -74.87),
+            ("ethane", -84.0),
+            ("propane", -104.7),
+            ("nitrogen", 0.0),
+            ("oxygen", 0.0),
+            ("carbon-dioxide", -393.51),
+            ("water", -241.826),
+            ("methanol", -201.0),
+            ("hydrogen", 0.0),
+            ("carbon-monoxide", -110.53),
+        ] {
+            let h = db.get(id).unwrap().standard_formation_enthalpy() / 1000.0;
+            assert!((h - kj_per_mol).abs() < 0.6, "{id}: {h} kJ/mol");
+        }
+    }
+
+    #[test]
+    fn reacting_extension_is_loaded_and_named_in_provenance() {
+        let db = ComponentDatabase::embedded().unwrap();
+        for id in ["hydrogen", "carbon-monoxide"] {
+            let c = db.get(id).unwrap();
+            assert!(c.0.extension, "{id}");
+            assert!(c.ideal_gas(Temperature::new(500.0).unwrap()).is_ok());
+        }
+        assert_eq!(db.components().len(), 10);
+        assert_eq!(db.metadata_for(["methane", "water"]), db.metadata());
+        let mixed = db.metadata_for(["methane", "hydrogen"]);
+        assert_eq!(
+            mixed.version,
+            format!("{DATA_VERSION}+reacting-{REACTING_DATA_VERSION}")
+        );
+        assert_eq!(mixed.identifier, db.metadata().identifier);
+    }
+
+    #[test]
     fn stale_version_or_schema_is_rejected() {
         let stale = EMBEDDED.replacen(DATA_VERSION, "1999-01-01.1", 1);
         assert_ne!(stale, EMBEDDED);
         assert!(matches!(
-            ComponentDatabase::from_extract(&stale),
+            ComponentDatabase::from_extract(&stale, DATA_VERSION, false),
             Err(CalculationError::MissingParameter(_))
         ));
         let schema = EMBEDDED.replacen(COMPONENT_SCHEMA, "a2-source-extract-provisional-v0", 1);
         assert_ne!(schema, EMBEDDED);
-        assert!(ComponentDatabase::from_extract(&schema).is_err());
+        assert!(ComponentDatabase::from_extract(&schema, DATA_VERSION, false).is_err());
     }
 }

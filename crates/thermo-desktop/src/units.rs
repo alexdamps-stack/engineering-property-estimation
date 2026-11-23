@@ -30,6 +30,16 @@ pub enum Quantity {
     MolarEntropy,
     /// Mass density, stored in kg/m³.
     Density,
+    /// Volume, stored in m³.
+    Volume,
+    /// Length, stored in m.
+    Length,
+    /// Time, stored in s.
+    Time,
+    /// Temperature difference, stored in K (may be negative).
+    TemperatureDifference,
+    /// Heat-transfer coefficient, stored in W/(m² K).
+    HeatTransferCoefficient,
 }
 
 /// Labels, unit symbols and conversions of a [`DisplayUnits`] set.
@@ -83,6 +93,11 @@ impl DisplayUnitsExt for DisplayUnits {
             (DisplayUnits::Si, Quantity::MolarEnthalpy) => "J/mol",
             (DisplayUnits::Si, Quantity::MolarEntropy) => "J/(mol K)",
             (_, Quantity::Density) => "kg/m³",
+            (_, Quantity::Volume) => "m³",
+            (_, Quantity::Length) => "m",
+            (_, Quantity::Time) => "s",
+            (_, Quantity::TemperatureDifference) => "K",
+            (_, Quantity::HeatTransferCoefficient) => "W/(m² K)",
             (DisplayUnits::ProcessMetric, Quantity::Temperature) => "°C",
             (DisplayUnits::ProcessMetric, Quantity::Pressure) => "bar(a)",
             (DisplayUnits::ProcessMetric, Quantity::PressureDrop) => "bar",
@@ -111,6 +126,14 @@ impl DisplayUnitsExt for DisplayUnits {
                 DisplayUnits::ProcessMetric,
                 Quantity::MolarEnthalpy | Quantity::MolarEntropy | Quantity::Density,
             ) => si,
+            (
+                DisplayUnits::ProcessMetric,
+                Quantity::Volume
+                | Quantity::Length
+                | Quantity::Time
+                | Quantity::TemperatureDifference
+                | Quantity::HeatTransferCoefficient,
+            ) => si,
         }
     }
 
@@ -128,6 +151,14 @@ impl DisplayUnitsExt for DisplayUnits {
             (
                 DisplayUnits::ProcessMetric,
                 Quantity::MolarEnthalpy | Quantity::MolarEntropy | Quantity::Density,
+            ) => shown,
+            (
+                DisplayUnits::ProcessMetric,
+                Quantity::Volume
+                | Quantity::Length
+                | Quantity::Time
+                | Quantity::TemperatureDifference
+                | Quantity::HeatTransferCoefficient,
             ) => shown,
         }
     }
@@ -147,7 +178,7 @@ impl DisplayUnitsExt for DisplayUnits {
 
     fn display_min(self, q: Quantity) -> f64 {
         match q {
-            Quantity::Duty => f64::NEG_INFINITY,
+            Quantity::Duty | Quantity::TemperatureDifference => f64::NEG_INFINITY,
             _ => self.si_to_display(q, 0.0),
         }
     }
@@ -172,6 +203,10 @@ pub fn starting_value(q: Quantity) -> f64 {
         Quantity::Fraction => 0.5,
         Quantity::MassFlow => 1.0,
         Quantity::MolarEnthalpy | Quantity::MolarEntropy | Quantity::Density => 0.0,
+        Quantity::Volume | Quantity::Length => 1.0,
+        Quantity::Time => 60.0,
+        Quantity::TemperatureDifference => 0.0,
+        Quantity::HeatTransferCoefficient => 100.0,
     }
 }
 

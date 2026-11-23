@@ -100,6 +100,36 @@ impl CubicPackage {
         Ok(())
     }
 
+    /// Temperature search interval of the package, K (PH searches and the
+    /// allowed TP range).
+    pub fn temperature_interval(&self) -> [f64; 2] {
+        [
+            self.options.minimum_temperature_k,
+            self.options.maximum_temperature_k,
+        ]
+    }
+
+    /// Logarithmic fugacity coefficients of a single homogeneous phase at
+    /// T, p and composition, on the minimum-Gibbs root. No phase split is
+    /// assessed; reactors use this for the reacting fluid phase.
+    pub fn ln_fugacity_coefficients(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+    ) -> Result<Vec<f64>, CalculationError> {
+        self.validate_options()?;
+        Ok(self
+            .model
+            .with_fractions(fractions)?
+            .ln_fugacity(
+                Temperature::new(temperature_k)?,
+                Pressure::new(pressure_pa)?,
+                thermo_models::RootSelection::MinimumGibbs,
+            )?
+            .ln_fugacity_coefficients)
+    }
+
     /// TP equilibrium, with all solver errors and diagnostics propagated.
     pub fn tp(
         &self,

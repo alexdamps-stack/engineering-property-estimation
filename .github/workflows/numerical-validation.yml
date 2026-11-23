@@ -104,6 +104,16 @@ jobs:
         run: |
           python validation/generate-process-references.py --output "$RUNNER_TEMP/process-v1.json"
           python validation/compare-reference-candidate.py "$RUNNER_TEMP/process-v1.json" validation/fixtures/process-v1.json
+      - name: Reproduce A17 reactor references
+        if: ${{ !cancelled() }}
+        run: |
+          python validation/generate-reaction-references.py --output "$RUNNER_TEMP/reactions-v1.json"
+          python validation/compare-reference-candidate.py "$RUNNER_TEMP/reactions-v1.json" validation/fixtures/reactions-v1.json
+      - name: Reproduce A17 equilibrium and kinetic reactor references
+        if: ${{ !cancelled() }}
+        run: |
+          python validation/generate-reactor-references.py --output "$RUNNER_TEMP/reactors-v1.json"
+          python validation/compare-reference-candidate.py "$RUNNER_TEMP/reactors-v1.json" validation/fixtures/reactors-v1.json
       - name: Reproduce dilute-limit Helmholtz Decimal reference
         if: ${{ !cancelled() }}
         run: |

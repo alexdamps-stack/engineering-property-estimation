@@ -417,6 +417,29 @@
       },
       "domain": "6 regular and dilute-limit PR/PR-BM residual Helmholtz energies evaluated at 80 decimal digits; validation/a1-a3-checks.md",
       "rationale": "Existing regression budget from the Rust test (the fixture declares none): relative agreement only, because an absolute floor would hide a wrong-sign dilute result."
+    },
+    {
+      "fixture": "validation/fixtures/reactions-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "component_flow_relative": 1e-12,
+        "duty_relative": 1e-09,
+        "formation_enthalpy_J_per_mol": 1e-06
+      },
+      "domain": "3 fixed A17 conversion/yield reactor cases (420..590 K, 1.0..2.0 bar, single vapor phase) and 8 standard formation enthalpies; ideal-gas part of the duty after removing the PR/PR-BM residual enthalpy",
+      "rationale": "Shared NASA7 source constants evaluated independently by Cantera; flows are exact arithmetic and duties double-precision sums, so budgets are implementation tolerances, not experimental accuracy."
+    },
+    {
+      "fixture": "validation/fixtures/reactors-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "equilibrium_flow_relative": 1e-08,
+        "kinetic_flow_relative": 1e-08,
+        "duty_relative": 1e-07,
+        "gibbs_energy_J_per_mol": 1e-06
+      },
+      "domain": "3 ideal-gas equilibrium cases (Gibbs, water-gas shift with a 20 K approach, methanol synthesis with a correlation K; 480..560 K, 1..20 bar) and 3 isothermal kinetic cases (CSTR, catalytic plug flow with power-law and LHHW rates, constant-pressure batch with PR volume; 500..560 K, 3..6 bar); standard Gibbs energies of 7 components at 300, 450 and 600 K",
+      "rationale": "Cantera equilibrate is converged to rtol 1e-14 and SciPy brentq/DOP853 to 1e-13; the engine converges equilibria to 1e-13 scaled constraint residuals and integrates at rtol 1e-9, so the flow budget leaves margin for the integrator; duties are sums of NASA7 enthalpies of those flows."
     }
   ],
   "deferred": [

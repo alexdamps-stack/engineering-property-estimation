@@ -2,8 +2,8 @@
 
 use eframe::egui::{DragValue, RichText, Ui};
 use flowsheet_core::{
-    ExchangerSpec, MixerPressure, PressureRise, PressureSpec, SeparatorThermal, ThermalSpec,
-    UnitSpec,
+    BatchThermal, ExchangerSpec, FugacityBasis, MixerPressure, PlugFlowThermal, PressureRise,
+    PressureSpec, SeparatorThermal, ThermalSpec, UnitSpec,
 };
 
 use crate::symbols::Theme;
@@ -12,6 +12,26 @@ use crate::units::{DisplayUnits, DisplayUnitsExt, Quantity, starting_value};
 /// Specification form; mutually exclusive choices use radio buttons
 /// (proposal section 3).
 pub(super) fn spec_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
+    if let UnitSpec::Cstr { volume_m3, .. } = spec {
+        opt_field(ui, "Volume", volume_m3, Quantity::Volume, u);
+    }
+    if let UnitSpec::EquilibriumReactor { equilibrium, .. }
+    | UnitSpec::GibbsReactor { equilibrium, .. } = spec
+    {
+        let current = (equilibrium.fugacity == FugacityBasis::IdealGas) as usize;
+        match choice(ui, "Fugacity", current, &["Package", "Ideal gas"]) {
+            Some(0) => equilibrium.fugacity = FugacityBasis::Package,
+            Some(_) => equilibrium.fugacity = FugacityBasis::IdealGas,
+            None => {}
+        }
+        value_field(
+            ui,
+            "Temperature approach",
+            &mut equilibrium.temperature_approach_k,
+            Quantity::TemperatureDifference,
+            u,
+        );
+    }
     match spec {
         UnitSpec::Product => {
             ui.label(RichText::new("No specification.").weak());
@@ -82,6 +102,31 @@ pub(super) fn spec_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
         UnitSpec::Separator {
             thermal,
             pressure_drop_pa,
+        }
+        | UnitSpec::ConversionReactor {
+            thermal,
+            pressure_drop_pa,
+            ..
+        }
+        | UnitSpec::YieldReactor {
+            thermal,
+            pressure_drop_pa,
+            ..
+        }
+        | UnitSpec::EquilibriumReactor {
+            thermal,
+            pressure_drop_pa,
+            ..
+        }
+        | UnitSpec::GibbsReactor {
+            thermal,
+            pressure_drop_pa,
+            ..
+        }
+        | UnitSpec::Cstr {
+            thermal,
+            pressure_drop_pa,
+            ..
         } => {
             let current = match thermal {
                 SeparatorThermal::Adiabatic => 0,
@@ -109,6 +154,89 @@ pub(super) fn spec_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
                 pressure_drop_pa,
                 Quantity::PressureDrop,
                 u,
+            );
+        }
+        UnitSpec::PlugFlow {
+            length_m,
+            diameter_m,
+            thermal,
+            pressure_drop_pa,
+            ..
+        } => {
+            opt_field(ui, "Length", length_m, Quantity::Length, u);
+            opt_field(ui, "Diameter", diameter_m, Quantity::Length, u);
+            let current = match thermal {
+                PlugFlowThermal::Isothermal(_) => 0,
+                PlugFlowThermal::Adiabatic => 1,
+                PlugFlowThermal::Coolant { .. } => 2,
+            };
+            match choice(
+                ui,
+                "Thermal",
+                current,
+                &["Isothermal", "Adiabatic", "Coolant"],
+            ) {
+                Some(0) => *thermal = PlugFlowThermal::Isothermal(None),
+                Some(1) => *thermal = PlugFlowThermal::Adiabatic,
+                Some(_) => {
+                    *thermal = PlugFlowThermal::Coolant {
+                        temperature_k: None,
+                        u_w_m2_k: None,
+                    }
+                }
+                None => {}
+            }
+            match thermal {
+                PlugFlowThermal::Isothermal(t) => {
+                    opt_field(ui, "Temperature", t, Quantity::Temperature, u)
+                }
+                PlugFlowThermal::Adiabatic => {}
+                PlugFlowThermal::Coolant {
+                    temperature_k,
+                    u_w_m2_k,
+                } => {
+                    opt_field(
+                        ui,
+                        "Coolant temperature",
+                        temperature_k,
+                        Quantity::Temperature,
+                        u,
+                    );
+                    opt_field(
+                        ui,
+                        "U (wall)",
+                        u_w_m2_k,
+                        Quantity::HeatTransferCoefficient,
+                        u,
+                    );
+                }
+            }
+            value_field(
+                ui,
+                "Pressure drop",
+                pressure_drop_pa,
+                Quantity::PressureDrop,
+                u,
+            );
+        }
+        UnitSpec::Batch {
+            reaction_time_s,
+            thermal,
+            ..
+        } => {
+            opt_field(ui, "Reaction time", reaction_time_s, Quantity::Time, u);
+            let current = matches!(thermal, BatchThermal::Adiabatic) as usize;
+            match choice(ui, "Thermal", current, &["Isothermal", "Adiabatic"]) {
+                Some(0) => *thermal = BatchThermal::Isothermal(None),
+                Some(_) => *thermal = BatchThermal::Adiabatic,
+                None => {}
+            }
+            if let BatchThermal::Isothermal(t) = thermal {
+                opt_field(ui, "Temperature", t, Quantity::Temperature, u);
+            }
+            note_row(
+                ui,
+                "Constant pressure; outlet is the time-averaged product.",
             );
         }
         UnitSpec::Splitter { fraction_to_first } => {
@@ -216,7 +344,7 @@ pub(super) fn spec_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
 const ROTATING_DEFERRED: &str = "Calculation deferred: needs a PS flash and efficiency model.";
 
 /// A row of radio buttons; returns the newly chosen index if it changed.
-fn choice(ui: &mut Ui, label: &str, current: usize, options: &[&str]) -> Option<usize> {
+pub(super) fn choice(ui: &mut Ui, label: &str, current: usize, options: &[&str]) -> Option<usize> {
     ui.label(label);
     let mut picked = current;
     ui.horizontal_wrapped(|ui| {
@@ -228,7 +356,7 @@ fn choice(ui: &mut Ui, label: &str, current: usize, options: &[&str]) -> Option<
     (picked != current).then_some(picked)
 }
 
-fn note_row(ui: &mut Ui, text: &str) {
+pub(super) fn note_row(ui: &mut Ui, text: &str) {
     ui.label("");
     ui.label(RichText::new(text).small().weak());
     ui.end_row();
@@ -247,7 +375,13 @@ fn drag_value<'a>(shown: &'a mut f64, q: Quantity, u: DisplayUnits) -> DragValue
 
 /// An optional SI value edited in display units. Unset values are
 /// highlighted and offer an "Enter value" button.
-fn opt_field(ui: &mut Ui, label: &str, value: &mut Option<f64>, q: Quantity, u: DisplayUnits) {
+pub(super) fn opt_field(
+    ui: &mut Ui,
+    label: &str,
+    value: &mut Option<f64>,
+    q: Quantity,
+    u: DisplayUnits,
+) {
     ui.label(label);
     ui.horizontal(|ui| match value {
         Some(si) => {

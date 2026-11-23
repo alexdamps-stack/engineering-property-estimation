@@ -18,10 +18,14 @@
 
 mod engine;
 mod flowsheet;
+mod numerics;
+mod reaction;
+mod reactors;
 mod recycle;
 mod unit;
 
 pub use engine::*;
+pub use reaction::{ReactionBalance, ReactionTerms};
 pub use recycle::*;
 
 pub use flowsheet::{
@@ -29,7 +33,10 @@ pub use flowsheet::{
     StreamId, UnitIdsExhausted, UnitStatus,
 };
 pub use unit::{
-    DEFAULT_EFFICIENCY, ExchangerSpec, MixerPressure, PortDirection, PortRef, PortSpec,
-    PressureRise, PressureSpec, SeparatorThermal, SpecIssue, SpecProblem, ThermalSpec, Unit,
-    UnitId, UnitKind, UnitSpec,
+    Arrhenius, BatchThermal, ConcentrationBasis, Correlation, DEFAULT_EFFICIENCY,
+    EquilibriumConstant, EquilibriumOptions, EquilibriumReaction, ExchangerSpec, FugacityBasis,
+    KineticReaction, Kinetics, LhhwTerm, MixerPressure, PlugFlowThermal, PortDirection, PortRef,
+    PortSpec, PressureRise, PressureSpec, RateBasis, RateLaw, RateTerm, ReactingPhase, Reaction,
+    ReactionExtent, SeparatorThermal, SpecIssue, SpecProblem, ThermalSpec, Unit, UnitId, UnitKind,
+    UnitSpec,
 };

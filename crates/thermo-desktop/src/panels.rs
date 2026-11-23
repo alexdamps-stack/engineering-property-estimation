@@ -12,6 +12,7 @@ use crate::symbols::Theme;
 mod messages;
 mod presentation;
 mod project;
+mod reaction;
 mod spec;
 mod stream;
 mod stream_table;

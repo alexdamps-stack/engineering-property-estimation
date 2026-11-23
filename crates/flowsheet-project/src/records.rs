@@ -1,14 +1,20 @@
 //! Serializable mirrors of the `flowsheet-core` topology and specifications.
 //!
 //! The engine types stay free of serialization concerns; these records define
-//! the stable JSON spelling of project format versions 1 to 3 (which share
-//! the same input records).
+//! the stable JSON spelling of project format versions 1 to 4. Version 4 adds
+//! the reactor kinds and their specifications; earlier versions share the
+//! remaining records unchanged.
 
 use flowsheet_core::{
-    ExchangerSpec, MixerPressure, PressureRise, PressureSpec, SeparatorThermal, ThermalSpec,
-    UnitKind, UnitSpec,
+    ExchangerSpec, MixerPressure, PressureRise, PressureSpec, Reaction, ReactionExtent,
+    SeparatorThermal, ThermalSpec, UnitKind, UnitSpec,
 };
 use serde::{Deserialize, Serialize};
+
+use crate::reactor_records::{
+    BatchThermalRecord, EquilibriumOptionsRecord, EquilibriumReactionRecord, KineticsRecord,
+    PlugFlowThermalRecord, equilibrium_numbers, kinetics_numbers,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -25,6 +31,29 @@ pub(crate) enum KindRecord {
     Pump,
     Compressor,
     Expander,
+    ConversionReactor,
+    YieldReactor,
+    EquilibriumReactor,
+    GibbsReactor,
+    Cstr,
+    PlugFlowReactor,
+    BatchReactor,
+}
+
+impl KindRecord {
+    /// First project format version that can store this kind.
+    pub(crate) fn since_format(self) -> u64 {
+        match self {
+            KindRecord::ConversionReactor
+            | KindRecord::YieldReactor
+            | KindRecord::EquilibriumReactor
+            | KindRecord::GibbsReactor
+            | KindRecord::Cstr
+            | KindRecord::PlugFlowReactor
+            | KindRecord::BatchReactor => 4,
+            _ => 1,
+        }
+    }
 }
 
 impl From<UnitKind> for KindRecord {
@@ -42,6 +71,13 @@ impl From<UnitKind> for KindRecord {
             UnitKind::Pump => KindRecord::Pump,
             UnitKind::Compressor => KindRecord::Compressor,
             UnitKind::Expander => KindRecord::Expander,
+            UnitKind::ConversionReactor => KindRecord::ConversionReactor,
+            UnitKind::YieldReactor => KindRecord::YieldReactor,
+            UnitKind::EquilibriumReactor => KindRecord::EquilibriumReactor,
+            UnitKind::GibbsReactor => KindRecord::GibbsReactor,
+            UnitKind::Cstr => KindRecord::Cstr,
+            UnitKind::PlugFlowReactor => KindRecord::PlugFlowReactor,
+            UnitKind::BatchReactor => KindRecord::BatchReactor,
         }
     }
 }
@@ -61,6 +97,13 @@ impl From<KindRecord> for UnitKind {
             KindRecord::Pump => UnitKind::Pump,
             KindRecord::Compressor => UnitKind::Compressor,
             KindRecord::Expander => UnitKind::Expander,
+            KindRecord::ConversionReactor => UnitKind::ConversionReactor,
+            KindRecord::YieldReactor => UnitKind::YieldReactor,
+            KindRecord::EquilibriumReactor => UnitKind::EquilibriumReactor,
+            KindRecord::GibbsReactor => UnitKind::GibbsReactor,
+            KindRecord::Cstr => UnitKind::Cstr,
+            KindRecord::PlugFlowReactor => UnitKind::PlugFlowReactor,
+            KindRecord::BatchReactor => UnitKind::BatchReactor,
         }
     }
 }
@@ -98,8 +141,43 @@ pub(crate) enum ExchangerRecord {
     DutyW(Option<f64>),
 }
 
+/// One stoichiometric coefficient (format 4).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CoefficientRecord {
+    pub component: String,
+    pub coefficient: f64,
+}
+
+/// Extent of one reaction (format 4).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub(crate) enum ExtentRecord {
+    Conversion {
+        key: Option<String>,
+        fraction: Option<f64>,
+    },
+    MolarExtentMolS(Option<f64>),
+}
+
+/// One conversion-reactor reaction (format 4).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ReactionRecord {
+    pub coefficients: Vec<CoefficientRecord>,
+    pub extent: ExtentRecord,
+}
+
+/// One relative mass yield (format 4).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct YieldRecord {
+    pub component: String,
+    pub mass_yield: f64,
+}
+
 /// Specification in SI units with absolute pressure; `null` means unset.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum SpecRecord {
     Feed {
@@ -137,6 +215,47 @@ pub(crate) enum SpecRecord {
     Expand {
         pressure: PressureRecord,
         efficiency: f64,
+    },
+    ConversionReactor {
+        reactions: Vec<ReactionRecord>,
+        thermal: ThermalRecord,
+        pressure_drop_pa: f64,
+    },
+    YieldReactor {
+        mass_yields: Vec<YieldRecord>,
+        inerts: Vec<String>,
+        thermal: ThermalRecord,
+        pressure_drop_pa: f64,
+    },
+    EquilibriumReactor {
+        reactions: Vec<EquilibriumReactionRecord>,
+        equilibrium: EquilibriumOptionsRecord,
+        thermal: ThermalRecord,
+        pressure_drop_pa: f64,
+    },
+    GibbsReactor {
+        inerts: Vec<String>,
+        equilibrium: EquilibriumOptionsRecord,
+        thermal: ThermalRecord,
+        pressure_drop_pa: f64,
+    },
+    Cstr {
+        kinetics: KineticsRecord,
+        volume_m3: Option<f64>,
+        thermal: ThermalRecord,
+        pressure_drop_pa: f64,
+    },
+    PlugFlow {
+        kinetics: KineticsRecord,
+        length_m: Option<f64>,
+        diameter_m: Option<f64>,
+        thermal: PlugFlowThermalRecord,
+        pressure_drop_pa: f64,
+    },
+    Batch {
+        kinetics: KineticsRecord,
+        reaction_time_s: Option<f64>,
+        thermal: BatchThermalRecord,
     },
 }
 
@@ -194,8 +313,110 @@ impl SpecRecord {
                 pressure: p,
                 efficiency,
             } => vec![pressure(p), Some(*efficiency)],
+            SpecRecord::ConversionReactor {
+                reactions,
+                thermal: t,
+                pressure_drop_pa,
+            } => {
+                let mut v = vec![thermal(t), Some(*pressure_drop_pa)];
+                for r in reactions {
+                    v.extend(r.coefficients.iter().map(|c| Some(c.coefficient)));
+                    v.push(match &r.extent {
+                        ExtentRecord::Conversion { fraction, .. } => *fraction,
+                        ExtentRecord::MolarExtentMolS(e) => *e,
+                    });
+                }
+                v
+            }
+            SpecRecord::YieldReactor {
+                mass_yields,
+                thermal: t,
+                pressure_drop_pa,
+                ..
+            } => {
+                let mut v = vec![thermal(t), Some(*pressure_drop_pa)];
+                v.extend(mass_yields.iter().map(|y| Some(y.mass_yield)));
+                v
+            }
+            SpecRecord::EquilibriumReactor {
+                reactions,
+                equilibrium,
+                thermal: t,
+                pressure_drop_pa,
+            } => {
+                let mut v = vec![thermal(t), Some(*pressure_drop_pa)];
+                v.extend(equilibrium_numbers(reactions, equilibrium));
+                v
+            }
+            SpecRecord::GibbsReactor {
+                equilibrium,
+                thermal: t,
+                pressure_drop_pa,
+                ..
+            } => {
+                let mut v = vec![thermal(t), Some(*pressure_drop_pa)];
+                v.extend(equilibrium_numbers(&[], equilibrium));
+                v
+            }
+            SpecRecord::Cstr {
+                kinetics,
+                volume_m3,
+                thermal: t,
+                pressure_drop_pa,
+            } => {
+                let mut v = vec![thermal(t), Some(*pressure_drop_pa), *volume_m3];
+                v.extend(kinetics_numbers(kinetics));
+                v
+            }
+            SpecRecord::PlugFlow {
+                kinetics,
+                length_m,
+                diameter_m,
+                thermal: t,
+                pressure_drop_pa,
+            } => {
+                let mut v = vec![*length_m, *diameter_m, Some(*pressure_drop_pa)];
+                match *t {
+                    PlugFlowThermalRecord::IsothermalK(x) => v.push(x),
+                    PlugFlowThermalRecord::Adiabatic => {}
+                    PlugFlowThermalRecord::Coolant {
+                        temperature_k,
+                        u_w_m2_k,
+                    } => v.extend([temperature_k, u_w_m2_k]),
+                }
+                v.extend(kinetics_numbers(kinetics));
+                v
+            }
+            SpecRecord::Batch {
+                kinetics,
+                reaction_time_s,
+                thermal: t,
+            } => {
+                let mut v = vec![*reaction_time_s];
+                if let BatchThermalRecord::IsothermalK(x) = *t {
+                    v.push(x);
+                }
+                v.extend(kinetics_numbers(kinetics));
+                v
+            }
         };
         values.into_iter().flatten().collect()
+    }
+}
+
+fn thermal_record(t: SeparatorThermal) -> ThermalRecord {
+    match t {
+        SeparatorThermal::Adiabatic => ThermalRecord::Adiabatic,
+        SeparatorThermal::OutletTemperature(t) => ThermalRecord::OutletTemperatureK(t),
+        SeparatorThermal::Duty(q) => ThermalRecord::DutyW(q),
+    }
+}
+
+fn separator_thermal(t: ThermalRecord) -> SeparatorThermal {
+    match t {
+        ThermalRecord::Adiabatic => SeparatorThermal::Adiabatic,
+        ThermalRecord::OutletTemperatureK(t) => SeparatorThermal::OutletTemperature(t),
+        ThermalRecord::DutyW(q) => SeparatorThermal::Duty(q),
     }
 }
 
@@ -280,6 +501,105 @@ impl From<UnitSpec> for SpecRecord {
             } => SpecRecord::Expand {
                 pressure: drop_or_outlet(pressure),
                 efficiency,
+            },
+            UnitSpec::ConversionReactor {
+                reactions,
+                thermal,
+                pressure_drop_pa,
+            } => SpecRecord::ConversionReactor {
+                reactions: reactions
+                    .into_iter()
+                    .map(|r| ReactionRecord {
+                        coefficients: r
+                            .coefficients
+                            .into_iter()
+                            .map(|(component, coefficient)| CoefficientRecord {
+                                component,
+                                coefficient,
+                            })
+                            .collect(),
+                        extent: match r.extent {
+                            ReactionExtent::Conversion { key, fraction } => {
+                                ExtentRecord::Conversion { key, fraction }
+                            }
+                            ReactionExtent::MolarExtent(e) => ExtentRecord::MolarExtentMolS(e),
+                        },
+                    })
+                    .collect(),
+                thermal: thermal_record(thermal),
+                pressure_drop_pa,
+            },
+            UnitSpec::YieldReactor {
+                mass_yields,
+                inerts,
+                thermal,
+                pressure_drop_pa,
+            } => SpecRecord::YieldReactor {
+                mass_yields: mass_yields
+                    .into_iter()
+                    .map(|(component, mass_yield)| YieldRecord {
+                        component,
+                        mass_yield,
+                    })
+                    .collect(),
+                inerts,
+                thermal: thermal_record(thermal),
+                pressure_drop_pa,
+            },
+            UnitSpec::EquilibriumReactor {
+                reactions,
+                equilibrium,
+                thermal,
+                pressure_drop_pa,
+            } => SpecRecord::EquilibriumReactor {
+                reactions: reactions.into_iter().map(Into::into).collect(),
+                equilibrium: equilibrium.into(),
+                thermal: thermal_record(thermal),
+                pressure_drop_pa,
+            },
+            UnitSpec::GibbsReactor {
+                inerts,
+                equilibrium,
+                thermal,
+                pressure_drop_pa,
+            } => SpecRecord::GibbsReactor {
+                inerts,
+                equilibrium: equilibrium.into(),
+                thermal: thermal_record(thermal),
+                pressure_drop_pa,
+            },
+            UnitSpec::Cstr {
+                kinetics,
+                volume_m3,
+                thermal,
+                pressure_drop_pa,
+            } => SpecRecord::Cstr {
+                kinetics: kinetics.into(),
+                volume_m3,
+                thermal: thermal_record(thermal),
+                pressure_drop_pa,
+            },
+            UnitSpec::PlugFlow {
+                kinetics,
+                length_m,
+                diameter_m,
+                thermal,
+                pressure_drop_pa,
+            } => SpecRecord::PlugFlow {
+                kinetics: kinetics.into(),
+                length_m,
+                diameter_m,
+                thermal: thermal.into(),
+                pressure_drop_pa,
+            },
+            UnitSpec::Batch {
+                kinetics,
+                reaction_time_s,
+                thermal,
+            } => SpecRecord::Batch {
+                kinetics: kinetics.into(),
+                reaction_time_s,
+                thermal: thermal.into(),
             },
         }
     }
@@ -375,6 +695,99 @@ impl TryFrom<SpecRecord> for UnitSpec {
                 pressure: pressure(p)?,
                 efficiency,
             },
+            SpecRecord::ConversionReactor {
+                reactions,
+                thermal,
+                pressure_drop_pa,
+            } => UnitSpec::ConversionReactor {
+                reactions: reactions
+                    .into_iter()
+                    .map(|r| Reaction {
+                        coefficients: r
+                            .coefficients
+                            .into_iter()
+                            .map(|c| (c.component, c.coefficient))
+                            .collect(),
+                        extent: match r.extent {
+                            ExtentRecord::Conversion { key, fraction } => {
+                                ReactionExtent::Conversion { key, fraction }
+                            }
+                            ExtentRecord::MolarExtentMolS(e) => ReactionExtent::MolarExtent(e),
+                        },
+                    })
+                    .collect(),
+                thermal: separator_thermal(thermal),
+                pressure_drop_pa,
+            },
+            SpecRecord::YieldReactor {
+                mass_yields,
+                inerts,
+                thermal,
+                pressure_drop_pa,
+            } => UnitSpec::YieldReactor {
+                mass_yields: mass_yields
+                    .into_iter()
+                    .map(|y| (y.component, y.mass_yield))
+                    .collect(),
+                inerts,
+                thermal: separator_thermal(thermal),
+                pressure_drop_pa,
+            },
+            SpecRecord::EquilibriumReactor {
+                reactions,
+                equilibrium,
+                thermal,
+                pressure_drop_pa,
+            } => UnitSpec::EquilibriumReactor {
+                reactions: reactions.into_iter().map(Into::into).collect(),
+                equilibrium: equilibrium.into(),
+                thermal: separator_thermal(thermal),
+                pressure_drop_pa,
+            },
+            SpecRecord::GibbsReactor {
+                inerts,
+                equilibrium,
+                thermal,
+                pressure_drop_pa,
+            } => UnitSpec::GibbsReactor {
+                inerts,
+                equilibrium: equilibrium.into(),
+                thermal: separator_thermal(thermal),
+                pressure_drop_pa,
+            },
+            SpecRecord::Cstr {
+                kinetics,
+                volume_m3,
+                thermal,
+                pressure_drop_pa,
+            } => UnitSpec::Cstr {
+                kinetics: kinetics.into(),
+                volume_m3,
+                thermal: separator_thermal(thermal),
+                pressure_drop_pa,
+            },
+            SpecRecord::PlugFlow {
+                kinetics,
+                length_m,
+                diameter_m,
+                thermal,
+                pressure_drop_pa,
+            } => UnitSpec::PlugFlow {
+                kinetics: kinetics.into(),
+                length_m,
+                diameter_m,
+                thermal: thermal.into(),
+                pressure_drop_pa,
+            },
+            SpecRecord::Batch {
+                kinetics,
+                reaction_time_s,
+                thermal,
+            } => UnitSpec::Batch {
+                kinetics: kinetics.into(),
+                reaction_time_s,
+                thermal: thermal.into(),
+            },
         })
     }
 }
@@ -387,7 +800,7 @@ mod tests {
     fn every_default_spec_round_trips() {
         for kind in UnitKind::ALL {
             let spec = kind.default_spec();
-            let json = serde_json::to_string(&SpecRecord::from(spec)).unwrap();
+            let json = serde_json::to_string(&SpecRecord::from(spec.clone())).unwrap();
             let back: SpecRecord = serde_json::from_str(&json).unwrap();
             assert_eq!(UnitSpec::try_from(back).unwrap(), spec, "{kind}");
             let k: KindRecord = kind.into();
