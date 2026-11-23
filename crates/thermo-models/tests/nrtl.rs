@@ -324,6 +324,17 @@ fn validity_reports_regression_interval() {
     let pure = m.nrtl().excess(320.0, &[1.0, 0.0]).unwrap();
     assert_eq!(within.validity, ValidityStatus::WithinDeclaredDomain);
     assert_eq!(below.validity, ValidityStatus::Extrapolated);
+    // The methanol/water interval is inferred from pure normal boiling points.
+    assert!(within.inferred_regression_interval);
+    assert!(!pure.inferred_regression_interval);
+    let typed = m
+        .nrtl()
+        .excess_at(Temperature::new(350.0).unwrap(), &[0.5, 0.5])
+        .unwrap();
+    assert_eq!(
+        typed.ln_activity_coefficients,
+        within.ln_activity_coefficients
+    );
     // No interacting pair: g^E = 0 and no regression interval applies.
     assert_eq!(pure.validity, ValidityStatus::Unassessed);
     assert_eq!(

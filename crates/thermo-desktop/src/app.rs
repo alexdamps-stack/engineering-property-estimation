@@ -206,10 +206,19 @@ impl FlowsheetApp {
             if ctx.input(|i| i.key_pressed(Key::F5)) {
                 self.editor.start_solve(Some(ctx.clone()));
             }
-            if self.editor.is_solving() && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            // Esc closes an open dialog; it must not also cancel the solve.
+            if !self.dialog_open()
+                && self.editor.is_solving()
+                && ctx.input(|i| i.key_pressed(Key::Escape))
+            {
                 self.editor.cancel_solve();
             }
         }
+    }
+
+    /// Whether a modal dialog (unsaved changes or new project) is open.
+    fn dialog_open(&self) -> bool {
+        self.confirm.is_some() || self.new_project.is_some()
     }
 
     fn update_title(&mut self, ctx: &egui::Context) {

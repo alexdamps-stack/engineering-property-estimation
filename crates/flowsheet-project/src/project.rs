@@ -1,21 +1,29 @@
 //! In-memory project, its JSON file format, and solving.
 
 use std::collections::BTreeMap;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::ops::ControlFlow;
 use std::path::Path;
 
 use flowsheet_core::{
     FeedCompositions, Flowsheet, PortRef, SolveProgress, Stream, StreamId, Unit, UnitId, UnitKind,
 };
-use property_packages::CubicPackage;
 use serde::{Deserialize, Serialize};
 use thermo_types::{
     COMPOSITION_SUM_TOLERANCE, ComponentId, Composition, CompositionBasis, NormalizationPolicy,
 };
 
 use crate::records::{KindRecord, SpecRecord};
-use crate::{Fingerprints, PackageSelection, ProjectError, ResultSet};
+use crate::{Fingerprints, PackageSelection, PreparedPackage, ProjectError, ResultSet};
+
+/// Maximum UTF-8 JSON project size accepted by either loader (16 MiB).
+pub const MAX_PROJECT_BYTES: usize = 16 * 1024 * 1024;
+/// Maximum number of units and corresponding feed/layout/result records.
+pub const MAX_PROJECT_UNITS: usize = 10_000;
+/// Maximum number of material streams and stored stream results.
+pub const MAX_PROJECT_STREAMS: usize = 40_000;
+/// Maximum number of components in a project property package.
+pub const MAX_PROJECT_COMPONENTS: usize = 256;
 
 /// Project file format version written by this program. Files declaring
 /// versions 1 and 2 are readable; unknown versions are rejected before decoding.
@@ -150,6 +158,7 @@ impl Project {
     /// Serializes to the versioned JSON project format. Results for units
     /// and streams that no longer exist are omitted.
     pub fn to_json(&self) -> Result<String, ProjectError> {
+        self.check_finite()?;
         let fs = &self.flowsheet;
         let port = |p: PortRef| PortRecord {
             unit: p.unit.0,
@@ -159,6 +168,9 @@ impl Project {
             r.retain_existing(fs);
             r
         });
+        if let Some(what) = results.as_ref().and_then(ResultSet::first_non_finite) {
+            return Err(non_finite(&what));
+        }
         let file = ProjectFile {
             format_version: FORMAT_VERSION,
             generator: concat!("thermo-desktop ", env!("CARGO_PKG_VERSION")).into(),
@@ -205,15 +217,48 @@ impl Project {
             },
             results,
         };
+        check_collection_limits(&file)?;
         let mut text =
             serde_json::to_string_pretty(&file).map_err(|e| ProjectError::Format(e.to_string()))?;
         text.push('\n');
+        if text.len() > MAX_PROJECT_BYTES {
+            return Err(ProjectError::Invalid(format!("project exceeds the {MAX_PROJECT_BYTES}-byte size limit")));
+        }
         Ok(text)
+    }
+
+    fn check_finite(&self) -> Result<(), ProjectError> {
+        let p = &self.package;
+        if p.kij.iter().flatten().any(|v| !v.is_finite()) {
+            return Err(non_finite("package interaction matrix"));
+        }
+        if !p.ph_minimum_temperature_k.is_finite() || !p.ph_maximum_temperature_k.is_finite() {
+            return Err(non_finite("package PH search interval"));
+        }
+        for u in self.flowsheet.units() {
+            if SpecRecord::from(u.spec).numbers().iter().any(|v| !v.is_finite()) {
+                return Err(non_finite(&format!("specification of {}", u.name)));
+            }
+        }
+        for (id, x) in &self.feeds {
+            if self.flowsheet.unit(*id).is_some() && x.iter().any(|v| !v.is_finite()) {
+                return Err(non_finite(&format!("feed composition of {id}")));
+            }
+        }
+        for (id, [x, y]) in &self.layout {
+            if self.flowsheet.unit(*id).is_some() && !(x.is_finite() && y.is_finite()) {
+                return Err(non_finite(&format!("layout position of {id}")));
+            }
+        }
+        Ok(())
     }
 
     /// Parses the versioned JSON project format. The version is checked
     /// before the content, so files from newer programs fail clearly.
     pub fn from_json(text: &str) -> Result<Self, ProjectError> {
+        if text.len() > MAX_PROJECT_BYTES {
+            return Err(ProjectError::Invalid(format!("project exceeds the {MAX_PROJECT_BYTES}-byte size limit")));
+        }
         let value: serde_json::Value =
             serde_json::from_str(text).map_err(|e| ProjectError::Format(e.to_string()))?;
         match value
@@ -225,6 +270,8 @@ impl Project {
         }
         let file: ProjectFile =
             serde_json::from_value(value).map_err(|e| ProjectError::Format(e.to_string()))?;
+        check_collection_limits(&file)?;
+        file.package.build()?;
 
         let mut units = Vec::new();
         for u in file.units {
@@ -288,7 +335,9 @@ impl Project {
                     "layout entry for {id} is invalid"
                 )));
             }
-            layout.insert(id, [l.x, l.y]);
+            if layout.insert(id, [l.x, l.y]).is_some() {
+                return Err(ProjectError::Invalid(format!("layout entry for {id} appears twice")));
+            }
         }
         Ok(Self {
             flowsheet,
@@ -322,7 +371,10 @@ impl Project {
 
     /// Reads a project file.
     pub fn load(path: &Path) -> Result<Self, ProjectError> {
-        let text = std::fs::read_to_string(path).map_err(|e| ProjectError::Io(e.to_string()))?;
+        let file = std::fs::File::open(path).map_err(|e| ProjectError::Io(e.to_string()))?;
+        let mut text = String::new();
+        file.take((MAX_PROJECT_BYTES + 1) as u64).read_to_string(&mut text)
+            .map_err(|e| ProjectError::Io(e.to_string()))?;
         Self::from_json(&text)
     }
 
@@ -340,6 +392,35 @@ impl Project {
     pub fn feed_compositions(&self) -> Result<FeedCompositions, Vec<InputIssue>> {
         feed_compositions(&self.flowsheet, &self.feeds, &self.package)
     }
+}
+
+fn non_finite(what: &str) -> ProjectError {
+    ProjectError::Invalid(format!("{what} contains a number that is not finite (NaN or infinity), which a project file cannot store"))
+}
+
+fn check_collection_limits(file: &ProjectFile) -> Result<(), ProjectError> {
+    let counts = [
+        ("units", file.units.len(), MAX_PROJECT_UNITS),
+        ("streams", file.streams.len(), MAX_PROJECT_STREAMS),
+        ("feeds", file.feeds.len(), MAX_PROJECT_UNITS),
+        ("layout entries", file.layout.len(), MAX_PROJECT_UNITS),
+        ("components", file.package.components.len(), MAX_PROJECT_COMPONENTS),
+        ("interaction rows", file.package.kij.len(), MAX_PROJECT_COMPONENTS),
+    ];
+    for (name, count, limit) in counts {
+        if count > limit { return Err(ProjectError::Invalid(format!("{name} count {count} exceeds limit {limit}"))); }
+    }
+    if file.package.kij.iter().any(|row| row.len() > MAX_PROJECT_COMPONENTS) {
+        return Err(ProjectError::Invalid("interaction row exceeds component limit".into()));
+    }
+    if let Some(r) = &file.results {
+        if r.units.len() > MAX_PROJECT_UNITS || r.order.len() > MAX_PROJECT_UNITS
+            || r.streams.len() > MAX_PROJECT_STREAMS
+            || r.recycle.as_ref().is_some_and(|v| v.tears.len() > MAX_PROJECT_STREAMS) {
+            return Err(ProjectError::Invalid("stored result collections exceed project limits".into()));
+        }
+    }
+    Ok(())
 }
 
 /// Feed composition problems of a flowsheet with the given package.
@@ -412,8 +493,8 @@ pub(crate) fn feed_compositions(
     Ok(out)
 }
 
-/// Solves a project with an already built package (see
-/// [`PackageSelection::build`]). `progress` is called before each unit;
+/// Solves a project with a package prepared from exactly its selection (see
+/// [`PackageSelection::prepare`]). `progress` is called before each unit;
 /// returning [`ControlFlow::Break`] cancels between units.
 ///
 /// The returned results carry the fingerprints of exactly the solved inputs.
@@ -421,15 +502,17 @@ pub(crate) fn feed_compositions(
 /// fingerprints show them stale where inputs changed.
 pub fn solve_project(
     project: &Project,
-    package: &CubicPackage,
+    package: &PreparedPackage,
     progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
     solved_at_unix_s: u64,
 ) -> Result<ResultSet, SolveFailure> {
-    let provenance = project.package.provenance().map_err(|e| SolveFailure {
-        unit: None,
-        message: e.to_string(),
-        cancelled: false,
-    })?;
+    if package.selection() != &project.package {
+        return Err(SolveFailure {
+            unit: None,
+            message: "The property package was prepared for a different package selection than the project's; prepare it again from the project's selection.".into(),
+            cancelled: false,
+        });
+    }
     let feeds = project.feed_compositions().map_err(|issues| SolveFailure {
         unit: issues.first().map(|i| i.unit),
         message: issues
@@ -439,10 +522,10 @@ pub fn solve_project(
             .join("\n"),
         cancelled: false,
     })?;
-    let fingerprints = project.fingerprints();
+    let fingerprints = Fingerprints::compute_with(&project.flowsheet, &project.feeds, Some(package.fingerprint()));
     let calc = project
         .flowsheet
-        .solve_network_with_progress(package, &feeds, progress)
+        .solve_network_with_progress(package.package(), &feeds, progress)
         .map_err(|e| SolveFailure {
             unit: e.unit,
             message: e.message,
@@ -452,7 +535,7 @@ pub fn solve_project(
         &calc,
         &project.flowsheet,
         &fingerprints,
-        provenance,
+        package.provenance().clone(),
         solved_at_unix_s,
     ))
 }

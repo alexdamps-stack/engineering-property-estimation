@@ -8,6 +8,10 @@ edition = "2024"
 publish = false
 license = "MIT"
 
+[workspace.dependencies]
+# Every crate gets correctly rounded JSON float parsing even when built alone.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 

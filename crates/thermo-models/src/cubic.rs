@@ -7,6 +7,8 @@ use thermo_types::{
 
 pub const OMEGA_A: f64 = 0.457_235_528_921_382_2;
 pub const OMEGA_B: f64 = 0.077_796_073_903_888_46;
+/// Temperature envelope of `CubicModel::pressure_derivatives` (K).
+pub const MECHANICAL_TEMPERATURE_RANGE_K: [f64; 2] = [100.0, 1000.0];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CubicVariant {
@@ -62,7 +64,9 @@ pub struct FugacityState {
     pub ln_fugacity_coefficients: Vec<f64>,
     /// sum x_i ln(phi_i) = g_res/(RT) at this T,p,x.
     pub reduced_residual_gibbs: f64,
-    /// Number of roots located at this T,p,x. Cubics: 1 or 3 (rarely 2).
+    /// Number of roots located at this T,p,x. Cubics: 1 or 3. The polynomial is
+    /// negative at Z = B, so an odd number of roots lies above B; coalescent
+    /// (double/triple) roots are rejected by `compressibility_roots` instead.
     /// The GERG equilibrium adapter reports sampled exterior roots only.
     pub root_count: usize,
 }
@@ -225,6 +229,16 @@ impl CubicModel {
         Ok(())
     }
 
+    /// Temperature part of `check_domain`, for T,V entry points without a pressure.
+    fn check_temperature(t: f64) -> Result<(), Error> {
+        if !(200.0..=600.0).contains(&t) {
+            return Err(Error::OutsideValidityDomain(
+                "homogeneous EOS envelope: 200..=600 K; no phase/stability qualification".into(),
+            ));
+        }
+        Ok(())
+    }
+
     /// All admissible real Z roots, in increasing volume order, including unstable roots.
     /// Near-coalescent roots return a diagnostic error instead of an accuracy claim.
     pub fn compressibility_roots(
@@ -271,19 +285,11 @@ impl CubicModel {
             return Err(Error::UnsupportedCapability("BM second temperature derivative has one-sided values at T=Tc; cp/cv not defined there".into()));
         }
         let par = self.parameters(t)?;
-        let log_phi = |z: f64| ln_phi(&par, t, p, z);
-        let z = select_root(&roots, selection, |z| {
-            self.reduced_residual_gibbs(&log_phi(z))
-        });
+        let (z, ln_phi) = self.select_root(&roots, selection, &par, t, p);
         let v = z * R * t / p;
+        let pv = accepted_root_slope(&par, t, v)?;
         let denom = v * v + 2.0 * par.b * v - par.b * par.b;
         let pt = R / (v - par.b) - par.da / denom;
-        let pv = -R * t / (v - par.b).powi(2) + par.a * (2.0 * v + 2.0 * par.b) / denom.powi(2);
-        if pv >= 0.0 || -pv * v / (R * t / v) < 1e-8 {
-            return Err(Error::NumericalFailure(
-                "mechanically unstable or spinodal root".into(),
-            ));
-        }
         let q = attraction_integral(v, par.b);
         let hr = R * t * (z - 1.0) + (t * par.da - par.a) * q;
         let sr = R * (z - par.b * p / (R * t)).ln() + par.da * q;
@@ -304,7 +310,6 @@ impl CubicModel {
         let cv = cp0 - R + t * par.d2a * q;
         let cp = cv - t * pt * pt / pv;
         let sound = (-v * v * pv * cp / (mass * cv)).sqrt();
-        let ln_phi = log_phi(z);
         if cv <= 0.0
             || cp <= 0.0
             || ![hr, sr, h0, s0, cp, cv, sound, pt, pv, mass / v]
@@ -369,8 +374,9 @@ impl CubicModel {
 
     /// Z and ln(phi) of the requested root, without caloric evaluation. Intended for
     /// stability and flash iterations. MinimumGibbs compares roots at this composition
-    /// only. A selected root with nonnegative (dp/dv)_T is rejected as mechanically
-    /// unstable rather than returned.
+    /// only. The selected root must pass the same mechanical acceptance test as
+    /// `evaluate` (see `accepted_root_slope`), so a flash cannot converge on a root
+    /// that `evaluate` would refuse.
     pub fn ln_fugacity(
         &self,
         temperature: Temperature,
@@ -380,18 +386,9 @@ impl CubicModel {
         let (t, p) = (temperature.value(), pressure.value());
         let roots = self.compressibility_roots(temperature, pressure)?;
         let par = self.parameters(t)?;
-        let z = select_root(&roots, selection, |z| {
-            self.reduced_residual_gibbs(&ln_phi(&par, t, p, z))
-        });
+        let (z, ln_fugacity_coefficients) = self.select_root(&roots, selection, &par, t, p);
         let v = z * R * t / p;
-        let denom = v * v + 2.0 * par.b * v - par.b * par.b;
-        let pv = -R * t / (v - par.b).powi(2) + par.a * (2.0 * v + 2.0 * par.b) / denom.powi(2);
-        if pv >= 0.0 || !pv.is_finite() {
-            return Err(Error::NumericalFailure(
-                "selected root is mechanically unstable".into(),
-            ));
-        }
-        let ln_fugacity_coefficients = ln_phi(&par, t, p, z);
+        accepted_root_slope(&par, t, v)?;
         if !ln_fugacity_coefficients.iter().all(|v| v.is_finite()) {
             return Err(Error::NumericalFailure("nonfinite ln(phi)".into()));
         }
@@ -408,16 +405,52 @@ impl CubicModel {
         ln_phi.iter().zip(&self.fractions).map(|(l, x)| l * x).sum()
     }
 
+    /// The requested root and its ln(phi) vector. For `MinimumGibbs`, ln(phi) is
+    /// computed once per root rather than once per comparison.
+    fn select_root(
+        &self,
+        roots: &[f64],
+        selection: RootSelection,
+        par: &Parameters,
+        t: f64,
+        p: f64,
+    ) -> (f64, Vec<f64>) {
+        let z = match selection {
+            RootSelection::SmallestVolume => roots[0],
+            RootSelection::LargestVolume => roots[roots.len() - 1],
+            RootSelection::MinimumGibbs => {
+                let mut best: Option<(f64, Vec<f64>, f64)> = None;
+                for &z in roots {
+                    let phi = ln_phi(par, t, p, z);
+                    let g = self.reduced_residual_gibbs(&phi);
+                    if best.as_ref().is_none_or(|(_, _, b)| g.total_cmp(b).is_lt()) {
+                        best = Some((z, phi, g));
+                    }
+                }
+                let (z, phi, _) = best.expect("compressibility_roots returns at least one root");
+                return (z, phi);
+            }
+        };
+        (z, ln_phi(par, t, p, z))
+    }
+
     /// EOS pressure and first/second volume derivatives; useful for critical constraints.
+    ///
+    /// The temperature envelope (`MECHANICAL_TEMPERATURE_RANGE_K`, 100..=1000 K) is
+    /// deliberately wider than the 200..=600 K homogeneous T,p envelope of `evaluate`:
+    /// these are purely volumetric derivatives at a given V, with no pressure bound and
+    /// no caloric (NASA7) evaluation, and are used for pure critical-point constraints
+    /// (e.g. water, Tc = 647 K) and spinodal searches. They make no phase claim.
     pub fn pressure_derivatives(
         &self,
         temperature: Temperature,
         molar_volume: f64,
     ) -> Result<(f64, f64, f64), Error> {
-        if !(100.0..=1000.0).contains(&temperature.value()) {
-            return Err(Error::OutsideValidityDomain(
-                "mechanical derivatives: 100..=1000 K".into(),
-            ));
+        let [lo, hi] = MECHANICAL_TEMPERATURE_RANGE_K;
+        if !(lo..=hi).contains(&temperature.value()) {
+            return Err(Error::OutsideValidityDomain(format!(
+                "mechanical derivatives: {lo}..={hi} K"
+            )));
         }
         let par = self.parameters(temperature.value())?;
         let v = molar_volume;
@@ -449,7 +482,7 @@ impl CubicModel {
         volume: f64,
         moles: f64,
     ) -> Result<f64, Error> {
-        Self::check_domain(temperature.value(), 1.0)?;
+        Self::check_temperature(temperature.value())?;
         if !volume.is_finite() || volume <= 0.0 || !moles.is_finite() || moles <= 0.0 {
             return Err(InputError::NotPositive("volume and moles").into());
         }
@@ -482,16 +515,22 @@ fn ln_phi(par: &Parameters, t: f64, p: f64, z: f64) -> Vec<f64> {
         .collect()
 }
 
-fn select_root(roots: &[f64], selection: RootSelection, gibbs: impl Fn(f64) -> f64) -> f64 {
-    match selection {
-        RootSelection::SmallestVolume => roots[0],
-        RootSelection::LargestVolume => roots[roots.len() - 1],
-        RootSelection::MinimumGibbs => roots
-            .iter()
-            .copied()
-            .min_by(|a, b| gibbs(*a).total_cmp(&gibbs(*b)))
-            .unwrap_or(roots[0]),
+/// Minimum reduced bulk modulus −(∂p/∂v)_T v²/(RT) for an accepted root. Shared by
+/// `evaluate` and `ln_fugacity`. Ideal gas gives 1; the bound only excludes roots
+/// within roundoff of a spinodal, which `compressibility_roots` already rejects as
+/// coalescent in practice, so sharing it does not change converged flash results.
+pub const MIN_REDUCED_BULK_MODULUS: f64 = 1e-8;
+
+/// (∂p/∂v)_T at the selected root if it is mechanically acceptable.
+fn accepted_root_slope(par: &Parameters, t: f64, v: f64) -> Result<f64, Error> {
+    let denom = v * v + 2.0 * par.b * v - par.b * par.b;
+    let pv = -R * t / (v - par.b).powi(2) + par.a * (2.0 * v + 2.0 * par.b) / denom.powi(2);
+    if !pv.is_finite() || pv >= 0.0 || -pv * v * v / (R * t) < MIN_REDUCED_BULK_MODULUS {
+        return Err(Error::NumericalFailure(
+            "selected root is mechanically unstable or at a spinodal".into(),
+        ));
     }
+    Ok(pv)
 }
 
 // Equivalent to ln((v+(1+sqrt(2))*b)/(v+(1-sqrt(2))*b))/(2*sqrt(2)*b).

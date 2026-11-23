@@ -22,6 +22,10 @@ pub struct MaterialStream {
 }
 
 impl MaterialStream {
+    /// Reference-independent thermal energy-flow scale, n cp T in W.
+    pub fn thermal_scale_w(&self) -> f64 {
+        self.state.as_ref().map_or(0.0, |s| self.molar_flow_mol_s * molar_thermal_scale(s))
+    }
     /// Mass flow from the phase molar masses (rho * molar volume), kg/s.
     /// The empty outlet carries zero mass without a fabricated molar mass.
     pub fn mass_flow_kg_s(&self) -> f64 {
@@ -53,6 +57,13 @@ impl MaterialStream {
     }
 }
 
+/// Positive phase-weighted cp T scale in J/mol; invalid values contribute no floor.
+pub(crate) fn molar_thermal_scale(s: &EquilibriumState) -> f64 {
+    let cp: f64 = s.phases.iter().map(|p| p.phase_fraction * p.state.cp).sum();
+    let scale = cp * s.temperature_k;
+    if scale.is_finite() && scale > 0.0 { scale } else { 0.0 }
+}
+
 /// Outlet minus inlet component and energy residuals; duty is positive into
 /// the unit. Boundary feeds/products have no internal balance.
 #[derive(Debug, Clone)]
@@ -65,7 +76,10 @@ pub struct Balance {
 
 #[derive(Debug, Clone)]
 pub struct UnitCalculation {
+    /// External heat duty, positive into the unit.
     pub duty_w: f64,
+    /// Internal exchanger heat transfer from hot to cold side, in W.
+    pub transferred_duty_w: Option<f64>,
     pub balance: Option<Balance>,
     pub warnings: Vec<String>,
 }
@@ -91,7 +105,7 @@ impl Calculation {
         feeds: &FeedCompositions,
         package: &CubicPackage,
     ) -> bool {
-        self.topology == *flowsheet
+        self.topology.same_calculation_inputs(flowsheet)
             && self.feeds == *feeds
             && self.package.same_configuration(package)
     }
@@ -189,6 +203,7 @@ impl Flowsheet {
         progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
     ) -> Result<Calculation, SolveError> {
         let order = self.calculation_order()?;
+        self.validate_inputs(package, feeds)?;
         self.solve_pass(package, feeds, order, &BTreeMap::new(), progress)
     }
 
@@ -258,7 +273,6 @@ impl Flowsheet {
         tears: &BTreeMap<StreamId, MaterialStream>,
         mut progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
     ) -> Result<Calculation, SolveError> {
-        self.validate_inputs(package, feeds)?;
         let fail = |id: UnitId, message: String| SolveError {
             unit: Some(id),
             message: format!("{}: {message}", self.unit(id).expect("unit exists").name),
@@ -305,10 +319,11 @@ impl Flowsheet {
                     );
                 }
             }
-            let (outlets, duty_w, warnings) =
-                calculate_unit(u.spec, &inlets, feeds.get(&id), package)
+            let UnitOutput { outlets, duty_w, transferred_duty_w, warnings } =
+                calculate_unit(u.kind, u.spec, &inlets, feeds.get(&id), package)
                     .map_err(|e| fail(id, e))?;
             if !duty_w.is_finite()
+                || transferred_duty_w.is_some_and(|q| !q.is_finite())
                 || outlets.iter().any(|s| {
                     !s.molar_flow_mol_s.is_finite()
                         || !s.enthalpy_flow_w().is_finite()
@@ -344,6 +359,7 @@ impl Flowsheet {
                 id,
                 UnitCalculation {
                     duty_w,
+                    transferred_duty_w,
                     balance,
                     warnings,
                 },
@@ -353,9 +369,24 @@ impl Flowsheet {
     }
 }
 
-type UnitOutput = (Vec<MaterialStream>, f64, Vec<String>);
+struct UnitOutput {
+    outlets: Vec<MaterialStream>,
+    duty_w: f64,
+    transferred_duty_w: Option<f64>,
+    warnings: Vec<String>,
+}
+
+impl UnitOutput {
+    fn new(outlets: Vec<MaterialStream>, duty_w: f64, warnings: Vec<String>) -> Self {
+        Self { outlets, duty_w, transferred_duty_w: None, warnings }
+    }
+    fn exchanger(outlets: Vec<MaterialStream>, transferred: f64, warnings: Vec<String>) -> Self {
+        Self { outlets, duty_w: 0.0, transferred_duty_w: Some(transferred), warnings }
+    }
+}
 
 fn calculate_unit(
+    kind: UnitKind,
     spec: UnitSpec,
     inputs: &[MaterialStream],
     feed: Option<&Composition>,
@@ -418,7 +449,7 @@ fn calculate_unit(
             if duty != 0.0 {
                 return Err("a nonzero specified duty requires positive inlet flow".into());
             }
-            return Ok((
+            return Ok(UnitOutput::new(
                 vec![empty(); count],
                 0.0,
                 vec!["Zero inlet flow: absent outlets have no thermodynamic state; temperature and pressure specifications are inactive.".into()],
@@ -437,13 +468,13 @@ fn calculate_unit(
                 .iter()
                 .map(|(_, x)| *x)
                 .collect();
-            Ok((
+            Ok(UnitOutput::new(
                 vec![stream(n, pkg.tp(&z, t, p).map_err(|e| e.to_string())?)],
                 0.0,
                 vec![],
             ))
         }
-        UnitSpec::Product => Ok((vec![], 0.0, vec![])),
+        UnitSpec::Product => Ok(UnitOutput::new(vec![], 0.0, vec![])),
         UnitSpec::Mixer { outlet_pressure } => {
             let active: Vec<_> = inputs.iter().filter(|s| s.molar_flow_mol_s > 0.0).collect();
             let n: f64 = active.iter().map(|s| s.molar_flow_mol_s).sum();
@@ -470,7 +501,7 @@ fn calculate_unit(
                     );
                 }
             };
-            Ok((
+            Ok(UnitOutput::new(
                 vec![stream(n, pkg.ph(&z, p, h).map_err(|e| e.to_string())?)],
                 0.0,
                 vec![],
@@ -492,7 +523,12 @@ fn calculate_unit(
                 ThermalSpec::Duty(Some(q)) => q,
                 _ => n * (out.enthalpy() - a.enthalpy()),
             };
-            Ok((vec![stream(n, out)], q, vec![]))
+            let warnings = match kind {
+                UnitKind::Heater if q < 0.0 => vec![format!("Heater removes heat (duty {q:.6e} W); use a cooler or check the outlet-temperature specification.")],
+                UnitKind::Cooler if q > 0.0 => vec![format!("Cooler adds heat (duty {q:.6e} W); use a heater or check the outlet-temperature specification.")],
+                _ => vec![],
+            };
+            Ok(UnitOutput::new(vec![stream(n, out)], q, warnings))
         }
         UnitSpec::Valve { pressure: spec } => {
             let a = state(&inputs[0])?;
@@ -501,7 +537,7 @@ fn calculate_unit(
                 PressureSpec::PressureDrop(Some(drop)) => pressure(a.pressure_pa, drop)?,
                 _ => return Err("valve outlet pressure exceeds inlet pressure".into()),
             };
-            Ok((
+            Ok(UnitOutput::new(
                 vec![stream(inputs[0].molar_flow_mol_s, ph(a, p, a.enthalpy())?)],
                 0.0,
                 vec![],
@@ -565,7 +601,7 @@ fn calculate_unit(
             } else {
                 vec![]
             };
-            Ok((outlets, q, warnings))
+            Ok(UnitOutput::new(outlets, q, warnings))
         }
         UnitSpec::Splitter {
             fraction_to_first: Some(f),
@@ -574,7 +610,7 @@ fn calculate_unit(
             let mut b = a.clone();
             a.molar_flow_mol_s *= f;
             b.molar_flow_mol_s *= 1.0 - f;
-            Ok((vec![a, b], 0.0, vec![]))
+            Ok(UnitOutput::new(vec![a, b], 0.0, vec![]))
         }
         UnitSpec::HeatExchanger {
             thermal,
@@ -620,7 +656,7 @@ fn calculate_unit(
                         )
                     });
                 }
-                return Ok((outlets, 0.0, vec!["Zero inlet flow on an exchanger side: no heat is transferred; absent outlets have no thermodynamic state.".into()]));
+                return Ok(UnitOutput::new(outlets, 0.0, vec!["Zero inlet flow on an exchanger side: no heat is transferred; absent outlets have no thermodynamic state.".into()]));
             }
             let hot = state(&inputs[0])?;
             let cold = state(&inputs[1])?;
@@ -647,7 +683,7 @@ fn calculate_unit(
             {
                 return Err("heat exchanger requires hot-to-cold duty without terminal temperature crossover".into());
             }
-            Ok((vec![stream(nh, ho), stream(nc, co)], 0.0, vec![]))
+            Ok(UnitOutput::new(vec![stream(nh, ho), stream(nc, co)], 0.0, vec![]))
         }
         _ => Err("unsupported or incomplete unit specification".into()),
     }
@@ -662,6 +698,7 @@ pub(crate) fn balance(
     let mut residual = vec![0.0; count];
     let mut energy = -duty;
     let mut energy_scale = duty.abs();
+    let mut thermal_scale = 0.0;
     for (sign, streams) in [(-1.0, inputs), (1.0, outputs)] {
         for s in streams {
             if !s.molar_flow_mol_s.is_finite() || s.molar_flow_mol_s < 0.0 {
@@ -673,6 +710,7 @@ pub(crate) fn balance(
             let h = s.enthalpy_flow_w();
             energy += sign * h;
             energy_scale += h.abs();
+            thermal_scale += s.thermal_scale_w();
         }
     }
     let flow_scale = inputs
@@ -684,7 +722,9 @@ pub(crate) fn balance(
         .iter()
         .map(|r| r.abs() / flow_scale)
         .fold(0.0_f64, f64::max);
-    let scaled_energy = energy / energy_scale.max(1.0);
+    // Preserve the existing budgets, with a physical floor when the caloric
+    // reference makes stream enthalpies small. No convergence tolerance changes.
+    let scaled_energy = energy / energy_scale.max(thermal_scale).max(1.0);
     if residual.iter().any(|r| !r.is_finite())
         || !energy.is_finite()
         || !energy_scale.is_finite()

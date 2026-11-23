@@ -29,10 +29,18 @@ Push-Location $root
 try {
     # An explicit --target keeps RUSTFLAGS away from build scripts and
     # proc-macros, which must not be linked with a static C runtime.
-    $env:RUSTFLAGS = '-C target-feature=+crt-static'
-    cargo build --profile dist --target $target -p thermo-desktop --locked
-    if ($LASTEXITCODE -ne 0) { throw "cargo build failed ($LASTEXITCODE)" }
-    Remove-Item Env:RUSTFLAGS
+    # The caller's RUSTFLAGS is restored even when the build fails, so later
+    # cargo commands in the same session do not inherit +crt-static.
+    $previousRustFlags = $env:RUSTFLAGS
+    try {
+        $env:RUSTFLAGS = '-C target-feature=+crt-static'
+        cargo build --profile dist --target $target -p thermo-desktop --locked
+        if ($LASTEXITCODE -ne 0) { throw "cargo build failed ($LASTEXITCODE)" }
+    }
+    finally {
+        if ($null -eq $previousRustFlags) { Remove-Item Env:RUSTFLAGS -ErrorAction SilentlyContinue }
+        else { $env:RUSTFLAGS = $previousRustFlags }
+    }
 
     $exe = Join-Path $root "target\$target\dist\thermo-desktop.exe"
     $stage = Join-Path $OutDir 'stage'

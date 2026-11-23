@@ -326,6 +326,67 @@ fn clicking_a_stream_selects_it_and_delete_removes_it() {
 }
 
 #[test]
+fn delete_needs_the_delete_key_over_the_canvas() {
+    let mut h = harness(FlowsheetApp::with_demonstration(), egui::Theme::Dark);
+    let cooler = unit_of_kind(&h, UnitKind::Cooler);
+    let center = to_screen(&h, h.state().editor().layout[&cooler]);
+    click_at(&mut h, center);
+    assert_eq!(h.state().editor().selection, Some(Selection::Unit(cooler)));
+    // Backspace never deletes: it follows text edits in the properties panel.
+    key(&mut h, Key::Backspace);
+    assert!(h.state().editor().fs.unit(cooler).is_some());
+    // Delete with the pointer over the properties panel does nothing either.
+    h.event(Event::PointerMoved(egui::pos2(WINDOW.x - 20.0, 300.0)));
+    h.step();
+    key(&mut h, Key::Delete);
+    assert!(h.state().editor().fs.unit(cooler).is_some());
+    // Over the canvas, Delete removes the unit.
+    h.event(Event::PointerMoved(center));
+    h.step();
+    key(&mut h, Key::Delete);
+    assert!(h.state().editor().fs.unit(cooler).is_none());
+}
+
+#[test]
+fn keys_for_an_open_dialog_do_not_edit_the_flowsheet_or_cancel_the_solve() {
+    let mut h = harness(FlowsheetApp::with_demonstration(), egui::Theme::Dark);
+    let cooler = unit_of_kind(&h, UnitKind::Cooler);
+    let center = to_screen(&h, h.state().editor().layout[&cooler]);
+    click_at(&mut h, center);
+    // The demonstration is unsaved, so New asks about unsaved changes.
+    h.get_by_label("New").click();
+    h.step();
+    h.state_mut().editor_mut().start_solve(None);
+    h.step();
+    assert!(h.state().editor().is_solving());
+    h.event(Event::PointerMoved(center));
+    h.step();
+    key(&mut h, Key::Delete);
+    key(&mut h, Key::Escape);
+    let ed = h.state().editor();
+    assert!(ed.fs.unit(cooler).is_some(), "Delete went to the canvas");
+    assert_eq!(ed.selection, Some(Selection::Unit(cooler)));
+    assert!(ed.is_solving(), "Esc for the dialog cancelled the solve");
+    h.state_mut().editor_mut().cancel_solve();
+}
+
+#[test]
+fn a_package_without_components_does_not_offer_a_composition() {
+    let mut app = FlowsheetApp::default();
+    app.editor_mut()
+        .new_project(flowsheet_project::PackageSelection::zero_interactions(
+            flowsheet_project::CubicVariantChoice::PengRobinsonBostonMathias,
+            Vec::new(),
+            "test",
+        ));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Feed").click();
+    h.run();
+    assert!(h.query_by_label("Enter composition").is_none());
+    h.get_by_label_contains("no components");
+}
+
+#[test]
 fn valve_specification_is_edited_from_the_properties_panel() {
     let mut app = FlowsheetApp::default();
     let valve = app

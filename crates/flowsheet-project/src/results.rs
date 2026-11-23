@@ -207,6 +207,83 @@ impl ResultSet {
         }
     }
 
+    /// Describes the first stored number that is NaN or infinite, if any.
+    /// JSON cannot represent such numbers, so they must not be saved.
+    pub(crate) fn first_non_finite(&self) -> Option<String> {
+        let bad = |v: f64| !v.is_finite();
+        let opt = |v: Option<f64>| v.is_some_and(bad);
+        if let Some(r) = &self.recycle
+            && (bad(r.max_scaled_residual) || r.tears.iter().any(|(_, v)| bad(*v)))
+        {
+            return Some("recycle closure result".into());
+        }
+        for (id, u) in &self.units {
+            if bad(u.duty_w)
+                || opt(u.max_scaled_component_residual)
+                || opt(u.scaled_energy_residual)
+            {
+                return Some(format!("result of unit {id}"));
+            }
+        }
+        for (id, s) in &self.streams {
+            let state_bad = s.state.as_ref().is_some_and(|t| {
+                [
+                    t.temperature_k,
+                    t.pressure_pa,
+                    t.enthalpy_j_mol,
+                    t.entropy_j_mol_k,
+                    t.max_ln_fugacity_residual,
+                ]
+                .into_iter()
+                .any(bad)
+                    || opt(t.vapor_fraction)
+                    || t.mole_fractions.iter().any(|v| bad(*v))
+                    || t.phases.iter().any(|p| {
+                        [
+                            p.fraction,
+                            p.density_kg_m3,
+                            p.compressibility,
+                            p.enthalpy_j_mol,
+                            p.entropy_j_mol_k,
+                        ]
+                        .into_iter()
+                        .any(bad)
+                            || p.mole_fractions.iter().any(|v| bad(*v))
+                    })
+            });
+            if bad(s.molar_flow_mol_s) || bad(s.mass_flow_kg_s) || state_bad {
+                return Some(format!("result of stream {id}"));
+            }
+        }
+        None
+    }
+
+    /// Describes the first stream result whose overall or phase mole
+    /// fractions do not have one entry per package component, if any.
+    pub(crate) fn first_component_mismatch(&self, components: usize) -> Option<String> {
+        for (id, s) in &self.streams {
+            let Some(state) = &s.state else { continue };
+            if state.mole_fractions.len() != components {
+                return Some(format!(
+                    "stored result of stream {id} has {} mole fractions for {components} components",
+                    state.mole_fractions.len()
+                ));
+            }
+            if let Some(p) = state
+                .phases
+                .iter()
+                .find(|p| p.mole_fractions.len() != components)
+            {
+                return Some(format!(
+                    "stored {} phase result of stream {id} has {} mole fractions for {components} components",
+                    p.label,
+                    p.mole_fractions.len()
+                ));
+            }
+        }
+        None
+    }
+
     /// Removes entries for units and streams that no longer exist.
     pub fn retain_existing(&mut self, fs: &Flowsheet) {
         self.units.retain(|id, _| fs.unit(*id).is_some());

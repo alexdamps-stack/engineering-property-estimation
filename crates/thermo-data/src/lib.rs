@@ -9,6 +9,7 @@ use thermo_types::{
 };
 
 pub const DATA_VERSION: &str = "2026-11-07.1";
+const COMPONENT_SCHEMA: &str = "a2-source-extract-provisional-v1";
 pub const REFERENCE_TEMPERATURE: f64 = 298.15;
 pub const REFERENCE_PRESSURE: f64 = 100_000.0;
 
@@ -128,14 +129,28 @@ pub struct ComponentDatabase {
 
 impl ComponentDatabase {
     pub fn embedded() -> Result<Self, CalculationError> {
-        #[derive(Deserialize)]
-        struct Extract {
-            components: Vec<Record>,
-        }
-        let extract: Extract = serde_json::from_str(include_str!(
+        Self::from_extract(include_str!(
             "../../../data/source-extracts/components.provisional.json"
         ))
-        .map_err(|e| CalculationError::MissingParameter(e.to_string()))?;
+    }
+
+    /// The header must match this crate's `DATA_VERSION`, which `metadata()` reports,
+    /// so a regenerated extract cannot silently carry a stale version label.
+    fn from_extract(text: &str) -> Result<Self, CalculationError> {
+        #[derive(Deserialize)]
+        struct Extract {
+            schema: String,
+            version: String,
+            components: Vec<Record>,
+        }
+        let extract: Extract = serde_json::from_str(text)
+            .map_err(|e| CalculationError::MissingParameter(e.to_string()))?;
+        if extract.schema != COMPONENT_SCHEMA || extract.version != DATA_VERSION {
+            return Err(CalculationError::MissingParameter(format!(
+                "invalid embedded component extract header: schema {} version {} (expected {COMPONENT_SCHEMA} {DATA_VERSION})",
+                extract.schema, extract.version
+            )));
+        }
         for (i, c) in extract.components.iter().enumerate() {
             ComponentId::new(&c.id)?;
             if extract.components[..i].iter().any(|other| other.id == c.id)
@@ -175,5 +190,33 @@ impl ComponentDatabase {
     pub fn metadata(&self) -> DataMetadata {
         DataMetadata { identifier: "coolprop-7.2-cubic-cantera-3.2-nasa7".into(), version: DATA_VERSION.into(),
             source: "data/source-extracts/components.provisional.json; upstream URLs, hashes and notices retained".into() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const EMBEDDED: &str =
+        include_str!("../../../data/source-extracts/components.provisional.json");
+
+    #[test]
+    fn embedded_header_matches_reported_version() {
+        let db = ComponentDatabase::embedded().unwrap();
+        assert_eq!(db.metadata().version, DATA_VERSION);
+        assert!(!db.components().is_empty());
+    }
+
+    #[test]
+    fn stale_version_or_schema_is_rejected() {
+        let stale = EMBEDDED.replacen(DATA_VERSION, "1999-01-01.1", 1);
+        assert_ne!(stale, EMBEDDED);
+        assert!(matches!(
+            ComponentDatabase::from_extract(&stale),
+            Err(CalculationError::MissingParameter(_))
+        ));
+        let schema = EMBEDDED.replacen(COMPONENT_SCHEMA, "a2-source-extract-provisional-v0", 1);
+        assert_ne!(schema, EMBEDDED);
+        assert!(ComponentDatabase::from_extract(&schema).is_err());
     }
 }

@@ -15,16 +15,20 @@ julia --project=validation/julia validation/julia/check.jl
 
 The script instantiates `validation/julia/Manifest.toml`, verifies the committed
 fixture's input, generator and environment hashes, generates a temporary Julia
-candidate and runs `cargo test -p thermo-solvers --test clapeyron --locked`
+candidate, checks that the candidate reproduces the committed fixture (identical
+structure, strings and inputs; numbers within the fixture's own declared
+tolerances) and runs `cargo test -p thermo-solvers --test clapeyron --locked`
 against that candidate. It inherits `CARGO_TARGET_DIR` and other environment
 settings. Instantiation needs network access on the first run; the Rust engine
 has no Julia dependency. Julia's first compilation can take several minutes.
 
-The check runs in an Ubuntu job on every push/PR and in the monthly/manual
-numerical workflow. Ordinary Windows/Linux workspace tests always compare
+The check runs in an Ubuntu job on pushes to main, on every pull request and in
+the monthly/manual numerical workflow; both call the reusable
+`.github/workflows/clapeyron.yml`. Ordinary Windows/Linux workspace tests always compare
 the committed `validation/fixtures/clapeyron-v1.json` offline. A live generation
-error, changed provenance, nonfinite result or failed comparison fails the
-job. No case is skipped, and no committed expected value is updated by CI.
+error, changed provenance, a fresh candidate that no longer reproduces the
+committed fixture, nonfinite result or failed comparison fails the job. No
+case is skipped, and no committed expected value is updated by CI.
 Hosting these jobs does not by itself configure repository branch protection.
 
 Reference regeneration is a separate, explicit action:

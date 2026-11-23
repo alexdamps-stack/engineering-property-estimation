@@ -100,7 +100,7 @@ impl CubicPackage {
         if temperature_k < self.options.minimum_temperature_k
             || temperature_k > self.options.maximum_temperature_k
         {
-            return Err(CalculationError::UnsupportedCapability(
+            return Err(CalculationError::OutsideValidityDomain(
                 "temperature outside package search interval".into(),
             ));
         }

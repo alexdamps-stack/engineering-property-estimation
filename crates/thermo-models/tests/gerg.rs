@@ -123,22 +123,51 @@ fn identities_finite_differences_and_order_invariance() {
         let s = eval(t, rho);
         let permuted = other.evaluate(Temperature::new(t).unwrap(), rho).unwrap();
         near("permutation", s.enthalpy, permuted.enthalpy, 1e-10, 1e-12);
-        near(
-            "h=u+p/rho",
-            s.enthalpy,
-            s.internal_energy + s.pressure_pa / rho,
-            1e-10,
-            1e-12,
-        );
-        near(
-            "g=h-Ts",
-            s.gibbs_energy,
-            s.enthalpy - t * s.entropy,
-            1e-10,
-            1e-12,
-        );
         let dt = 0.001;
         let dr = rho * 1e-5;
+        let (tp, tm) = (eval(t + dt, rho), eval(t - dt, rho));
+        let (rp, rm) = (eval(t, rho + dr), eval(t, rho - dr));
+        let d_t = |f: fn(&thermo_models::GergState) -> f64| (f(&tp) - f(&tm)) / (2. * dt);
+        let d_rho = |f: fn(&thermo_models::GergState) -> f64| (f(&rp) - f(&rm)) / (2. * dr);
+        // Independent of the closed-form definitions in `evaluate`: each property
+        // is compared with a finite-difference derivative of another one.
+        near(
+            "s=-(da/dT)_rho",
+            s.entropy,
+            -d_t(|x| x.helmholtz_energy),
+            1e-6,
+            1e-8,
+        );
+        near(
+            "u=-T^2 d(a/T)/dT",
+            s.internal_energy,
+            -t * t * (tp.helmholtz_energy / (t + dt) - tm.helmholtz_energy / (t - dt)) / (2. * dt),
+            1e-4,
+            1e-8,
+        );
+        near(
+            "p=rho^2 (da/drho)_T",
+            s.pressure_pa,
+            rho * rho * d_rho(|x| x.helmholtz_energy),
+            1e-4,
+            1e-8,
+        );
+        near(
+            "(dg/drho)_T=(dp/drho)_T/rho",
+            d_rho(|x| x.gibbs_energy),
+            d_rho(|x| x.pressure_pa) / rho,
+            1e-8,
+            1e-7,
+        );
+        // (dh/dT)_p from h(T,rho) differences, without the analytic cp-cv term.
+        near(
+            "cp=(dh/dT)_p",
+            s.cp,
+            d_t(|x| x.enthalpy)
+                - d_rho(|x| x.enthalpy) * d_t(|x| x.pressure_pa) / d_rho(|x| x.pressure_pa),
+            1e-5,
+            1e-7,
+        );
         near(
             "dp/dT",
             s.dp_dt,
@@ -202,6 +231,74 @@ fn identities_finite_differences_and_order_invariance() {
         1e-5,
         0.,
     );
+}
+
+#[test]
+fn subnormal_trace_reducing_functions_stay_finite() {
+    // Issue #115: x_N2 = 5e-324 with helium absent made the N2-He reducing term
+    // 0/0 (beta_T = 0.48 times the smallest subnormal rounds to zero).
+    let normalized = |entries: &[(&str, f64)]| {
+        GergModel::new(
+            &Composition::new(
+                CompositionBasis::Mole,
+                entries
+                    .iter()
+                    .map(|(id, x)| (ComponentId::new(*id).unwrap(), *x))
+                    .collect(),
+                NormalizationPolicy::Normalize,
+            )
+            .unwrap(),
+        )
+        .unwrap()
+    };
+    let pure = model(&[("methane", 1.0)]);
+    let t = Temperature::new(300.).unwrap();
+    for entries in [
+        &[("methane", 1.0), ("nitrogen", 5e-324)][..],
+        &[("methane", 1.0), ("nitrogen", 5e-324), ("helium", 0.0)][..],
+    ] {
+        let trace = normalized(entries);
+        assert!(trace.reducing_temperature().is_finite());
+        near(
+            "subnormal reducing temperature",
+            trace.reducing_temperature(),
+            pure.reducing_temperature(),
+            0.,
+            1e-15,
+        );
+        near(
+            "subnormal reducing density",
+            trace.reducing_density(),
+            pure.reducing_density(),
+            0.,
+            1e-15,
+        );
+        let s = trace.evaluate(t, 1000.).unwrap();
+        near(
+            "subnormal pressure",
+            s.pressure_pa,
+            pure.evaluate(t, 1000.).unwrap().pressure_pa,
+            0.,
+            1e-14,
+        );
+        let f = trace.fugacity(t, 1000.).unwrap();
+        assert!(f.ln_fugacity_coefficients.iter().all(|v| v.is_finite()));
+    }
+    // The infinite-dilution helium coefficient uses the analytic limit of the
+    // reducing-function gradient and must match a trace that is not subnormal.
+    let zero = normalized(&[("methane", 1.0), ("nitrogen", 5e-324), ("helium", 0.0)])
+        .fugacity(t, 1000.)
+        .unwrap();
+    let dilute = normalized(&[("methane", 1.0), ("nitrogen", 1e-14), ("helium", 1e-14)])
+        .fugacity(t, 1000.)
+        .unwrap();
+    for (a, b) in zero
+        .ln_fugacity_coefficients
+        .iter()
+        .zip(&dilute.ln_fugacity_coefficients)
+    {
+        near("infinite-dilution continuity", *a, *b, 1e-10, 1e-10);
+    }
 }
 
 #[test]

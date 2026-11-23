@@ -19,10 +19,10 @@ fn into_c(value: serde_json::Value) -> *mut c_char {
         .unwrap_or(std::ptr::null_mut())
 }
 
-fn guarded(f: impl FnOnce() -> serde_json::Value) -> *mut c_char {
+fn guarded(request_id: Option<&str>, f: impl FnOnce() -> serde_json::Value) -> *mut c_char {
     let value = catch_unwind(AssertUnwindSafe(f)).unwrap_or_else(|_| {
         error_response(
-            None,
+            request_id,
             &BridgeError {
                 kind: "internal-panic",
                 message: "the bridge caught an internal panic; no result was produced".into(),
@@ -41,7 +41,7 @@ pub extern "C" fn tc_bridge_abi_version() -> u32 {
 /// Bridge identity, capabilities and component catalogue (`thermocore.bridge.info.v1`).
 #[unsafe(no_mangle)]
 pub extern "C" fn tc_bridge_info() -> *mut c_char {
-    guarded(info)
+    guarded(None, info)
 }
 
 /// Evaluates one `thermocore.bridge.request.v1` document and returns a
@@ -53,17 +53,44 @@ pub extern "C" fn tc_bridge_info() -> *mut c_char {
 /// valid and unmodified for the duration of the call.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tc_bridge_calculate(request: *const c_char) -> *mut c_char {
-    guarded(|| {
-        if request.is_null() {
-            return error_response(None, &BridgeError::request("null request pointer"));
+    if request.is_null() {
+        return into_c(error_response(None, &BridgeError::request("null request pointer")));
+    }
+    // SAFETY: non-null and NUL-terminated per the documented contract.
+    let bytes = unsafe { CStr::from_ptr(request) };
+    match bytes.to_str() {
+        Ok(text) => guarded_request(text, calculate),
+        Err(_) => into_c(error_response(None, &BridgeError::request("request is not valid UTF-8"))),
+    }
+}
+
+fn guarded_request(text: &str, f: impl FnOnce(&str) -> serde_json::Value) -> *mut c_char {
+    // Capture correlation independently of typed validation and calculation.
+    let request_id = serde_json::from_str::<serde_json::Value>(text).ok()
+        .and_then(|v| v.get("request_id").and_then(serde_json::Value::as_str).map(str::to_owned));
+    guarded(request_id.as_deref(), || f(text))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn panic_response_preserves_request_correlation() {
+        for (request, expected) in [
+            (r#"{"request_id":"host-123"}"#, Some("host-123")),
+            (r#"{"request_id":null}"#, None),
+            ("invalid json", None),
+        ] {
+            let pointer = guarded_request(request, |_| panic!("injected calculation panic"));
+            // SAFETY: guarded_request returned an owned CString, freed once here.
+            let document = unsafe { CString::from_raw(pointer) };
+            let response: serde_json::Value = serde_json::from_slice(document.as_bytes()).unwrap();
+            assert_eq!(response["request_id"].as_str(), expected);
+            assert_eq!(response["error"]["kind"], "internal-panic");
+            assert!(response.get("result").is_none());
         }
-        // SAFETY: non-null and NUL-terminated per the documented contract.
-        let bytes = unsafe { CStr::from_ptr(request) };
-        match bytes.to_str() {
-            Ok(text) => calculate(text),
-            Err(_) => error_response(None, &BridgeError::request("request is not valid UTF-8")),
-        }
-    })
+    }
 }
 
 /// Releases a document returned by this library. Null is ignored.

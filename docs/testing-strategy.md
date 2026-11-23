@@ -15,8 +15,9 @@ current Rust engine:
 julia --project=validation/julia validation/julia/check.jl
 ```
 
-The live check runs on every push and pull request, plus the scheduled/manual
-numerical workflow. Any generation failure, changed fixture provenance,
+The live check runs on pushes to main and every pull request, plus the
+scheduled/manual numerical workflow. Any generation failure, changed fixture
+provenance, fresh candidate that does not reproduce the committed fixture,
 nonfinite result or out-of-budget comparison fails the job; cases are not
 silently skipped. The check generates temporary candidates and never updates
 committed expected values. Julia is a validation dependency only.
@@ -204,7 +205,10 @@ independence and computational/physical validity distinction are documented in
 the listed fixed fixtures only; process qualification is recorded in [A2 process qualification](a2-process-qualification.md).
 The manual/monthly numerical-validation workflow runs the fixed independent
 fixtures plus 2048 fixed-seed permutation/scaling/identity cases per platform in
-release mode. It never regenerates expected values.
+release mode. It also re-runs the teqp/Cantera/NumPy/Decimal generators
+(cubic, flash, PH, process and dilute Helmholtz fixtures) into temporary
+candidates and compares each with its committed fixture using
+`validation/compare-reference-candidate.py`. It never replaces expected values.
 
 Generated cases must record a fixed random seed, generator version, domain, and sampling method. Preserve failing generated inputs as small regression fixtures. Reports identify the code commit, toolchain/platform, case, model/data versions, expected and actual results, residuals, tolerances, phase outcome, and solver status/iterations where applicable. Report failures and unsupported states explicitly; exclude neither silently from success rates.
 

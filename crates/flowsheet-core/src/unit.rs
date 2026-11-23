@@ -399,6 +399,9 @@ pub enum SpecProblem {
     NotAFraction,
     /// The value must be greater than 0 and at most 1 (efficiencies).
     NotAnEfficiency,
+    /// The sign contradicts the unit kind (a heater duty below zero or a
+    /// cooler duty above zero).
+    ContradictsUnitKind,
 }
 
 impl fmt::Display for SpecProblem {
@@ -410,6 +413,9 @@ impl fmt::Display for SpecProblem {
             SpecProblem::Negative => "must not be negative",
             SpecProblem::NotAFraction => "must be between 0 and 1",
             SpecProblem::NotAnEfficiency => "must be greater than 0 and at most 1",
+            SpecProblem::ContradictsUnitKind => {
+                "contradicts the unit kind (a heater adds heat, a cooler removes it)"
+            }
         })
     }
 }
@@ -573,6 +579,35 @@ pub struct Unit {
     pub name: String,
     /// User specification.
     pub spec: UnitSpec,
+}
+
+impl Unit {
+    /// [`UnitSpec::issues`] plus checks that depend on the unit kind: a heater
+    /// with a negative duty or a cooler with a positive duty is contradictory
+    /// (proposal section 2.4) and is reported before solving. Direction checks
+    /// that need the inlet state (an outlet temperature on the wrong side of the
+    /// inlet temperature) are reported as unit warnings by the engine.
+    pub fn issues(&self) -> Vec<SpecIssue> {
+        let mut out = self.spec.issues();
+        if let UnitSpec::HeatExchange {
+            thermal: ThermalSpec::Duty(Some(q)),
+            ..
+        } = self.spec
+        {
+            let contradictory = match self.kind {
+                UnitKind::Heater => q < 0.0,
+                UnitKind::Cooler => q > 0.0,
+                _ => false,
+            };
+            if contradictory {
+                out.push(SpecIssue {
+                    field: "duty",
+                    problem: SpecProblem::ContradictsUnitKind,
+                });
+            }
+        }
+        out
+    }
 }
 
 /// Reference to one material port of one unit.
@@ -750,5 +785,32 @@ mod tests {
             pressure: PressureSpec::PressureDrop(Some(0.0)),
         };
         assert!(valve.issues().is_empty());
+    }
+
+    #[test]
+    fn duty_sign_must_match_heater_or_cooler() {
+        let unit = |kind, q| Unit {
+            id: UnitId(1),
+            kind,
+            name: "E-100".into(),
+            spec: UnitSpec::HeatExchange {
+                thermal: ThermalSpec::Duty(Some(q)),
+                pressure_drop_pa: 0.0,
+            },
+        };
+        let contradiction = [SpecIssue {
+            field: "duty",
+            problem: SpecProblem::ContradictsUnitKind,
+        }];
+        assert_eq!(unit(UnitKind::Heater, -1.0).issues(), contradiction);
+        assert_eq!(unit(UnitKind::Cooler, 1.0).issues(), contradiction);
+        for (kind, q) in [
+            (UnitKind::Heater, 1.0),
+            (UnitKind::Heater, 0.0),
+            (UnitKind::Cooler, -1.0),
+            (UnitKind::Cooler, 0.0),
+        ] {
+            assert!(unit(kind, q).issues().is_empty(), "{kind} {q}");
+        }
     }
 }

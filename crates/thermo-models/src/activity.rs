@@ -20,6 +20,14 @@ use thermo_types::{
 
 /// Computational envelope of the gamma–phi package (K, Pa). The ideal-gas vapor
 /// assumption restricts it to low pressure; it is not an accuracy statement.
+///
+/// Known limitation near the upper temperature bound: the pure-liquid enthalpy uses
+/// Clausius–Clapeyron with an ideal-gas saturated vapour and negligible liquid
+/// volume (h^L = h^ig − R T² dln p^sat/dT). Where p^sat is high this drops the real
+/// vapour's departure and the Δv correction, and h^L can be off by a few kJ/mol
+/// (methanol near 450 K, p^sat ≈ 4 MPa). Liquid caloric results there are a model
+/// consequence, not validated data; the envelope is left unchanged so that existing
+/// gamma–phi flash results are not altered.
 pub const ACTIVITY_TEMPERATURE_RANGE_K: [f64; 2] = [273.16, 450.0];
 pub const ACTIVITY_PRESSURE_RANGE_PA: [f64; 2] = [100.0, 500_000.0];
 

@@ -7,7 +7,7 @@ use flowsheet_core::{Flowsheet, PortDirection, PortRef, StreamId, UnitId};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::records::{KindRecord, SpecRecord};
-use crate::{FeedFractions, PackageSelection};
+use crate::{FeedFractions, PackageSelection, Provenance};
 
 /// 64-bit FNV-1a digest of a canonical input description. It detects
 /// changes; it is not a cryptographic hash. Stored as 16 hex digits.
@@ -93,10 +93,10 @@ impl Fingerprints {
     /// Building the model is comparatively expensive; interactive callers
     /// cache this value per selection and use [`Self::compute_with`].
     pub fn package(package: &PackageSelection) -> Option<Fingerprint> {
-        package.provenance().ok().map(|prov| {
-            let text = serde_json::to_string(&(package, prov)).expect("serializable selection");
-            Fnv::new().field("package").field(&text).finish()
-        })
+        package
+            .provenance()
+            .ok()
+            .map(|prov| package_fingerprint(package, &prov))
     }
 
     /// [`Self::compute`] with a precomputed [`Self::package`] fingerprint.
@@ -144,6 +144,12 @@ impl Fingerprints {
         }
         h.finish()
     }
+}
+
+/// Package fingerprint of a selection whose provenance is already known.
+pub(crate) fn package_fingerprint(package: &PackageSelection, prov: &Provenance) -> Fingerprint {
+    let text = serde_json::to_string(&(package, prov)).expect("serializable selection");
+    Fnv::new().field("package").field(&text).finish()
 }
 
 struct InputNode {

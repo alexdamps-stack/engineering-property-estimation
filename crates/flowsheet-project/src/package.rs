@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 use thermo_data::ComponentDatabase;
 use thermo_models::{CubicModel, CubicVariant};
 use thermo_solvers::PhFlashOptions;
-use thermo_types::{ComponentId, Composition, CompositionBasis, NormalizationPolicy};
+use thermo_types::{ComponentId, Composition, CompositionBasis, DataMetadata, NormalizationPolicy};
 
-use crate::ProjectError;
+use crate::{Fingerprint, ProjectError};
 
 /// Cubic equation of state variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -115,23 +115,29 @@ impl PackageSelection {
         Ok(self.build_with_model()?.0)
     }
 
-    /// Model/data/engine identity of results computed with this selection.
-    pub fn provenance(&self) -> Result<Provenance, ProjectError> {
-        let model = self.build_with_model()?.1;
-        let m = model.metadata();
-        let d = ComponentDatabase::embedded()
-            .map_err(|e| ProjectError::Package(e.to_string()))?
-            .metadata();
-        Ok(Provenance {
-            engine: crate::ENGINE_REVISION.into(),
-            model: m.identifier,
-            model_version: m.implementation_version,
-            data: d.identifier,
-            data_version: d.version,
+    /// Builds the package once together with its provenance and package
+    /// fingerprint, for [`crate::solve_project`]. The prepared package
+    /// remembers the selection it was built from, so a solve refuses a
+    /// package that does not belong to the project being solved.
+    pub fn prepare(&self) -> Result<PreparedPackage, ProjectError> {
+        let (package, model, data) = self.build_with_model()?;
+        let provenance = provenance_of(&model, data);
+        let fingerprint = crate::fingerprint::package_fingerprint(self, &provenance);
+        Ok(PreparedPackage {
+            selection: self.clone(),
+            package,
+            provenance,
+            fingerprint,
         })
     }
 
-    fn build_with_model(&self) -> Result<(CubicPackage, CubicModel), ProjectError> {
+    /// Model/data/engine identity of results computed with this selection.
+    pub fn provenance(&self) -> Result<Provenance, ProjectError> {
+        let (_, model, data) = self.build_with_model()?;
+        Ok(provenance_of(&model, data))
+    }
+
+    fn build_with_model(&self) -> Result<(CubicPackage, CubicModel, DataMetadata), ProjectError> {
         let package = |e: &dyn std::fmt::Display| ProjectError::Package(e.to_string());
         if self.components.is_empty() {
             return Err(ProjectError::Package(
@@ -173,7 +179,57 @@ impl PackageSelection {
             maximum_temperature_k: hi,
             ..Default::default()
         };
-        Ok((CubicPackage::new(model.clone(), options), model))
+        Ok((
+            CubicPackage::new(model.clone(), options),
+            model,
+            db.metadata(),
+        ))
+    }
+}
+
+fn provenance_of(model: &CubicModel, data: DataMetadata) -> Provenance {
+    let m = model.metadata();
+    Provenance {
+        engine: crate::ENGINE_REVISION.into(),
+        model: m.identifier,
+        model_version: m.implementation_version,
+        data: data.identifier,
+        data_version: data.version,
+    }
+}
+
+/// A package built from one [`PackageSelection`], with the provenance and
+/// package fingerprint of the results it produces. Prepare it once per
+/// selection with [`PackageSelection::prepare`] and reuse it for every solve
+/// of that selection; [`crate::solve_project`] builds nothing itself.
+#[derive(Debug, Clone)]
+pub struct PreparedPackage {
+    selection: PackageSelection,
+    package: CubicPackage,
+    provenance: Provenance,
+    fingerprint: Fingerprint,
+}
+
+impl PreparedPackage {
+    /// The selection this package was built from.
+    pub fn selection(&self) -> &PackageSelection {
+        &self.selection
+    }
+
+    /// The built cubic package.
+    pub fn package(&self) -> &CubicPackage {
+        &self.package
+    }
+
+    /// Provenance recorded with results of this package.
+    pub fn provenance(&self) -> &Provenance {
+        &self.provenance
+    }
+
+    /// Package fingerprint; equal to [`crate::Fingerprints::package`] of
+    /// the selection.
+    pub fn fingerprint(&self) -> Fingerprint {
+        self.fingerprint
     }
 }
 

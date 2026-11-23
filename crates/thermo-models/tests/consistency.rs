@@ -58,13 +58,28 @@ fn derivatives_and_thermodynamic_identities_on_reference_grid() {
             for t in [320., 360., 400.] {
                 for p in [1e5, 1e6, 5e6] {
                     let s = eval(&m, t, p);
-                    close(
-                        s.enthalpy,
-                        s.internal_energy + p * s.molar_volume,
-                        1e-9,
-                        1e-12,
-                    );
-                    close(s.cp - s.cv, -t * s.dp_dt * s.dp_dt / s.dp_dv, 1e-10, 1e-12);
+                    let v = s.molar_volume;
+                    // Independent of the closed forms in `evaluate`: finite differences
+                    // at constant V use the volumetric EOS to find p(T±dT, V).
+                    let pressure = |temp: f64, vol: f64| {
+                        m.pressure_derivatives(Temperature::new(temp).unwrap(), vol)
+                            .unwrap()
+                            .0
+                    };
+                    let (dt, dv) = (1e-3, v * 1e-6);
+                    let pt_fd = (pressure(t + dt, v) - pressure(t - dt, v)) / (2. * dt);
+                    let pv_fd = (pressure(t, v + dv) - pressure(t, v - dv)) / (2. * dv);
+                    close(s.dp_dt, pt_fd, 1e-6, 1e-7);
+                    close(s.dp_dv, pv_fd, 1e-3, 1e-7);
+                    let at_volume = |temp: f64| {
+                        let state = eval(&m, temp, pressure(temp, v));
+                        close(state.molar_volume, v, 0., 1e-9);
+                        state
+                    };
+                    let (up, down) = (at_volume(t + dt), at_volume(t - dt));
+                    let cv_fd = (up.internal_energy - down.internal_energy) / (2. * dt);
+                    close(s.cv, cv_fd, 1e-5, 1e-7);
+                    close(s.cp - s.cv, -t * pt_fd * pt_fd / pv_fd, 1e-5, 1e-6);
                     let g: f64 = s
                         .ln_fugacity_coefficients
                         .iter()
@@ -288,6 +303,9 @@ proptest! {
         let temp=Temperature::new(t).unwrap();
         let energy=m.residual_helmholtz(temp,s.molar_volume,1.).unwrap();
         close(m.residual_helmholtz(temp,s.molar_volume*scale,scale).unwrap(),energy*scale,1e-7,1e-11);
-        close(s.enthalpy,s.internal_energy+p*s.molar_volume,1e-9,1e-12);
+        // p = RT/v − (∂A_res/∂V)_T,n from the independent Helmholtz entry point.
+        let dv=s.molar_volume*1e-6;
+        let slope=(m.residual_helmholtz(temp,s.molar_volume+dv,1.).unwrap()-m.residual_helmholtz(temp,s.molar_volume-dv,1.).unwrap())/(2.*dv);
+        close(R*t/s.molar_volume-slope,p,1e-6*p,1e-6);
     }
 }

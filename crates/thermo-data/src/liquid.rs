@@ -56,6 +56,18 @@ struct BinaryRecord {
     regression_temperature: [f64; 2],
     #[serde(rename = "regression_pressure_Pa")]
     regression_pressure: f64,
+    regression_temperature_basis: String,
+}
+
+/// Basis phrase marking an interval that was not reported by the source but inferred
+/// from the pure-component normal boiling points of isobaric data.
+const INFERRED_INTERVAL_MARKER: &str = "between pure normal boiling points";
+
+impl BinaryRecord {
+    fn regression_interval_inferred(&self) -> bool {
+        self.regression_temperature_basis
+            .contains(INFERRED_INTERVAL_MARKER)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -180,6 +192,11 @@ pub struct NrtlBinary {
     pub alpha: AlphaTerms,
     /// Temperatures (K) spanned by the regression data; outside is extrapolation.
     pub regression_temperature_k: [f64; 2],
+    /// How `regression_temperature_k` was obtained, verbatim from the extract.
+    pub regression_temperature_basis: String,
+    /// True when the interval is inferred (e.g. from pure normal boiling points of
+    /// isobaric data) rather than reported by the source.
+    pub regression_interval_inferred: bool,
     pub regression_pressure_pa: f64,
     pub source: String,
 }
@@ -195,9 +212,13 @@ pub struct LiquidDatabase {
 
 impl LiquidDatabase {
     pub fn embedded() -> Result<Self, CalculationError> {
-        let extract: Extract = serde_json::from_str(include_str!(
+        Self::from_extract(include_str!(
             "../../../data/source-extracts/liquid-nrtl.provisional.json"
         ))
+    }
+
+    fn from_extract(text: &str) -> Result<Self, CalculationError> {
+        let extract: Extract = serde_json::from_str(text)
         .map_err(|e| CalculationError::MissingParameter(e.to_string()))?;
         let bad =
             |what: &str| CalculationError::MissingParameter(format!("invalid embedded {what}"));
@@ -207,8 +228,13 @@ impl LiquidDatabase {
         {
             return Err(bad("liquid extract header"));
         }
+        let components = crate::ComponentDatabase::embedded()?;
         for (k, p) in extract.pure_liquid.iter().enumerate() {
             ComponentId::new(&p.id)?;
+            let component = components.get(&p.id)?;
+            if p.cas != component.cas() {
+                return Err(bad("pure-liquid ID/CAS mismatch"));
+            }
             if extract.pure_liquid[..k].iter().any(|o| o.id == p.id) {
                 return Err(bad("duplicate pure liquid"));
             }
@@ -244,8 +270,18 @@ impl LiquidDatabase {
             if b.i == b.j
                 || duplicate
                 || !finite
+                || !b.regression_temperature.iter().all(|t| t.is_finite() && *t > 0.0)
                 || b.regression_temperature[0] >= b.regression_temperature[1]
+                || !b.regression_pressure.is_finite()
+                || b.regression_pressure <= 0.0
+                || b.regression_temperature.iter().any(|t| {
+                    let alpha = b.alpha_ij.a0 + b.alpha_ij.a1 * t;
+                    !alpha.is_finite() || alpha <= 0.0
+                })
+                || !extract.pure_liquid.iter().any(|p| p.id == b.i)
+                || !extract.pure_liquid.iter().any(|p| p.id == b.j)
                 || b.source.trim().is_empty()
+                || b.regression_temperature_basis.trim().is_empty()
             {
                 return Err(bad("NRTL binary"));
             }
@@ -283,6 +319,8 @@ impl LiquidDatabase {
                     tau_ji,
                     alpha: b.alpha_ij,
                     regression_temperature_k: b.regression_temperature,
+                    regression_temperature_basis: b.regression_temperature_basis.clone(),
+                    regression_interval_inferred: b.regression_interval_inferred(),
                     regression_pressure_pa: b.regression_pressure,
                     source: format!("{}: {}", b.source, b.source_row),
                 });
@@ -299,5 +337,46 @@ impl LiquidDatabase {
             version: self.version.clone(),
             source: "data/source-extracts/liquid-nrtl.provisional.json; upstream URLs, hashes and notices retained".into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn extract() -> serde_json::Value {
+        serde_json::from_str(include_str!("../../../data/source-extracts/liquid-nrtl.provisional.json")).unwrap()
+    }
+
+    #[test]
+    fn mismatched_pure_id_or_cas_is_rejected() {
+        for (key, value) in [("id", "not-a-component"), ("cas", "incorrect-cas")] {
+            let mut data = extract();
+            data["pure_liquid"][0][key] = value.into();
+            assert!(LiquidDatabase::from_extract(&data.to_string()).is_err());
+        }
+        let mut data = extract();
+        data["nrtl_binary"][0]["i"] = "not-a-component".into();
+        assert!(LiquidDatabase::from_extract(&data.to_string()).is_err());
+    }
+
+    #[test]
+    fn regression_pressure_temperature_and_alpha_must_be_physical() {
+        for pressure in [0.0, -1.0] {
+            let mut data = extract();
+            data["nrtl_binary"][0]["regression_pressure_Pa"] = pressure.into();
+            assert!(LiquidDatabase::from_extract(&data.to_string()).is_err());
+        }
+        for interval in [[0.0, 350.0], [350.0, 350.0], [360.0, 350.0]] {
+            let mut data = extract();
+            data["nrtl_binary"][0]["regression_temperature_K"] = serde_json::json!(interval);
+            assert!(LiquidDatabase::from_extract(&data.to_string()).is_err());
+        }
+        for alpha in [serde_json::json!({"a0": 0.0, "a1_per_K": 0.0}), serde_json::json!({"a0": 0.35, "a1_per_K": -0.001})] {
+            let mut data = extract();
+            data["nrtl_binary"][0]["alpha_ij"] = alpha;
+            assert!(LiquidDatabase::from_extract(&data.to_string()).is_err());
+        }
+        assert!(LiquidDatabase::embedded().is_ok());
     }
 }

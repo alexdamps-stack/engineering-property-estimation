@@ -239,7 +239,7 @@ fn table_ph_agrees_with_direct_ph_flash_and_falls_back_outside() {
     ));
     assert!(matches!(
         m.ph(1.2e7, 0.0),
-        Err(TableError::OutsideApprovedDomain { .. })
+        Err(TableError::PressureOutsideApprovedDomain { .. })
     ));
     let e = fallback().ph(2e6, h_hot).unwrap();
     assert_eq!(e.source, Source::DirectModel);

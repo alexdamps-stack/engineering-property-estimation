@@ -250,7 +250,7 @@ function main()
     output = Dict("schema" => "clapeyron-nrtl-reference-v1", "julia_version" => string(VERSION),
         "clapeyron_version" => string(pkgversion(Clapeyron)),
         "clapeyron_commit" => "3440a15ba224664cac5b24441ac8adacbaf326f9",
-        "input_sha256" => Dict(relpath(p, ROOT) => bytes2hex(sha256(read(p)))  for p in [GAS, LIQ]),
+        "input_sha256" => Dict(replace(relpath(p, ROOT), '\\' => '/') => bytes2hex(sha256(read(p)))  for p in [GAS, LIQ]),
         "generator_sha256" => bytes2hex(sha256(read(@__FILE__))),
         "manifest_sha256" => bytes2hex(sha256(read(joinpath(@__DIR__, "Manifest.toml")))),
         "formulation" => "Clapeyron NRTL (tau=a+b/T, alpha=c) and aspenNRTL (tau=t0+t1/T+t2 lnT+t3 T, alpha=a0+a1 T); PolExpSat/PolExpLiquid CoolProp ancillaries; ReidIdeal NASA7 low-range Cp with pure ideal h=s=0 at 298.15 K, 1 bar; modified Raoult with ideal-gas vapor, no Poynting; Clausius-Clapeyron pure liquids; ForwardDiff temperature derivatives; BigFloat(256) VLE solves",
