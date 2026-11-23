@@ -1,0 +1,181 @@
+{
+  "schema": "a17-countercurrent-absorber-reference-v1",
+  "packages": {
+    "teqp": "0.23.2",
+    "cantera": "3.2.0",
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "sha256": {
+    "validation/columns/generate-absorber-references.py": "abe75deea2802adf0a81179bbd169230c8b991e526f9da12f52b552d3552efd4",
+    "validation/columns/generate-shortcut-references.py": "987a88e183fe6aeb0ccabcc922c05dedbaad160583c70b792c70136449454d8c",
+    "validation/generate-references.py": "eea4700cf5b1f18d64ed0db77c4c73b7a4ec98052930bf755f3f192bb898d2a6",
+    "validation/generate-flash-references.py": "13dbb9f40fa221ecae9472e15a8b11bc81a98233c83d7d9e298b1b0ec7809e31",
+    "validation/rotating/generate-ps-references.py": "ebf162770f3cd94748c1227190b82dee00edbddb37550a726dad776628748d4c",
+    "data/source-extracts/components.provisional.json": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147"
+  },
+  "tolerances": {
+    "temperature_K": [
+      2e-05,
+      0
+    ],
+    "composition": [
+      2e-07,
+      0
+    ],
+    "molar_flow_mol_s": [
+      2e-05,
+      0
+    ]
+  },
+  "cases": [
+    {
+      "id": "propane-absorption-PR",
+      "variant": "PR",
+      "pressure_Pa": 2000000.0,
+      "stages": 4,
+      "gas": {
+        "temperature_K": 315,
+        "pressure_Pa": 2200000.0,
+        "molar_flow_mol_s": 70,
+        "z": [
+          0.65,
+          0.35
+        ]
+      },
+      "liquid": {
+        "temperature_K": 260,
+        "pressure_Pa": 2000000.0,
+        "molar_flow_mol_s": 55,
+        "z": [
+          0.18,
+          0.8200000000000001
+        ]
+      },
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "stage_temperatures_K": [
+        303.18988512047423,
+        301.86390738511744,
+        300.6727266990437,
+        299.5707665162333
+      ],
+      "outlets": [
+        {
+          "molar_flow_mol_s": 49.284270447969604,
+          "z": [
+            0.5515620715545839,
+            0.4484379284454161
+          ]
+        },
+        {
+          "molar_flow_mol_s": 75.7157295520304,
+          "z": [
+            0.3726658365917426,
+            0.6273341634082574
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ethane-stripping-packed-PR-BM",
+      "variant": "PR-BM",
+      "pressure_Pa": 2000000.0,
+      "stages": 3,
+      "gas": {
+        "temperature_K": 345,
+        "pressure_Pa": 2000000.0,
+        "molar_flow_mol_s": 60,
+        "z": [
+          0.15,
+          0.85
+        ]
+      },
+      "liquid": {
+        "temperature_K": 245,
+        "pressure_Pa": 2300000.0,
+        "molar_flow_mol_s": 55,
+        "z": [
+          0.65,
+          0.35
+        ]
+      },
+      "packed_height_m": 1.2,
+      "hetp_m": 0.4,
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "stage_temperatures_K": [
+        295.33692364520044,
+        308.8583013612762,
+        318.3916686430872
+      ],
+      "outlets": [
+        {
+          "molar_flow_mol_s": 54.38004539963392,
+          "z": [
+            0.6749293644790997,
+            0.3250706355209003
+          ]
+        },
+        {
+          "molar_flow_mol_s": 60.61995460036608,
+          "z": [
+            0.1327501904468913,
+            0.8672498095531087
+          ]
+        }
+      ]
+    },
+    {
+      "id": "single-contact-PR",
+      "variant": "PR",
+      "pressure_Pa": 2000000.0,
+      "stages": 1,
+      "gas": {
+        "temperature_K": 315,
+        "pressure_Pa": 2200000.0,
+        "molar_flow_mol_s": 70,
+        "z": [
+          0.65,
+          0.35
+        ]
+      },
+      "liquid": {
+        "temperature_K": 260,
+        "pressure_Pa": 2000000.0,
+        "molar_flow_mol_s": 55,
+        "z": [
+          0.18,
+          0.8200000000000001
+        ]
+      },
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "stage_temperatures_K": [
+        301.15121460508425
+      ],
+      "outlets": [
+        {
+          "molar_flow_mol_s": 49.347774548924704,
+          "z": [
+            0.5852022041688604,
+            0.4147977958311396
+          ]
+        },
+        {
+          "molar_flow_mol_s": 75.6522254510753,
+          "z": [
+            0.35057228528318346,
+            0.6494277147168166
+          ]
+        }
+      ]
+    }
+  ]
+}

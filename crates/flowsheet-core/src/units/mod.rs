@@ -86,6 +86,10 @@ pub struct UnitOutput {
     pub transferred_duty_w: Option<f64>,
     /// Design estimates for a shortcut distillation column.
     pub shortcut_column: Option<columns::ShortcutColumnResult>,
+    /// Stage temperatures and duties of a rigorous distillation column.
+    pub distillation_column: Option<columns::DistillationColumnResult>,
+    /// Stage temperatures of an adiabatic absorber or stripper.
+    pub absorber: Option<columns::AbsorberResult>,
     /// Material crossing the flowsheet boundary at this unit.
     pub material_exchange: Option<MaterialExchange>,
     /// Species generation and formation-enthalpy terms for reacting units.
@@ -108,6 +112,8 @@ impl UnitOutput {
             duty_w,
             transferred_duty_w: None,
             shortcut_column: None,
+            distillation_column: None,
+            absorber: None,
             material_exchange: None,
             reaction: None,
             warnings,

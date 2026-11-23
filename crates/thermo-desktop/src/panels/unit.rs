@@ -18,7 +18,7 @@ use super::spec::spec_form;
 use super::{status_line, value_text};
 use crate::editor::{Editor, ItemStatus, Selection};
 use crate::symbols::Theme;
-use crate::units::{Quantity, format_quantity, format_residual};
+use crate::units::{DisplayUnits, Quantity, format_quantity, format_residual};
 
 pub(super) fn unit_properties(ui: &mut Ui, ed: &mut Editor, id: UnitId) {
     let Some(unit) = ed.fs.unit(id).cloned() else {
@@ -384,6 +384,20 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         ui.end_row();
                     }
                 }
+                if let Some(c) = &r.distillation_column {
+                    for (label, q) in [
+                        ("Condenser duty (+ removed)", c.condenser_duty_w),
+                        ("Reboiler duty (+ supplied)", c.reboiler_duty_w),
+                    ] {
+                        ui.label(label);
+                        ui.label(value_text(format_quantity(u, Quantity::Duty, q), stale));
+                        ui.end_row();
+                    }
+                    stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
+                }
+                if let Some(c) = &r.absorber {
+                    stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
+                }
                 if let Some(x) = &r.material_exchange {
                     ui.label("External material (+ into unit)");
                     ui.label(value_text(
@@ -478,6 +492,31 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
             ui.colored_label(theme.warning, format!("⚠ {w}"));
         }
     });
+}
+
+fn stage_profile(
+    ui: &mut Ui,
+    units: DisplayUnits,
+    stale: bool,
+    stages: &[f64],
+    height: Option<f64>,
+) {
+    if let Some(height) = height {
+        ui.label("Packed height");
+        ui.label(value_text(
+            format_quantity(units, Quantity::Length, height),
+            stale,
+        ));
+        ui.end_row();
+    }
+    for (j, &t) in stages.iter().enumerate() {
+        ui.label(format!("Stage {} temperature", j + 1));
+        ui.label(value_text(
+            format_quantity(units, Quantity::Temperature, t),
+            stale,
+        ));
+        ui.end_row();
+    }
 }
 
 /// Equal mole fractions for `n > 0` components, summing to exactly one.

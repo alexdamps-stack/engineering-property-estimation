@@ -105,6 +105,12 @@ pub struct UnitResult {
     /// Shortcut column design estimates (#185, added behind format version 4).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shortcut_column: Option<ShortcutColumnEstimate>,
+    /// Rigorous column temperature profile and duties (#186).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub distillation_column: Option<DistillationColumnEstimate>,
+    /// Adiabatic absorber or stripper stage profile (#187).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub absorber: Option<AbsorberProfile>,
     /// Engine warnings (for example a single-phase separator).
     pub warnings: Vec<String>,
     /// Largest scaled component balance residual (internal units only).
@@ -189,6 +195,50 @@ impl From<&flowsheet_core::units::columns::ShortcutColumnResult> for ShortcutCol
             reboiler_duty_w: r.reboiler_duty_w,
             top_vapor_temperature_k: r.top_vapor_temperature_k,
             volatility_iterations: r.volatility_iterations,
+        }
+    }
+}
+
+/// Saved stage temperatures and duties of a rigorous distillation column.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DistillationColumnEstimate {
+    pub stage_temperatures_k: Vec<f64>,
+    pub condenser_duty_w: f64,
+    pub reboiler_duty_w: f64,
+    pub packed_height_m: Option<f64>,
+    pub iterations: usize,
+}
+
+impl From<&flowsheet_core::units::columns::DistillationColumnResult>
+    for DistillationColumnEstimate
+{
+    fn from(r: &flowsheet_core::units::columns::DistillationColumnResult) -> Self {
+        Self {
+            stage_temperatures_k: r.stage_temperatures_k.clone(),
+            condenser_duty_w: r.condenser_duty_w,
+            reboiler_duty_w: r.reboiler_duty_w,
+            packed_height_m: r.packed_height_m,
+            iterations: r.iterations,
+        }
+    }
+}
+
+/// Saved contacting-stage profile of an adiabatic absorber or stripper.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AbsorberProfile {
+    pub stage_temperatures_k: Vec<f64>,
+    pub packed_height_m: Option<f64>,
+    pub iterations: usize,
+}
+
+impl From<&flowsheet_core::units::columns::AbsorberResult> for AbsorberProfile {
+    fn from(r: &flowsheet_core::units::columns::AbsorberResult) -> Self {
+        Self {
+            stage_temperatures_k: r.stage_temperatures_k.clone(),
+            packed_height_m: r.packed_height_m,
+            iterations: r.iterations,
         }
     }
 }
@@ -278,6 +328,8 @@ impl ResultSet {
                             }
                         }),
                         shortcut_column: u.shortcut_column.as_ref().map(Into::into),
+                        distillation_column: u.distillation_column.as_ref().map(Into::into),
+                        absorber: u.absorber.as_ref().map(Into::into),
                         warnings: u.warnings.clone(),
                         max_scaled_component_residual: u
                             .balance
@@ -385,6 +437,15 @@ impl ResultSet {
                 || u.shortcut_column
                     .as_ref()
                     .is_some_and(|r| r.numbers().into_iter().any(bad))
+                || u.distillation_column.as_ref().is_some_and(|r| {
+                    bad(r.condenser_duty_w)
+                        || bad(r.reboiler_duty_w)
+                        || opt(r.packed_height_m)
+                        || r.stage_temperatures_k.iter().copied().any(bad)
+                })
+                || u.absorber.as_ref().is_some_and(|r| {
+                    opt(r.packed_height_m) || r.stage_temperatures_k.iter().copied().any(bad)
+                })
                 || opt(u.max_scaled_component_residual)
                 || opt(u.scaled_energy_residual)
                 || u.reaction.as_ref().is_some_and(|r| {

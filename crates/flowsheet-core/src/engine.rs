@@ -122,6 +122,10 @@ pub struct UnitCalculation {
     pub transferred_duty_w: Option<f64>,
     /// Design estimates for a shortcut distillation column.
     pub shortcut_column: Option<units::columns::ShortcutColumnResult>,
+    /// Solved profile and duties for a rigorous distillation column.
+    pub distillation_column: Option<units::columns::DistillationColumnResult>,
+    /// Solved temperature profile of an adiabatic absorber or stripper.
+    pub absorber: Option<units::columns::AbsorberResult>,
     /// Additional flowsheet boundary contribution from material and its enthalpy.
     pub material_exchange: Option<MaterialExchange>,
     pub balance: Option<Balance>,
@@ -400,6 +404,8 @@ impl Flowsheet {
                 duty_w,
                 transferred_duty_w,
                 shortcut_column,
+                distillation_column,
+                absorber,
                 material_exchange,
                 warnings,
                 reaction,
@@ -462,6 +468,8 @@ impl Flowsheet {
                     duty_w,
                     transferred_duty_w,
                     shortcut_column,
+                    distillation_column,
+                    absorber,
                     material_exchange,
                     balance,
                     warnings,
@@ -963,6 +971,8 @@ fn calculate_unit(
                 duty_w: 0.0,
                 transferred_duty_w: Some(0.0),
                 shortcut_column: None,
+                distillation_column: None,
+                absorber: None,
                 material_exchange: None,
                 energy: Vec::new(),
                 warnings: vec![
@@ -1052,6 +1062,8 @@ fn calculate_unit(
                 duty_w: 0.0,
                 transferred_duty_w: Some(q),
                 shortcut_column: None,
+                distillation_column: None,
+                absorber: None,
                 material_exchange: None,
                 energy: Vec::new(),
                 warnings: vec![],
