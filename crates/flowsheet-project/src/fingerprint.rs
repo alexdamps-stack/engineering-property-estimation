@@ -162,7 +162,7 @@ fn local_inputs(fs: &Flowsheet, feeds: &FeedFractions, id: UnitId) -> InputNode 
     let mut h = Fnv::new();
     h.number(id.0)
         .field(&serde_json::to_string(&KindRecord::from(u.kind)).expect("kind"))
-        .field(&serde_json::to_string(&SpecRecord::from(u.spec)).expect("spec"))
+        .field(&serde_json::to_string(&SpecRecord::from(u.spec.clone())).expect("spec"))
         .field(&serde_json::to_string(&feeds.get(&id)).expect("feed"));
     let mut upstream = vec![];
     for (i, port) in u.kind.ports().iter().enumerate() {

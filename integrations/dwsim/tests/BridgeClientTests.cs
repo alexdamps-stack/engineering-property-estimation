@@ -119,7 +119,7 @@ internal static class BridgeClientTests
         e = Expect(delegate
         {
             var q = Load(args[1]);
-            ((System.Collections.ArrayList)ThermoCoreBridge.Obj(q["package"])["components"])[4] = "hydrogen";
+            ((System.Collections.ArrayList)ThermoCoreBridge.Obj(q["package"])["components"])[4] = "helium";
             ThermoCoreBridge.Calculate(q);
         }, "missing-parameter");
         Check(e == null, "unknown component -> missing-parameter " + e);

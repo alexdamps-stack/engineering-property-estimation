@@ -1,0 +1,448 @@
+{
+  "schema": "a17-reactor-reference-v2",
+  "generator": "validation/generate-reactor-references.py",
+  "python": "3.14.4",
+  "packages": {
+    "cantera": "3.2.0",
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "input_sha256": {
+    "data/source-extracts/components.provisional.json": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147",
+    "data/source-extracts/components-reacting.provisional.json": "aa400979fe47789c99e68643a9dc501c07a1feef92f38b53b2f3a9e7c9e2f6b7"
+  },
+  "independence": "Cantera NASA7 ideal-gas equilibrium and enthalpies; SciPy brentq/DOP853 solutions of rate laws written here; separate Python PR molar volume; no Rust calls",
+  "scope": "Ideal-gas equilibrium (fugacity basis IdealGas) and isothermal kinetic reactors at fixed cases; the PR/PR-BM departure of the duty is removed by the Rust test",
+  "components": [
+    "methane",
+    "water",
+    "carbon-monoxide",
+    "carbon-dioxide",
+    "hydrogen",
+    "nitrogen",
+    "methanol"
+  ],
+  "tolerances": {
+    "equilibrium_flow_relative": 1e-08,
+    "kinetic_flow_relative": 1e-08,
+    "duty_relative": 1e-07,
+    "gibbs_energy_J_per_mol": 1e-06
+  },
+  "standard_gibbs_energy_J_per_mol": {
+    "methane": {
+      "300.0": -130510.84759558817,
+      "450.0": -159728.5345746974,
+      "600.0": -191140.93986318106
+    },
+    "water": {
+      "300.0": -298473.2258720151,
+      "450.0": -327928.5225660307,
+      "600.0": -359151.2257006878
+    },
+    "carbon-monoxide": {
+      "300.0": -169826.43191873518,
+      "450.0": -200450.92576275193,
+      "600.0": -232582.5138643607
+    },
+    "carbon-dioxide": {
+      "300.0": -457643.85055009567,
+      "450.0": -491017.3926356593,
+      "600.0": -526563.1097206429
+    },
+    "hydrogen": {
+      "300.0": -39204.2461141173,
+      "450.0": -59777.36273670223,
+      "600.0": -81842.20898859075
+    },
+    "nitrogen": {
+      "300.0": -57482.763406334874,
+      "450.0": -87198.36790193134,
+      "600.0": -118413.49771725958
+    },
+    "methanol": {
+      "300.0": -272881.77018747025,
+      "450.0": -310433.1115938861,
+      "600.0": -350777.4208564297
+    }
+  },
+  "equilibrium_cases": [
+    {
+      "id": "gibbs-shift-methanation",
+      "kind": "gibbs",
+      "inerts": [
+        "nitrogen"
+      ],
+      "feed": {
+        "temperature_K": 550.0,
+        "pressure_Pa": 100000.0,
+        "flow_mol_per_s": 1.0,
+        "mole_fractions": {
+          "carbon-monoxide": 0.2,
+          "water": 0.3,
+          "carbon-dioxide": 0.05,
+          "hydrogen": 0.05,
+          "nitrogen": 0.4
+        }
+      },
+      "outlet_temperature_K": 560.0,
+      "temperature_approach_K": 0.0,
+      "pressure_drop_Pa": 0.0,
+      "outlet_flows_mol_per_s": {
+        "methane": 0.059756270234923074,
+        "water": 0.21970115951670655,
+        "carbon-monoxide": 0.00018861903390942955,
+        "carbon-dioxide": 0.19005511071821687,
+        "hydrogen": 0.010786299987545187,
+        "nitrogen": 0.4,
+        "methanol": 1.2951911891030552e-11
+      },
+      "extents_mol_per_s": [],
+      "standard_reaction_enthalpy_W": -18067.3021774392,
+      "ideal_gas_duty_W": -18106.35094888789,
+      "duty_scale_W": 243838.09564978583
+    },
+    {
+      "id": "equilibrium-water-gas-shift-approach",
+      "kind": "equilibrium",
+      "reactions": [
+        {
+          "coefficients": {
+            "carbon-monoxide": -1,
+            "water": -1,
+            "carbon-dioxide": 1,
+            "hydrogen": 1
+          },
+          "constant": "gibbs"
+        }
+      ],
+      "feed": {
+        "temperature_K": 500.0,
+        "pressure_Pa": 200000.0,
+        "flow_mol_per_s": 1.0,
+        "mole_fractions": {
+          "carbon-monoxide": 0.25,
+          "water": 0.35,
+          "carbon-dioxide": 0.05,
+          "hydrogen": 0.05,
+          "nitrogen": 0.3
+        }
+      },
+      "outlet_temperature_K": 520.0,
+      "temperature_approach_K": 20.0,
+      "pressure_drop_Pa": 0.0,
+      "outlet_flows_mol_per_s": {
+        "methane": 0.0,
+        "water": 0.11110332869596691,
+        "carbon-monoxide": 0.011103328695966959,
+        "carbon-dioxide": 0.28889667130403296,
+        "hydrogen": 0.288896671304033,
+        "nitrogen": 0.3,
+        "methanol": 0.0
+      },
+      "extents_mol_per_s": [
+        0.23889667130403297
+      ],
+      "standard_reaction_enthalpy_W": -9831.49777330016,
+      "ideal_gas_duty_W": -8820.754402211285,
+      "duty_scale_W": 271717.4478385066
+    },
+    {
+      "id": "equilibrium-methanol-correlation",
+      "kind": "equilibrium",
+      "reactions": [
+        {
+          "coefficients": {
+            "carbon-monoxide": -1,
+            "hydrogen": -2,
+            "methanol": 1
+          },
+          "constant": {
+            "a": -24.4,
+            "b": 11000.0,
+            "c": 0.0,
+            "d": 0.0
+          }
+        }
+      ],
+      "feed": {
+        "temperature_K": 480.0,
+        "pressure_Pa": 2000000.0,
+        "flow_mol_per_s": 1.0,
+        "mole_fractions": {
+          "carbon-monoxide": 0.3,
+          "hydrogen": 0.6,
+          "nitrogen": 0.1
+        }
+      },
+      "outlet_temperature_K": 500.0,
+      "temperature_approach_K": 0.0,
+      "pressure_drop_Pa": 100000.0,
+      "outlet_flows_mol_per_s": {
+        "methane": 0.0,
+        "water": 0.0,
+        "carbon-monoxide": 0.08081333828681062,
+        "carbon-dioxide": 0.0,
+        "hydrogen": 0.16162667657362123,
+        "nitrogen": 0.1,
+        "methanol": 0.21918666171318937
+      },
+      "extents_mol_per_s": [
+        0.21918666171318937
+      ],
+      "standard_reaction_enthalpy_W": -19816.5532344001,
+      "ideal_gas_duty_W": -20835.263618390978,
+      "duty_scale_W": 87037.21399482427
+    }
+  ],
+  "kinetic_cases": [
+    {
+      "id": "cstr-water-gas-shift-partial-pressure",
+      "kind": "cstr",
+      "feed": {
+        "temperature_K": 500.0,
+        "pressure_Pa": 500000.0,
+        "flow_mol_per_s": 1.0,
+        "mole_fractions": {
+          "carbon-monoxide": 0.2,
+          "water": 0.3,
+          "carbon-dioxide": 0.05,
+          "hydrogen": 0.05,
+          "nitrogen": 0.4
+        }
+      },
+      "volume_m3": 0.5,
+      "outlet_temperature_K": 550.0,
+      "pressure_drop_Pa": 10000.0,
+      "catalyst_bulk_density_kg_m3": null,
+      "reactions": [
+        {
+          "coefficients": {
+            "carbon-monoxide": -1,
+            "water": -1,
+            "carbon-dioxide": 1,
+            "hydrogen": 1
+          },
+          "basis": "partial_pressure",
+          "rate_basis": "volume",
+          "law": "power",
+          "forward": {
+            "k0": 2e-11,
+            "E": 50000.0,
+            "n": 0.0,
+            "Tref": 500.0,
+            "orders": {
+              "carbon-monoxide": 1,
+              "water": 1
+            }
+          },
+          "reverse": {
+            "k0": 2e-12,
+            "E": 80000.0,
+            "n": 0.0,
+            "Tref": 500.0,
+            "orders": {
+              "carbon-dioxide": 1,
+              "hydrogen": 1
+            }
+          }
+        }
+      ],
+      "outlet_flows_mol_per_s": {
+        "methane": 0.0,
+        "water": 0.19654640085375322,
+        "carbon-monoxide": 0.09654640085375324,
+        "carbon-dioxide": 0.1534535991462468,
+        "hydrogen": 0.1534535991462468,
+        "nitrogen": 0.4,
+        "methanol": 0.0
+      },
+      "extents_mol_per_s": [
+        0.10345359914624677
+      ],
+      "standard_reaction_enthalpy_W": -4257.505238956612,
+      "ideal_gas_duty_W": -2459.3075062122807,
+      "duty_scale_W": 231936.05741771954
+    },
+    {
+      "id": "pfr-shift-and-lhhw-methanation-catalytic",
+      "kind": "pfr",
+      "feed": {
+        "temperature_K": 500.0,
+        "pressure_Pa": 600000.0,
+        "flow_mol_per_s": 0.5,
+        "mole_fractions": {
+          "carbon-monoxide": 0.15,
+          "water": 0.25,
+          "carbon-dioxide": 0.05,
+          "hydrogen": 0.35,
+          "nitrogen": 0.2
+        }
+      },
+      "length_m": 2.0,
+      "diameter_m": 0.1,
+      "temperature_K": 560.0,
+      "pressure_drop_Pa": 20000.0,
+      "catalyst_bulk_density_kg_m3": 1200.0,
+      "reactions": [
+        {
+          "coefficients": {
+            "carbon-monoxide": -1,
+            "water": -1,
+            "carbon-dioxide": 1,
+            "hydrogen": 1
+          },
+          "basis": "mole_fraction",
+          "rate_basis": "catalyst",
+          "law": "power",
+          "forward": {
+            "k0": 0.02,
+            "E": 60000.0,
+            "n": 0.0,
+            "Tref": 560.0,
+            "orders": {
+              "carbon-monoxide": 1,
+              "water": 1
+            }
+          },
+          "reverse": {
+            "k0": 0.004,
+            "E": 90000.0,
+            "n": 0.0,
+            "Tref": 560.0,
+            "orders": {
+              "carbon-dioxide": 1,
+              "hydrogen": 1
+            }
+          }
+        },
+        {
+          "coefficients": {
+            "carbon-monoxide": -1,
+            "hydrogen": -3,
+            "methane": 1,
+            "water": 1
+          },
+          "basis": "partial_pressure",
+          "rate_basis": "catalyst",
+          "law": "lhhw",
+          "kinetic": {
+            "k0": 0.001,
+            "E": 70000.0,
+            "n": 0.0,
+            "Tref": 560.0
+          },
+          "driving_forward": {
+            "a": -23.0,
+            "b": 0.0,
+            "c": 0.0,
+            "d": 0.0,
+            "orders": {
+              "carbon-monoxide": 1,
+              "hydrogen": 1
+            }
+          },
+          "adsorption": [
+            {
+              "a": 0.0,
+              "b": 0.0,
+              "c": 0.0,
+              "d": 0.0,
+              "orders": {}
+            },
+            {
+              "a": -14.0,
+              "b": 2000.0,
+              "c": 0.0,
+              "d": 0.0,
+              "orders": {
+                "carbon-monoxide": 1
+              }
+            },
+            {
+              "a": -6.9,
+              "b": 0.0,
+              "c": 0.0,
+              "d": 0.0,
+              "orders": {
+                "hydrogen": 0.5
+              }
+            }
+          ],
+          "exponent": 2.0
+        }
+      ],
+      "outlet_flows_mol_per_s": {
+        "methane": 0.0022141876584409323,
+        "water": 0.11638084605054967,
+        "carbon-monoxide": 0.061952470733667796,
+        "carbon-dioxide": 0.035833341607891256,
+        "hydrogen": 0.17919077863256846,
+        "nitrogen": 0.1,
+        "methanol": 0.0
+      },
+      "extents_mol_per_s": [
+        0.010833341607891254,
+        0.0022141876584409323
+      ],
+      "standard_reaction_enthalpy_W": -901.722591945757,
+      "ideal_gas_duty_W": 50.95164752005803,
+      "duty_scale_W": 97905.53372366562
+    },
+    {
+      "id": "batch-water-gas-shift-concentration",
+      "kind": "batch",
+      "feed": {
+        "temperature_K": 480.0,
+        "pressure_Pa": 300000.0,
+        "flow_mol_per_s": 2.0,
+        "mole_fractions": {
+          "carbon-monoxide": 0.2,
+          "water": 0.3,
+          "nitrogen": 0.5
+        }
+      },
+      "reaction_time_s": 600.0,
+      "temperature_K": 520.0,
+      "catalyst_bulk_density_kg_m3": null,
+      "reactions": [
+        {
+          "coefficients": {
+            "carbon-monoxide": -1,
+            "water": -1,
+            "carbon-dioxide": 1,
+            "hydrogen": 1
+          },
+          "basis": "molar_concentration",
+          "rate_basis": "volume",
+          "law": "power",
+          "forward": {
+            "k0": 5e-05,
+            "E": 0.0,
+            "n": 0.0,
+            "Tref": 520.0,
+            "orders": {
+              "carbon-monoxide": 1,
+              "water": 1
+            }
+          },
+          "reverse": null
+        }
+      ],
+      "outlet_flows_mol_per_s": {
+        "methane": 0.0,
+        "water": 0.43600720374516655,
+        "carbon-monoxide": 0.23600720374516668,
+        "carbon-dioxide": 0.16399279625483332,
+        "hydrogen": 0.16399279625483332,
+        "nitrogen": 1.0,
+        "methanol": 0.0
+      },
+      "extents_mol_per_s": [
+        0.16399279625483332
+      ],
+      "standard_reaction_enthalpy_W": -6748.921206879286,
+      "ideal_gas_duty_W": -3994.223555663484,
+      "duty_scale_W": 386008.2017177682
+    }
+  ]
+}

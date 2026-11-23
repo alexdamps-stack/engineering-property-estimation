@@ -135,7 +135,7 @@ macro_rules! traced {
 
 /// Reference symbol of each unit kind that has one. Feed, product and
 /// splitter have none and keep their project drawings.
-pub const TRACED: [TracedSymbol; 9] = [
+pub const TRACED: [TracedSymbol; 16] = [
     traced!(Mixer, "s4-x2673-in-line-static-mixer",
         pipes: ["path3552", "path3554"], stubs: []),
     // Heater and cooler: the process line crosses the exchanger; the
@@ -156,6 +156,28 @@ pub const TRACED: [TracedSymbol; 9] = [
         pipes: ["path2892", "path3544"], stubs: []),
     traced!(Separator, "s1-2062-tank-vessel-with-dished-ends",
         pipes: ["path904-9", "path906-3"], stubs: []),
+    // ISO 10628-2 has no general reactor symbol. A fixed-bed column stands
+    // for the stoichiometric (catalytic) reactor and a fluidized-bed column
+    // for the yield reactor (typical of cracking yield shifts). The four
+    // sheet pipe lines are left out; the side walls carry the nozzles.
+    traced!(ConversionReactor, "s1-x8015-column-with-fixed-bed",
+        pipes: ["path4628", "path4630", "path4636", "path4638"], stubs: []),
+    traced!(YieldReactor, "s1-x8014-column-with-fluidized-bed",
+        pipes: ["path4392", "path4394", "path4406", "path4408"], stubs: []),
+    // Equilibrium reactor: vessel with heating/cooling jacket; Gibbs reactor:
+    // spherical vessel; CSTR: jacketed vessel with agitator; plug-flow
+    // reactor: jacketed pipeline (tube with coolant); batch reactor: vessel
+    // with a heating/cooling coil.
+    traced!(EquilibriumReactor, "s1-x2069-vessel-with-dished-ends-and-heating-cooling-jacket",
+        pipes: ["path2229", "path2231", "path2243", "path2245"], stubs: []),
+    traced!(GibbsReactor, "s1-2063-spherical-vessel",
+        pipes: ["path1041", "path1049", "path1051", "path1053"], stubs: []),
+    traced!(Cstr, "s1-x8006-jacketed-vessel-with-dished-ends-and-agitator-driven-by-electric-motor",
+        pipes: ["path4191", "path4193", "path4199", "path4272"], stubs: []),
+    traced!(PlugFlowReactor, "s6-x409-jacked-pipeline",
+        pipes: ["path6507", "path6509"], stubs: []),
+    traced!(BatchReactor, "s1-x8000-vessel-with-full-tube-heating-cooling-coil",
+        pipes: ["path7578", "path7580", "path4115", "path4117"], stubs: []),
 ];
 
 /// Stroke width of equipment outlines on the reference sheets (mm). Line
@@ -179,6 +201,9 @@ struct Line {
     weight: f32,
     /// Nozzle stub outside the body.
     stub: bool,
+    /// Dash and gap length as fractions of the symbol width, for lines
+    /// drawn dashed on the reference sheet (fixed-bed boundaries).
+    dash: Option<(f32, f32)>,
 }
 
 /// Parsed, normalised geometry of a [`TracedSymbol`].
@@ -244,6 +269,10 @@ pub fn parse(t: &TracedSymbol) -> Result<Outline, String> {
         return Err(format!("{}: no drawable geometry", t.asset));
     }
     for line in &mut lines {
+        if let Some((d, g)) = &mut line.dash {
+            *d /= bounds.width();
+            *g /= bounds.width();
+        }
         for p in &mut line.points {
             *p = pos2(
                 (p.x - bounds.left()) / bounds.width(),
@@ -274,12 +303,18 @@ fn collect(group: &usvg::Group, out: &mut Vec<(String, Line)>) {
                     continue;
                 };
                 let weight = stroke.width().get() / BODY_WIDTH;
+                // Drawing units; normalised with the points in `parse`.
+                let dash = stroke
+                    .dasharray()
+                    .filter(|d| d.len() >= 2 && d[0] > 0.0)
+                    .map(|d| (d[0], d[1]));
                 for (points, closed) in flatten(&data) {
                     let line = Line {
                         points,
                         closed,
                         weight,
                         stub: false,
+                        dash,
                     };
                     out.push((p.id().to_owned(), line));
                 }
@@ -460,11 +495,24 @@ fn draw_traced(
         if line.stub {
             stubs.push(points.clone());
         }
-        painter.add(if line.closed {
-            Shape::closed_line(points, s)
-        } else {
-            Shape::line(points, s)
-        });
+        // A zero-length stroke with a round cap is a dot in SVG (the
+        // fluidized-bed particles); egui draws nothing for it.
+        if points.windows(2).all(|w| w[0].distance(w[1]) < 1e-3) {
+            painter.circle_filled(points[0], width / 2.0, stroke.color);
+            continue;
+        }
+        match line.dash {
+            Some((d, g)) if !line.closed => {
+                painter.extend(Shape::dashed_line(&points, s, d * r.width(), g * r.width()))
+            }
+            _ => {
+                painter.add(if line.closed {
+                    Shape::closed_line(points, s)
+                } else {
+                    Shape::line(points, s)
+                });
+            }
+        }
     }
     // Project addition: an arrow on the medium shows heat in (heater, into
     // the exchanger through the top nozzle) or out (cooler, away from it

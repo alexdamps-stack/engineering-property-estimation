@@ -7,6 +7,7 @@ use flowsheet_project::Fingerprints;
 use thermo_types::COMPOSITION_SUM_TOLERANCE;
 
 use super::presentation::stream_summary;
+use super::reaction::chemistry_form;
 use super::spec::spec_form;
 use super::{status_line, value_text};
 use crate::editor::{Editor, ItemStatus, Selection};
@@ -37,13 +38,19 @@ pub(super) fn unit_properties(ui: &mut Ui, ed: &mut Editor, id: UnitId) {
 
     ui.add_space(8.0);
     ui.strong("Specification");
-    let mut spec = unit.spec;
+    let mut spec = unit.spec.clone();
     let u = ed.units;
     egui::Grid::new(("spec", id))
         .num_columns(2)
         .spacing([8.0, 6.0])
         .show(ui, |ui| spec_form(ui, &mut spec, u));
-    ed.fs.set_spec(id, spec);
+    let components = ed
+        .package
+        .as_ref()
+        .map(|p| p.components.clone())
+        .unwrap_or_default();
+    chemistry_form(ui, &mut spec, &components, u);
+    ed.fs.set_spec(id, spec.clone());
     for issue in spec.issues() {
         if issue.problem != SpecProblem::Missing {
             ui.colored_label(
@@ -186,7 +193,13 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
             .show(ui, |ui| {
                 if matches!(
                     kind,
-                    Some(UnitKind::Heater | UnitKind::Cooler | UnitKind::Separator)
+                    Some(
+                        UnitKind::Heater
+                            | UnitKind::Cooler
+                            | UnitKind::Separator
+                            | UnitKind::ConversionReactor
+                            | UnitKind::YieldReactor
+                    )
                 ) {
                     ui.label("Duty (+ into unit)");
                     ui.label(value_text(
@@ -194,6 +207,24 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         stale,
                     ));
                     ui.end_row();
+                }
+                if let Some(reaction) = &r.reaction {
+                    // Formation basis at 298.15 K: negative when exothermic.
+                    ui.label("Standard heat of reaction")
+                        .on_hover_text("Sum of generation × ideal-gas formation enthalpy at 298.15 K; negative when exothermic");
+                    ui.label(value_text(
+                        format_quantity(u, Quantity::Duty, reaction.standard_reaction_enthalpy_w),
+                        stale,
+                    ));
+                    ui.end_row();
+                    for (k, xi) in reaction.extents_mol_s.iter().enumerate() {
+                        ui.label(format!("Extent, reaction {}", k + 1));
+                        ui.label(value_text(
+                            format_quantity(u, Quantity::MolarFlow, *xi),
+                            stale,
+                        ));
+                        ui.end_row();
+                    }
                 }
                 if kind == Some(UnitKind::HeatExchanger) {
                     // Internal heat moved from the hot to the cold side; the

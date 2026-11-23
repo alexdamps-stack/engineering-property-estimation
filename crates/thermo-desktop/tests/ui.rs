@@ -463,6 +463,9 @@ fn snapshot_selected_cooler_properties() {
 fn every_palette_entry_places_its_unit_kind() {
     let mut h = harness(FlowsheetApp::default(), egui::Theme::Dark);
     for kind in UnitKind::ALL {
+        // The palette scrolls once it is taller than the window.
+        h.get_by_label(kind.label()).scroll_to_me();
+        h.run();
         h.get_by_label(kind.label()).click();
         h.run();
         let ed = h.state().editor();
@@ -868,4 +871,208 @@ fn canvas_frame_time_with_100_units() {
         h.state().editor().fs.units().count(),
         h.state().editor().fs.streams().count()
     );
+}
+
+/// Methane combustion in a conversion reactor followed by a yield reactor
+/// that shifts part of the products (A17, #191 and #192).
+fn reactor_flowsheet() -> (FlowsheetApp, UnitId) {
+    use flowsheet_core::{Reaction, ReactionExtent, SeparatorThermal};
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(flowsheet_project::PackageSelection::zero_interactions(
+        flowsheet_project::CubicVariantChoice::PengRobinson,
+        ["methane", "oxygen", "nitrogen", "carbon-dioxide", "water"]
+            .map(String::from)
+            .to_vec(),
+        "explicit synthetic zero-kij approximation; A17 reactor snapshot",
+    ));
+    let at = egui::pos2;
+    let feed = ed.add_unit_at(UnitKind::Feed, at(-120.0, 0.0));
+    let conv = ed.add_unit_at(UnitKind::ConversionReactor, at(20.0, 0.0));
+    let yld = ed.add_unit_at(UnitKind::YieldReactor, at(160.0, 0.0));
+    let product = ed.add_unit_at(UnitKind::Product, at(300.0, 0.0));
+    ed.fs.set_spec(
+        feed,
+        UnitSpec::Feed {
+            temperature_k: Some(450.0),
+            pressure_pa: Some(1.5e5),
+            molar_flow_mol_s: Some(2.0),
+        },
+    );
+    ed.feeds.insert(feed, vec![0.08, 0.2, 0.72, 0.0, 0.0]);
+    ed.fs.set_spec(
+        conv,
+        UnitSpec::ConversionReactor {
+            reactions: vec![Reaction {
+                coefficients: vec![
+                    ("methane".into(), -1.0),
+                    ("oxygen".into(), -2.0),
+                    ("carbon-dioxide".into(), 1.0),
+                    ("water".into(), 2.0),
+                ],
+                extent: ReactionExtent::Conversion {
+                    key: Some("methane".into()),
+                    fraction: Some(0.75),
+                },
+            }],
+            thermal: SeparatorThermal::OutletTemperature(Some(560.0)),
+            pressure_drop_pa: 2.0e4,
+        },
+    );
+    ed.fs.set_spec(
+        yld,
+        UnitSpec::YieldReactor {
+            mass_yields: vec![("carbon-dioxide".into(), 2.75), ("water".into(), 2.25)],
+            inerts: vec!["nitrogen".into()],
+            thermal: SeparatorThermal::OutletTemperature(Some(500.0)),
+            pressure_drop_pa: 0.0,
+        },
+    );
+    for (a, b) in [(feed, conv), (conv, yld), (yld, product)] {
+        ed.connect(
+            PortRef::new(a, if a == feed { 0 } else { 1 }),
+            PortRef::new(b, 0),
+        )
+        .expect("reactor connection");
+    }
+    ed.fit_requested = true;
+    (app, conv)
+}
+
+#[test]
+fn snapshot_solved_reactors() {
+    let (mut app, conv) = reactor_flowsheet();
+    solve_now(&mut app);
+    let ed = app.editor();
+    assert!(
+        ed.failure.is_none(),
+        "{:?}",
+        ed.failure.as_ref().map(|f| &f.message)
+    );
+    let r = ed.results.as_ref().unwrap();
+    assert!(
+        r.units[&conv]
+            .reaction
+            .as_ref()
+            .unwrap()
+            .standard_reaction_enthalpy_w
+            < 0.0
+    );
+    app.editor_mut().selection = Some(Selection::Unit(conv));
+    let mut h = harness(app, egui::Theme::Dark);
+    check_snapshot(&mut h, "reactors_solved_dark");
+}
+
+/// Water-gas shift in a CSTR followed by a plug-flow reactor with a coolant
+/// (A17 kinetics), with the CSTR selected to show the kinetics editor.
+#[test]
+fn snapshot_solved_kinetic_reactors() {
+    use flowsheet_core::{
+        Arrhenius, ConcentrationBasis, KineticReaction, Kinetics, PlugFlowThermal, RateBasis,
+        RateLaw, RateTerm, ReactingPhase, SeparatorThermal,
+    };
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(flowsheet_project::PackageSelection::zero_interactions(
+        flowsheet_project::CubicVariantChoice::PengRobinson,
+        [
+            "carbon-monoxide",
+            "water",
+            "carbon-dioxide",
+            "hydrogen",
+            "nitrogen",
+        ]
+        .map(String::from)
+        .to_vec(),
+        "explicit synthetic zero-kij approximation; A17 kinetics snapshot",
+    ));
+    let at = egui::pos2;
+    let feed = ed.add_unit_at(UnitKind::Feed, at(-140.0, 0.0));
+    let cstr = ed.add_unit_at(UnitKind::Cstr, at(0.0, 0.0));
+    let pfr = ed.add_unit_at(UnitKind::PlugFlowReactor, at(170.0, 0.0));
+    let product = ed.add_unit_at(UnitKind::Product, at(340.0, 0.0));
+    ed.fs.set_spec(
+        feed,
+        UnitSpec::Feed {
+            temperature_k: Some(500.0),
+            pressure_pa: Some(5.0e5),
+            molar_flow_mol_s: Some(1.0),
+        },
+    );
+    ed.feeds.insert(feed, vec![0.2, 0.3, 0.05, 0.05, 0.4]);
+    let shift = |k0: f64| Kinetics {
+        reactions: vec![KineticReaction {
+            coefficients: vec![
+                ("carbon-monoxide".into(), -1.0),
+                ("water".into(), -1.0),
+                ("carbon-dioxide".into(), 1.0),
+                ("hydrogen".into(), 1.0),
+            ],
+            phase: ReactingPhase::Vapor,
+            basis: ConcentrationBasis::PartialPressure,
+            rate_basis: RateBasis::ReactorVolume,
+            rate: RateLaw::PowerLaw {
+                forward: RateTerm {
+                    constant: Arrhenius {
+                        pre_exponential: Some(k0),
+                        activation_energy_j_mol: 5.0e4,
+                        temperature_exponent: 0.0,
+                        reference_temperature_k: Some(500.0),
+                    },
+                    orders: vec![("carbon-monoxide".into(), 1.0), ("water".into(), 1.0)],
+                },
+                reverse: Some(RateTerm {
+                    constant: Arrhenius {
+                        pre_exponential: Some(k0 / 10.0),
+                        activation_energy_j_mol: 8.0e4,
+                        temperature_exponent: 0.0,
+                        reference_temperature_k: Some(500.0),
+                    },
+                    orders: vec![("carbon-dioxide".into(), 1.0), ("hydrogen".into(), 1.0)],
+                }),
+            },
+        }],
+        catalyst_bulk_density_kg_m3: None,
+    };
+    ed.fs.set_spec(
+        cstr,
+        UnitSpec::Cstr {
+            kinetics: shift(2e-11),
+            volume_m3: Some(0.5),
+            thermal: SeparatorThermal::OutletTemperature(Some(550.0)),
+            pressure_drop_pa: 1.0e4,
+        },
+    );
+    ed.fs.set_spec(
+        pfr,
+        UnitSpec::PlugFlow {
+            kinetics: shift(2e-11),
+            length_m: Some(3.0),
+            diameter_m: Some(0.3),
+            thermal: PlugFlowThermal::Coolant {
+                temperature_k: Some(520.0),
+                u_w_m2_k: Some(50.0),
+            },
+            pressure_drop_pa: 2.0e4,
+        },
+    );
+    for (a, b) in [(feed, cstr), (cstr, pfr), (pfr, product)] {
+        ed.connect(
+            PortRef::new(a, if a == feed { 0 } else { 1 }),
+            PortRef::new(b, 0),
+        )
+        .expect("kinetic connection");
+    }
+    ed.fit_requested = true;
+    solve_now(&mut app);
+    let ed = app.editor();
+    assert!(
+        ed.failure.is_none(),
+        "{:?}",
+        ed.failure.as_ref().map(|f| &f.message)
+    );
+    assert!(ed.results.as_ref().unwrap().units[&pfr].reaction.is_some());
+    app.editor_mut().selection = Some(Selection::Unit(cstr));
+    let mut h = harness(app, egui::Theme::Dark);
+    check_snapshot(&mut h, "kinetic_reactors_solved_dark");
 }

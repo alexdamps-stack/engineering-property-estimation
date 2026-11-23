@@ -183,7 +183,7 @@ impl PackageSelection {
         Ok((
             CubicPackage::new(model.clone(), options),
             model,
-            db.metadata(),
+            db.metadata_for(self.components.iter().map(String::as_str)),
         ))
     }
 }

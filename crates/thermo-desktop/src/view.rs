@@ -89,6 +89,15 @@ pub fn block_size(kind: UnitKind) -> Vec2 {
         // 2:3 (length to outlet height), vessel with dished ends 2:3.
         UnitKind::Valve => vec2(40.0, 20.0),
         UnitKind::Separator => vec2(50.0, 75.0),
+        // Fixed- and fluidized-bed columns: the same 2:3 body as the vessel.
+        UnitKind::ConversionReactor | UnitKind::YieldReactor => vec2(50.0, 75.0),
+        // Jacketed vessel 25:30, sphere 1:1, agitated jacketed vessel 17.5:31.25
+        // (motor on top), jacketed pipeline 32.5:5, coil vessel 30:30.
+        UnitKind::EquilibriumReactor => vec2(50.0, 60.0),
+        UnitKind::GibbsReactor => vec2(50.0, 50.0),
+        UnitKind::Cstr => vec2(42.0, 75.0),
+        UnitKind::PlugFlowReactor => vec2(130.0, 20.0),
+        UnitKind::BatchReactor => vec2(60.0, 60.0),
         UnitKind::Splitter => vec2(40.0, 60.0),
         UnitKind::HeatExchanger => vec2(140.0, 40.0),
         UnitKind::Pump => vec2(50.0, 50.0),
@@ -115,6 +124,18 @@ pub fn port_exit(kind: UnitKind, index: usize) -> Vec2 {
     }
 }
 
+/// Fraction of the block width between the block edge and the vessel wall
+/// that carries the side nozzles, for symbols with a jacket or coil drawn
+/// outside the wall (from the traced geometry: CSTR wall 1.25 of 17.5,
+/// coil vessel wall 5 of 30).
+fn side_inset(kind: UnitKind) -> f32 {
+    match kind {
+        UnitKind::Cstr => 1.25 / 17.5,
+        UnitKind::BatchReactor => 5.0 / 30.0,
+        _ => 0.0,
+    }
+}
+
 /// World-space position of nozzle `index` of a unit centred at `center`.
 pub fn port_pos(kind: UnitKind, center: Pos2, index: usize) -> Pos2 {
     let rect = block_rect(kind, center);
@@ -137,10 +158,11 @@ pub fn port_pos(kind: UnitKind, center: Pos2, index: usize) -> Pos2 {
         .collect();
     let rank = same_side.iter().position(|&i| i == index).unwrap_or(0);
     let n = same_side.len() as f32;
+    let inset = side_inset(kind) * rect.width();
     let x = if exit.x < 0.0 {
-        rect.left()
+        rect.left() + inset
     } else {
-        rect.right()
+        rect.right() - inset
     };
     pos2(
         x,
@@ -390,7 +412,10 @@ mod tests {
     #[test]
     fn nozzles_lie_on_the_symbol_boundary_facing_their_exit() {
         for kind in UnitKind::ALL {
-            let rect = block_rect(kind, Pos2::ZERO);
+            // Side nozzles of jacketed or coiled vessels sit on the vessel wall,
+            // inside the block by the documented inset.
+            let rect = block_rect(kind, Pos2::ZERO)
+                .shrink2(vec2(side_inset(kind) * block_size(kind).x, 0.0));
             for i in 0..kind.ports().len() {
                 let p = port_pos(kind, Pos2::ZERO, i);
                 let exit = port_exit(kind, i);

@@ -1,4 +1,10 @@
-param([Parameter(Mandatory=$true)][string]$OutputDirectory)
+param(
+    [Parameter(Mandatory=$true)][string]$OutputDirectory,
+    # base: the A2 components (components.provisional.json). reacting: the A17
+    # extension for reactor chemistry (components-reacting.provisional.json),
+    # kept separate so fixtures that hash the base extract stay valid.
+    [ValidateSet('base','reacting')][string]$Set = 'base'
+)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 # Explicit review-only generator: never run this automatically to repair tests.
@@ -20,12 +26,18 @@ foreach ($key in $sources.Keys) {
     try { $digest = [BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($body))).Replace('-','').ToLowerInvariant() } finally { $hash.Dispose() }
     $provenance += [ordered]@{id=$key;url=$sources[$key];sha256_utf8_response_text=$digest}
 }
-$rows = @(
-    @('methane','74-82-8','CH4'), @('ethane','74-84-0','C2H6'),
-    @('propane','74-98-6','C3H8'), @('nitrogen','7727-37-9','N2'),
-    @('carbon-dioxide','124-38-9','CO2'), @('oxygen','7782-44-7','O2'),
-    @('water','7732-18-5','H2O'), @('methanol','67-56-1','CH3OH')
-)
+if ($Set -eq 'base') {
+    $rows = @(
+        @('methane','74-82-8','CH4'), @('ethane','74-84-0','C2H6'),
+        @('propane','74-98-6','C3H8'), @('nitrogen','7727-37-9','N2'),
+        @('carbon-dioxide','124-38-9','CO2'), @('oxygen','7782-44-7','O2'),
+        @('water','7732-18-5','H2O'), @('methanol','67-56-1','CH3OH')
+    )
+    $version = '2026-11-07.1'; $file = 'components.provisional.json'
+} else {
+    $rows = @(@('hydrogen','1333-74-0','H2'), @('carbon-monoxide','630-08-0','CO'))
+    $version = '2026-11-23.1'; $file = 'components-reacting.provisional.json'
+}
 $all = ConvertFrom-Json $downloaded.constants
 $components = @()
 foreach ($row in $rows) {
@@ -53,12 +65,12 @@ foreach ($row in $rows) {
     }
 }
 $document = [ordered]@{
-    schema='a2-source-extract-provisional-v1';version='2026-11-07.1';status='source-transcription-only; A1 reconciliation and model qualification pending'
+    schema='a2-source-extract-provisional-v1';version=$version;status='source-transcription-only; A1 reconciliation and model qualification pending'
     sources=$provenance;components=$components
 }
 [IO.Directory]::CreateDirectory([IO.Path]::GetFullPath($OutputDirectory)) | Out-Null
 $utf8 = New-Object Text.UTF8Encoding($false)
-[IO.File]::WriteAllText((Join-Path $OutputDirectory 'components.provisional.json'), ($document | ConvertTo-Json -Depth 14) + "`n", $utf8)
+[IO.File]::WriteAllText((Join-Path $OutputDirectory $file), ($document | ConvertTo-Json -Depth 14) + "`n", $utf8)
 foreach ($pair in @(@('coolprop_license','CoolProp-LICENSE.txt'),@('cantera_license','Cantera-License.txt'))) {
     [IO.File]::WriteAllText((Join-Path $OutputDirectory $pair[1]), $downloaded[$pair[0]], $utf8)
 }

@@ -75,11 +75,30 @@ pub enum UnitKind {
     Compressor,
     /// Lowers the pressure of a gas stream while recovering work.
     Expander,
+    /// Stoichiometric reactor: reactions with specified conversion or extent
+    /// (Aspen HYSYS Conversion Reactor, Aspen Plus RStoic).
+    ConversionReactor,
+    /// Yield reactor: specified product mass yields without reaction
+    /// stoichiometry (Aspen HYSYS Yield Shift Reactor, Aspen Plus RYield).
+    YieldReactor,
+    /// Reactions at chemical equilibrium (Aspen HYSYS Equilibrium Reactor,
+    /// Aspen Plus REquil, DWSIM Equilibrium Reactor).
+    EquilibriumReactor,
+    /// Minimum Gibbs energy subject to element balances (Aspen Plus RGibbs,
+    /// HYSYS and DWSIM Gibbs Reactor).
+    GibbsReactor,
+    /// Continuous stirred-tank reactor with kinetic reactions (RCSTR).
+    Cstr,
+    /// Plug-flow (tubular) reactor with kinetic reactions (RPlug).
+    PlugFlowReactor,
+    /// Batch reactor at constant pressure, represented in the steady-state
+    /// flowsheet by its time-averaged product (RBatch).
+    BatchReactor,
 }
 
 impl UnitKind {
     /// All kinds, in palette order.
-    pub const ALL: [UnitKind; 12] = [
+    pub const ALL: [UnitKind; 19] = [
         UnitKind::Feed,
         UnitKind::Mixer,
         UnitKind::Splitter,
@@ -90,6 +109,13 @@ impl UnitKind {
         UnitKind::Pump,
         UnitKind::Compressor,
         UnitKind::Expander,
+        UnitKind::ConversionReactor,
+        UnitKind::YieldReactor,
+        UnitKind::EquilibriumReactor,
+        UnitKind::GibbsReactor,
+        UnitKind::Cstr,
+        UnitKind::PlugFlowReactor,
+        UnitKind::BatchReactor,
         UnitKind::Separator,
         UnitKind::Product,
     ];
@@ -120,6 +146,13 @@ impl UnitKind {
             UnitKind::Pump => "Pump",
             UnitKind::Compressor => "Compressor",
             UnitKind::Expander => "Expander",
+            UnitKind::ConversionReactor => "Conversion reactor",
+            UnitKind::YieldReactor => "Yield reactor",
+            UnitKind::EquilibriumReactor => "Equilibrium reactor",
+            UnitKind::GibbsReactor => "Gibbs reactor",
+            UnitKind::Cstr => "CSTR",
+            UnitKind::PlugFlowReactor => "Plug-flow reactor",
+            UnitKind::BatchReactor => "Batch reactor",
         }
     }
 
@@ -137,6 +170,13 @@ impl UnitKind {
             UnitKind::Pump => "P",
             UnitKind::Compressor => "K",
             UnitKind::Expander => "EX",
+            UnitKind::ConversionReactor
+            | UnitKind::YieldReactor
+            | UnitKind::EquilibriumReactor
+            | UnitKind::GibbsReactor
+            | UnitKind::Cstr
+            | UnitKind::PlugFlowReactor
+            | UnitKind::BatchReactor => "R",
         }
     }
 
@@ -193,7 +233,14 @@ impl UnitKind {
             | UnitKind::Valve
             | UnitKind::Pump
             | UnitKind::Compressor
-            | UnitKind::Expander => &SINGLE,
+            | UnitKind::Expander
+            | UnitKind::ConversionReactor
+            | UnitKind::YieldReactor
+            | UnitKind::EquilibriumReactor
+            | UnitKind::GibbsReactor
+            | UnitKind::Cstr
+            | UnitKind::PlugFlowReactor
+            | UnitKind::BatchReactor => &SINGLE,
             UnitKind::Separator => &SEPARATOR,
             UnitKind::Splitter => &SPLITTER,
             UnitKind::HeatExchanger => &EXCHANGER,
@@ -240,6 +287,49 @@ impl UnitKind {
                 pressure: PressureSpec::OutletPressure(None),
                 efficiency: DEFAULT_EFFICIENCY,
             },
+            // Reactors have no adiabatic default: an adiabatic exothermic reaction
+            // readily leaves the package temperature domain, so the user chooses.
+            UnitKind::ConversionReactor => UnitSpec::ConversionReactor {
+                reactions: Vec::new(),
+                thermal: SeparatorThermal::OutletTemperature(None),
+                pressure_drop_pa: 0.0,
+            },
+            UnitKind::YieldReactor => UnitSpec::YieldReactor {
+                mass_yields: Vec::new(),
+                inerts: Vec::new(),
+                thermal: SeparatorThermal::OutletTemperature(None),
+                pressure_drop_pa: 0.0,
+            },
+            UnitKind::EquilibriumReactor => UnitSpec::EquilibriumReactor {
+                reactions: Vec::new(),
+                equilibrium: EquilibriumOptions::default(),
+                thermal: SeparatorThermal::OutletTemperature(None),
+                pressure_drop_pa: 0.0,
+            },
+            UnitKind::GibbsReactor => UnitSpec::GibbsReactor {
+                inerts: Vec::new(),
+                equilibrium: EquilibriumOptions::default(),
+                thermal: SeparatorThermal::OutletTemperature(None),
+                pressure_drop_pa: 0.0,
+            },
+            UnitKind::Cstr => UnitSpec::Cstr {
+                kinetics: Kinetics::default(),
+                volume_m3: None,
+                thermal: SeparatorThermal::OutletTemperature(None),
+                pressure_drop_pa: 0.0,
+            },
+            UnitKind::PlugFlowReactor => UnitSpec::PlugFlow {
+                kinetics: Kinetics::default(),
+                length_m: None,
+                diameter_m: None,
+                thermal: PlugFlowThermal::Isothermal(None),
+                pressure_drop_pa: 0.0,
+            },
+            UnitKind::BatchReactor => UnitSpec::Batch {
+                kinetics: Kinetics::default(),
+                reaction_time_s: None,
+                thermal: BatchThermal::Isothermal(None),
+            },
         }
     }
 }
@@ -273,7 +363,7 @@ pub enum ThermalSpec {
     Duty(Option<f64>),
 }
 
-/// Separator thermal specification.
+/// Separator and reactor thermal specification.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SeparatorThermal {
     /// No heat exchange (default).
@@ -317,7 +407,10 @@ pub enum ExchangerSpec {
 ///
 /// `None` means "not yet specified". Feed compositions are supplied separately
 /// as [`crate::FeedCompositions`], with explicit identities and mole basis.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Reactor chemistry names components by package identifier; whether those
+/// identifiers exist in the package and whether reactions conserve elements is
+/// checked by the engine before solving.
+#[derive(Debug, Clone, PartialEq)]
 pub enum UnitSpec {
     /// Feed state and flow.
     Feed {
@@ -382,6 +475,345 @@ pub enum UnitSpec {
         /// Isentropic efficiency, greater than 0 and at most 1.
         efficiency: f64,
     },
+    /// Stoichiometric (conversion) reactor with one outlet.
+    ConversionReactor {
+        /// Reactions, applied in order; each step sees the outlet of the
+        /// previous one.
+        reactions: Vec<Reaction>,
+        /// Adiabatic, outlet temperature, or duty.
+        thermal: SeparatorThermal,
+        /// Pressure drop in Pa.
+        pressure_drop_pa: f64,
+    },
+    /// Yield reactor with one outlet.
+    YieldReactor {
+        /// Relative mass yields `(component, weight)` of the reacting part of
+        /// the feed. The weights are normalized so that mass is conserved;
+        /// unlisted, non-inert components leave with zero flow.
+        mass_yields: Vec<(String, f64)>,
+        /// Components that pass through unchanged and take no part in the yield.
+        inerts: Vec<String>,
+        /// Adiabatic, outlet temperature, or duty.
+        thermal: SeparatorThermal,
+        /// Pressure drop in Pa.
+        pressure_drop_pa: f64,
+    },
+    /// Equilibrium reactor: the listed reactions reach chemical equilibrium.
+    EquilibriumReactor {
+        /// Independent reactions with their equilibrium constants.
+        reactions: Vec<EquilibriumReaction>,
+        /// Fugacity basis and temperature approach.
+        equilibrium: EquilibriumOptions,
+        /// Adiabatic, outlet temperature, or duty.
+        thermal: SeparatorThermal,
+        /// Pressure drop in Pa.
+        pressure_drop_pa: f64,
+    },
+    /// Gibbs reactor: minimum Gibbs energy over all non-inert components
+    /// subject to element conservation.
+    GibbsReactor {
+        /// Components that pass through unchanged.
+        inerts: Vec<String>,
+        /// Fugacity basis and temperature approach.
+        equilibrium: EquilibriumOptions,
+        /// Adiabatic, outlet temperature, or duty.
+        thermal: SeparatorThermal,
+        /// Pressure drop in Pa.
+        pressure_drop_pa: f64,
+    },
+    /// Continuous stirred-tank reactor: perfectly mixed contents at outlet
+    /// conditions.
+    Cstr {
+        /// Kinetic reactions and catalyst loading.
+        kinetics: Kinetics,
+        /// Reactor volume in m³.
+        volume_m3: Option<f64>,
+        /// Adiabatic, outlet temperature, or duty.
+        thermal: SeparatorThermal,
+        /// Pressure drop in Pa.
+        pressure_drop_pa: f64,
+    },
+    /// Plug-flow reactor: kinetic reactions integrated along a tube.
+    PlugFlow {
+        /// Kinetic reactions and catalyst loading.
+        kinetics: Kinetics,
+        /// Tube length in m.
+        length_m: Option<f64>,
+        /// Inner tube diameter in m.
+        diameter_m: Option<f64>,
+        /// Isothermal, adiabatic, or exchange with a coolant.
+        thermal: PlugFlowThermal,
+        /// Pressure drop in Pa, linear along the length.
+        pressure_drop_pa: f64,
+    },
+    /// Batch reactor at the inlet pressure. Each charge reacts for the
+    /// reaction time; the outlet is the time-averaged product, so outlet flow
+    /// equals the inlet mass flow.
+    Batch {
+        /// Kinetic reactions and catalyst loading.
+        kinetics: Kinetics,
+        /// Reaction time per batch in s.
+        reaction_time_s: Option<f64>,
+        /// Isothermal or adiabatic.
+        thermal: BatchThermal,
+    },
+}
+
+/// One reaction of an equilibrium reactor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EquilibriumReaction {
+    /// Stoichiometric coefficients by package component identifier: negative
+    /// for reactants, positive for products. Must conserve every element.
+    pub coefficients: Vec<(String, f64)>,
+    /// Source of the equilibrium constant.
+    pub constant: EquilibriumConstant,
+}
+
+/// Equilibrium constant of one reaction (fugacity basis, standard state the
+/// ideal gas at 1 bar): exactly one of these.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum EquilibriumConstant {
+    /// From the ideal-gas standard Gibbs energies of the package data,
+    /// `ln K = -sum_i nu_i g0_i(T) / (R T)` (Aspen and DWSIM default).
+    GibbsEnergy,
+    /// User correlation `ln K = a + b/T + c ln T + d T`, T in K (the
+    /// Aspen HYSYS and DWSIM form).
+    Correlation(Correlation),
+}
+
+/// `ln K = a + b/T + c ln T + d T` with T in K. Used for equilibrium
+/// constants and LHHW driving-force and adsorption constants.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Correlation {
+    pub a: f64,
+    pub b: f64,
+    pub c: f64,
+    pub d: f64,
+}
+
+impl Correlation {
+    /// `ln K` at `t` K.
+    pub fn ln_value(&self, t: f64) -> f64 {
+        self.a + self.b / t + self.c * t.ln() + self.d * t
+    }
+}
+
+/// Fugacities used in the equilibrium conditions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FugacityBasis {
+    /// Fugacity coefficients of the property package for the reacting fluid
+    /// (single phase, minimum-Gibbs root).
+    #[default]
+    Package,
+    /// Ideal gas: fugacity equals partial pressure.
+    IdealGas,
+}
+
+/// Options shared by the equilibrium and Gibbs reactors.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EquilibriumOptions {
+    /// Fugacity basis of the equilibrium conditions.
+    pub fugacity: FugacityBasis,
+    /// Temperature approach in K: equilibrium is evaluated at the outlet
+    /// temperature plus this value (Aspen REquil/RGibbs). Zero by default.
+    pub temperature_approach_k: f64,
+}
+
+impl Default for EquilibriumOptions {
+    fn default() -> Self {
+        Self {
+            fugacity: FugacityBasis::Package,
+            temperature_approach_k: 0.0,
+        }
+    }
+}
+
+/// Kinetic reactions of a CSTR, plug-flow or batch reactor.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Kinetics {
+    /// The reactions; rates add.
+    pub reactions: Vec<KineticReaction>,
+    /// Catalyst bulk density in kg of catalyst per m³ of reactor, required
+    /// when a rate is per catalyst mass.
+    pub catalyst_bulk_density_kg_m3: Option<f64>,
+}
+
+/// One kinetic reaction.
+#[derive(Debug, Clone, PartialEq)]
+pub struct KineticReaction {
+    /// Stoichiometric coefficients by package component identifier: negative
+    /// for reactants, positive for products. Must conserve every element.
+    pub coefficients: Vec<(String, f64)>,
+    /// Phase whose composition and volume the rate refers to.
+    pub phase: ReactingPhase,
+    /// Quantity the orders apply to.
+    pub basis: ConcentrationBasis,
+    /// Whether the rate is per reactor volume or per catalyst mass.
+    pub rate_basis: RateBasis,
+    /// The rate expression.
+    pub rate: RateLaw,
+}
+
+/// Reacting phase of a kinetic reaction. A single supercritical phase
+/// counts as either.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ReactingPhase {
+    #[default]
+    Vapor,
+    Liquid,
+}
+
+/// Concentration basis of the rate expression (Aspen and DWSIM options).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ConcentrationBasis {
+    /// mol/m³ of the reacting phase.
+    #[default]
+    MolarConcentration,
+    /// kg/m³ of the reacting phase.
+    MassConcentration,
+    /// Mole fraction in the reacting phase.
+    MoleFraction,
+    /// Mass fraction in the reacting phase.
+    MassFraction,
+    /// Partial pressure `x_i p` in Pa.
+    PartialPressure,
+    /// Fugacity `x_i phi_i p` in Pa.
+    Fugacity,
+}
+
+/// What the rate is expressed per.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RateBasis {
+    /// mol/(m³ s) of reacting-phase volume.
+    #[default]
+    ReactorVolume,
+    /// mol/(kg s) of catalyst; the catalyst mass is the bulk density times
+    /// the reactor volume.
+    CatalystMass,
+}
+
+/// `k = k0 (T/T_ref)^n exp(-E/R (1/T - 1/T_ref))`, or without a reference
+/// temperature `k = k0 T^n exp(-E/(R T))` (Aspen power-law form).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Arrhenius {
+    /// Pre-exponential factor in the units implied by the bases and orders.
+    pub pre_exponential: Option<f64>,
+    /// Activation energy in J/mol.
+    pub activation_energy_j_mol: f64,
+    /// Temperature exponent n.
+    pub temperature_exponent: f64,
+    /// Reference temperature in K, if any.
+    pub reference_temperature_k: Option<f64>,
+}
+
+impl Arrhenius {
+    /// Rate constant at `t` K; `None` while the pre-exponential is unset.
+    pub fn value(&self, t: f64) -> Option<f64> {
+        let k0 = self.pre_exponential?;
+        let r = thermo_types::MOLAR_GAS_CONSTANT;
+        Some(match self.reference_temperature_k {
+            Some(t0) => {
+                k0 * (t / t0).powf(self.temperature_exponent)
+                    * (-self.activation_energy_j_mol / r * (1.0 / t - 1.0 / t0)).exp()
+            }
+            None => {
+                k0 * t.powf(self.temperature_exponent)
+                    * (-self.activation_energy_j_mol / (r * t)).exp()
+            }
+        })
+    }
+}
+
+/// A rate constant with exponents by component.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct RateTerm {
+    pub constant: Arrhenius,
+    /// Exponents of the basis quantities; unlisted components have order 0.
+    pub orders: Vec<(String, f64)>,
+}
+
+/// An LHHW constant `exp(a + b/T + c ln T + d T)` with exponents.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct LhhwTerm {
+    pub constant: Correlation,
+    pub orders: Vec<(String, f64)>,
+}
+
+/// Rate expression of one kinetic reaction.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RateLaw {
+    /// `r = k_f prod C^a - k_r prod C^b` (reverse optional).
+    PowerLaw {
+        forward: RateTerm,
+        reverse: Option<RateTerm>,
+    },
+    /// Langmuir–Hinshelwood–Hougen–Watson:
+    /// `r = k (K1 prod C^a - K2 prod C^b) / (sum_i K_i prod C^c_i)^m`.
+    Lhhw {
+        /// Kinetic factor k.
+        kinetic: Arrhenius,
+        /// Forward driving-force term K1 prod C^a.
+        driving_forward: LhhwTerm,
+        /// Reverse driving-force term K2 prod C^b, if reversible.
+        driving_reverse: Option<LhhwTerm>,
+        /// Adsorption terms; an empty list means a denominator of 1.
+        adsorption: Vec<LhhwTerm>,
+        /// Adsorption exponent m.
+        exponent: f64,
+    },
+}
+
+/// Thermal specification of a plug-flow reactor: exactly one of these.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PlugFlowThermal {
+    /// Constant temperature along the tube (the feed is brought to it at the
+    /// inlet); the duty is reported.
+    Isothermal(Option<f64>),
+    /// No heat exchange.
+    Adiabatic,
+    /// Wall heat flux `U (T_c - T)` per tube surface with a constant coolant
+    /// temperature.
+    Coolant {
+        /// Coolant temperature in K.
+        temperature_k: Option<f64>,
+        /// Overall heat-transfer coefficient in W/(m² K).
+        u_w_m2_k: Option<f64>,
+    },
+}
+
+/// Thermal specification of a batch reactor: exactly one of these.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BatchThermal {
+    /// Constant temperature (the charge is brought to it at the start).
+    Isothermal(Option<f64>),
+    /// No heat exchange.
+    Adiabatic,
+}
+
+/// One reaction of a conversion reactor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Reaction {
+    /// Stoichiometric coefficients by package component identifier: negative
+    /// for reactants, positive for products. Must conserve every element.
+    pub coefficients: Vec<(String, f64)>,
+    /// How far the reaction proceeds.
+    pub extent: ReactionExtent,
+}
+
+/// Extent specification of one reaction: exactly one of these.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReactionExtent {
+    /// Fraction, 0 to 1, of the key reactant entering this reaction step
+    /// that is consumed.
+    Conversion {
+        /// Key reactant; must have a negative coefficient.
+        key: Option<String>,
+        /// Fractional conversion of the key reactant.
+        fraction: Option<f64>,
+    },
+    /// Molar extent in mol/s, not negative; component `i` changes by
+    /// `coefficient_i * extent`.
+    MolarExtent(Option<f64>),
 }
 
 /// What is wrong with one specification field.
@@ -402,6 +834,16 @@ pub enum SpecProblem {
     /// The sign contradicts the unit kind (a heater duty below zero or a
     /// cooler duty above zero).
     ContradictsUnitKind,
+    /// A stoichiometric coefficient is zero.
+    Zero,
+    /// The same component is listed twice.
+    Duplicate,
+    /// A reaction lacks a reactant (negative coefficient) or a product.
+    NeedsReactantAndProduct,
+    /// The conversion key is not a reactant of its reaction.
+    KeyNotReactant,
+    /// All mass yields are zero.
+    AllZero,
 }
 
 impl fmt::Display for SpecProblem {
@@ -416,6 +858,13 @@ impl fmt::Display for SpecProblem {
             SpecProblem::ContradictsUnitKind => {
                 "contradicts the unit kind (a heater adds heat, a cooler removes it)"
             }
+            SpecProblem::Zero => "must not be zero",
+            SpecProblem::Duplicate => "lists a component twice",
+            SpecProblem::NeedsReactantAndProduct => {
+                "needs at least one reactant (negative) and one product (positive)"
+            }
+            SpecProblem::KeyNotReactant => "must be a reactant of its reaction",
+            SpecProblem::AllZero => "must not all be zero",
         })
     }
 }
@@ -452,7 +901,96 @@ impl UnitSpec {
             Some(v) => check_value(&mut out, field, v, sign),
         };
         let mut fixed = Vec::new();
+        let mut chemistry = Vec::new();
         match *self {
+            UnitSpec::ConversionReactor { ref reactions, .. } => {
+                reaction_issues(&mut chemistry, reactions);
+            }
+            UnitSpec::YieldReactor {
+                ref mass_yields,
+                ref inerts,
+                ..
+            } => yield_issues(&mut chemistry, mass_yields, inerts),
+            UnitSpec::EquilibriumReactor { ref reactions, .. } => {
+                if reactions.is_empty() {
+                    chemistry.push(SpecIssue {
+                        field: "reactions",
+                        problem: SpecProblem::Missing,
+                    });
+                }
+                for r in reactions {
+                    coefficient_issues(&mut chemistry, &r.coefficients);
+                    if let EquilibriumConstant::Correlation(c) = r.constant {
+                        for v in [c.a, c.b, c.c, c.d] {
+                            check_value(&mut chemistry, "equilibrium constant", v, Sign::Any);
+                        }
+                    }
+                }
+            }
+            UnitSpec::GibbsReactor { ref inerts, .. } => {
+                let mut seen = Vec::new();
+                for id in inerts {
+                    component_issue(&mut chemistry, &mut seen, "inert component", id);
+                }
+            }
+            UnitSpec::Cstr { ref kinetics, .. }
+            | UnitSpec::PlugFlow { ref kinetics, .. }
+            | UnitSpec::Batch { ref kinetics, .. } => kinetics_issues(&mut chemistry, kinetics),
+            _ => {}
+        }
+        match *self {
+            UnitSpec::Cstr {
+                thermal, volume_m3, ..
+            } => {
+                opt("volume", volume_m3, Sign::Positive);
+                match thermal {
+                    SeparatorThermal::Adiabatic => {}
+                    SeparatorThermal::OutletTemperature(t) => {
+                        opt("outlet temperature", t, Sign::Positive)
+                    }
+                    SeparatorThermal::Duty(q) => opt("duty", q, Sign::Any),
+                }
+            }
+            UnitSpec::PlugFlow {
+                length_m,
+                diameter_m,
+                thermal,
+                ..
+            } => {
+                opt("length", length_m, Sign::Positive);
+                opt("diameter", diameter_m, Sign::Positive);
+                match thermal {
+                    PlugFlowThermal::Adiabatic => {}
+                    PlugFlowThermal::Isothermal(t) => opt("temperature", t, Sign::Positive),
+                    PlugFlowThermal::Coolant {
+                        temperature_k,
+                        u_w_m2_k,
+                    } => {
+                        opt("coolant temperature", temperature_k, Sign::Positive);
+                        opt("heat-transfer coefficient", u_w_m2_k, Sign::NonNegative);
+                    }
+                }
+            }
+            UnitSpec::Batch {
+                reaction_time_s,
+                thermal,
+                ..
+            } => {
+                opt("reaction time", reaction_time_s, Sign::Positive);
+                if let BatchThermal::Isothermal(t) = thermal {
+                    opt("temperature", t, Sign::Positive);
+                }
+            }
+            UnitSpec::ConversionReactor { thermal, .. }
+            | UnitSpec::YieldReactor { thermal, .. }
+            | UnitSpec::EquilibriumReactor { thermal, .. }
+            | UnitSpec::GibbsReactor { thermal, .. } => match thermal {
+                SeparatorThermal::Adiabatic => {}
+                SeparatorThermal::OutletTemperature(t) => {
+                    opt("outlet temperature", t, Sign::Positive)
+                }
+                SeparatorThermal::Duty(q) => opt("duty", q, Sign::Any),
+            },
             UnitSpec::Product
             | UnitSpec::Mixer {
                 outlet_pressure: MixerPressure::LowestInlet,
@@ -517,6 +1055,18 @@ impl UnitSpec {
             }
             | UnitSpec::Separator {
                 pressure_drop_pa, ..
+            }
+            | UnitSpec::ConversionReactor {
+                pressure_drop_pa, ..
+            }
+            | UnitSpec::YieldReactor {
+                pressure_drop_pa, ..
+            }
+            | UnitSpec::Cstr {
+                pressure_drop_pa, ..
+            }
+            | UnitSpec::PlugFlow {
+                pressure_drop_pa, ..
             } => check_value(
                 &mut fixed,
                 "pressure drop",
@@ -544,10 +1094,229 @@ impl UnitSpec {
             UnitSpec::Pressurize { efficiency, .. } | UnitSpec::Expand { efficiency, .. } => {
                 check_value(&mut fixed, "efficiency", efficiency, Sign::Efficiency)
             }
+            UnitSpec::EquilibriumReactor {
+                equilibrium,
+                pressure_drop_pa,
+                ..
+            }
+            | UnitSpec::GibbsReactor {
+                equilibrium,
+                pressure_drop_pa,
+                ..
+            } => {
+                check_value(
+                    &mut fixed,
+                    "temperature approach",
+                    equilibrium.temperature_approach_k,
+                    Sign::Any,
+                );
+                check_value(
+                    &mut fixed,
+                    "pressure drop",
+                    pressure_drop_pa,
+                    Sign::NonNegative,
+                );
+            }
             _ => {}
         }
+        out.extend(chemistry);
         out.extend(fixed);
         out
+    }
+}
+
+fn component_issue(
+    out: &mut Vec<SpecIssue>,
+    seen: &mut Vec<String>,
+    field: &'static str,
+    id: &str,
+) {
+    let problem = if id.trim().is_empty() {
+        SpecProblem::Missing
+    } else if seen.iter().any(|s| s == id) {
+        SpecProblem::Duplicate
+    } else {
+        seen.push(id.to_owned());
+        return;
+    };
+    out.push(SpecIssue { field, problem });
+}
+
+/// Components, coefficients and reactant/product presence of one reaction.
+fn coefficient_issues(out: &mut Vec<SpecIssue>, coefficients: &[(String, f64)]) {
+    let mut seen = Vec::new();
+    for (id, nu) in coefficients {
+        component_issue(out, &mut seen, "reaction component", id);
+        if !nu.is_finite() {
+            check_value(out, "stoichiometric coefficient", *nu, Sign::Any);
+        } else if *nu == 0.0 {
+            out.push(SpecIssue {
+                field: "stoichiometric coefficient",
+                problem: SpecProblem::Zero,
+            });
+        }
+    }
+    let has = |f: fn(f64) -> bool| coefficients.iter().any(|(_, nu)| nu.is_finite() && f(*nu));
+    if !has(|nu| nu < 0.0) || !has(|nu| nu > 0.0) {
+        out.push(SpecIssue {
+            field: "reaction",
+            problem: SpecProblem::NeedsReactantAndProduct,
+        });
+    }
+}
+
+fn order_issues(out: &mut Vec<SpecIssue>, orders: &[(String, f64)]) {
+    let mut seen = Vec::new();
+    for (id, a) in orders {
+        component_issue(out, &mut seen, "order component", id);
+        check_value(out, "order", *a, Sign::Any);
+    }
+}
+
+fn arrhenius_issues(out: &mut Vec<SpecIssue>, k: &Arrhenius) {
+    match k.pre_exponential {
+        None => out.push(SpecIssue {
+            field: "pre-exponential factor",
+            problem: SpecProblem::Missing,
+        }),
+        Some(v) => check_value(out, "pre-exponential factor", v, Sign::NonNegative),
+    }
+    check_value(
+        out,
+        "activation energy",
+        k.activation_energy_j_mol,
+        Sign::Any,
+    );
+    check_value(
+        out,
+        "temperature exponent",
+        k.temperature_exponent,
+        Sign::Any,
+    );
+    if let Some(t) = k.reference_temperature_k {
+        check_value(out, "reference temperature", t, Sign::Positive);
+    }
+}
+
+fn lhhw_issues(out: &mut Vec<SpecIssue>, term: &LhhwTerm) {
+    let c = term.constant;
+    for v in [c.a, c.b, c.c, c.d] {
+        check_value(out, "LHHW constant", v, Sign::Any);
+    }
+    order_issues(out, &term.orders);
+}
+
+fn kinetics_issues(out: &mut Vec<SpecIssue>, kinetics: &Kinetics) {
+    if kinetics.reactions.is_empty() {
+        out.push(SpecIssue {
+            field: "reactions",
+            problem: SpecProblem::Missing,
+        });
+    }
+    for r in &kinetics.reactions {
+        coefficient_issues(out, &r.coefficients);
+        match &r.rate {
+            RateLaw::PowerLaw { forward, reverse } => {
+                for term in std::iter::once(forward).chain(reverse) {
+                    arrhenius_issues(out, &term.constant);
+                    order_issues(out, &term.orders);
+                }
+            }
+            RateLaw::Lhhw {
+                kinetic,
+                driving_forward,
+                driving_reverse,
+                adsorption,
+                exponent,
+            } => {
+                arrhenius_issues(out, kinetic);
+                for term in std::iter::once(driving_forward)
+                    .chain(driving_reverse)
+                    .chain(adsorption)
+                {
+                    lhhw_issues(out, term);
+                }
+                check_value(out, "adsorption exponent", *exponent, Sign::NonNegative);
+            }
+        }
+    }
+    let catalytic = kinetics
+        .reactions
+        .iter()
+        .any(|r| r.rate_basis == RateBasis::CatalystMass);
+    match kinetics.catalyst_bulk_density_kg_m3 {
+        None if catalytic => out.push(SpecIssue {
+            field: "catalyst bulk density",
+            problem: SpecProblem::Missing,
+        }),
+        Some(rho) => check_value(out, "catalyst bulk density", rho, Sign::Positive),
+        None => {}
+    }
+}
+
+fn reaction_issues(out: &mut Vec<SpecIssue>, reactions: &[Reaction]) {
+    if reactions.is_empty() {
+        out.push(SpecIssue {
+            field: "reactions",
+            problem: SpecProblem::Missing,
+        });
+    }
+    for r in reactions {
+        coefficient_issues(out, &r.coefficients);
+        match &r.extent {
+            ReactionExtent::Conversion { key, fraction } => {
+                match key {
+                    None => out.push(SpecIssue {
+                        field: "key component",
+                        problem: SpecProblem::Missing,
+                    }),
+                    Some(key) if !r.coefficients.iter().any(|(id, nu)| id == key && *nu < 0.0) => {
+                        out.push(SpecIssue {
+                            field: "key component",
+                            problem: SpecProblem::KeyNotReactant,
+                        })
+                    }
+                    Some(_) => {}
+                }
+                match fraction {
+                    None => out.push(SpecIssue {
+                        field: "conversion",
+                        problem: SpecProblem::Missing,
+                    }),
+                    Some(x) => check_value(out, "conversion", *x, Sign::Fraction),
+                }
+            }
+            ReactionExtent::MolarExtent(None) => out.push(SpecIssue {
+                field: "extent",
+                problem: SpecProblem::Missing,
+            }),
+            ReactionExtent::MolarExtent(Some(e)) => {
+                check_value(out, "extent", *e, Sign::NonNegative)
+            }
+        }
+    }
+}
+
+fn yield_issues(out: &mut Vec<SpecIssue>, yields: &[(String, f64)], inerts: &[String]) {
+    if yields.is_empty() {
+        out.push(SpecIssue {
+            field: "mass yields",
+            problem: SpecProblem::Missing,
+        });
+    }
+    let mut seen = Vec::new();
+    for (id, y) in yields {
+        component_issue(out, &mut seen, "yield component", id);
+        check_value(out, "mass yield", *y, Sign::NonNegative);
+    }
+    if !yields.is_empty() && yields.iter().all(|(_, y)| *y == 0.0) {
+        out.push(SpecIssue {
+            field: "mass yields",
+            problem: SpecProblem::AllZero,
+        });
+    }
+    for id in inerts {
+        component_issue(out, &mut seen, "inert component", id);
     }
 }
 

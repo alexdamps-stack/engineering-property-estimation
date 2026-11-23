@@ -148,6 +148,14 @@ impl Flowsheet {
                 | UnitSpec::Separator {
                     thermal: SeparatorThermal::OutletTemperature(Some(t)),
                     ..
+                }
+                | UnitSpec::ConversionReactor {
+                    thermal: SeparatorThermal::OutletTemperature(Some(t)),
+                    ..
+                }
+                | UnitSpec::YieldReactor {
+                    thermal: SeparatorThermal::OutletTemperature(Some(t)),
+                    ..
                 } => t,
                 UnitSpec::HeatExchanger {
                     thermal: ExchangerSpec::HotOutletTemperature(Some(t)),
@@ -356,17 +364,26 @@ impl Flowsheet {
                 values.push(report.streams[&s.id].clone());
             }
             let unit = report.units.get_mut(&u.id).expect("calculated unit");
+            let terms = unit
+                .balance
+                .as_ref()
+                .and_then(|b| b.reaction.as_ref())
+                .map(|r| r.terms.clone());
+            let chemistry = terms
+                .as_ref()
+                .map(|_| crate::reaction::Chemistry::of(package));
             let balance = crate::engine::balance(
                 &inputs,
                 &outputs,
                 unit.duty_w,
                 package.model().fractions().len(),
+                terms.as_ref().zip(chemistry.as_ref()),
             );
             match balance {
                 Ok(balance) => unit.balance = Some(balance),
                 Err(e) => return Ok(Some(format!("{}: {e}", u.name))),
             }
-            validate_empty_thermal_spec(u.spec, &inputs, &outputs, package).map_err(|e| {
+            validate_empty_thermal_spec(&u.spec, &inputs, &outputs, package).map_err(|e| {
                 SolveError {
                     unit: Some(u.id),
                     ..error(format!("{}: {e}", u.name))

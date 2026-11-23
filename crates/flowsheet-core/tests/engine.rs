@@ -788,9 +788,9 @@ fn chain(
     fs.remove_unit(old);
     let mut from = PortRef::new(u, port);
     let mut ids = vec![];
-    for &(kind, spec) in units {
-        let id = fs.add_unit(kind);
-        assert!(fs.set_spec(id, spec));
+    for (kind, spec) in units {
+        let id = fs.add_unit(*kind);
+        assert!(fs.set_spec(id, spec.clone()));
         fs.connect(from, PortRef::new(id, 0)).unwrap();
         from = PortRef::new(id, 1);
         ids.push(id);
@@ -910,7 +910,7 @@ fn zero_flow_streams_pass_through_downstream_units() {
         } else {
             (second, first)
         };
-        fs.set_spec(empty[1], line[1].1);
+        fs.set_spec(empty[1], line[1].1.clone());
         let r = fs.solve(&pkg, &feeds).unwrap();
         for id in empty {
             assert_empty_pass_through(&fs, &r, id);

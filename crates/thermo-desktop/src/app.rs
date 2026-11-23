@@ -272,7 +272,7 @@ impl eframe::App for FlowsheetApp {
             .show(ui, |ui| panels::bottom_panel(ui, ed, tab));
         Panel::left("palette")
             .resizable(false)
-            .exact_size(175.0)
+            .exact_size(195.0)
             .show(ui, |ui| palette(ui, ed));
         let mut open_dialog = false;
         Panel::right("properties")

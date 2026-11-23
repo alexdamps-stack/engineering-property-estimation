@@ -148,7 +148,13 @@ fn derivatives_and_thermodynamic_identities_on_reference_grid() {
 #[test]
 fn exact_factors_satisfy_all_pure_critical_constraints() {
     let db = ComponentDatabase::embedded().unwrap();
-    for c in db.components() {
+    // The mechanical derivatives are defined on 100..=1000 K; hydrogen's
+    // critical point (33 K) lies below it and is refused there by design.
+    for c in db
+        .components()
+        .iter()
+        .filter(|c| (100.0..=1000.0).contains(&c.critical_temperature()))
+    {
         for variant in [
             CubicVariant::PengRobinson,
             CubicVariant::PengRobinsonBostonMathias,

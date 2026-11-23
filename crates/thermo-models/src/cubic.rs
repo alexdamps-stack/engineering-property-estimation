@@ -146,7 +146,7 @@ impl CubicModel {
             fractions: composition.entries().iter().map(|(_, x)| *x).collect(),
             kij,
             interaction_source,
-            data: database.metadata(),
+            data: database.metadata_for(composition.entries().iter().map(|(id, _)| id.as_str())),
         })
     }
 
