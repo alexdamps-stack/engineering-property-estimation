@@ -3,8 +3,12 @@
 
 use eframe::egui::{self, DragValue, RichText, Ui};
 use flowsheet_core::units::HeatTransportSpec;
-use flowsheet_core::units::heat_transport::{ExchangerPassDirection, ExchangerPassThermal};
-use flowsheet_core::{PortDirection, PortMedium, PortRef, SpecProblem, UnitId, UnitKind, UnitSpec};
+use flowsheet_core::units::heat_transport::{
+    AirCoolerThermal, ExchangerPassDirection, ExchangerPassThermal,
+};
+use flowsheet_core::{
+    ExchangerSpec, PortDirection, PortMedium, PortRef, SpecProblem, UnitId, UnitKind, UnitSpec,
+};
 use flowsheet_project::Fingerprints;
 use thermo_types::COMPOSITION_SUM_TOLERANCE;
 
@@ -202,6 +206,11 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
         egui::Grid::new(("unit_results", id))
             .num_columns(2)
             .show(ui, |ui| {
+                let stream = |port| {
+                    let connected = ed.fs.stream_at(PortRef::new(id, port))?;
+                    ed.results.as_ref()?.streams.get(&connected.id)
+                };
+                let temperature = |port| Some(stream(port)?.state.as_ref()?.temperature_k);
                 if matches!(
                     kind,
                     Some(
@@ -236,6 +245,13 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         false,
                     ));
                     ui.end_row();
+                    if matches!(s.thermal, AirCoolerThermal::HotEndApproach(_) | AirCoolerThermal::ColdEndApproach(_))
+                        && let Some(pre_fan) = s.pre_fan_air_outlet_temperature_k(r.duty_w)
+                    {
+                        ui.label("Pre-fan air outlet temperature");
+                        ui.label(value_text(format_quantity(u, Quantity::Temperature, pre_fan), false));
+                        ui.end_row();
+                    }
                     ui.label("Fan power");
                     ui.label(value_text(
                         format_quantity(u, Quantity::Duty, s.fan_power_w),
@@ -252,15 +268,35 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                     });
                     ui.end_row();
                 }
+                if !stale {
+                    let approach = match unit.map(|x| &x.spec) {
+                        Some(UnitSpec::HeatExchanger { thermal: ExchangerSpec::HotEndApproach(_), .. }) => {
+                            temperature(0).zip(temperature(3)).map(|(hot, cold)| ("Achieved hot-end approach", hot - cold))
+                        }
+                        Some(UnitSpec::HeatExchanger { thermal: ExchangerSpec::ColdEndApproach(_), .. }) => {
+                            temperature(2).zip(temperature(1)).map(|(hot, cold)| ("Achieved cold-end approach", hot - cold))
+                        }
+                        Some(UnitSpec::HeatTransport(HeatTransportSpec::AirCooler(s))) => match s.thermal {
+                            AirCoolerThermal::HotEndApproach(_) => temperature(0)
+                                .zip(s.pre_fan_air_outlet_temperature_k(r.duty_w))
+                                .map(|(hot, cold)| ("Achieved hot-end approach", hot - cold)),
+                            AirCoolerThermal::ColdEndApproach(_) => temperature(1)
+                                .zip(s.ambient_temperature_k)
+                                .map(|(hot, cold)| ("Achieved cold-end approach", hot - cold)),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    if let Some((label, delta)) = approach {
+                        ui.label(label);
+                        ui.label(value_text(format_quantity(u, Quantity::TemperatureDifference, delta), false));
+                        ui.end_row();
+                    }
+                }
                 if !stale
                     && let Some(UnitSpec::HeatTransport(HeatTransportSpec::MultiStreamExchanger(s))) =
                         unit.map(|x| &x.spec)
-                    && let Some(result) = &ed.results
                 {
-                    let stream = |port| {
-                        let connected = ed.fs.stream_at(PortRef::new(id, port))?;
-                        result.streams.get(&connected.id)
-                    };
                     for (i, pass) in s.passes.iter().enumerate() {
                         let (Some(inlet), Some(outlet)) = (stream(i * 2), stream(i * 2 + 1)) else {
                             continue;

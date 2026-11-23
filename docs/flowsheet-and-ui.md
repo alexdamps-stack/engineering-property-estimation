@@ -51,7 +51,7 @@ Each unit has a fixed set of material ports, optional energy ports, variable por
 | Valve | 1 in, 1 out | One of: outlet pressure or pressure drop | Outlet pressure | Isenthalpic PH flash |
 | Two-phase separator | 1 in, 2 out (`vapor`, `liquid`) | Adiabatic, or one of outlet T / duty; plus pressure drop | Adiabatic, pressure drop 0 | Flash at outlet conditions; if single phase, the absent outlet carries zero flow, no state and a warning |
 | Splitter | 1 in, 2 out (`out 1`, `out 2`) | Fraction of the inlet flow to `out 1`, 0 to 1 | — | Inlet state copied to both outlets |
-| Heat exchanger (two-stream) | 2 in (`hot in`, `cold in`), 2 out (`hot out`, `cold out`) | One of: hot outlet T, cold outlet T or transferred duty; plus hot- and cold-side pressure drops | Hot outlet T; pressure drops 0 | PH flash of both sides; hot-to-cold duty without terminal temperature crossover |
+| Heat exchanger (two-stream) | 2 in (`hot in`, `cold in`), 2 out (`hot out`, `cold out`) | Choose hot outlet T, cold outlet T, transferred duty, or a fixed hot- or cold-end approach. Assign both pressure drops. | Hot outlet T; pressure drops 0 | Hot-to-cold duty with terminal crossover checks. Fixed approach uses the opposite inlet to set the selected outlet. |
 | Pump / compressor | 1 in, 1 out | One of: outlet pressure or pressure increase; plus efficiency | Outlet pressure; efficiency 0.75 | Not calculable yet (see below) |
 | Expander | 1 in, 1 out | One of: outlet pressure or pressure drop; plus efficiency | Outlet pressure; efficiency 0.75 | Not calculable yet (see below) |
 

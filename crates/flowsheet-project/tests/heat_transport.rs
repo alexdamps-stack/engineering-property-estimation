@@ -1,10 +1,10 @@
-//! #179 and #180 through the normal solver and version 4 records.
+//! Heat-transfer modes through the normal solver and version 4 records.
 use std::ops::ControlFlow;
 
 use flowsheet_core::units::HeatTransportSpec;
 use flowsheet_core::units::heat_transport::{AirCoolerSpec, AirCoolerThermal, FiredHeaterSpec};
 use flowsheet_core::{
-    EnergySourceDuty, PortRef, StreamId, ThermalSpec, UnitId, UnitKind, UnitSpec,
+    EnergySourceDuty, ExchangerSpec, PortRef, StreamId, ThermalSpec, UnitId, UnitKind, UnitSpec,
 };
 use flowsheet_project::{
     CubicVariantChoice, PackageSelection, Project, ResultSet, SolveFailure, solve_project,
@@ -168,6 +168,145 @@ fn air_cooler_keeps_process_duty_and_fan_work_separate() {
     spec.fan_power_w = f64::INFINITY;
     line.set(HeatTransportSpec::AirCooler(spec));
     assert!(line.project.to_json().is_err());
+}
+
+#[test]
+fn air_cooler_fixed_approaches_round_trip_and_keep_fan_heat_separate() {
+    let mut line = ProcessLine::air(25.0);
+    let base = AirCoolerSpec {
+        pressure_drop_pa: 20_000.0,
+        ambient_temperature_k: Some(300.0),
+        air_mass_flow_kg_s: Some(1.0),
+        fan_power_w: 502.5,
+        ..Default::default()
+    };
+    for thermal in [
+        AirCoolerThermal::HotEndApproach(Some(40.0)),
+        AirCoolerThermal::ColdEndApproach(Some(25.0)),
+    ] {
+        let spec = AirCoolerSpec {
+            thermal,
+            ..base.clone()
+        };
+        line.set(HeatTransportSpec::AirCooler(spec.clone()));
+        line.reopen();
+        let result = line.solve().unwrap();
+        line.check_balances(&result);
+        let outlet = result.streams[&line.outlet].state.as_ref().unwrap();
+        assert_eq!(outlet.pressure_pa, 1_980_000.0);
+        let duty = result.units[&line.unit].duty_w;
+        let pre_fan = spec.pre_fan_air_outlet_temperature_k(duty).unwrap();
+        let discharge = spec.air_outlet_temperature_k(duty).unwrap();
+        assert_eq!(result.energy_streams[&line.energy].duty_w, 502.5);
+        assert!((discharge - pre_fan - 0.5).abs() < 1e-9);
+        assert!((1_005.0 * (pre_fan - 300.0) + duty).abs() < 1e-8);
+        match thermal {
+            AirCoolerThermal::HotEndApproach(_) => {
+                assert!((360.0 - pre_fan - 40.0).abs() < 1e-9);
+                assert!((duty + 20_100.0).abs() < 1e-8);
+            }
+            AirCoolerThermal::ColdEndApproach(_) => {
+                assert!((outlet.temperature_k - 300.0 - 25.0).abs() < 1e-9);
+                assert!(duty < 0.0);
+            }
+            _ => unreachable!(),
+        }
+        line.project.results = Some(result);
+        line.reopen();
+        line.project.results = None;
+    }
+    line.set(HeatTransportSpec::AirCooler(AirCoolerSpec {
+        thermal: AirCoolerThermal::HotEndApproach(Some(61.0)),
+        ..base.clone()
+    }));
+    assert_eq!(line.solve().unwrap_err().unit, Some(line.unit));
+    line.set(HeatTransportSpec::AirCooler(AirCoolerSpec {
+        thermal: AirCoolerThermal::ColdEndApproach(Some(f64::NAN)),
+        ..base
+    }));
+    assert!(line.project.to_json().is_err());
+}
+
+#[test]
+fn legacy_exchanger_fixed_approaches_round_trip_and_close_both_passes() {
+    let mut project = Project::new(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["methane".into(), "nitrogen".into()],
+        "fixed terminal approach project test",
+    ));
+    let exchanger = project.flowsheet.add_unit(UnitKind::HeatExchanger);
+    let connections: [(StreamId, StreamId); 2] = std::array::from_fn(|i| {
+        let (t, n, z) = [(430.0, 3.0, [1.0, 0.0]), (300.0, 2.0, [0.0, 1.0])][i];
+        let fs = &mut project.flowsheet;
+        let feed = fs.add_unit(UnitKind::Feed);
+        let product = fs.add_unit(UnitKind::Product);
+        fs.set_spec(
+            feed,
+            UnitSpec::Feed {
+                temperature_k: Some(t),
+                pressure_pa: Some(2e6),
+                molar_flow_mol_s: Some(n),
+            },
+        );
+        project.feeds.insert(feed, z.to_vec());
+        let inlet = fs
+            .connect(PortRef::new(feed, 0), PortRef::new(exchanger, i))
+            .unwrap();
+        let outlet = fs
+            .connect(PortRef::new(exchanger, i + 2), PortRef::new(product, 0))
+            .unwrap();
+        (inlet, outlet)
+    });
+    for thermal in [
+        ExchangerSpec::HotEndApproach(Some(65.0)),
+        ExchangerSpec::ColdEndApproach(Some(90.0)),
+    ] {
+        project.flowsheet.set_spec(
+            exchanger,
+            UnitSpec::HeatExchanger {
+                thermal,
+                hot_pressure_drop_pa: 20_000.0,
+                cold_pressure_drop_pa: 15_000.0,
+            },
+        );
+        let json = project.to_json().unwrap();
+        let record: Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(record["format_version"], 4);
+        project = Project::from_json(&json).unwrap();
+        assert_eq!(project.to_json().unwrap(), json);
+        let result = solve_project(
+            &project,
+            &project.package.prepare().unwrap(),
+            |_| ControlFlow::Continue(()),
+            0,
+        )
+        .unwrap();
+        let mut duties = [0.0; 2];
+        let mut out_t = [0.0; 2];
+        for (i, (inlet, outlet)) in connections.iter().enumerate() {
+            let a = &result.streams[inlet];
+            let b = &result.streams[outlet];
+            assert_eq!(a.molar_flow_mol_s, b.molar_flow_mol_s);
+            let (a_state, b_state) = (a.state.as_ref().unwrap(), b.state.as_ref().unwrap());
+            assert_eq!(a_state.mole_fractions, b_state.mole_fractions);
+            assert_eq!(b_state.pressure_pa, [1_980_000.0, 1_985_000.0][i]);
+            duties[i] = a.molar_flow_mol_s * (b_state.enthalpy_j_mol - a_state.enthalpy_j_mol);
+            out_t[i] = b_state.temperature_k;
+        }
+        let expected = match thermal {
+            ExchangerSpec::HotEndApproach(_) => (430.0 - out_t[1], 65.0),
+            ExchangerSpec::ColdEndApproach(_) => (out_t[0] - 300.0, 90.0),
+            _ => unreachable!(),
+        };
+        assert!((expected.0 - expected.1).abs() < 1e-9);
+        assert!(duties[0] < 0.0 && duties[1] > 0.0);
+        assert!((duties[0] + duties[1]).abs() < 1e-5, "{duties:?}");
+        let unit = &result.units[&exchanger];
+        assert_eq!(unit.duty_w, 0.0);
+        assert!((unit.transferred_duty_w.unwrap() - duties[1]).abs() < 1e-5);
+        assert!(unit.max_scaled_component_residual.unwrap() <= 1e-8);
+        assert!(unit.scaled_energy_residual.unwrap().abs() <= 2e-9);
+    }
 }
 
 #[test]

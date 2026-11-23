@@ -771,6 +771,121 @@ fn heat_transport_forms_solve_and_report_process_duty_and_fan_power() {
 }
 
 #[test]
+fn two_stream_exchanger_and_air_cooler_solve_fixed_approaches_from_properties() {
+    use flowsheet_core::ExchangerSpec;
+    use flowsheet_core::units::HeatTransportSpec;
+    use flowsheet_core::units::heat_transport::{AirCoolerSpec, AirCoolerThermal};
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["methane".into()],
+        "fixed terminal approach UI test",
+    ));
+    let hot = ed.add_unit_at(UnitKind::Feed, egui::pos2(30.0, 120.0));
+    let cold = ed.add_unit_at(UnitKind::Feed, egui::pos2(30.0, 220.0));
+    let exchanger = ed.add_unit_at(UnitKind::HeatExchanger, egui::pos2(190.0, 150.0));
+    let cooler = ed.add_unit_at(UnitKind::AirCooler, egui::pos2(340.0, 100.0));
+    let hot_product = ed.add_unit_at(UnitKind::Product, egui::pos2(510.0, 100.0));
+    let cold_product = ed.add_unit_at(UnitKind::Product, egui::pos2(510.0, 220.0));
+    for (feed, t, n) in [(hot, 430.0, 3.0), (cold, 300.0, 1.0)] {
+        ed.fs.set_spec(
+            feed,
+            UnitSpec::Feed {
+                temperature_k: Some(t),
+                pressure_pa: Some(2e6),
+                molar_flow_mol_s: Some(n),
+            },
+        );
+        ed.feeds.insert(feed, vec![1.0]);
+    }
+    let mut air_spec = AirCoolerSpec {
+        ambient_temperature_k: Some(295.0),
+        air_mass_flow_kg_s: Some(4.0),
+        fan_power_w: 500.0,
+        ..Default::default()
+    };
+    ed.fs.set_spec(
+        cooler,
+        UnitSpec::HeatTransport(HeatTransportSpec::AirCooler(air_spec.clone())),
+    );
+    for ((a, ap), (b, bp)) in [
+        ((hot, 0), (exchanger, 0)),
+        ((cold, 0), (exchanger, 1)),
+        ((exchanger, 2), (cooler, 0)),
+    ] {
+        ed.fs
+            .connect(PortRef::new(a, ap), PortRef::new(b, bp))
+            .unwrap();
+    }
+    let cold_out = ed
+        .fs
+        .connect(PortRef::new(exchanger, 3), PortRef::new(cold_product, 0))
+        .unwrap();
+    let cooled_out = ed
+        .fs
+        .connect(PortRef::new(cooler, 1), PortRef::new(hot_product, 0))
+        .unwrap();
+    ed.selection = Some(Selection::Unit(exchanger));
+
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Fixed hot-end approach").click();
+    h.run();
+    h.get_by_label("Hot inlet − cold outlet");
+    h.get_by_label("Enter value").click();
+    h.run();
+    assert!(matches!(
+        h.state().editor().fs.unit(exchanger).unwrap().spec,
+        UnitSpec::HeatExchanger {
+            thermal: ExchangerSpec::HotEndApproach(Some(0.0)),
+            ..
+        },
+    ));
+
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(cooler));
+    h.run();
+    h.get_by_label("Fixed cold-end approach").click();
+    h.run();
+    h.get_by_label("Process outlet − ambient air inlet");
+    h.get_by_label("Enter value").click();
+    h.run();
+    air_spec.thermal = AirCoolerThermal::ColdEndApproach(Some(0.0));
+    assert_eq!(
+        h.state().editor().fs.unit(cooler).unwrap().spec,
+        UnitSpec::HeatTransport(HeatTransportSpec::AirCooler(air_spec)),
+    );
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    h.get_by_label("Achieved cold-end approach");
+    h.get_by_label("Pre-fan air outlet temperature");
+    let result = h.state().editor().results.as_ref().unwrap();
+    assert_eq!(
+        result.streams[&cold_out]
+            .state
+            .as_ref()
+            .unwrap()
+            .temperature_k,
+        430.0
+    );
+    assert_eq!(
+        result.streams[&cooled_out]
+            .state
+            .as_ref()
+            .unwrap()
+            .temperature_k,
+        295.0
+    );
+    assert!(result.units[&exchanger].transferred_duty_w.unwrap() > 0.0);
+    assert!(result.units[&cooler].duty_w < 0.0);
+    h.state_mut().editor_mut().selection = Some(Selection::Unit(exchanger));
+    h.run();
+    h.get_by_label("Achieved hot-end approach");
+    h.get_by_label("Transferred duty (hot to cold)");
+}
+
+#[test]
 fn multi_stream_exchanger_solves_a_fixed_terminal_approach_from_properties() {
     use flowsheet_core::units::HeatTransportSpec;
     use flowsheet_core::units::heat_transport::{ExchangerPassThermal, MultiStreamExchangerSpec};

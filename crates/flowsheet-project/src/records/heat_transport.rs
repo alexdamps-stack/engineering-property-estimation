@@ -20,13 +20,26 @@ fn unset_temperature() -> ThermalRecord {
     ThermalRecord::OutletTemperatureK(None)
 }
 
+fn unset_air_temperature() -> AirCoolerThermalRecord {
+    AirCoolerThermalRecord::OutletTemperatureK(None)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum AirCoolerThermalRecord {
+    OutletTemperatureK(Option<f64>),
+    DutyW(Option<f64>),
+    ColdEndApproachK(Option<f64>),
+    HotEndApproachK(Option<f64>),
+}
+
 /// Heat-transport specification, tagged by unit kind.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum HeatTransportRecord {
     AirCooler {
-        #[serde(default = "unset_temperature")]
-        thermal: ThermalRecord,
+        #[serde(default = "unset_air_temperature")]
+        thermal: AirCoolerThermalRecord,
         #[serde(default)]
         pressure_drop_pa: f64,
         #[serde(default)]
@@ -149,7 +162,12 @@ impl HeatTransportRecord {
                 air_mass_flow_kg_s,
                 fan_power_w,
             } => [
-                thermal_value(thermal),
+                match *thermal {
+                    AirCoolerThermalRecord::OutletTemperatureK(v)
+                    | AirCoolerThermalRecord::DutyW(v)
+                    | AirCoolerThermalRecord::ColdEndApproachK(v)
+                    | AirCoolerThermalRecord::HotEndApproachK(v) => v,
+                },
                 Some(*pressure_drop_pa),
                 *ambient_temperature_k,
                 *air_mass_flow_kg_s,
@@ -192,8 +210,16 @@ impl From<&HeatTransportSpec> for HeatTransportRecord {
         match s {
             HeatTransportSpec::AirCooler(s) => Self::AirCooler {
                 thermal: match s.thermal {
-                    AirCoolerThermal::OutletTemperature(t) => ThermalRecord::OutletTemperatureK(t),
-                    AirCoolerThermal::Duty(q) => ThermalRecord::DutyW(q),
+                    AirCoolerThermal::OutletTemperature(t) => {
+                        AirCoolerThermalRecord::OutletTemperatureK(t)
+                    }
+                    AirCoolerThermal::Duty(q) => AirCoolerThermalRecord::DutyW(q),
+                    AirCoolerThermal::ColdEndApproach(dt) => {
+                        AirCoolerThermalRecord::ColdEndApproachK(dt)
+                    }
+                    AirCoolerThermal::HotEndApproach(dt) => {
+                        AirCoolerThermalRecord::HotEndApproachK(dt)
+                    }
                 },
                 pressure_drop_pa: s.pressure_drop_pa,
                 ambient_temperature_k: s.ambient_temperature_k,
@@ -232,9 +258,16 @@ impl TryFrom<HeatTransportRecord> for HeatTransportSpec {
                 fan_power_w,
             } => Self::AirCooler(AirCoolerSpec {
                 thermal: match thermal {
-                    ThermalRecord::OutletTemperatureK(t) => AirCoolerThermal::OutletTemperature(t),
-                    ThermalRecord::DutyW(q) => AirCoolerThermal::Duty(q),
-                    _ => return Err("unexpected thermal specification for an air cooler".into()),
+                    AirCoolerThermalRecord::OutletTemperatureK(t) => {
+                        AirCoolerThermal::OutletTemperature(t)
+                    }
+                    AirCoolerThermalRecord::DutyW(q) => AirCoolerThermal::Duty(q),
+                    AirCoolerThermalRecord::ColdEndApproachK(dt) => {
+                        AirCoolerThermal::ColdEndApproach(dt)
+                    }
+                    AirCoolerThermalRecord::HotEndApproachK(dt) => {
+                        AirCoolerThermal::HotEndApproach(dt)
+                    }
                 },
                 pressure_drop_pa,
                 ambient_temperature_k,

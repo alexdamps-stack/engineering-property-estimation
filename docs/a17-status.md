@@ -23,7 +23,7 @@ feasible in steady state* (with the reason).
 
 | Kind | Issue | Status | Specification | Validation / reference | Notes |
 |---|---|---|---|---|---|
-| Air cooler | #179 | calculated (partial) | Specify process outlet temperature or nonpositive process duty, pressure drop, ambient air temperature, dry-air mass flow, and optional nonnegative fan power. | Analytic sensible-air and fan energy balance, TP/PH agreement and failure cases. | One material inlet and one outlet. ISO asset `s2-x2505-heat-exchanger-with-finned-tube-and-fan`. |
+| Air cooler | #179 | calculated (partial) | Specify process outlet temperature, nonpositive process duty, or a fixed terminal approach. Assign pressure drop, ambient air temperature, dry-air mass flow, and optional nonnegative fan power. | Analytic sensible-air and fan energy balance, TP/PH agreement, approach targets and failure cases. | One material inlet and one outlet. ISO asset `s2-x2505-heat-exchanger-with-finned-tube-and-fan`. |
 | Fired heater | #180 | calculated | Specify process outlet temperature, nonnegative process duty, or duty from an energy stream, with an assigned pressure drop. | Reverse of the independent process cooler reference for PR and PR-BM, plus sign, connection and zero-flow checks. | Duty-only model with one material inlet and one outlet. ISO asset `s2-2533-furnace`. |
 | Multi-stream exchanger | #181 | calculated (partial) | For 2–12 material passes, assign each direction and pressure drop. Specify outlet temperature, signed duty or a fixed terminal approach on all but one pass. The last degree of freedom closes the heat balance. | Independent dilute-gas heat-capacity integral, endpoint feasibility and closure tests, and fixed-approach solve and v4 reload checks. | Full-span countercurrent core with two checked terminals. Retains ISO asset `s2-2516-heat-exchanger-of-plate-type`. |
 
@@ -60,6 +60,33 @@ flue gas, emissions and furnace design require additional models.
 Existing version 4 records retain their kinds and port identities. Old
 records load with the outlet temperature unset and zero pressure drop.
 The air cooler also requires assigned ambient temperature and airflow.
+
+### Fixed approach in the two-stream exchanger and air cooler
+
+Both units offer a choice of hot-end or cold-end approach. The specified
+temperature difference is a nonnegative equality at the chosen terminal.
+Each setting replaces the outlet-temperature or duty specification.
+
+| Unit | Fixed hot end | Fixed cold end |
+|---|---|---|
+| Two-stream exchanger | Hot inlet temperature minus cold outlet temperature. The cold outlet setpoint and pressure give duty by TP. PH at the hot outlet pressure closes the hot stream. | Hot outlet temperature minus cold inlet temperature. The hot outlet setpoint and pressure give duty by TP. PH at the cold outlet pressure closes the cold stream. |
+| Air cooler | Process inlet temperature minus air outlet temperature before fan heat. The required rise from ambient determines process duty using the assigned dry-air heat-capacity rate. PH determines the process outlet. | Process outlet temperature minus ambient air inlet temperature. TP determines the process outlet and duty. The dry-air balance gives the air outlet before fan heat. |
+
+The two-stream exchanger still takes both pressure drops as inputs. The air
+cooler still takes its process pressure drop, ambient air temperature, dry-air
+mass flow and optional fan power. Fan power raises the discharge temperature
+after the hot-end reference point and reports on the existing fan port.
+
+Fixed approach needs flowing process streams on both sides of the two-stream
+exchanger and flowing process fluid through the air cooler. The solver rejects
+an approach that reverses heat transfer, crosses the other terminal, or cannot
+produce a valid outlet state. A zero approach is the limiting terminal case.
+These checks cover the two terminal planes. Internal pinch, area and
+predictive performance require further equipment models.
+
+The results show the achieved approach and solved duty. Version 4 records
+store the terminal choice and difference in kelvins. Earlier records keep
+their thermal choice and connection identities.
 
 ### Multi-stream exchanger
 

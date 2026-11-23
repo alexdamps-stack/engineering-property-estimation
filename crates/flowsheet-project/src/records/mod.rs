@@ -105,6 +105,8 @@ pub(crate) enum ExchangerRecord {
     HotOutletTemperatureK(Option<f64>),
     ColdOutletTemperatureK(Option<f64>),
     DutyW(Option<f64>),
+    HotEndApproachK(Option<f64>),
+    ColdEndApproachK(Option<f64>),
 }
 
 /// Energy source duty (version 4).
@@ -228,7 +230,9 @@ impl SpecRecord {
                 match *t {
                     ExchangerRecord::HotOutletTemperatureK(v)
                     | ExchangerRecord::ColdOutletTemperatureK(v)
-                    | ExchangerRecord::DutyW(v) => v,
+                    | ExchangerRecord::DutyW(v)
+                    | ExchangerRecord::HotEndApproachK(v)
+                    | ExchangerRecord::ColdEndApproachK(v) => v,
                 },
                 Some(*hot_pressure_drop_pa),
                 Some(*cold_pressure_drop_pa),
@@ -322,6 +326,8 @@ impl From<&UnitSpec> for SpecRecord {
                         ExchangerRecord::ColdOutletTemperatureK(t)
                     }
                     ExchangerSpec::Duty(q) => ExchangerRecord::DutyW(q),
+                    ExchangerSpec::HotEndApproach(dt) => ExchangerRecord::HotEndApproachK(dt),
+                    ExchangerSpec::ColdEndApproach(dt) => ExchangerRecord::ColdEndApproachK(dt),
                 },
                 hot_pressure_drop_pa,
                 cold_pressure_drop_pa,
@@ -431,6 +437,8 @@ impl TryFrom<SpecRecord> for UnitSpec {
                         ExchangerSpec::ColdOutletTemperature(t)
                     }
                     ExchangerRecord::DutyW(q) => ExchangerSpec::Duty(q),
+                    ExchangerRecord::HotEndApproachK(dt) => ExchangerSpec::HotEndApproach(dt),
+                    ExchangerRecord::ColdEndApproachK(dt) => ExchangerSpec::ColdEndApproach(dt),
                 },
                 hot_pressure_drop_pa,
                 cold_pressure_drop_pa,

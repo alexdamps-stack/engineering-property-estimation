@@ -18,10 +18,27 @@ pub(super) fn form(ui: &mut Ui, spec: &mut HeatTransportSpec, u: DisplayUnits) {
     let kind = spec.kind();
     match spec {
         HeatTransportSpec::AirCooler(s) => {
-            let current = matches!(s.thermal, AirCoolerThermal::Duty(_)) as usize;
-            match choice(ui, "Specify", current, &["Outlet T", "Duty"]) {
+            let current = match s.thermal {
+                AirCoolerThermal::OutletTemperature(_) => 0,
+                AirCoolerThermal::Duty(_) => 1,
+                AirCoolerThermal::HotEndApproach(_) => 2,
+                AirCoolerThermal::ColdEndApproach(_) => 3,
+            };
+            match choice(
+                ui,
+                "Specify",
+                current,
+                &[
+                    "Outlet T",
+                    "Duty",
+                    "Fixed hot-end approach",
+                    "Fixed cold-end approach",
+                ],
+            ) {
                 Some(0) => s.thermal = AirCoolerThermal::OutletTemperature(None),
-                Some(_) => s.thermal = AirCoolerThermal::Duty(None),
+                Some(1) => s.thermal = AirCoolerThermal::Duty(None),
+                Some(2) => s.thermal = AirCoolerThermal::HotEndApproach(None),
+                Some(_) => s.thermal = AirCoolerThermal::ColdEndApproach(None),
                 None => {}
             }
             match &mut s.thermal {
@@ -30,6 +47,32 @@ pub(super) fn form(ui: &mut Ui, spec: &mut HeatTransportSpec, u: DisplayUnits) {
                 }
                 AirCoolerThermal::Duty(q) => {
                     opt_field(ui, "Process duty (≤ 0)", q, Quantity::Duty, u);
+                }
+                AirCoolerThermal::HotEndApproach(dt) => {
+                    opt_field(
+                        ui,
+                        "Process inlet − pre-fan air outlet",
+                        dt,
+                        Quantity::TemperatureDifference,
+                        u,
+                    );
+                    note_row(
+                        ui,
+                        "Sets the air outlet before fan heat and solves duty and process outlet.",
+                    );
+                }
+                AirCoolerThermal::ColdEndApproach(dt) => {
+                    opt_field(
+                        ui,
+                        "Process outlet − ambient air inlet",
+                        dt,
+                        Quantity::TemperatureDifference,
+                        u,
+                    );
+                    note_row(
+                        ui,
+                        "Sets the process outlet and solves duty and air discharge.",
+                    );
                 }
             }
             value_field(

@@ -131,11 +131,26 @@ pub(super) fn spec_form(
                 ExchangerSpec::HotOutletTemperature(_) => 0,
                 ExchangerSpec::ColdOutletTemperature(_) => 1,
                 ExchangerSpec::Duty(_) => 2,
+                ExchangerSpec::HotEndApproach(_) => 3,
+                ExchangerSpec::ColdEndApproach(_) => 4,
             };
-            match choice(ui, "Specify", current, &["Hot out T", "Cold out T", "Duty"]) {
+            match choice(
+                ui,
+                "Specify",
+                current,
+                &[
+                    "Hot out T",
+                    "Cold out T",
+                    "Duty",
+                    "Fixed hot-end approach",
+                    "Fixed cold-end approach",
+                ],
+            ) {
                 Some(0) => *thermal = ExchangerSpec::HotOutletTemperature(None),
                 Some(1) => *thermal = ExchangerSpec::ColdOutletTemperature(None),
-                Some(_) => *thermal = ExchangerSpec::Duty(None),
+                Some(2) => *thermal = ExchangerSpec::Duty(None),
+                Some(3) => *thermal = ExchangerSpec::HotEndApproach(None),
+                Some(_) => *thermal = ExchangerSpec::ColdEndApproach(None),
                 None => {}
             }
             match thermal {
@@ -146,6 +161,26 @@ pub(super) fn spec_form(
                     opt_field(ui, "Cold outlet temperature", t, Quantity::Temperature, u)
                 }
                 ExchangerSpec::Duty(q) => opt_field(ui, "Duty (hot to cold)", q, Quantity::Duty, u),
+                ExchangerSpec::HotEndApproach(dt) => {
+                    opt_field(
+                        ui,
+                        "Hot inlet − cold outlet",
+                        dt,
+                        Quantity::TemperatureDifference,
+                        u,
+                    );
+                    note_row(ui, "Sets the cold outlet and solves duty and hot outlet.");
+                }
+                ExchangerSpec::ColdEndApproach(dt) => {
+                    opt_field(
+                        ui,
+                        "Hot outlet − cold inlet",
+                        dt,
+                        Quantity::TemperatureDifference,
+                        u,
+                    );
+                    note_row(ui, "Sets the hot outlet and solves duty and cold outlet.");
+                }
             }
             value_field(
                 ui,
