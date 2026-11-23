@@ -1,10 +1,11 @@
-//! Specified-duty or specified-outlet-temperature air cooler (#179).
+//! Specified-duty, outlet-temperature or fixed-terminal-approach air cooler (#179).
 
 use crate::engine::{MaterialStream, empty};
 use crate::unit::{Sign, SpecIssue, SpecProblem, check_optional, check_value};
 use crate::units::{CalcContext, UnitOutput};
 
 const DRY_AIR_CP_J_KG_K: f64 = 1005.0;
+const TERMINAL_TOLERANCE_K: f64 = 1e-9;
 
 /// The process-side thermal specification.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -13,6 +14,10 @@ pub enum AirCoolerThermal {
     OutletTemperature(Option<f64>),
     /// Signed process duty in W, zero or negative for cooling.
     Duty(Option<f64>),
+    /// Process outlet temperature minus ambient air inlet temperature in K.
+    ColdEndApproach(Option<f64>),
+    /// Process inlet temperature minus exchanger air outlet temperature before fan heat in K.
+    HotEndApproach(Option<f64>),
 }
 
 impl Default for AirCoolerThermal {
@@ -24,10 +29,10 @@ impl Default for AirCoolerThermal {
 /// Steady-state air cooler with prescribed dry-air flow and a constant air
 /// heat capacity of 1005 J/(kg K).
 ///
-/// With heat transfer, the process outlet must be at least as warm as ambient
-/// and the exchanger air outlet at most as warm as the process inlet. These
-/// are terminal bounds with zero minimum approach. Equipment sizing, UA and
-/// performance correlations are outside the model.
+/// With heat transfer or a fixed terminal approach, the process outlet must be
+/// at least as warm as ambient and the exchanger air outlet at most as warm as
+/// the process inlet. Equipment sizing, UA and performance correlations are
+/// outside the model.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct AirCoolerSpec {
     /// Process-side thermal mode.
@@ -56,6 +61,12 @@ impl AirCoolerSpec {
                 });
             }
             AirCoolerThermal::Duty(q) => check_optional(&mut issues, "duty", q, Sign::Any),
+            AirCoolerThermal::ColdEndApproach(delta) => {
+                check_optional(&mut issues, "cold-end approach", delta, Sign::NonNegative);
+            }
+            AirCoolerThermal::HotEndApproach(delta) => {
+                check_optional(&mut issues, "hot-end approach", delta, Sign::NonNegative);
+            }
         }
         check_value(
             &mut issues,
@@ -91,6 +102,13 @@ impl AirCoolerSpec {
         self.air_temperature_k(process_duty_w, self.fan_power_w)
     }
 
+    /// Exchanger air outlet temperature in K before fan heat. Pass the solved,
+    /// signed process duty in W. Invalid air inputs or duty and a nonfinite
+    /// outlet temperature yield `None`.
+    pub fn pre_fan_air_outlet_temperature_k(&self, process_duty_w: f64) -> Option<f64> {
+        self.air_temperature_k(process_duty_w, 0.0)
+    }
+
     fn air_temperature_k(&self, process_duty_w: f64, fan_power_w: f64) -> Option<f64> {
         let ambient = self.ambient_temperature_k?;
         let air_mass_flow = self.air_mass_flow_kg_s?;
@@ -124,12 +142,18 @@ pub(super) fn calculate(
     inlet: &MaterialStream,
     ctx: &CalcContext,
 ) -> Result<UnitOutput, String> {
+    use AirCoolerThermal::{ColdEndApproach, Duty, HotEndApproach, OutletTemperature};
+
     if let Some(issue) = spec.issues().first() {
         return Err(format!("air cooler {} {}", issue.field, issue.problem));
     }
 
+    let fixed_approach = matches!(spec.thermal, ColdEndApproach(_) | HotEndApproach(_));
     let flow = inlet.molar_flow_mol_s;
     let mut output = if flow == 0.0 {
+        if fixed_approach {
+            return Err("air cooler fixed approach requires positive process inlet flow".into());
+        }
         UnitOutput::new(
             vec![empty()],
             0.0,
@@ -154,8 +178,27 @@ pub(super) fn calculate(
         }
         let z = &state.mole_fractions;
         let h_in = state.enthalpy();
-        let (outlet, duty) = match spec.thermal {
-            AirCoolerThermal::OutletTemperature(Some(t)) => {
+        let ambient = spec
+            .ambient_temperature_k
+            .ok_or("missing ambient temperature")?;
+        let thermal = match spec.thermal {
+            ColdEndApproach(Some(delta)) => OutletTemperature(Some(ambient + delta)),
+            HotEndApproach(Some(delta)) => {
+                let air_rise = (state.temperature_k - ambient) - delta;
+                if air_rise < 0.0 {
+                    return Err("air cooler hot-end approach would add heat to the process".into());
+                }
+                let air_flow = spec.air_mass_flow_kg_s.ok_or("missing air mass flow")?;
+                let duty = -(air_rise * DRY_AIR_CP_J_KG_K) * air_flow;
+                if !duty.is_finite() {
+                    return Err("air cooler process duty is nonfinite".into());
+                }
+                Duty(Some(duty))
+            }
+            specified => specified,
+        };
+        let (outlet, duty) = match thermal {
+            OutletTemperature(Some(t)) => {
                 let outlet = ctx.tp(z, t, pressure)?;
                 let enthalpy_change = outlet.enthalpy() - h_in;
                 if enthalpy_change > 0.0 {
@@ -166,39 +209,50 @@ pub(super) fn calculate(
                 let duty = flow * enthalpy_change;
                 (outlet, duty)
             }
-            AirCoolerThermal::Duty(Some(q)) if q == 0.0 && spec.pressure_drop_pa == 0.0 => {
-                (state.clone(), 0.0)
-            }
-            AirCoolerThermal::Duty(Some(q)) => (ctx.ph(z, pressure, h_in + q / flow)?, q),
+            // Unchanged pressure and enthalpy fix the PH state exactly.
+            Duty(Some(q)) if q == 0.0 && spec.pressure_drop_pa == 0.0 => (state.clone(), 0.0),
+            Duty(Some(q)) => (ctx.ph(z, pressure, h_in + q / flow)?, q),
             _ => return Err("missing air cooler thermal specification".into()),
         };
         if !duty.is_finite() {
             return Err("air cooler process duty is nonfinite".into());
         }
-        if duty < 0.0 {
-            let ambient = spec
-                .ambient_temperature_k
-                .ok_or("missing ambient temperature")?;
-            if outlet.temperature_k < ambient {
+        if duty < 0.0 || fixed_approach {
+            let tolerance = if fixed_approach {
+                TERMINAL_TOLERANCE_K
+            } else {
+                0.0
+            };
+            let cold_gap = outlet.temperature_k - ambient;
+            if cold_gap < -tolerance {
                 return Err(
                     "air cooler process outlet temperature falls below ambient air temperature"
                         .into(),
                 );
             }
-            if state.temperature_k <= ambient {
+            if duty < 0.0 && state.temperature_k <= ambient {
                 return Err(
                     "air cooler process inlet must be warmer than ambient air to transfer heat"
                         .into(),
                 );
             }
             let air_outlet = spec
-                .air_temperature_k(duty, 0.0)
+                .pre_fan_air_outlet_temperature_k(duty)
                 .ok_or("air cooler exchanger air outlet temperature is nonfinite")?;
-            if air_outlet > state.temperature_k {
+            let hot_gap = state.temperature_k - air_outlet;
+            if hot_gap < -tolerance {
                 return Err(
                     "air cooler exchanger air outlet temperature exceeds the process inlet limit"
                         .into(),
                 );
+            }
+            let approach_error = match spec.thermal {
+                ColdEndApproach(Some(delta)) => cold_gap - delta,
+                HotEndApproach(Some(delta)) => hot_gap - delta,
+                _ => 0.0,
+            };
+            if !approach_error.is_finite() || approach_error.abs() > tolerance {
+                return Err("air cooler did not attain the specified terminal approach".into());
             }
         }
 
@@ -294,6 +348,165 @@ mod tests {
                 2,
             )
             .unwrap();
+        }
+    }
+
+    #[test]
+    fn fixed_approaches_attain_their_endpoints_and_balance_signed_duty() {
+        let pkg = package();
+        let ctx = CalcContext::new(&pkg, None);
+        let inlet = process_inlet(&ctx);
+        let mut spec = spec();
+        spec.thermal = AirCoolerThermal::ColdEndApproach(Some(80.0));
+        let cold = calculate(&spec, &inlet, &ctx).unwrap();
+        let cold_outlet = cold.outlets[0].state.as_ref().unwrap();
+        assert!((cold_outlet.temperature_k - 380.0).abs() < 1e-9);
+        assert!(cold_outlet.convergence.scaled_energy_residual.is_none());
+
+        spec.thermal = AirCoolerThermal::HotEndApproach(Some(95.0));
+        let hot = calculate(&spec, &inlet, &ctx).unwrap();
+        let hot_outlet = hot.outlets[0].state.as_ref().unwrap();
+        assert!(hot_outlet.convergence.scaled_energy_residual.is_some());
+        // The 95 K difference fixes the pre-fan outlet at 325 K and the air
+        // gains 2 kg/s * 1005 J/(kg K) * 25 K = 50,250 W in the exchanger.
+        assert!((hot.duty_w + 50_250.0).abs() < 1e-9);
+        assert!((spec.pre_fan_air_outlet_temperature_k(hot.duty_w).unwrap() - 325.0).abs() < 1e-9);
+
+        for output in [cold, hot] {
+            let outlet = output.outlets[0].state.as_ref().unwrap();
+            let air_outlet = spec
+                .pre_fan_air_outlet_temperature_k(output.duty_w)
+                .unwrap();
+            let discharge = spec.air_outlet_temperature_k(output.duty_w).unwrap();
+            assert!(outlet.temperature_k > 300.0 && air_outlet < 420.0);
+            assert!((outlet.pressure_pa - 1.95e6).abs() < 1e-6);
+            assert!(output.duty_w < 0.0);
+            assert!((output.duty_w + 2010.0 * (air_outlet - 300.0)).abs() < 1e-8);
+            assert!((discharge - air_outlet - 5.0).abs() < 1e-9);
+            assert_eq!(output.energy, [Some(10_050.0)]);
+            balance(
+                std::slice::from_ref(&inlet),
+                &output.outlets,
+                output.duty_w,
+                None,
+                2,
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn fixed_approaches_accept_zero_gaps_during_heat_rejection() {
+        let pkg = package();
+        let ctx = CalcContext::new(&pkg, None);
+        let inlet = process_inlet(&ctx);
+        let mut spec = spec();
+        spec.thermal = AirCoolerThermal::ColdEndApproach(Some(0.0));
+        let cold = calculate(&spec, &inlet, &ctx).unwrap();
+        assert!(cold.duty_w < 0.0);
+        assert!((cold.outlets[0].state.as_ref().unwrap().temperature_k - 300.0).abs() < 1e-9);
+
+        spec.thermal = AirCoolerThermal::HotEndApproach(Some(0.0));
+        spec.air_mass_flow_kg_s = Some(0.5);
+        let hot = calculate(&spec, &inlet, &ctx).unwrap();
+        assert!((hot.duty_w + 60_300.0).abs() < 1e-9);
+        assert!((spec.pre_fan_air_outlet_temperature_k(hot.duty_w).unwrap() - 420.0).abs() < 1e-9);
+        assert!((spec.air_outlet_temperature_k(hot.duty_w).unwrap() - 440.0).abs() < 1e-9);
+
+        spec.air_mass_flow_kg_s = Some(-cold.duty_w / (1005.0 * 120.0));
+        let both = calculate(&spec, &inlet, &ctx).unwrap();
+        assert!((both.duty_w - cold.duty_w).abs() < 1e-8);
+    }
+
+    #[test]
+    fn fixed_approaches_reject_heat_addition_and_crossing_at_opposite_end() {
+        let pkg = package();
+        let ctx = CalcContext::new(&pkg, None);
+        let inlet = process_inlet(&ctx);
+        let mut spec = spec();
+
+        for thermal in [
+            AirCoolerThermal::ColdEndApproach(Some(130.0)),
+            AirCoolerThermal::HotEndApproach(Some(130.0)),
+        ] {
+            spec.thermal = thermal;
+            assert!(
+                calculate(&spec, &inlet, &ctx)
+                    .unwrap_err()
+                    .contains("add heat")
+            );
+        }
+
+        spec.thermal = AirCoolerThermal::HotEndApproach(Some(0.0));
+        assert!(
+            calculate(&spec, &inlet, &ctx)
+                .unwrap_err()
+                .contains("below ambient")
+        );
+        spec.air_mass_flow_kg_s = Some(0.1);
+        spec.thermal = AirCoolerThermal::ColdEndApproach(Some(80.0));
+        assert!(
+            calculate(&spec, &inlet, &ctx)
+                .unwrap_err()
+                .contains("process inlet limit")
+        );
+    }
+
+    #[test]
+    fn fixed_approaches_require_flow_and_feasible_terminal_gaps_at_zero_duty() {
+        let pkg = package();
+        let ctx = CalcContext::new(&pkg, None);
+        let inlet = process_inlet(&ctx);
+        let mut spec = spec();
+        spec.ambient_temperature_k = Some(420.0);
+        spec.pressure_drop_pa = 0.0;
+        for thermal in [
+            AirCoolerThermal::ColdEndApproach(Some(0.0)),
+            AirCoolerThermal::HotEndApproach(Some(0.0)),
+        ] {
+            spec.thermal = thermal;
+            assert!(
+                calculate(&spec, &empty(), &ctx)
+                    .unwrap_err()
+                    .contains("positive process inlet flow")
+            );
+            let output = calculate(&spec, &inlet, &ctx).unwrap();
+            assert!(output.duty_w.abs() < f64::EPSILON);
+            assert_eq!(output.energy, [Some(10_050.0)]);
+        }
+
+        spec.pressure_drop_pa = 50_000.0;
+        assert!(
+            calculate(&spec, &inlet, &ctx)
+                .unwrap_err()
+                .contains("below ambient")
+        );
+        spec.ambient_temperature_k = Some(300.0);
+        spec.thermal = AirCoolerThermal::HotEndApproach(Some(120.0));
+        let zero = calculate(&spec, &inlet, &ctx).unwrap();
+        assert!(zero.duty_w.abs() < f64::EPSILON);
+        assert!((zero.outlets[0].enthalpy_flow_w() - inlet.enthalpy_flow_w()).abs() < 1e-4);
+    }
+
+    #[test]
+    fn fixed_approaches_require_a_finite_nonnegative_temperature_difference() {
+        let mut spec = spec();
+        for (delta, problem) in [
+            (None, SpecProblem::Missing),
+            (Some(-1.0), SpecProblem::Negative),
+            (Some(f64::NAN), SpecProblem::NotFinite),
+            (Some(f64::INFINITY), SpecProblem::NotFinite),
+        ] {
+            for (thermal, field) in [
+                (
+                    AirCoolerThermal::ColdEndApproach(delta),
+                    "cold-end approach",
+                ),
+                (AirCoolerThermal::HotEndApproach(delta), "hot-end approach"),
+            ] {
+                spec.thermal = thermal;
+                assert_eq!(spec.issues(), [SpecIssue { field, problem }]);
+            }
         }
     }
 
