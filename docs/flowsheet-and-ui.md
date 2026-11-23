@@ -40,7 +40,7 @@ Energy streams would carry a duty in W with sign convention "positive into the u
 
 ### 2.3 Unit operations and specifications — *implemented (A8)*
 
-Each unit has a fixed set of material ports and one specification set (`flowsheet_core::UnitKind::ports` and `UnitSpec`). Where the table says "one of", the specification is an enum, so exactly one choice is stored. Energy streams are not modelled: duties are unit results, not ports. The table describes the code on `main`.
+Each unit has a fixed set of material ports and one specification set (`flowsheet_core::UnitKind::ports` and `UnitSpec`). Where the table says "one of", the specification is an enum, so exactly one choice is stored. The implemented ports carry material. Duties are recorded in unit results.
 
 | Unit | Material ports | Specification (choose one where listed) | Defaults | Calculation |
 |---|---|---|---|---|
@@ -65,15 +65,19 @@ Before solving, every unit's specification is checked (`Unit::issues`) for missi
 
 Checks that need calculated inlet states run during the solve and fail the named unit instead: a valve outlet pressure above its inlet pressure, a mixer outlet pressure above the lowest flowing inlet pressure, a pressure drop that leaves a nonpositive absolute outlet pressure, and an exchanger duty that would cross terminal temperatures. A heater outlet temperature below its inlet, or a cooler outlet temperature above it, is reported as a unit warning on the result, because inside a recycle it depends on the current iterate.
 
+Empty streams can pass through thermal units with a warning. A final result requires positive inlet flow for an imposed nonzero duty. An exchanger needs flow on both sides to meet a duty or change the flowing side's enthalpy to meet an outlet temperature. During recycle iteration, a temporary empty path can propagate so the next pass can establish flow.
+
 ### 2.5 When calculation runs — *proposed*
 
 - **Manual solve is the default** (toolbar button and `F5`). An **auto-solve** toggle recalculates after each confirmed edit.
 - Calculation runs in a background thread. The interface stays responsive and shows a progress indicator with a **Cancel** button.
 - Any edit marks the affected unit and all downstream streams as **stale** immediately (section 4.6), even before the next solve.
 
-### 2.6 Project file — *proposed*
+### 2.6 Project file — *implemented*
 
-A text-based, versioned format (JSON or RON) with a top-level `format_version`. It stores components, property package selection, units, streams, specifications, canvas layout, and display settings. Results are stored together with the code, model, and data versions that produced them; on load, results from a different version are shown as stale until recalculated. Text format keeps project files reviewable in Git.
+Project files use JSON with a top-level `format_version`. Writers use version 3, and readers accept versions 1 through 3. A project stores the components, property package selection, units, streams, specifications, canvas layout, and display settings. Results include their engine, model, and data provenance. Results with incompatible provenance are shown as stale until recalculated.
+
+Reading and writing support up to 64 MiB, 10,000 units, and 20,000 streams. New identifiers stay within the range of integers that JSON readers can exchange exactly. Duplicate layout entries and stored compositions that have the wrong number of components are rejected. Both the editor and the project API save through an atomic replacement of the destination file.
 
 ## 3. Main window
 

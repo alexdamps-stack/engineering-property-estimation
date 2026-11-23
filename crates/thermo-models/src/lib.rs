@@ -9,3 +9,13 @@ pub use cubic::*;
 mod gerg;
 pub use gerg::*;
 pub use nrtl::*;
+
+/// NASA7 caloric zero shared by the cubic and gamma–phi models.
+pub const IDEAL_GAS_CALORIC_REFERENCE_ID: &str = "ideal-pure-zero-298.15K-1bar-cp-integrated-v1";
+
+fn ideal_gas_caloric_reference() -> thermo_types::CaloricReference {
+    thermo_types::CaloricReference {
+        identifier: IDEAL_GAS_CALORIC_REFERENCE_ID.into(),
+        definition: "NASA7 cp integrals; pure ideal h=s=0 at 298.15 K, 100000 Pa; ideal mixing entropy; J/mol and J/(mol K)".into(),
+    }
+}

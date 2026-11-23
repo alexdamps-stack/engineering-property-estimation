@@ -74,6 +74,7 @@ fn start(pkg: &CubicPackage, flow: f64, temperature: f64) -> MaterialStream {
 /// only cycle (exchanger ↔ heater) has no mixer.
 fn feed_effluent_exchanger(
     variant: CubicVariant,
+    hot_tear_first: bool,
 ) -> (Flowsheet, CubicPackage, FeedCompositions, [UnitId; 4]) {
     let (_, pkg, feeds) = support::demonstration(variant, 1.0);
     let mut fs = Flowsheet::new();
@@ -104,12 +105,16 @@ fn feed_effluent_exchanger(
             pressure_drop_pa: 0.0,
         },
     );
-    for (from, fp, to, tp) in [
+    let mut edges = [
         (feed, 0, ex, 1),
         (ex, 3, heat, 0),
         (heat, 1, ex, 0),
         (ex, 2, product, 0),
-    ] {
+    ];
+    if hot_tear_first {
+        edges.swap(1, 2);
+    }
+    for (from, fp, to, tp) in edges {
         fs.connect(PortRef::new(from, fp), PortRef::new(to, tp))
             .unwrap();
     }
@@ -127,52 +132,155 @@ fn feed_effluent_exchanger_loop_without_a_mixer_converges() {
         CubicVariant::PengRobinson,
         CubicVariant::PengRobinsonBostonMathias,
     ] {
-        let (fs, pkg, feeds, [_, ex, heat, product]) = feed_effluent_exchanger(variant);
-        let tears = fs.automatic_tears();
-        assert_eq!(tears.len(), 1);
-        let tear = *tears.first().unwrap();
-        assert_ne!(
-            fs.unit(fs.stream(tear).unwrap().to.unit).unwrap().kind,
-            UnitKind::Mixer
-        );
-        let automatic = fs.solve_network(&pkg, &feeds).unwrap();
-        // Starting the tear empty relies on zero-flow pass-through instead.
-        let empty = fs
-            .solve_recycles(
-                &pkg,
-                &feeds,
-                &[(tear, start(&pkg, 0.0, 330.0))].into(),
-                RecycleOptions::default(),
-                |_| ControlFlow::Continue(()),
-            )
-            .unwrap();
-        let inlet = start(&pkg, 100.0, 330.0);
-        let hot_out = start(&pkg, 100.0, 345.0);
-        let heater_out = start(&pkg, 100.0, 380.0);
-        for report in [&automatic, &empty] {
-            let closure = report.recycle.as_ref().unwrap();
-            assert!(closure.max_scaled_residual <= 1e-10);
-            let out = &report.streams[&fs.stream_at(PortRef::new(product, 0)).unwrap().id];
-            assert!((out.molar_flow_mol_s / 100.0 - 1.0).abs() < 1e-12);
-            assert!((out.state.as_ref().unwrap().temperature_k - 345.0).abs() < 2e-6);
-            // Overall energy: the heater supplies what the product carries out.
-            let expected = hot_out.enthalpy_flow_w() - inlet.enthalpy_flow_w();
-            assert!((report.units[&heat].duty_w / expected - 1.0).abs() < 2e-8);
-            let transferred = report.units[&ex].transferred_duty_w.unwrap();
-            let released = heater_out.enthalpy_flow_w() - hot_out.enthalpy_flow_w();
-            assert!((transferred / released - 1.0).abs() < 2e-8);
-            for u in report.units.values() {
-                assert!(u.warnings.is_empty(), "{:?}", u.warnings);
-                if let Some(b) = &u.balance {
-                    assert!(b.max_scaled_component_residual <= 1e-8);
-                    assert!(b.scaled_energy_residual.abs() <= 2e-9);
+        for hot_tear_first in [false, true] {
+            let (fs, pkg, feeds, [_, ex, heat, product]) =
+                feed_effluent_exchanger(variant, hot_tear_first);
+            let tears = fs.automatic_tears();
+            assert_eq!(tears.len(), 1);
+            let tear = *tears.first().unwrap();
+            assert_eq!(
+                fs.stream(tear).unwrap().to.unit,
+                if hot_tear_first { ex } else { heat }
+            );
+            assert_ne!(
+                fs.unit(fs.stream(tear).unwrap().to.unit).unwrap().kind,
+                UnitKind::Mixer
+            );
+            let automatic = fs.solve_network(&pkg, &feeds).unwrap();
+            // Starting the tear empty relies on zero-flow pass-through instead.
+            let empty = fs
+                .solve_recycles(
+                    &pkg,
+                    &feeds,
+                    &[(tear, start(&pkg, 0.0, 330.0))].into(),
+                    RecycleOptions::default(),
+                    |_| ControlFlow::Continue(()),
+                )
+                .unwrap();
+            let inlet = start(&pkg, 100.0, 330.0);
+            let hot_out = start(&pkg, 100.0, 345.0);
+            let heater_out = start(&pkg, 100.0, 380.0);
+            for report in [&automatic, &empty] {
+                let closure = report.recycle.as_ref().unwrap();
+                assert!(closure.max_scaled_residual <= 1e-10);
+                let out = &report.streams[&fs.stream_at(PortRef::new(product, 0)).unwrap().id];
+                assert!((out.molar_flow_mol_s / 100.0 - 1.0).abs() < 1e-12);
+                assert!((out.state.as_ref().unwrap().temperature_k - 345.0).abs() < 2e-6);
+                // Overall energy: the heater supplies what the product carries out.
+                let expected = hot_out.enthalpy_flow_w() - inlet.enthalpy_flow_w();
+                assert!((report.units[&heat].duty_w / expected - 1.0).abs() < 2e-8);
+                let transferred = report.units[&ex].transferred_duty_w.unwrap();
+                let released = heater_out.enthalpy_flow_w() - hot_out.enthalpy_flow_w();
+                assert!((transferred / released - 1.0).abs() < 2e-8);
+                for u in report.units.values() {
+                    assert!(u.warnings.is_empty(), "{:?}", u.warnings);
+                    if let Some(b) = &u.balance {
+                        assert!(b.max_scaled_component_residual <= 1e-8);
+                        assert!(b.scaled_energy_residual.abs() <= 2e-9);
+                    }
                 }
             }
+            assert!(
+                automatic.recycle.as_ref().unwrap().iterations
+                    <= empty.recycle.as_ref().unwrap().iterations
+            );
         }
-        assert!(
-            automatic.recycle.as_ref().unwrap().iterations
-                <= empty.recycle.as_ref().unwrap().iterations
-        );
+    }
+}
+
+#[test]
+fn exchanger_sides_do_not_create_a_material_feed_for_a_closed_loop() {
+    for variant in [
+        CubicVariant::PengRobinson,
+        CubicVariant::PengRobinsonBostonMathias,
+    ] {
+        for reverse_connections in [false, true] {
+            for loop_side in [0, 1] {
+                let (_, pkg, initial_feeds) = support::demonstration(variant, 1.0);
+                let mut fs = Flowsheet::new();
+                let feed = fs.add_unit(UnitKind::Feed);
+                let hx = fs.add_unit(UnitKind::HeatExchanger);
+                let heater = fs.add_unit(UnitKind::Heater);
+                let product = fs.add_unit(UnitKind::Product);
+                fs.set_spec(
+                    feed,
+                    UnitSpec::Feed {
+                        temperature_k: Some(if loop_side == 0 { 330.0 } else { 360.0 }),
+                        pressure_pa: Some(5e6),
+                        molar_flow_mol_s: Some(10.0),
+                    },
+                );
+                fs.set_spec(
+                    hx,
+                    UnitSpec::HeatExchanger {
+                        thermal: ExchangerSpec::Duty(Some(0.0)),
+                        hot_pressure_drop_pa: 0.0,
+                        cold_pressure_drop_pa: 0.0,
+                    },
+                );
+                fs.set_spec(
+                    heater,
+                    UnitSpec::HeatExchange {
+                        thermal: ThermalSpec::OutletTemperature(Some(350.0)),
+                        pressure_drop_pa: 0.0,
+                    },
+                );
+                let flowing_side = 1 - loop_side;
+                let mut edges = vec![
+                    (feed, 0, hx, flowing_side),
+                    (hx, flowing_side + 2, product, 0),
+                    (hx, loop_side + 2, heater, 0),
+                    (heater, 1, hx, loop_side),
+                ];
+                if reverse_connections {
+                    edges.reverse();
+                }
+                for (from, fp, to, tp) in edges {
+                    fs.connect(PortRef::new(from, fp), PortRef::new(to, tp))
+                        .unwrap();
+                }
+                let feeds = [(feed, initial_feeds.values().next().unwrap().clone())].into();
+                let error = fs.solve_network(&pkg, &feeds).unwrap_err();
+                assert!(
+                    error.message.contains("materially reachable feed"),
+                    "{}",
+                    error.message
+                );
+                assert!(error.message.contains("explicit tear states"));
+                // A closed material loop can be solved only when the caller
+                // supplies its independent circulation flow and starting state.
+                let tear = *fs.automatic_tears().first().unwrap();
+                let explicit = [(tear, start(&pkg, 7.0, 350.0))].into();
+                let report = fs
+                    .solve_recycles(&pkg, &feeds, &explicit, RecycleOptions::default(), |_| {
+                        ControlFlow::Continue(())
+                    })
+                    .unwrap();
+                let loop_stream = fs.stream_at(PortRef::new(hx, loop_side + 2)).unwrap().id;
+                assert!((report.streams[&loop_stream].molar_flow_mol_s - 7.0).abs() < 1e-10);
+
+                fs.set_spec(
+                    hx,
+                    UnitSpec::HeatExchanger {
+                        thermal: ExchangerSpec::Duty(Some(1000.0)),
+                        hot_pressure_drop_pa: 0.0,
+                        cold_pressure_drop_pa: 0.0,
+                    },
+                );
+                let empty = [(tear, start(&pkg, 0.0, 350.0))].into();
+                let error = fs
+                    .solve_recycles(&pkg, &feeds, &empty, RecycleOptions::default(), |_| {
+                        ControlFlow::Continue(())
+                    })
+                    .unwrap_err();
+                assert_eq!(error.unit, Some(hx));
+                assert!(
+                    error
+                        .message
+                        .contains("positive inlet flow on both exchanger sides")
+                );
+            }
+        }
     }
 }
 

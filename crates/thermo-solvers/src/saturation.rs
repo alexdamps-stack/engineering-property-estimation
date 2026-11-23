@@ -1,5 +1,7 @@
 //! Pure-component saturation pressure from fugacity equality of the outer cubic roots.
-use thermo_models::{CUBIC_TEMPERATURE_RANGE_K, CubicModel, RootSelection};
+use thermo_models::{
+    CUBIC_PRESSURE_RANGE_PA, CUBIC_TEMPERATURE_RANGE_K, CubicModel, RootSelection,
+};
 use thermo_types::{CalculationError as Error, Pressure, Temperature};
 
 /// Iteration limit for the bracketed Newton solve in ln p.
@@ -72,21 +74,22 @@ pub fn pure_saturation_pressure(
     }
     let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
     if !(t_lo..=t_hi).contains(&t) {
-        return Err(Error::OutsideValidityDomain(
-            "pure saturation follows the 200..=600 K homogeneous EOS envelope".into(),
-        ));
+        return Err(Error::OutsideValidityDomain(format!(
+            "pure saturation follows the {t_lo}..={t_hi} K homogeneous EOS envelope"
+        )));
     }
     let (v_liquid_spinodal, v_vapor_spinodal) = spinodal_volumes(model, temperature)?;
     let p_low = model
         .pressure_derivatives(temperature, v_liquid_spinodal)?
         .0;
     let p_high = model.pressure_derivatives(temperature, v_vapor_spinodal)?.0;
-    let mut lo = (p_low.max(0.01) * (1.0 + 1e-9)).ln();
+    let p_min = CUBIC_PRESSURE_RANGE_PA[0];
+    let mut lo = (p_low.max(p_min) * (1.0 + 1e-9)).ln();
     let mut hi = (p_high * (1.0 - 1e-9)).ln();
     if hi <= lo {
-        return Err(Error::OutsideValidityDomain(
-            "vapor spinodal pressure below the 0.01 Pa envelope".into(),
-        ));
+        return Err(Error::OutsideValidityDomain(format!(
+            "vapor spinodal pressure below the {p_min} Pa envelope"
+        )));
     }
     let difference = |ln_p: f64| -> Result<(f64, f64, f64, f64), Error> {
         let p = Pressure::new(ln_p.exp())?;
@@ -100,9 +103,9 @@ pub fn pure_saturation_pressure(
         ))
     };
     if difference(lo)?.0 <= 0.0 {
-        return Err(Error::OutsideValidityDomain(
-            "saturation pressure below the 0.01 Pa envelope".into(),
-        ));
+        return Err(Error::OutsideValidityDomain(format!(
+            "saturation pressure below the {p_min} Pa envelope"
+        )));
     }
     let mut ln_p = lo + (hi - lo) / 2.0;
     for iteration in 1..=max_iterations {

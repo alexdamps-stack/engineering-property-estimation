@@ -214,11 +214,10 @@ static RENDER: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// drift is gone at 3.0.
 const PIXEL_THRESHOLD: f32 = 0.6;
 
-/// Pixels allowed to exceed [`PIXEL_THRESHOLD`]: 6–14 glyph edge pixels per
-/// image were measured between the baselines and lavapipe, plus a small
-/// margin. A real change such as a moved label or a changed value differs
-/// by far more (the residual text change of #150 alone was 261 pixels).
-const MAX_FAILED_PIXELS: usize = 20;
+/// Pixels allowed to exceed [`PIXEL_THRESHOLD`]. The Windows CI renderer
+/// differed at 23–28 isolated edge pixels on three images (#168). Keep a
+/// small margin for that renderer, with the original allowance elsewhere.
+const MAX_FAILED_PIXELS: usize = if cfg!(windows) { 32 } else { 20 };
 
 fn snapshot_options() -> egui_kittest::SnapshotOptions {
     egui_kittest::SnapshotOptions::new()

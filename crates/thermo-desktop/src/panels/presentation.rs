@@ -4,7 +4,7 @@
 //! tab-separated export all read results through this module.
 
 use flowsheet_core::StreamId;
-use flowsheet_project::StreamResult;
+use flowsheet_project::{Fingerprints, StreamResult};
 
 use crate::editor::{Editor, ItemStatus};
 use crate::units::{DisplayUnits, DisplayUnitsExt, Quantity, format_quantity, format_value};
@@ -110,31 +110,38 @@ impl StreamProperty {
     }
 }
 
+/// The stored result and its display status for the current inputs.
+pub(super) fn stream_result<'a>(
+    ed: &'a Editor,
+    id: StreamId,
+    fps: &Fingerprints,
+) -> Option<(ItemStatus, &'a StreamResult)> {
+    let status = ed.stream_status(id, fps)?;
+    let result = ed.results.as_ref()?.streams.get(&id)?;
+    Some((status, result))
+}
+
 /// One stream of the stream table.
-pub(super) struct StreamColumn {
-    pub(super) name: String,
+pub(super) struct StreamColumn<'a> {
+    pub(super) name: &'a str,
     pub(super) status: Option<ItemStatus>,
-    pub(super) result: Option<StreamResult>,
+    pub(super) result: Option<&'a StreamResult>,
 }
 
 /// Every stream in flowsheet order with its status and, when it has a
 /// status, its stored result.
-pub(super) fn stream_columns(ed: &mut Editor) -> Vec<(StreamId, StreamColumn)> {
-    let fps = ed.fingerprints();
-    let streams: Vec<_> = ed.fs.streams().map(|s| (s.id, s.name.clone())).collect();
-    streams
-        .into_iter()
-        .map(|(id, name)| {
-            let status = ed.stream_status(id, &fps);
-            let result = status.and(
-                ed.results
-                    .as_ref()
-                    .and_then(|r| r.streams.get(&id).cloned()),
-            );
+pub(super) fn stream_columns<'a>(
+    ed: &'a Editor,
+    fps: &Fingerprints,
+) -> Vec<(StreamId, StreamColumn<'a>)> {
+    ed.fs
+        .streams()
+        .map(|stream| {
+            let (status, result) = stream_result(ed, stream.id, fps).unzip();
             (
-                id,
+                stream.id,
                 StreamColumn {
-                    name,
+                    name: &stream.name,
                     status,
                     result,
                 },
@@ -151,13 +158,14 @@ pub(super) fn component_names(ed: &Editor) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Mole fraction `i` of a stored result as display text. Results that do not
-/// match the package component list (for example from a hand-edited file)
-/// show a dash instead of panicking.
+/// Mole fraction `i`, if present in the stored result.
+pub(super) fn fraction_value(fractions: &[f64], i: usize) -> Option<f64> {
+    fractions.get(i).copied()
+}
+
+/// Mole fraction `i` as display text, with a dash for a missing entry.
 pub(super) fn fraction_text(fractions: &[f64], i: usize) -> String {
-    fractions
-        .get(i)
-        .map_or_else(|| "—".to_string(), |x| format_value(*x))
+    fraction_value(fractions, i).map_or_else(|| "—".to_string(), format_value)
 }
 
 /// One-line summary of a stream result: temperature, pressure and molar flow.

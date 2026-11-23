@@ -26,7 +26,7 @@ pub use recycle::*;
 
 pub use flowsheet::{
     ConnectError, Diagnostic, DiagnosticKind, Flowsheet, MAX_IDENTIFIER, RestoreError, Stream,
-    StreamId, UnitStatus,
+    StreamId, UnitIdsExhausted, UnitStatus,
 };
 pub use unit::{
     DEFAULT_EFFICIENCY, ExchangerSpec, MixerPressure, PortDirection, PortRef, PortSpec,

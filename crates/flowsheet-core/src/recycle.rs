@@ -1,11 +1,12 @@
 //! Explicit tear streams and bounded direct substitution for cyclic networks.
-use crate::engine::molar_thermal_scale;
+use crate::engine::{empty, molar_thermal_scale, validate_empty_thermal_spec};
 use crate::{
-    Calculation, Diagnostic, DiagnosticKind, FeedCompositions, Flowsheet, MaterialStream,
-    PortDirection, PortRef, SolveError, SolveProgress, StreamId, UnitKind, UnitSpec,
+    Calculation, Diagnostic, DiagnosticKind, ExchangerSpec, FeedCompositions, Flowsheet,
+    MaterialStream, PortDirection, PortRef, SeparatorThermal, SolveError, SolveProgress, StreamId,
+    ThermalSpec, UnitKind, UnitSpec,
 };
-use property_packages::{CubicPackage, EquilibriumState};
-use std::collections::{BTreeMap, BTreeSet};
+use property_packages::CubicPackage;
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::ops::ControlFlow;
 
 /// Bounded direct substitution. There is no convergence claim for arbitrary loops.
@@ -93,9 +94,9 @@ impl Flowsheet {
     }
 
     /// Solves acyclic networks normally, or automatically tears loops and starts
-    /// mixer-inlet tears at zero flow with the first feed's flashed state; other
-    /// tears start with the flow and flashed state of the nearest upstream feed.
-    /// Each call starts afresh. For process-specific starting states use
+    /// mixer-inlet tears at zero flow. Other tears start from the nearest feed
+    /// along the same material path and use the source outlet temperature
+    /// when specified. For disconnected loops or process-specific starts use
     /// [`Self::solve_recycles`].
     pub fn solve_network_with_progress(
         &self,
@@ -109,64 +110,66 @@ impl Flowsheet {
         }
         self.tear_order(&ids)?;
         self.validate_inputs(package, feeds)?;
-        let feed = self
-            .units()
-            .find(|u| u.kind == UnitKind::Feed)
-            .expect("preflight feed");
-        if progress(SolveProgress {
-            iteration: 0,
-            completed: 0,
-            total: self.units().count(),
-            unit: feed.id,
-        })
-        .is_break()
-        {
-            return Err(SolveError::cancelled());
-        }
-        let mut flashed = BTreeMap::new();
-        let mut feed_state = |id: crate::UnitId| -> Result<(f64, EquilibriumState), SolveError> {
-            if let Some(found) = flashed.get(&id) {
-                return Ok(Clone::clone(found));
+        let mut guesses = BTreeMap::new();
+        for id in ids {
+            let stream = self.stream(id).expect("tear stream");
+            if self.unit(stream.to.unit).expect("tear inlet unit").kind == UnitKind::Mixer {
+                guesses.insert(id, empty());
+                continue;
             }
+            if progress(SolveProgress {
+                iteration: 0,
+                completed: 0,
+                total: self.units().count(),
+                unit: stream.to.unit,
+            })
+            .is_break()
+            {
+                return Err(SolveError::cancelled());
+            }
+            let feed = self.upstream_feed(stream.from).ok_or_else(|| {
+                error(format!("{id}: recycle initialization requires a materially reachable feed; supply explicit tear states"))
+            })?;
             let UnitSpec::Feed {
                 temperature_k: Some(t),
                 pressure_pa: Some(p),
                 molar_flow_mol_s: Some(n),
-            } = self.unit(id).expect("feed unit").spec
+            } = self.unit(feed).expect("feed unit").spec
             else {
                 unreachable!("preflight specification")
             };
-            let z: Vec<_> = feeds[&id].entries().iter().map(|(_, x)| *x).collect();
+            // A specified equipment outlet can be much warmer than the fresh feed.
+            let source = self.unit(stream.from.unit).expect("tear outlet unit");
+            let t = match source.spec {
+                UnitSpec::HeatExchange {
+                    thermal: ThermalSpec::OutletTemperature(Some(t)),
+                    ..
+                }
+                | UnitSpec::Separator {
+                    thermal: SeparatorThermal::OutletTemperature(Some(t)),
+                    ..
+                } => t,
+                UnitSpec::HeatExchanger {
+                    thermal: ExchangerSpec::HotOutletTemperature(Some(t)),
+                    ..
+                } if stream.from.port == 2 => t,
+                UnitSpec::HeatExchanger {
+                    thermal: ExchangerSpec::ColdOutletTemperature(Some(t)),
+                    ..
+                } if stream.from.port == 3 => t,
+                _ => t,
+            };
+            let z: Vec<_> = feeds[&feed].entries().iter().map(|(_, x)| *x).collect();
             let state = package
                 .tp(&z, t, p)
-                .map_err(|e| error(format!("Recycle initialization: {e}")))?;
-            flashed.insert(id, (n, state.clone()));
-            Ok((n, state))
-        };
-        let (_, first) = feed_state(feed.id)?;
-        let mut guesses = BTreeMap::new();
-        for id in ids {
-            let stream = self.stream(id).expect("tear stream");
-            // A mixer tear starts empty: its fresh inlet carries the first pass.
-            // Other units would only pass an empty tear through, so they start
-            // with the flow and flashed state of the nearest upstream feed.
-            let upstream = (self.unit(stream.to.unit).expect("unit").kind != UnitKind::Mixer)
-                .then(|| self.upstream_feed(stream.from.unit))
-                .flatten();
-            let guess = match upstream {
-                Some(feed) => {
-                    let (n, state) = feed_state(feed)?;
-                    MaterialStream {
-                        molar_flow_mol_s: n,
-                        state: Some(state),
-                    }
-                }
-                None => MaterialStream {
-                    molar_flow_mol_s: 0.0,
-                    state: Some(first.clone()),
+                .map_err(|e| error(format!("{id}: recycle initialization: {e}")))?;
+            guesses.insert(
+                id,
+                MaterialStream {
+                    molar_flow_mol_s: n,
+                    state: Some(state),
                 },
-            };
-            guesses.insert(id, guess);
+            );
         }
         self.solve_recycles(
             package,
@@ -259,8 +262,8 @@ impl Flowsheet {
                 .collect();
             last = residuals.values().copied().fold(0.0_f64, f64::max);
             if last <= options.tolerance {
-                match self.close_balances(&mut report, package) {
-                    Ok(()) => {
+                match self.close_balances(&mut report, package)? {
+                    None => {
                         report.recycle = Some(RecycleConvergence {
                             iterations: iteration,
                             max_scaled_residual: last,
@@ -268,7 +271,7 @@ impl Flowsheet {
                         });
                         return Ok(report);
                     }
-                    Err(e) => balance_failure = Some(e),
+                    Some(e) => balance_failure = Some(e),
                 }
             }
             for (&id, value) in &mut tears {
@@ -286,18 +289,21 @@ impl Flowsheet {
         )))
     }
 
-    /// Nearest feed upstream of `unit` (breadth-first against the stream
-    /// direction, ties broken by stream identifier), if any.
-    fn upstream_feed(&self, unit: crate::UnitId) -> Option<crate::UnitId> {
-        let mut seen = BTreeSet::from([unit]);
-        let mut queue = std::collections::VecDeque::from([unit]);
-        while let Some(id) = queue.pop_front() {
-            if self.unit(id)?.kind == UnitKind::Feed {
-                return Some(id);
+    /// Nearest feed upstream of an outlet along material connections.
+    fn upstream_feed(&self, outlet: PortRef) -> Option<crate::UnitId> {
+        let mut seen = HashSet::from([outlet]);
+        let mut queue = VecDeque::from([outlet]);
+        while let Some(outlet) = queue.pop_front() {
+            let unit = self.unit(outlet.unit).expect("material path unit");
+            if unit.kind == UnitKind::Feed {
+                return Some(unit.id);
             }
-            for s in self.streams().filter(|s| s.to.unit == id) {
-                if seen.insert(s.from.unit) {
-                    queue.push_back(s.from.unit);
+            for s in self.streams().filter(|s| {
+                s.to.unit == unit.id
+                    && (unit.kind != UnitKind::HeatExchanger || s.to.port + 2 == outlet.port)
+            }) {
+                if seen.insert(s.from) {
+                    queue.push_back(s.from);
                 }
             }
         }
@@ -327,11 +333,13 @@ impl Flowsheet {
         Ok(order)
     }
 
+    // A balance mismatch can improve on the next pass. An infeasible duty at
+    // the converged inlet state must be reported to the caller immediately.
     fn close_balances(
         &self,
         report: &mut Calculation,
         package: &CubicPackage,
-    ) -> Result<(), String> {
+    ) -> Result<Option<String>, SolveError> {
         for u in self
             .units()
             .filter(|u| !matches!(u.kind, UnitKind::Feed | UnitKind::Product))
@@ -348,17 +356,24 @@ impl Flowsheet {
                 values.push(report.streams[&s.id].clone());
             }
             let unit = report.units.get_mut(&u.id).expect("calculated unit");
-            unit.balance = Some(
-                crate::engine::balance(
-                    &inputs,
-                    &outputs,
-                    unit.duty_w,
-                    package.model().fractions().len(),
-                )
-                .map_err(|e| format!("{}: {e}", u.name))?,
+            let balance = crate::engine::balance(
+                &inputs,
+                &outputs,
+                unit.duty_w,
+                package.model().fractions().len(),
             );
+            match balance {
+                Ok(balance) => unit.balance = Some(balance),
+                Err(e) => return Ok(Some(format!("{}: {e}", u.name))),
+            }
+            validate_empty_thermal_spec(u.spec, &inputs, &outputs, package).map_err(|e| {
+                SolveError {
+                    unit: Some(u.id),
+                    ..error(format!("{}: {e}", u.name))
+                }
+            })?;
         }
-        Ok(())
+        Ok(None)
     }
 }
 

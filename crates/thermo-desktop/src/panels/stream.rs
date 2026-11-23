@@ -4,7 +4,7 @@ use eframe::egui::{self, RichText, Ui};
 use flowsheet_core::{PortRef, StreamId, UnitId};
 use flowsheet_project::format_utc;
 
-use super::presentation::{StreamProperty, component_names, fraction_text};
+use super::presentation::{StreamProperty, component_names, fraction_text, stream_result};
 use super::{status_line, value_text};
 use crate::editor::{Editor, ItemStatus, Selection};
 use crate::symbols::Theme;
@@ -43,7 +43,6 @@ pub(super) fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
             ui.end_row();
         });
     let fps = ed.fingerprints();
-    let status = ed.stream_status(id, &fps);
     ui.add_space(8.0);
     ui.strong("Results");
     let theme = Theme::from_visuals(ui.visuals());
@@ -51,9 +50,7 @@ pub(super) fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
     let components = component_names(ed);
     egui::Frame::group(ui.style()).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        let (Some(status), Some(r)) =
-            (status, ed.results.as_ref().and_then(|r| r.streams.get(&id)))
-        else {
+        let Some((status, r)) = stream_result(ed, id, &fps) else {
             ui.label(RichText::new("Not solved — no values.").weak());
             return;
         };

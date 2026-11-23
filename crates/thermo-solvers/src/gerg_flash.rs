@@ -22,7 +22,10 @@ pub(crate) fn validate(model: &GergModel, t: Temperature, p: Pressure) -> Result
         .iter()
         .any(|id| !QUALIFIED_DRY_COMPONENTS.contains(id))
     {
-        return Err(Error::UnsupportedCapability("GERG equilibrium is qualified only for methane/ethane/propane/nitrogen/carbon-dioxide; no aqueous or heavier-fluid equilibrium".into()));
+        return Err(Error::UnsupportedCapability(format!(
+            "GERG equilibrium is qualified only for {}; no aqueous or heavier-fluid equilibrium",
+            QUALIFIED_DRY_COMPONENTS.join("/")
+        )));
     }
     if !(230.0..=350.0).contains(&t.value()) || !(1e5..=1e7).contains(&p.value()) {
         return Err(Error::OutsideValidityDomain(

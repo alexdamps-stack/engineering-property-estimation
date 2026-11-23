@@ -67,7 +67,7 @@ calculation API, subprocess or Python dependency.
 
   Phases carry full `HomogeneousState` properties (shared caloric reference)
   and a molar phase fraction. The result also reports iterations, fugacity
-  residual, component-balance residual, the Δg/RT of the split and every trial.
+  residual, component-balance residual, the Δg/RT of the split and the trials run.
   `A4-NEWTON-STEPS` reports the accepted Newton step count for a split.
   The CLI's `split_iterations` includes both Newton and SS; the legacy
   `successive_substitution_iterations` key is retained as an alias.
@@ -87,7 +87,9 @@ calculation API, subprocess or Python dependency.
 - **CLI.** `"calculation": "tp-flash"` runs the flash; the `root` field is then
   rejected. `"homogeneous"` (default) keeps the A3 behavior. The output covers
   phases, labels, fractions, compositions, all properties, convergence
-  evidence, every TPD trial and the diagnostics. See
+  evidence, the TPD trials run and the diagnostics. The search stops when a
+  nontrivial negative TPD proves instability. An inconclusive search returns
+  `NonConvergence` when the other trials fail to establish instability. See
   `examples/tp-flash-*.json`.
 
 The A1 residual targets are met with tighter internal values:

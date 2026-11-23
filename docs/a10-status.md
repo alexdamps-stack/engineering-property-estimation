@@ -30,15 +30,20 @@ The committed JSON contains inputs, not reference answers.
 - `solve_network` / `solve_network_with_progress` discover cycles deterministically
   and remove one edge from each remaining cycle, preferring mixer inlets. This
   does not minimize the number of tears. Acyclic graphs use the original path.
-- Automatic starts use zero recycle flow with the first feed's flashed state.
-  `solve_recycles` accepts explicit tear-stream initial states and
+- Automatic starts use zero flow for tears at mixer inlets. Other tears use
+  the nearest upstream feed along the same material path, using the tear
+  source's outlet temperature when specified. A heat exchanger does not pass
+  material between its sides. A non-mixer tear with no reachable feed needs an
+  explicit starting state through `solve_recycles`, which also accepts
   `RecycleOptions`. Unknown tears, incomplete cycle cuts, invalid flows,
   missing inputs, invalid options and unsupported equipment fail explicitly.
   Initial states are re-flashed with the calculation package using their
   composition, pressure and enthalpy; cached phase properties are not reused.
 - Direct substitution reads **previous-pass** tear values at every torn inlet,
   independently of whether its source has already run in the current pass.
-  Every pass produces a fresh set of unit and stream results.
+  Every pass produces a fresh set of unit and stream results. Temporary empty
+  streams can propagate through thermal units. A converged result must have
+  enough flowing inlets to satisfy any imposed duty.
 - Defaults are **500 passes** and **1e-10 maximum scaled closure residual**.
   Closure covers total and component molar flows, enthalpy flow, T, absolute p,
   molar h and mole fractions. A dimensional residual divides by
@@ -99,13 +104,12 @@ unaffected feeds and independent branches retain their currency. There is no
 recursive cycle hashing. Feed composition and connection changes are covered.
 
 Successful results store iteration count and per-tear closure evidence in an
-optional `recycle` field. Projects are therefore written as format version 2
-(#90); version-1 files remain readable and are saved back as version 2.
-Older (A9) applications read only version 1 and report a version-2 file as an
-unsupported format version rather than failing on the unknown field. The
-committed `examples/recycle.flowsheet.json` is deliberately left at version 1
-and is loaded by a test. The engine provenance is
-`flowsheet-core a10-tears-v1`, so results from the previous engine load stale.
+optional `recycle` field. A10 introduced format version 2 (#90). Current writers
+use version 3, which adds exchanger transferred duty, and readers still accept
+versions 1 and 2. A9 applications report newer files as unsupported versions.
+The committed `examples/recycle.flowsheet.json` remains at version 1 and is
+loaded by a test. The A10 engine revision was `flowsheet-core a10-tears-v1`.
+Results from a different engine revision load stale.
 Failed or cancelled solves do not replace stored results; input fingerprints
 keep obsolete values visibly stale.
 
@@ -143,8 +147,8 @@ after the full workspace run.
 Direct substitution need not converge for arbitrary loops. There is no
 Wegstein/Newton recycle acceleration, optimal tear selection, or desktop tear
 configuration form. The explicit API supplies process-specific starting states
-and iteration limits when the automatic zero-flow start is unsuitable.
-Disconnected loops without a flowing source may fail on an empty thermal inlet.
+and iteration limits when the automatic start is unsuitable.
+Disconnected material loops need an explicit circulation flow and tear state.
 Pressure-loss loops still need a supported pressure-raising operation; drawing
 a pump or compressor does not implement it. No new flash domain, equilibrium
 stability claim, or equipment capability is introduced by A10.

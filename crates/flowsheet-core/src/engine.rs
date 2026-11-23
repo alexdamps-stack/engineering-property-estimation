@@ -358,6 +358,10 @@ impl Flowsheet {
                 warnings,
             } = calculate_unit(u.kind, u.spec, &inlets, feeds.get(&id), package)
                 .map_err(|e| fail(id, e))?;
+            if tears.is_empty() {
+                validate_empty_thermal_spec(u.spec, &inlets, &outlets, package)
+                    .map_err(|e| fail(id, e))?;
+            }
             if !duty_w.is_finite()
                 || transferred_duty_w.is_some_and(|q| !q.is_finite())
                 || outlets.iter().any(|s| {
@@ -424,7 +428,7 @@ impl UnitOutput {
 }
 
 /// Zero-flow outlet without a thermodynamic state.
-fn empty() -> MaterialStream {
+pub(crate) fn empty() -> MaterialStream {
     MaterialStream {
         molar_flow_mol_s: 0.0,
         state: None,
@@ -432,6 +436,76 @@ fn empty() -> MaterialStream {
 }
 
 const ZERO_FLOW_WARNING: &str = "Zero inlet flow: passed through as a zero-flow outlet without a thermodynamic state; no duty applied.";
+const SCALED_ENERGY_TOLERANCE: f64 = 2e-9;
+
+/// Empty paths propagate during recycle iteration. At a final state, require
+/// every explicit duty to be feasible with the material that is present.
+pub(crate) fn validate_empty_thermal_spec(
+    spec: UnitSpec,
+    inputs: &[MaterialStream],
+    outputs: &[MaterialStream],
+    package: &CubicPackage,
+) -> Result<(), String> {
+    let zero = |s: &MaterialStream| s.molar_flow_mol_s == 0.0;
+    match spec {
+        UnitSpec::HeatExchange {
+            thermal: ThermalSpec::Duty(Some(q)),
+            ..
+        }
+        | UnitSpec::Separator {
+            thermal: SeparatorThermal::Duty(Some(q)),
+            ..
+        } if q != 0.0 && zero(&inputs[0]) => {
+            return Err("a nonzero specified duty requires positive inlet flow".into());
+        }
+        UnitSpec::HeatExchanger { thermal, .. } if inputs.iter().any(zero) => {
+            let infeasible = match thermal {
+                ExchangerSpec::Duty(Some(q)) => q != 0.0,
+                ExchangerSpec::HotOutletTemperature(Some(t)) if !zero(&inputs[0]) => {
+                    requires_heat(&inputs[0], &outputs[0], t, package)?
+                }
+                ExchangerSpec::ColdOutletTemperature(Some(t)) if !zero(&inputs[1]) => {
+                    requires_heat(&inputs[1], &outputs[1], t, package)?
+                }
+                _ => false,
+            };
+            if infeasible {
+                return Err(
+                    "heat transfer requires positive inlet flow on both exchanger sides".into(),
+                );
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn requires_heat(
+    input: &MaterialStream,
+    output: &MaterialStream,
+    temperature: f64,
+    package: &CubicPackage,
+) -> Result<bool, String> {
+    let inlet = input
+        .state
+        .as_ref()
+        .expect("positive inlet flow has a state");
+    let Some(outlet) = &output.state else {
+        return Ok(true);
+    };
+    if outlet.temperature_k == temperature {
+        return Ok(false);
+    }
+    let target = package
+        .tp(&inlet.mole_fractions, temperature, outlet.pressure_pa)
+        .map_err(|e| e.to_string())?;
+    let h = inlet.enthalpy();
+    let target_h = target.enthalpy();
+    let scale = (h.abs() + target_h.abs())
+        .max(molar_thermal_scale(inlet) + molar_thermal_scale(&target))
+        .max(1.0);
+    Ok((target_h - h).abs() > SCALED_ENERGY_TOLERANCE * scale)
+}
 
 fn calculate_unit(
     kind: UnitKind,
@@ -751,7 +825,7 @@ pub(crate) fn balance(
         || !energy_scale.is_finite()
         || !scaled_energy.is_finite()
         || max_scaled > 1e-8
-        || scaled_energy.abs() > 2e-9
+        || scaled_energy.abs() > SCALED_ENERGY_TOLERANCE
     {
         return Err("component or energy balance failed (1e-8 relative component; 2e-9 scaled energy budget)".into());
     }

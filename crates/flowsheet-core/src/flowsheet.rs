@@ -7,14 +7,21 @@ use crate::unit::{
     PortDirection, PortRef, PortSpec, SpecIssue, SpecProblem, Unit, UnitId, UnitKind, UnitSpec,
 };
 
-/// Largest unit or stream identifier, and largest generated tag number,
-/// that [`Flowsheet::restore`] accepts: 2^53 − 1, the largest integer every
-/// JSON reader represents exactly.
-///
-/// Stored identifiers at or below this bound leave the identifier counters
-/// far more room than a flowsheet can ever use, so [`Flowsheet::add_unit`]
-/// and [`Flowsheet::connect`] cannot overflow or reuse an identifier.
+/// Largest persisted unit or stream identifier: 2^53 − 1, the upper end of
+/// the interoperable integer range for JSON readers using binary64 numbers.
 pub const MAX_IDENTIFIER: u64 = (1 << 53) - 1;
+
+/// The unit identifier counter has reached [`MAX_IDENTIFIER`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnitIdsExhausted;
+
+impl fmt::Display for UnitIdsExhausted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("no unused unit identifier remains above the current counter")
+    }
+}
+
+impl std::error::Error for UnitIdsExhausted {}
 
 /// Stable identifier of a material stream within one [`Flowsheet`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -67,7 +74,9 @@ impl fmt::Display for ConnectError {
             ConnectError::DestinationNotInlet(_) => f.write_str("a stream must end at an inlet"),
             ConnectError::PortOccupied(_) => f.write_str("the port is already connected"),
             ConnectError::SelfConnection(_) => f.write_str("a unit cannot be connected to itself"),
-            ConnectError::StreamIdsExhausted => f.write_str("no unused stream identifier remains"),
+            ConnectError::StreamIdsExhausted => {
+                f.write_str("no unused stream identifier remains above the current counter")
+            }
         }
     }
 }
@@ -227,14 +236,23 @@ impl Flowsheet {
 
     /// Adds a unit with a generated tag and default specification.
     ///
-    /// Identifiers start at 1 and [`Self::restore`] accepts none above
-    /// [`MAX_IDENTIFIER`], so the counter cannot be exhausted by any
-    /// flowsheet that fits in memory.
+    /// Use [`Self::try_add_unit`] when editing a restored flowsheet that may
+    /// already contain identifiers near the limit.
+    ///
+    /// # Panics
+    /// Panics if the unit identifier counter has reached [`MAX_IDENTIFIER`].
     pub fn add_unit(&mut self, kind: UnitKind) -> UnitId {
-        self.next_unit = self
-            .next_unit
-            .checked_add(1)
-            .expect("unit identifiers are bounded by MAX_IDENTIFIER on restore");
+        self.try_add_unit(kind)
+            .expect("unit identifier limit reached")
+    }
+
+    /// Adds a unit, returning an error without editing the flowsheet if the
+    /// unit identifier counter has reached [`MAX_IDENTIFIER`].
+    pub fn try_add_unit(&mut self, kind: UnitKind) -> Result<UnitId, UnitIdsExhausted> {
+        if self.next_unit == MAX_IDENTIFIER {
+            return Err(UnitIdsExhausted);
+        }
+        self.next_unit += 1;
         let id = UnitId(self.next_unit);
         let counter = self.tag_counters.entry(kind.tag_series()).or_insert(0);
         // Restored tag numbers are bounded too; saturating only guards the
@@ -251,7 +269,7 @@ impl Flowsheet {
             },
         );
         self.revision += 1;
-        id
+        Ok(id)
     }
 
     /// Removes a unit and every stream attached to it. Returns the removed unit.
@@ -292,12 +310,11 @@ impl Flowsheet {
     /// Connects an outlet port to an inlet port with a new stream.
     pub fn connect(&mut self, from: PortRef, to: PortRef) -> Result<StreamId, ConnectError> {
         self.check_connection(from, to, |port| self.stream_at(port).is_some())?;
-        let next = self
-            .next_stream
-            .checked_add(1)
-            .ok_or(ConnectError::StreamIdsExhausted)?;
-        self.next_stream = next;
-        let id = StreamId(next);
+        if self.next_stream == MAX_IDENTIFIER {
+            return Err(ConnectError::StreamIdsExhausted);
+        }
+        self.next_stream += 1;
+        let id = StreamId(self.next_stream);
         self.streams.insert(
             id,
             Stream {
@@ -908,7 +925,7 @@ mod tests {
     }
 
     #[test]
-    fn restore_rejects_identifiers_without_room_to_allocate() {
+    fn restored_identifiers_respect_the_persisted_range() {
         let mut fs = Flowsheet::new();
         let feed = fs.add_unit(UnitKind::Feed);
         let product = fs.add_unit(UnitKind::Product);
@@ -931,24 +948,38 @@ mod tests {
             );
         }
 
-        // The largest accepted identifiers still leave room for new ones.
+        // The final identifier is usable. Exhaustion leaves the graph intact.
         let mut u = units.clone();
-        u[1].id = UnitId(MAX_IDENTIFIER);
+        u[1].id = UnitId(MAX_IDENTIFIER - 1);
         u[1].name = format!("Product {}", u64::MAX);
         let mut restored = Flowsheet::restore(u, Vec::new()).unwrap();
         let next = restored.add_unit(UnitKind::Product);
-        assert_eq!(next, UnitId(MAX_IDENTIFIER + 1));
+        assert_eq!(next, UnitId(MAX_IDENTIFIER));
         // An out-of-range tag number counts as a user-chosen name.
         assert_eq!(restored.unit(next).unwrap().name, "Product 2");
-        let mut s = streams.clone();
-        s[0].id = StreamId(MAX_IDENTIFIER);
+        let before = restored.clone();
+        assert_eq!(
+            restored.try_add_unit(UnitKind::Product),
+            Err(UnitIdsExhausted)
+        );
+        assert_eq!(restored, before);
+
+        let mut s = streams;
+        s[0].id = StreamId(MAX_IDENTIFIER - 1);
         let mut restored = Flowsheet::restore(units, s).unwrap();
         let p2 = restored.add_unit(UnitKind::Product);
         let f2 = restored.add_unit(UnitKind::Feed);
         assert_eq!(
             restored.connect(out(f2), PortRef::new(p2, 0)),
-            Ok(StreamId(MAX_IDENTIFIER + 1))
+            Ok(StreamId(MAX_IDENTIFIER))
         );
+        restored.disconnect(StreamId(MAX_IDENTIFIER)).unwrap();
+        let before = restored.clone();
+        assert_eq!(
+            restored.connect(out(f2), PortRef::new(p2, 0)),
+            Err(ConnectError::StreamIdsExhausted)
+        );
+        assert_eq!(restored, before);
     }
 
     #[test]

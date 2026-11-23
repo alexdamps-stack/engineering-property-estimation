@@ -186,15 +186,41 @@ impl Editor {
     }
 
     /// Adds a unit at `center` (world) and selects it.
+    ///
+    /// # Panics
+    /// Panics if the unit identifier limit is reached. Use
+    /// [`Self::try_add_unit_at`] when editing restored projects.
     pub fn add_unit_at(&mut self, kind: UnitKind, center: Pos2) -> UnitId {
-        let id = self.fs.add_unit(kind);
+        self.try_add_unit_at(kind, center)
+            .expect("unit identifier limit reached")
+    }
+
+    /// Adds a unit at `center` (world) and selects it, or reports an error.
+    pub fn try_add_unit_at(&mut self, kind: UnitKind, center: Pos2) -> Option<UnitId> {
+        let id = match self.fs.try_add_unit(kind) {
+            Ok(id) => id,
+            Err(error) => {
+                self.status = Some(error.to_string());
+                return None;
+            }
+        };
         self.layout.insert(id, center);
         self.selection = Some(Selection::Unit(id));
-        id
+        Some(id)
     }
 
     /// Adds a unit near `hint` (world), offset so it does not cover an existing block.
+    ///
+    /// # Panics
+    /// Panics if the unit identifier limit is reached. Use
+    /// [`Self::try_add_unit_near`] when editing restored projects.
     pub fn add_unit_near(&mut self, kind: UnitKind, hint: Pos2) -> UnitId {
+        self.try_add_unit_near(kind, hint)
+            .expect("unit identifier limit reached")
+    }
+
+    /// Adds a unit near `hint` without overlapping an existing block, or reports an error.
+    pub fn try_add_unit_near(&mut self, kind: UnitKind, hint: Pos2) -> Option<UnitId> {
         let mut center = pos2(
             (hint.x / 10.0).round() * 10.0,
             (hint.y / 10.0).round() * 10.0,
@@ -202,7 +228,7 @@ impl Editor {
         while self.layout.values().any(|p| p.distance(center) < 30.0) {
             center += Vec2::splat(30.0);
         }
-        self.add_unit_at(kind, center)
+        self.try_add_unit_at(kind, center)
     }
 
     /// Whether a new stream between the two ports would be accepted, in either order.
@@ -584,6 +610,9 @@ impl Editor {
             SolveOutcome::Failed(f) if f.cancelled => {
                 self.status = Some(f.message);
             }
+            // The worker solved a snapshot. A deleted unit has no place in
+            // the current project to report its failure.
+            SolveOutcome::Failed(f) if f.unit.is_some_and(|id| self.fs.unit(id).is_none()) => {}
             SolveOutcome::Failed(f) => {
                 self.status = None;
                 self.failure = Some(Failure {
@@ -679,6 +708,27 @@ mod tests {
         let a = ed.add_unit_near(UnitKind::Heater, pos2(100.0, 100.0));
         let b = ed.add_unit_near(UnitKind::Heater, pos2(100.0, 100.0));
         assert_ne!(ed.layout[&a], ed.layout[&b]);
+    }
+
+    #[test]
+    fn adding_a_unit_at_the_identifier_limit_leaves_the_project_untouched() {
+        let mut ed = Editor::default();
+        let product = ed.add_unit_at(UnitKind::Product, pos2(100.0, 100.0));
+        let mut unit = ed.fs.unit(product).unwrap().clone();
+        unit.id = UnitId(flowsheet_core::MAX_IDENTIFIER);
+        ed.fs = Flowsheet::restore([unit], []).unwrap();
+        let before = ed.fs.clone();
+        let layout = ed.layout.clone();
+        let selection = ed.selection;
+
+        assert!(
+            ed.try_add_unit_near(UnitKind::Feed, pos2(0.0, 0.0))
+                .is_none()
+        );
+        assert_eq!(ed.fs, before);
+        assert_eq!(ed.layout, layout);
+        assert_eq!(ed.selection, selection);
+        assert!(ed.status.unwrap().contains("unit identifier"));
     }
 
     #[test]
@@ -831,6 +881,31 @@ mod tests {
         assert!(ed.failure.is_some());
         ed.selection = Some(Selection::Unit(valve));
         ed.delete_selection();
+        assert!(ed.failure.is_none());
+    }
+
+    #[test]
+    fn a_running_solve_cannot_report_failure_for_a_deleted_unit() {
+        let mut ed = Editor::default();
+        ed.load_demonstration();
+        let valve = ed
+            .fs
+            .units()
+            .find(|u| u.kind == UnitKind::Valve)
+            .unwrap()
+            .id;
+        ed.fs.set_spec(
+            valve,
+            flowsheet_core::UnitSpec::Valve {
+                pressure: flowsheet_core::PressureSpec::OutletPressure(Some(6.0e6)),
+            },
+        );
+        ed.start_solve(None);
+        assert!(ed.is_solving());
+        ed.selection = Some(Selection::Unit(valve));
+        ed.delete_selection();
+        ed.wait_for_solve();
+        assert!(ed.results.is_none());
         assert!(ed.failure.is_none());
     }
 

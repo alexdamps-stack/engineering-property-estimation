@@ -1,7 +1,8 @@
 //! Message list of the bottom panel.
 
 use eframe::egui::{RichText, ScrollArea, Ui};
-use flowsheet_core::{DiagnosticKind, UnitId};
+use flowsheet_core::{DiagnosticKind, StreamId, UnitId};
+use flowsheet_project::Currency;
 
 use super::status_style;
 use crate::editor::{Editor, ItemStatus, Selection};
@@ -16,21 +17,20 @@ pub(super) struct Message {
 
 pub(super) fn messages_of(ed: &mut Editor) -> Vec<Message> {
     let mut out = Vec::new();
-    if ed.results.as_ref().is_some_and(|r| r.recycle.is_some()) {
-        let fps = ed.fingerprints();
-        let current = ed.results.as_ref().is_some_and(|results| {
-            // Results of deleted units have no inputs left to compare.
-            results
-                .units
-                .keys()
-                .filter(|id| ed.fs.unit(**id).is_some())
-                .all(|id| results.unit_currency(*id, &fps) == flowsheet_project::Currency::Current)
-        });
-        let r = ed
-            .results
-            .as_ref()
-            .and_then(|r| r.recycle.as_ref())
-            .expect("recycle result");
+    let fps = ed.fingerprints();
+    if let Some(results) = &ed.results
+        && let Some(r) = &results.recycle
+    {
+        // An unrelated deleted unit can be ignored, but the tear streams
+        // must still exist and have current results for closure to apply.
+        let current = results
+            .units
+            .keys()
+            .filter(|id| ed.fs.unit(**id).is_some())
+            .all(|id| results.unit_currency(*id, &fps) == Currency::Current)
+            && r.tears.iter().all(|(id, _)| {
+                results.stream_currency(&ed.fs, StreamId(*id), &fps) == Currency::Current
+            });
         out.push(Message {
             unit: None,
             status: if current {
@@ -78,13 +78,12 @@ pub(super) fn messages_of(ed: &mut Editor) -> Vec<Message> {
             text: i.message,
         });
     }
-    let fps = ed.fingerprints();
     if let Some(r) = &ed.results {
         for (id, u) in &r.units {
             if ed.fs.unit(*id).is_none() || u.warnings.is_empty() {
                 continue;
             }
-            let current = r.unit_currency(*id, &fps) == flowsheet_project::Currency::Current;
+            let current = r.unit_currency(*id, &fps) == Currency::Current;
             for w in &u.warnings {
                 out.push(Message {
                     unit: Some(*id),
@@ -158,5 +157,14 @@ mod tests {
         ed.selection = Some(Selection::Unit(product));
         ed.delete_selection();
         assert_eq!(recycle(&mut ed), Some(ItemStatus::Solved));
+
+        // Removing all units leaves no unit result to mark stale, but
+        // the recorded closure still refers to a deleted tear stream.
+        let units: Vec<_> = ed.fs.units().map(|u| u.id).collect();
+        for id in units {
+            ed.selection = Some(Selection::Unit(id));
+            ed.delete_selection();
+        }
+        assert_eq!(recycle(&mut ed), Some(ItemStatus::Stale));
     }
 }
