@@ -356,7 +356,8 @@ impl Editor {
             .to_project()
             .ok_or("Create a project with a property package before saving.")?;
         let text = project.to_json().map_err(|e| e.to_string())?;
-        std::fs::write(path, &text).map_err(|e| format!("Saving failed: {e}"))?;
+        flowsheet_project::write_atomically(path, text.as_bytes())
+            .map_err(|e| format!("Saving failed: {e}"))?;
         self.path = Some(path.to_path_buf());
         self.set_saved(Some(text));
         self.status = Some(format!("Saved {}.", path.display()));
