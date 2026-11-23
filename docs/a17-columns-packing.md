@@ -78,3 +78,10 @@ are implemented here.
   1 for packed stages.
 - A `docs/a17-status.md` Columns row once a column kind is calculated with
   packed sections.
+
+## Placement in the stage cascade
+
+`stages.rs::PlacedPackedSection` converts the section-local zero-based
+`stage_at_depth` to one-based column stages. It also checks condenser and
+reboiler exclusion and efficiency 1 against a `StageCascade`
+(see [a17-columns-stages.md](a17-columns-stages.md#packed-sections-joint-contract-with-packingrs)).

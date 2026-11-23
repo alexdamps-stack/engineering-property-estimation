@@ -47,6 +47,7 @@
 //! condenser port reports `−Q_1` and the reboiler port `Q_N`
 //! ([`ColumnEnds::port_duties`]).
 
+use super::packing::PackedStages;
 use crate::engine::MaterialStream;
 use crate::units::CalcContext;
 use thermo_models::RootSelection;
@@ -596,6 +597,68 @@ impl ColumnEnds {
     }
 }
 
+/// A packed section placed in the cascade: its ideal theoretical stages
+/// ([`PackedStages`]) occupy the consecutive column stages
+/// `top_stage..top_stage + stages` (one-based, numbered from the top like
+/// every [`Stage`]). The packing module counts stages from zero within the
+/// section; this is the only translation between the two numberings.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlacedPackedSection {
+    /// One-based column stage at the top of the bed.
+    pub top_stage: usize,
+    pub packed: PackedStages,
+}
+
+impl PlacedPackedSection {
+    /// One-based column stages of the section.
+    pub fn column_stages(&self) -> std::ops::RangeInclusive<usize> {
+        self.top_stage..=self.top_stage + usize::from(self.packed.stages) - 1
+    }
+
+    /// One-based column stage receiving a feed or draw at `depth_m` below
+    /// the top of the bed. A feed at the top face enters the first section
+    /// stage, one at the bottom face the last; a point on an internal stage
+    /// boundary belongs to the lower stage ([`PackedStages::stage_at_depth`]).
+    /// The feed enters that stage as a whole ([`StageFeed`]).
+    pub fn column_stage_at_depth(&self, depth_m: f64) -> Result<usize, String> {
+        Ok(self.top_stage + usize::from(self.packed.stage_at_depth(depth_m)?))
+    }
+
+    /// Checks the section against a cascade: within its stages, clear of a
+    /// condenser (stage 1) and reboiler (stage N), which are separate
+    /// equilibrium stages, and with Murphree efficiency
+    /// [`PackedStages::stage_efficiency`] (1) on every packed stage, since
+    /// the HETP already accounts for non-ideal contacting.
+    pub fn check(&self, cascade: &StageCascade, ends: ColumnEnds) -> Result<(), String> {
+        let n = cascade.len();
+        let range = self.column_stages();
+        let first = if ends.condenser.is_some() { 2 } else { 1 };
+        let last = if ends.reboiler {
+            n.saturating_sub(1)
+        } else {
+            n
+        };
+        if self.top_stage < first || *range.end() > last {
+            return Err(format!(
+                "packed stages {} to {} lie outside the column stages {first} to {last} \
+                 available to packing",
+                range.start(),
+                range.end()
+            ));
+        }
+        let eta = self.packed.stage_efficiency();
+        for j in range {
+            if cascade.stages[j - 1].efficiency != eta {
+                return Err(format!(
+                    "packed stage {j} has efficiency {}; HETP stages are ideal",
+                    cascade.stages[j - 1].efficiency
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// A fixed terminal temperature approach at a condenser or reboiler against
 /// a utility inlet temperature, as for the exchangers: the condenser outlet
 /// is the hot outlet facing the coolant inlet (`T_1 − T_c,in = ΔT`), the
@@ -663,6 +726,67 @@ impl EndApproach {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::units::columns::packing::{PackedSectionBasis, PackedSectionSpec, StageRounding};
+
+    fn cascade_of(n: usize) -> StageCascade {
+        let s = Stage::equilibrium(350.0, 1e5, 1.0, 1.0, vec![0.5, 0.5], vec![0.5, 0.5]);
+        StageCascade {
+            stages: vec![s; n],
+            feeds: vec![],
+        }
+    }
+
+    /// Packed numbering (zero-based within the bed) meets column numbering
+    /// (one-based from the top), condenser/reboiler exclusion and ideal
+    /// packed stages.
+    #[test]
+    fn packed_sections_place_ideal_stages_in_column_numbering() {
+        // 4 m of packing at HETP 1 m: four ideal stages.
+        let packed = PackedSectionSpec {
+            hetp_m: Some(1.0),
+            basis: PackedSectionBasis::PackedHeight {
+                height_m: Some(4.0),
+                rounding: StageRounding::Nearest,
+            },
+        }
+        .resolve()
+        .unwrap();
+        // Distillation: condenser 1, bed on stages 2..=5, reboiler 6.
+        let mut column = cascade_of(6);
+        let bed = PlacedPackedSection {
+            top_stage: 2,
+            packed,
+        };
+        assert_eq!(bed.column_stages(), 2..=5);
+        assert_eq!(bed.column_stage_at_depth(0.0), Ok(2));
+        assert_eq!(bed.column_stage_at_depth(2.0), Ok(4));
+        assert_eq!(bed.column_stage_at_depth(4.0), Ok(5));
+        assert!(bed.column_stage_at_depth(4.5).is_err());
+        bed.check(&column, ColumnEnds::DISTILLATION).unwrap();
+        for top_stage in [1, 3] {
+            let off = PlacedPackedSection { top_stage, packed };
+            assert!(
+                off.check(&column, ColumnEnds::DISTILLATION)
+                    .unwrap_err()
+                    .contains("outside")
+            );
+        }
+        column.stages[3].efficiency = 0.7;
+        assert!(
+            bed.check(&column, ColumnEnds::DISTILLATION)
+                .unwrap_err()
+                .contains("ideal")
+        );
+        // Absorber: the whole cascade is the bed; lean liquid at the top
+        // face enters stage 1 and rich gas at the bottom face stage N.
+        let absorber = PlacedPackedSection {
+            top_stage: 1,
+            packed,
+        };
+        absorber.check(&cascade_of(4), ColumnEnds::NONE).unwrap();
+        assert_eq!(absorber.column_stage_at_depth(0.0), Ok(1));
+        assert_eq!(absorber.column_stage_at_depth(4.0), Ok(4));
+    }
 
     fn props(k: &[f64], hl: f64, hv: f64) -> StageProperties {
         StageProperties {

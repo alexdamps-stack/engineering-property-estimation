@@ -69,5 +69,34 @@ duties, and a single stage built from a cubic TP flash (ethane/propane, PR).
    utility material ports (shared change through the integrator).
 4. Absorber has no energy ports; any stage duty there needs ports added in
    `columns::info` (shared columns file).
-5. Packed sections: theoretical stages from height/HETP map onto this cascade;
-   rate-based segments need their own residuals.
+5. Packed sections: `packing.rs` resolves height/HETP to ideal stages and
+   `PlacedPackedSection` places them (below); section stacking in the column
+   spec, HETP correlations and rate-based segment residuals remain.
+
+## Packed sections (joint contract with `packing.rs`)
+
+`PlacedPackedSection { top_stage, packed }` in `stages.rs` places the ideal
+stages of a resolved `PackedStages` in the cascade, so the two modules agree:
+
+- **Numbering.** `PackedStages::stage_at_depth` counts from 0 within the bed;
+  cascade stages are numbered from 1 at the column top. The bed occupies column
+  stages `top_stage..=top_stage + stages − 1`, and `column_stage_at_depth`
+  returns `top_stage + stage_at_depth(depth)`.
+- **Feed placement.** A feed or draw at depth `d` enters that one stage as
+  a whole (`StageFeed`). The top face belongs to the first bed stage and the
+  bottom face to the last. A point on an internal boundary belongs to the
+  lower stage. In an absorber bed spanning the column, lean liquid at the top
+  face is stage 1 and rich gas at the bottom face is stage N, matching the
+  absorber ports.
+- **Ends.** The condenser (stage 1) and reboiler (stage N) are separate
+  equilibrium stages and never part of a bed; `check` rejects overlap.
+- **Efficiency.** Packed stages carry Murphree efficiency
+  `PackedStages::stage_efficiency()` = 1; `check` rejects any other value.
+  Trayed stages keep their own Murphree efficiency in `Stage::efficiency`.
+  An *overall* (O'Connell-type) efficiency is not a stage property. It
+  would convert actual trays to theoretical stages before the cascade is
+  built, and it is not implemented.
+
+No mismatch remained beyond the missing numbering bridge, which this type
+provides. Stacking several sections (non-overlapping, contiguous ranges) is
+left to the column specification and solver.
