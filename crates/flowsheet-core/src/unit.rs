@@ -812,6 +812,10 @@ pub enum ExchangerSpec {
     ColdOutletTemperature(Option<f64>),
     /// Heat transferred from the hot to the cold side in W.
     Duty(Option<f64>),
+    /// Hot inlet temperature minus cold outlet temperature, in K.
+    HotEndApproach(Option<f64>),
+    /// Hot outlet temperature minus cold inlet temperature, in K.
+    ColdEndApproach(Option<f64>),
 }
 
 /// Duty of an energy source boundary (#171).
@@ -1064,6 +1068,8 @@ impl UnitSpec {
                     opt("cold outlet temperature", t, Sign::Positive)
                 }
                 ExchangerSpec::Duty(q) => opt("duty", q, Sign::NonNegative),
+                ExchangerSpec::HotEndApproach(t) => opt("hot-end approach", t, Sign::NonNegative),
+                ExchangerSpec::ColdEndApproach(t) => opt("cold-end approach", t, Sign::NonNegative),
             },
             UnitSpec::Pressurize { pressure, .. } => match pressure {
                 PressureRise::OutletPressure(p) => opt("outlet pressure", p, Sign::Positive),

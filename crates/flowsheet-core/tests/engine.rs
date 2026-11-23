@@ -242,42 +242,62 @@ fn splitter_endpoints_and_branch_rejoin_preserve_states_and_balances() {
     }
 }
 
+fn exchanger(
+    thermal: ExchangerSpec,
+    flows: [f64; 2],
+    drops: [f64; 2],
+) -> (
+    Flowsheet,
+    property_packages::CubicPackage,
+    FeedCompositions,
+    UnitId,
+) {
+    let (_, pkg, compositions) =
+        support::demonstration(CubicVariant::PengRobinsonBostonMathias, 1.0);
+    let mut fs = Flowsheet::new();
+    let ex = fs.add_unit(UnitKind::HeatExchanger);
+    fs.set_spec(
+        ex,
+        UnitSpec::HeatExchanger {
+            thermal,
+            hot_pressure_drop_pa: drops[0],
+            cold_pressure_drop_pa: drops[1],
+        },
+    );
+    let mut feeds = FeedCompositions::new();
+    for (i, ((temperature_k, flow), composition)) in [350.0, 330.0]
+        .into_iter()
+        .zip(flows)
+        .zip(compositions.into_values().rev())
+        .enumerate()
+    {
+        let feed = fs.add_unit(UnitKind::Feed);
+        fs.set_spec(
+            feed,
+            UnitSpec::Feed {
+                temperature_k: Some(temperature_k),
+                pressure_pa: Some(5e6),
+                molar_flow_mol_s: Some(flow),
+            },
+        );
+        feeds.insert(feed, composition);
+        fs.connect(PortRef::new(feed, 0), PortRef::new(ex, i))
+            .unwrap();
+        let product = fs.add_unit(UnitKind::Product);
+        fs.connect(PortRef::new(ex, i + 2), PortRef::new(product, 0))
+            .unwrap();
+    }
+    (fs, pkg, feeds, ex)
+}
+
 #[test]
-fn exchanger_conserves_energy_for_all_specifications() {
+fn exchanger_conserves_energy_for_legacy_specifications() {
     for thermal in [
         ExchangerSpec::Duty(Some(1000.0)),
         ExchangerSpec::HotOutletTemperature(Some(340.0)),
         ExchangerSpec::ColdOutletTemperature(Some(332.0)),
     ] {
-        let (mut fs, pkg, feeds) =
-            support::demonstration(CubicVariant::PengRobinsonBostonMathias, 1.0);
-        let feed_ids: Vec<_> = feeds.keys().copied().collect();
-        let remove: Vec<_> = fs
-            .units()
-            .filter(|u| u.kind != UnitKind::Feed)
-            .map(|u| u.id)
-            .collect();
-        for id in remove {
-            fs.remove_unit(id);
-        }
-        let ex = fs.add_unit(UnitKind::HeatExchanger);
-        fs.set_spec(
-            ex,
-            UnitSpec::HeatExchanger {
-                thermal,
-                hot_pressure_drop_pa: 1e5,
-                cold_pressure_drop_pa: 2e5,
-            },
-        );
-        fs.connect(PortRef::new(feed_ids[1], 0), PortRef::new(ex, 0))
-            .unwrap();
-        fs.connect(PortRef::new(feed_ids[0], 0), PortRef::new(ex, 1))
-            .unwrap();
-        for i in 2..4 {
-            let product = fs.add_unit(UnitKind::Product);
-            fs.connect(PortRef::new(ex, i), PortRef::new(product, 0))
-                .unwrap();
-        }
+        let (fs, pkg, feeds, ex) = exchanger(thermal, [20.0, 100.0], [1e5, 2e5]);
         let r = fs.solve(&pkg, &feeds).unwrap();
         // The transferred heat is internal and recorded separately (#119).
         assert_eq!(r.units[&ex].duty_w, 0.0);
@@ -295,6 +315,196 @@ fn exchanger_conserves_energy_for_all_specifications() {
             balance.max_scaled_component_residual < 1e-9
                 && balance.scaled_energy_residual.abs() < 1e-9
         );
+    }
+}
+
+#[test]
+fn exchanger_approaches_keep_the_selected_tp_outlet_and_balance_each_pass() {
+    use ExchangerSpec::{ColdEndApproach, HotEndApproach};
+
+    for (thermal, cold_flow, target_port, target_temperature, zero_duty) in [
+        (HotEndApproach(Some(18.0)), 100.0, 3, 332.0, false),
+        (ColdEndApproach(Some(10.0)), 100.0, 2, 340.0, false),
+        (HotEndApproach(Some(0.0)), 5.0, 3, 350.0, false),
+        (ColdEndApproach(Some(0.0)), 100.0, 2, 330.0, false),
+        (HotEndApproach(Some(20.0)), 100.0, 3, 330.0, true),
+        (ColdEndApproach(Some(20.0)), 100.0, 2, 350.0, true),
+    ] {
+        let drops = if zero_duty { [0.0, 0.0] } else { [1e5, 2e5] };
+        let (fs, pkg, feeds, ex) = exchanger(thermal, [20.0, cold_flow], drops);
+        let r = fs.solve(&pkg, &feeds).unwrap();
+        let [hot_in, cold_in, hot_out, cold_out] =
+            [0, 1, 2, 3].map(|port| &r.streams[&fs.stream_at(PortRef::new(ex, port)).unwrap().id]);
+        for (i, (inlet, outlet)) in [(hot_in, hot_out), (cold_in, cold_out)]
+            .into_iter()
+            .enumerate()
+        {
+            let state = outlet.state.as_ref().unwrap();
+            assert_eq!(outlet.molar_flow_mol_s, inlet.molar_flow_mol_s);
+            assert_eq!(
+                outlet.component_flows_mol_s(5),
+                inlet.component_flows_mol_s(5)
+            );
+            assert_eq!(
+                state.pressure_pa,
+                inlet.state.as_ref().unwrap().pressure_pa - drops[i]
+            );
+            if i + 2 == target_port {
+                assert_eq!(state.temperature_k, target_temperature);
+                assert!(state.convergence.scaled_energy_residual.is_none());
+            } else {
+                assert!(state.convergence.scaled_energy_residual.is_some());
+            }
+        }
+        assert!(
+            hot_in.state.as_ref().unwrap().temperature_k
+                >= cold_out.state.as_ref().unwrap().temperature_k
+        );
+        assert!(
+            hot_out.state.as_ref().unwrap().temperature_k
+                >= cold_in.state.as_ref().unwrap().temperature_k
+        );
+        let u = &r.units[&ex];
+        let q = u.transferred_duty_w.unwrap();
+        assert_eq!(u.duty_w, 0.0);
+        assert!(r.energy_streams.is_empty());
+        if zero_duty {
+            assert_eq!(q, 0.0);
+        } else {
+            assert!(q > 0.0);
+        }
+        let hot_duty = hot_out.enthalpy_flow_w() - hot_in.enthalpy_flow_w();
+        let cold_duty = cold_out.enthalpy_flow_w() - cold_in.enthalpy_flow_w();
+        let budget = 1e-8 * q.max(1000.0);
+        assert!((hot_duty + q).abs() < budget);
+        assert!((cold_duty - q).abs() < budget);
+        let balance = u.balance.as_ref().unwrap();
+        assert!(balance.max_scaled_component_residual < 1e-9);
+        assert!(balance.scaled_energy_residual.abs() < 1e-9);
+    }
+}
+
+#[test]
+fn exchanger_approaches_resolve_a_double_pinch_and_reject_a_small_crossover() {
+    use ExchangerSpec::{ColdEndApproach, HotEndApproach};
+
+    let inlet_temperatures = [349.375_123, 330.414_516];
+    for (thermal, crossing_flow) in [
+        (HotEndApproach(Some(0.0)), 20.0001),
+        (ColdEndApproach(Some(0.0)), 19.9999),
+    ] {
+        for cold_flow in [20.0, crossing_flow] {
+            let flows = [20.0, cold_flow];
+            let (mut fs, pkg, mut feeds, ex) = exchanger(thermal, flows, [0.0, 0.0]);
+            let [hot, cold] =
+                [0, 1].map(|port| fs.stream_at(PortRef::new(ex, port)).unwrap().from.unit);
+            feeds.insert(hot, feeds[&cold].clone());
+            for (i, feed) in [hot, cold].into_iter().enumerate() {
+                fs.set_spec(
+                    feed,
+                    UnitSpec::Feed {
+                        temperature_k: Some(inlet_temperatures[i]),
+                        pressure_pa: Some(5e6),
+                        molar_flow_mol_s: Some(flows[i]),
+                    },
+                );
+            }
+            let result = fs.solve(&pkg, &feeds);
+            if cold_flow == crossing_flow {
+                let err = result.unwrap_err();
+                assert_eq!(err.unit, Some(ex));
+                assert!(
+                    err.message.contains("terminal temperature crossover"),
+                    "{err}"
+                );
+            } else {
+                let r = result.unwrap();
+                for (port, target) in [2, 3].into_iter().zip(inlet_temperatures.into_iter().rev()) {
+                    let id = fs.stream_at(PortRef::new(ex, port)).unwrap().id;
+                    let state = r.streams[&id].state.as_ref().unwrap();
+                    assert!((state.temperature_k - target).abs() < 1e-7);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn exchanger_approaches_reject_invalid_specs_and_unavailable_inlets() {
+    use ExchangerSpec::{ColdEndApproach, HotEndApproach};
+    use SpecProblem::{Negative, NotFinite};
+
+    for (mode, field, reference_port) in [
+        (
+            HotEndApproach as fn(Option<f64>) -> ExchangerSpec,
+            "hot-end approach",
+            0,
+        ),
+        (ColdEndApproach, "cold-end approach", 1),
+    ] {
+        let (fs, pkg, feeds, ex) = exchanger(mode(None), [20.0, 100.0], [1e5, 2e5]);
+        let err = fs.solve(&pkg, &feeds).unwrap_err();
+        assert_eq!(
+            err.diagnostics[0].kind,
+            DiagnosticKind::MissingSpecification(ex, vec![field])
+        );
+        for (value, problem) in [
+            (-f64::EPSILON, Negative),
+            (f64::NAN, NotFinite),
+            (f64::INFINITY, NotFinite),
+        ] {
+            let (fs, pkg, feeds, ex) = exchanger(mode(Some(value)), [20.0, 100.0], [1e5, 2e5]);
+            let err = fs.solve(&pkg, &feeds).unwrap_err();
+            assert_eq!(
+                err.diagnostics[0].kind,
+                DiagnosticKind::InvalidSpecification(ex, SpecIssue { field, problem })
+            );
+        }
+        let thermal = mode(Some(18.0));
+        let (mut fs, pkg, feeds, ex) = exchanger(thermal, [20.0, 100.0], [1e5, 2e5]);
+        let reference = PortRef::new(ex, reference_port);
+        fs.disconnect(fs.stream_at(reference).unwrap().id);
+        let err = fs.solve(&pkg, &feeds).unwrap_err();
+        assert!(
+            err.diagnostics
+                .iter()
+                .any(|d| d.kind == DiagnosticKind::UnconnectedPort(reference))
+        );
+
+        for flows in [[0.0, 100.0], [20.0, 0.0], [0.0, 0.0]] {
+            let (fs, pkg, feeds, ex) = exchanger(thermal, flows, [1e5, 2e5]);
+            let err = fs.solve(&pkg, &feeds).unwrap_err();
+            assert_eq!(err.unit, Some(ex));
+            assert!(
+                err.message.contains("positive flow on both inlet sides"),
+                "{err}"
+            );
+        }
+    }
+}
+
+#[test]
+fn exchanger_approaches_reject_reverse_duty_and_crossover_at_the_other_terminal() {
+    use ExchangerSpec::{ColdEndApproach, HotEndApproach};
+
+    let reverse = "nonnegative hot-to-cold duty";
+    let crossover = "terminal temperature crossover";
+    let domain = "temperature outside package search interval";
+    let pressure = "nonpositive absolute outlet pressure";
+    for (thermal, cold_flow, drops, message) in [
+        (HotEndApproach(Some(20.00001)), 100.0, [0.0, 0.0], reverse),
+        (ColdEndApproach(Some(20.00001)), 100.0, [0.0, 0.0], reverse),
+        (HotEndApproach(Some(0.0)), 100.0, [1e5, 2e5], crossover),
+        (ColdEndApproach(Some(0.0)), 20.0, [1e5, 2e5], crossover),
+        (HotEndApproach(Some(400.0)), 100.0, [1e5, 2e5], domain),
+        (ColdEndApproach(Some(100.0)), 100.0, [1e5, 2e5], domain),
+        (HotEndApproach(Some(18.0)), 100.0, [5e6, 2e5], pressure),
+        (ColdEndApproach(Some(10.0)), 100.0, [1e5, 5e6], pressure),
+    ] {
+        let (fs, pkg, feeds, ex) = exchanger(thermal, [20.0, cold_flow], drops);
+        let err = fs.solve(&pkg, &feeds).unwrap_err();
+        assert_eq!(err.unit, Some(ex));
+        assert!(err.message.contains(message), "{thermal:?}: {err}");
     }
 }
 

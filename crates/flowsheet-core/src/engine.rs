@@ -812,10 +812,18 @@ fn calculate_unit(
             Ok(UnitOutput::new(vec![a, b], 0.0, vec![]))
         }
         UnitSpec::HeatExchanger {
+            thermal,
             hot_pressure_drop_pa,
             cold_pressure_drop_pa,
-            ..
         } if zero(&inputs[0]) || zero(&inputs[1]) => {
+            if matches!(
+                thermal,
+                ExchangerSpec::HotEndApproach(_) | ExchangerSpec::ColdEndApproach(_)
+            ) {
+                return Err(
+                    "fixed exchanger approach requires positive flow on both inlet sides".into(),
+                );
+            }
             // Without flow on one side no heat can be transferred: the empty
             // side passes through empty, the flowing side keeps its enthalpy
             // and only takes its pressure drop.
@@ -858,19 +866,64 @@ fn calculate_unit(
             let nc = positive_flow(&inputs[1])?;
             let hp = pressure(hot.pressure_pa, hot_pressure_drop_pa)?;
             let cp = pressure(cold.pressure_pa, cold_pressure_drop_pa)?;
-            let q = match thermal {
-                ExchangerSpec::Duty(Some(q)) => q,
-                ExchangerSpec::HotOutletTemperature(Some(t)) => {
-                    nh * (hot.enthalpy() - tp(hot, hp, t)?.enthalpy())
+            let approach_duty = |flow, h_high: f64, h_low: f64| {
+                let delta_h = h_high - h_low;
+                let q: f64 = flow * delta_h;
+                // At zero transfer, allow only roundoff in the two TP enthalpies.
+                let roundoff = 32.0 * f64::EPSILON * h_high.abs().max(h_low.abs()).max(1.0);
+                if !q.is_finite() || delta_h < -roundoff {
+                    return Err(
+                        "fixed exchanger approach requires finite, nonnegative hot-to-cold duty"
+                            .to_string(),
+                    );
                 }
-                ExchangerSpec::ColdOutletTemperature(Some(t)) => {
-                    nc * (tp(cold, cp, t)?.enthalpy() - cold.enthalpy())
+                Ok(q.max(0.0))
+            };
+            let (q, hot_target, cold_target) = match thermal {
+                ExchangerSpec::Duty(Some(q)) => (q, None, None),
+                ExchangerSpec::HotOutletTemperature(Some(t)) => (
+                    nh * (hot.enthalpy() - tp(hot, hp, t)?.enthalpy()),
+                    None,
+                    None,
+                ),
+                ExchangerSpec::ColdOutletTemperature(Some(t)) => (
+                    nc * (tp(cold, cp, t)?.enthalpy() - cold.enthalpy()),
+                    None,
+                    None,
+                ),
+                ExchangerSpec::HotEndApproach(Some(dt)) => {
+                    let out = tp(cold, cp, hot.temperature_k - dt)?;
+                    let q = approach_duty(nc, out.enthalpy(), cold.enthalpy())?;
+                    (q, None, Some(out))
+                }
+                ExchangerSpec::ColdEndApproach(Some(dt)) => {
+                    let out = tp(hot, hp, cold.temperature_k + dt)?;
+                    let q = approach_duty(nh, hot.enthalpy(), out.enthalpy())?;
+                    (q, Some(out), None)
                 }
                 _ => return Err("missing exchanger thermal specification".into()),
             };
-            let ho = ph(hot, hp, hot.enthalpy() - q / nh)?;
-            let co = ph(cold, cp, cold.enthalpy() + q / nc)?;
-            if q < 0.0
+            let fixed_approach = hot_target.is_some() || cold_target.is_some();
+            let ho = match hot_target {
+                Some(out) => out,
+                None => ph(hot, hp, hot.enthalpy() - q / nh)?,
+            };
+            let co = match cold_target {
+                Some(out) => out,
+                None => ph(cold, cp, cold.enthalpy() + q / nc)?,
+            };
+            if fixed_approach {
+                // Allow numerical noise from the PH inversion at an exact pinch.
+                const TERMINAL_TOLERANCE_K: f64 = 1e-7;
+                if hot.temperature_k - co.temperature_k < -TERMINAL_TOLERANCE_K
+                    || ho.temperature_k - cold.temperature_k < -TERMINAL_TOLERANCE_K
+                {
+                    return Err(
+                        "fixed exchanger approach requires no terminal temperature crossover"
+                            .into(),
+                    );
+                }
+            } else if q < 0.0
                 || hot.temperature_k < cold.temperature_k
                 || ho.temperature_k < cold.temperature_k
                 || co.temperature_k > hot.temperature_k
