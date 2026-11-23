@@ -15,6 +15,8 @@ mod shortcut;
 
 pub use shortcut::{ShortcutColumnResult, ShortcutColumnSpec, ShortcutReflux};
 
+// Packed sections resolved to theoretical stages (#186, #187, #190).
+pub mod packing;
 // Equilibrium-stage (MESH) foundation for #186 and #187.
 pub mod stages;
 
