@@ -63,3 +63,42 @@ formulation, the zero interaction matrix and the shortcut method contract
 itself are shared with the engine. The fixture therefore checks implementation
 agreement, not the accuracy of shortcut methods against rigorous columns or
 experiment.
+
+## Rigorous distillation references (#186)
+
+`distillation-v1.json` covers a PR ideal-tray column with one feed and
+a PR-BM HETP column with two feeds and a liquid side draw. Each case
+includes the temperature of every stage, both utility duties and the
+flow and composition of each liquid product.
+
+SciPy fits temperatures, binary phase compositions and vapor flows with
+a bounded least-squares solve. It uses the reviewed teqp and Cantera
+reference adapters for fugacity and enthalpy. The Rust engine uses
+different variables and a damped Newton solve. The generator records
+the input and adapter hashes and has no Rust dependency. It checks
+implementation agreement for the specified equilibrium-stage model.
+
+Generate a candidate in the pinned reference environment and compare it
+with the committed reference before any replacement.
+
+```sh
+python validation/columns/generate-distillation-references.py --output /tmp/distillation-candidate.json
+```
+
+## Adiabatic absorber and stripper references (#187)
+
+`absorber-v1.json` covers propane uptake on PR ideal trays, ethane stripping
+in a PR-BM HETP bed and a single PR contact. It records stage temperatures
+and both outlet flows and compositions. The cases include pressure let-down
+on either inlet. The same component data, cubic formulations and reference
+adapters apply as for the rigorous distillation references.
+
+SciPy solves the countercurrent component, enthalpy and equilibrium
+equations in direct temperature, composition and vapor-flow coordinates.
+teqp checks both inlet states and independently flashes each fitted stage
+tie line. The generator runs without the Rust engine and records its input
+and adapter hashes.
+
+```sh
+python validation/columns/generate-absorber-references.py --output /tmp/absorber-candidate.json
+```

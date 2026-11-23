@@ -47,8 +47,9 @@ pub use project::{
     write_atomically,
 };
 pub use results::{
-    Currency, EnergyStreamResult, MaterialExchangeResult, PhaseResult, ReactionResult,
-    RecycleResult, ResultSet, ShortcutColumnEstimate, StateResult, StreamResult, UnitResult,
+    AbsorberProfile, Currency, DistillationColumnEstimate, EnergyStreamResult,
+    MaterialExchangeResult, PhaseResult, ReactionResult, RecycleResult, ResultSet,
+    ShortcutColumnEstimate, StateResult, StreamResult, UnitResult,
 };
 pub use time::format_utc;
 

@@ -1,8 +1,8 @@
 //! Equilibrium-stage foundation for rigorous distillation (#186) and the
 //! absorber / stripper (#187): stage state, stream conventions, MESH
 //! residuals, overall balances, the tridiagonal component balance and the
-//! condenser / reboiler boundary contract. A whole-column solver builds on
-//! these pieces; none of this module is exposed as a calculated unit yet.
+//! condenser / reboiler boundary contract. The rigorous distillation
+//! solver uses these pieces to calculate a column in the flowsheet.
 //!
 //! # Conventions
 //!

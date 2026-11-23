@@ -1,11 +1,8 @@
 # A17 columns: equilibrium-stage foundation
 
-Status: foundation only (no unit is enabled by it). Module
-`crates/flowsheet-core/src/units/columns/stages.rs`, declared by one line in
-`units/columns.rs`. It serves rigorous distillation (#186) and the absorber /
-stripper (#187). Shortcut distillation (#185), the whole-column nonlinear
-solver, packing / rate-based correlations and project or desktop enablement
-are separate work.
+The stage cascade in `crates/flowsheet-core/src/units/columns/stages.rs`
+supports rigorous distillation (#186) and adiabatic absorption and stripping
+(#187) through the flowsheet engine, project records and desktop.
 
 ## Contents
 
@@ -55,23 +52,77 @@ solution against it (relative 1e-12), zero MESH residuals, matching
 summation residuals, residual sums against the overall balance, end-port
 duties, and a single stage built from a cubic TP flash (ethane/propane, PR).
 
-## Remaining prerequisites
+## Rigorous distillation
 
-1. Column solver (#186/#187): unknown selection, specifications (reflux
-   ratio, distillate rate, purity/recovery), initialization, Newton or
-   inside-out iteration, convergence diagnostics, phase-existence handling
-   on stages (single-phase stages, supercritical components).
-2. Column spec fields and records (stage count, feed and draw stages,
-   condenser type, pressure profile, efficiencies) behind format version 4,
-   forms and `status()` switch.
-3. Fixed-approach ends need a utility inlet temperature: energy streams carry
-   duty only, so either a temperature-level field on energy streams or
-   utility material ports (shared change through the integrator).
-4. Absorber has no energy ports; any stage duty there needs ports added in
-   `columns::info` (shared columns file).
-5. Packed sections: `packing.rs` resolves height/HETP to ideal stages and
-   `PlacedPackedSection` places them (below); section stacking in the column
-   spec, HETP correlations and rate-based segment residuals remain.
+- Specify one absolute column pressure, a positive molar reflux ratio
+  (L/D), and the fraction of total feed withdrawn as distillate. The
+  distillate fraction must be strictly between 0 and 1. Each entering feed
+  retains its enthalpy through any pressure let-down.
+- Choose 1–24 ideal internal trays or one [ideal packed bed](a17-columns-packing.md)
+  spanning the internal stages. The total condenser is stage 1 and the
+  partial reboiler is the last stage. Numbered feeds can enter from stage 2
+  through the reboiler. Liquid side draws specify an internal stage and a
+  positive molar flow. The distillate and draws must leave positive bottoms
+  flow.
+- The vapor flowing to the total condenser is fully condensed to the bubble
+  point. Distillate and reflux share that liquid state. Bottoms and liquid
+  side draws use the equilibrium liquid of their stage. The condenser removes
+  heat and the reboiler adds heat. Their duties are calculated and report on
+  the existing optional energy ports.
+- The solve eliminates the summation and total-flow equations by expressing
+  compositions as normalized log ratios and obtaining each internal liquid
+  flow from the corresponding vapor flow and the cumulative material balance.
+  A damped Newton solve closes the remaining component, log-fugacity and
+  internal energy equations. The column then TP-flashes the midpoint of every
+  solved tie line to verify its two phases before publishing results.
+- The solve uses PR or PR-BM and the bounded A13 bubble-point domain
+  (active methane, ethane, propane, nitrogen and carbon dioxide,
+  200–350 K and 10 kPa–10 MPa). It also honors the selected package
+  temperature limits. It reports an explicit failure for infeasible duties,
+  loss of two-phase behavior or nonconvergence.
+- Existing version-4 projects keep their numbered feed, draw and energy
+  connections. Legacy columns open with five ideal internal trays, feeds at
+  stage 2, and unset pressure, reflux, distillate split and draw flows.
+  The desktop shows the stage temperatures, duties and applicable bed height.
+
+The independent [distillation references](../validation/columns/README.md)
+cover a single-feed PR tray column and a two-feed PR-BM packed column with a
+liquid side draw. Both run through full project solving and save/reload.
+
+## Absorber and stripper
+
+- Connect a single-phase liquid to the top inlet and a single-phase gas to
+  the bottom inlet. Specify an absolute pressure at or below both inlet
+  pressures. Each inlet retains its enthalpy through any pressure let-down.
+- Choose 1–24 ideal trays or one [ideal packed bed](a17-columns-packing.md)
+  covering all contacting stages. The liquid enters stage 1 and the gas
+  enters the last stage. Gas leaves at the top and liquid leaves at the
+  bottom. Both feeds enter the same stage when there is one contact.
+- Every stage is adiabatic. The damped Newton solve closes the component,
+  equilibrium and energy equations and calculates both outlet flows. It
+  starts from a two-phase PH flash of the combined feed. The solver checks
+  each stage against a separate TP flash of its tie-line midpoint.
+- The column uses the same PR and PR-BM pressure, temperature and active
+  component limits as rigorous distillation. It requires two positive
+  internal phase flows at each contact and reports initialization or
+  convergence failures in the flowsheet.
+- Existing version-4 projects keep their four material connections. A legacy
+  absorber opens with five ideal trays and unset column pressure. The
+  desktop reports stage temperatures, bed height when applicable, and
+  the gas and liquid outlet states.
+
+Independent [absorber references](../validation/columns/README.md) cover
+propane uptake in a PR tray column, ethane stripping in a PR-BM packed
+column, and one ideal contact.
+
+## Further column models
+
+The current calculation uses one pressure and ideal equilibrium stages.
+Pressure profiles, tray efficiency, partial condensers, purity or recovery
+specifications, and vapor draws are additional solver work. Fixed-approach
+ends require a utility inlet temperature. Stacked sections, HETP
+correlations, hydraulic rating and rate-based packed segments remain
+separate work.
 
 ## Packed sections (joint contract with `packing.rs`)
 
@@ -97,6 +148,4 @@ stages of a resolved `PackedStages` in the cascade, so the two modules agree:
   would convert actual trays to theoretical stages before the cascade is
   built, and it is not implemented.
 
-No mismatch remained beyond the missing numbering bridge, which this type
-provides. Stacking several sections (non-overlapping, contiguous ranges) is
-left to the column specification and solver.
+The distillation solver places one section over all internal stages.

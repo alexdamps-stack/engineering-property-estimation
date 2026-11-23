@@ -3,8 +3,10 @@
 Part of the columns group (#186, #187, #190); see
 [a17-implementation-brief.md](a17-implementation-brief.md) § "Columns and
 reactors as packed beds". Code: `crates/flowsheet-core/src/units/columns/packing.rs`
-(`flowsheet_core::units::columns::packing`). Status: foundation only. No column
-kind is calculated through it yet, and no record, form or palette change exists.
+(`flowsheet_core::units::columns::packing`). The [rigorous distillation column](a17-columns-stages.md)
+uses one packed bed spanning its internal stages and saves the HETP and sizing
+basis with the project. The adiabatic absorber or stripper uses one bed
+across all contacting stages and persists the same sizing fields.
 
 ## Inputs
 

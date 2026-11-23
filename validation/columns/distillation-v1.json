@@ -1,0 +1,163 @@
+{
+  "schema": "a17-rigorous-distillation-reference-v1",
+  "packages": {
+    "teqp": "0.23.2",
+    "cantera": "3.2.0",
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "sha256": {
+    "validation/columns/generate-distillation-references.py": "27fda2214cb29f7c1a9e388249baf243076fed064b19488e4bf388d91dab0dc4",
+    "validation/columns/generate-shortcut-references.py": "987a88e183fe6aeb0ccabcc922c05dedbaad160583c70b792c70136449454d8c",
+    "validation/generate-references.py": "eea4700cf5b1f18d64ed0db77c4c73b7a4ec98052930bf755f3f192bb898d2a6",
+    "validation/generate-flash-references.py": "13dbb9f40fa221ecae9472e15a8b11bc81a98233c83d7d9e298b1b0ec7809e31",
+    "validation/rotating/generate-ps-references.py": "ebf162770f3cd94748c1227190b82dee00edbddb37550a726dad776628748d4c",
+    "data/source-extracts/components.provisional.json": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147"
+  },
+  "tolerances": {
+    "temperature_K": [
+      2e-05,
+      0
+    ],
+    "composition": [
+      2e-07,
+      0
+    ],
+    "molar_flow_mol_s": [
+      1e-08,
+      0
+    ],
+    "duty_W": [
+      0.02,
+      2e-06
+    ]
+  },
+  "cases": [
+    {
+      "id": "binary-trays-PR",
+      "variant": "PR",
+      "pressure_Pa": 2000000.0,
+      "internal_stages": 4,
+      "reflux_ratio": 2.5,
+      "distillate_fraction": 0.45,
+      "feeds": [
+        {
+          "temperature_K": 295,
+          "pressure_Pa": 2300000.0,
+          "molar_flow_mol_s": 100,
+          "z": [
+            0.45,
+            0.55
+          ],
+          "stage": 4
+        }
+      ],
+      "draws": [],
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "stage_temperatures_K": [
+        272.9196147182605,
+        282.95293479099695,
+        293.73559236733934,
+        301.6830854656674,
+        310.3491225290146,
+        318.3053840657071
+      ],
+      "condenser_duty_W": 1737458.35968026,
+      "reboiler_duty_W": 1802295.0516603785,
+      "outlets": [
+        {
+          "molar_flow_mol_s": 45.0,
+          "z": [
+            0.8363937671741559,
+            0.16360623282584408
+          ]
+        },
+        {
+          "molar_flow_mol_s": 55.0,
+          "z": [
+            0.13385964503932674,
+            0.8661403549606732
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binary-packed-two-feeds-PR-BM",
+      "variant": "PR-BM",
+      "pressure_Pa": 2000000.0,
+      "internal_stages": 4,
+      "reflux_ratio": 2.5,
+      "distillate_fraction": 0.45,
+      "feeds": [
+        {
+          "temperature_K": 307,
+          "pressure_Pa": 2300000.0,
+          "molar_flow_mol_s": 45,
+          "z": [
+            0.58,
+            0.42000000000000004
+          ],
+          "stage": 2
+        },
+        {
+          "temperature_K": 292,
+          "pressure_Pa": 2000000.0,
+          "molar_flow_mol_s": 55,
+          "z": [
+            0.35,
+            0.65
+          ],
+          "stage": 5
+        }
+      ],
+      "draws": [
+        {
+          "stage": 4,
+          "molar_flow_mol_s": 6
+        }
+      ],
+      "packed_height_m": 1.6,
+      "hetp_m": 0.4,
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "stage_temperatures_K": [
+        274.1568474252325,
+        285.20391298402046,
+        293.7756885047713,
+        302.6506494525572,
+        309.85185499540506,
+        317.6623519659739
+      ],
+      "condenser_duty_W": 1762472.7249520575,
+      "reboiler_duty_W": 1331743.95185839,
+      "outlets": [
+        {
+          "molar_flow_mol_s": 45.0,
+          "z": [
+            0.8099355741219787,
+            0.1900644258780213
+          ]
+        },
+        {
+          "molar_flow_mol_s": 49.0,
+          "z": [
+            0.14128258342414582,
+            0.8587174165758542
+          ]
+        },
+        {
+          "molar_flow_mol_s": 6,
+          "z": [
+            0.33000876278797037,
+            0.6699912372120296
+          ]
+        }
+      ]
+    }
+  ]
+}

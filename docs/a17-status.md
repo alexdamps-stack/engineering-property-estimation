@@ -195,10 +195,13 @@ formation-basis balances, kinetic rate bases and supported limits.
 |---|---|---|---|---|---|
 | Shortcut column | #185 | calculated (partial) | Light and heavy key, light-key recovery to distillate and heavy-key recovery to bottoms (each strictly 0–1, sum above 1), column pressure, and either reflux ratio or multiple of minimum reflux. | Four PR/PR-BM cases from the independent teqp/Cantera/SciPy generator `validation/columns/` (binary, ternary with distributing methane, high-pressure let-down feed), checked within the fixture's declared tolerances by `flowsheet-core/tests/shortcut_column.rs`. Project round trip, legacy reload and a headless desktop test. | Fenske–Underwood–Gilliland (Molokanov fit) with Kirkbride feed location. One feed, total condenser, partial reboiler. Retains ISO asset `s1-x8100-column-general`. |
 
-The [equilibrium-stage foundation](a17-columns-stages.md) supports stage
-balances and [ideal packed sections using HETP](a17-columns-packing.md).
-The rigorous distillation and absorber palette entries remain drawn only
-while the whole-column solve and specification forms are pending.
+The [rigorous distillation column](a17-columns-stages.md) (#186) solves
+an equilibrium-stage cascade with a total condenser and partial reboiler
+at one uniform pressure. Choose ideal trays or one
+[ideal packed bed sized by HETP](a17-columns-packing.md), with numbered
+feeds and liquid side draws. The [absorber or stripper](a17-columns-stages.md#absorber-and-stripper)
+(#187) solves countercurrent adiabatic contact with ideal trays or one HETP
+bed, yielding the outlet phase flows and the stage temperature profile.
 
 ### Shortcut column
 
@@ -272,14 +275,14 @@ version bump. An earlier empty `shortcut_column` record loads with every
 input unset. Unit results carry the optional `shortcut_column` estimate.
 Unknown fields are refused.
 
-**Later column stages.** Item 9 covers trayed and ideal-stage packed
-equilibrium columns (#186, #187) and needs an equilibrium-stage (MESH)
-solver. It can initialise from this estimate: $N$, the feed stage, $R$,
-$D$ and the end temperatures. Rate-based packing, three-phase columns,
-extraction and petroleum fractionation are later batches. Mixtures beyond
-the dry hydrocarbon/N2/CO2 set need a bubble/dew solver qualified for them.
-Any future detailed condenser or reboiler heat-transfer model should expose
-a fixed temperature approach to a defined utility reference.
+**Rigorous columns.** The shortcut estimates for $N$, feed stage, $R$ and
+$D$ can guide specifications for the [equilibrium-stage distillation
+column](a17-columns-stages.md). That column and the absorber both support
+ideal trays and HETP beds. Rate-based packing, three-phase columns,
+extraction and petroleum fractionation are later batches. Other mixtures
+need phase-equilibrium validation beyond the dry hydrocarbon/N2/CO2 set.
+A detailed condenser or reboiler heat-transfer model should expose a fixed
+temperature approach to a defined utility reference.
 
 ## Multiphase
 

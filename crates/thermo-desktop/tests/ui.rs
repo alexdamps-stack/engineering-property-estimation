@@ -1649,3 +1649,142 @@ fn shortcut_column_form_solves_and_reports_design_estimates() {
     assert!((estimate.reflux_ratio / estimate.minimum_reflux_ratio - 1.3).abs() < 1e-12);
     assert!((result.streams[&distillate].molar_flow_mol_s - 41.0).abs() < 1e-9);
 }
+
+#[test]
+fn distillation_form_selects_packing_and_displays_solved_stages() {
+    use flowsheet_core::units::{
+        ColumnSpec,
+        columns::{
+            ColumnInternals, DistillationColumnSpec,
+            packing::{PackedSectionBasis, PackedSectionSpec},
+        },
+    };
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["ethane".into(), "propane".into()],
+        "rigorous distillation UI test",
+    ));
+    let column = ed.add_unit_at(UnitKind::DistillationColumn, egui::pos2(220.0, 150.0));
+    let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(40.0, 150.0));
+    let top = ed.add_unit_at(UnitKind::Product, egui::pos2(420.0, 100.0));
+    let bottom = ed.add_unit_at(UnitKind::Product, egui::pos2(420.0, 220.0));
+    ed.fs.set_spec(
+        feed,
+        UnitSpec::Feed {
+            temperature_k: Some(295.0),
+            pressure_pa: Some(2.3e6),
+            molar_flow_mol_s: Some(100.0),
+        },
+    );
+    ed.feeds.insert(feed, vec![0.45, 0.55]);
+    for (from, to) in [
+        (PortRef::new(feed, 0), PortRef::new(column, 4)),
+        (PortRef::new(column, 0), PortRef::new(top, 0)),
+        (PortRef::new(column, 1), PortRef::new(bottom, 0)),
+    ] {
+        ed.fs.connect(from, to).unwrap();
+    }
+    let mut spec = DistillationColumnSpec {
+        internals: ColumnInternals::Trays(4),
+        pressure_pa: Some(2.0e6),
+        reflux_ratio: Some(2.5),
+        distillate_fraction: Some(0.45),
+        feed_stages: vec![4],
+        ..Default::default()
+    };
+    ed.fs.set_spec(
+        column,
+        UnitSpec::Columns(ColumnSpec::Distillation(spec.clone())),
+    );
+    ed.selection = Some(Selection::Unit(column));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Packed bed (HETP)").click();
+    h.run();
+    h.get_by_label("HETP");
+    h.get_by_label("Packed height");
+    assert!(matches!(
+        &h.state().editor().fs.unit(column).unwrap().spec,
+        UnitSpec::Columns(ColumnSpec::Distillation(s)) if matches!(s.internals, ColumnInternals::Packed(_))
+    ));
+    spec.internals = ColumnInternals::Packed(PackedSectionSpec {
+        hetp_m: Some(0.4),
+        basis: PackedSectionBasis::TheoreticalStages(4),
+    });
+    h.state_mut()
+        .editor_mut()
+        .fs
+        .set_spec(column, UnitSpec::Columns(ColumnSpec::Distillation(spec)));
+    h.run();
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    let results = h.state().editor().results.as_ref().unwrap();
+    let column = results.units[&column].distillation_column.as_ref().unwrap();
+    assert_eq!(column.packed_height_m, Some(1.6));
+    assert_eq!(column.stage_temperatures_k.len(), 6);
+    h.get_by_label("Stage 1 temperature");
+    h.get_by_label("Reboiler duty (+ supplied)");
+}
+
+#[test]
+fn absorber_runs_from_the_desktop_and_displays_contact_stages() {
+    use flowsheet_core::units::{
+        ColumnSpec,
+        columns::{AbsorberSpec, ColumnInternals},
+    };
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["ethane".into(), "propane".into()],
+        "absorber UI test",
+    ));
+    let column = ed.add_unit_at(UnitKind::Absorber, egui::pos2(220.0, 150.0));
+    ed.fs.set_spec(
+        column,
+        UnitSpec::Columns(ColumnSpec::Absorber(AbsorberSpec {
+            pressure_pa: Some(2.0e6),
+            internals: ColumnInternals::Trays(4),
+        })),
+    );
+    for (port, temperature, pressure, flow, z_ethane) in
+        [(0, 315.0, 2.2e6, 70.0, 0.65), (1, 260.0, 2.0e6, 55.0, 0.18)]
+    {
+        let y = 100.0 + 110.0 * port as f32;
+        let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(40.0, y));
+        let product = ed.add_unit_at(UnitKind::Product, egui::pos2(420.0, y));
+        ed.fs.set_spec(
+            feed,
+            UnitSpec::Feed {
+                temperature_k: Some(temperature),
+                pressure_pa: Some(pressure),
+                molar_flow_mol_s: Some(flow),
+            },
+        );
+        ed.feeds.insert(feed, vec![z_ethane, 1.0 - z_ethane]);
+        ed.fs
+            .connect(PortRef::new(feed, 0), PortRef::new(column, port))
+            .unwrap();
+        ed.fs
+            .connect(PortRef::new(column, port + 2), PortRef::new(product, 0))
+            .unwrap();
+    }
+    ed.selection = Some(Selection::Unit(column));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Column pressure");
+    h.get_by_label("Internal trays");
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    let result = &h.state().editor().results.as_ref().unwrap().units[&column];
+    assert_eq!(
+        result.absorber.as_ref().unwrap().stage_temperatures_k.len(),
+        4
+    );
+    h.get_by_label("Stage 1 temperature");
+    h.get_by_label("Stage 4 temperature");
+}
