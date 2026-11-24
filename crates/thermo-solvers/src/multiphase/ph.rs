@@ -111,7 +111,9 @@ fn ph_flash<A: VlleAdapter>(
             }
         }
         if b - a <= 4.0 * f64::EPSILON * b {
-            return invariant::<A>(z, target, scale, options, a, b, flash_a, flash_b, iteration);
+            return invariant(
+                &make, z, target, scale, options, a, b, flash_a, flash_b, iteration,
+            );
         }
         // Illinois regula falsi; bisect when the bracket stopped halving.
         let (mut wa, mut wb) = (fa, fb);
@@ -181,6 +183,7 @@ where
 /// Lever rule over the phases on both sides of an enthalpy step at T*.
 #[allow(clippy::too_many_arguments)]
 fn invariant<A: VlleAdapter>(
+    make: &impl Fn(f64) -> Result<A, Error>,
     z: &[f64],
     target: f64,
     scale: f64,
@@ -191,7 +194,7 @@ fn invariant<A: VlleAdapter>(
     upper: MultiphaseTpFlash<A::State>,
     iterations: usize,
 ) -> Result<MultiphasePhFlash<A::State>, Error> {
-    let t = 0.5 * (t_lo + t_hi);
+    let mut t = 0.5 * (t_lo + t_hi);
     // Phases on both sides keep their own states: at T* a minimum-Gibbs
     // re-evaluation could not tell coexisting roots of one composition apart.
     let mut candidates: Vec<MultiphasePhase<A::State>> = Vec::new();
@@ -211,10 +214,20 @@ fn invariant<A: VlleAdapter>(
             "invariant PH state with more than three phases".into(),
         ));
     }
+    let act = active(z);
+    // The bracket locates the enthalpy step only to within the TPD threshold; solve
+    // the invariant point itself (C + 1 phases at fixed p, no degree of freedom).
+    if let Some((t_star, compositions)) = refine_invariant(make, &act, z.len(), &candidates, t) {
+        let adapter = make(t_star)?;
+        for (c, x) in candidates.iter_mut().zip(compositions) {
+            c.state = adapter.state_labelled(&x, c.kind, c.phase)?;
+            c.composition = x;
+        }
+        t = t_star;
+    }
     let h: Vec<f64> = candidates.iter().map(|c| A::enthalpy(&c.state)).collect();
     let span = h.iter().fold(f64::NEG_INFINITY, |m, v| m.max(*v))
         - h.iter().fold(f64::INFINITY, |m, v| m.min(*v));
-    let act = active(z);
     let np = candidates.len();
     // Rows: component balances, then the energy balance scaled by the step.
     let mut rows: Vec<(Vec<f64>, f64)> = act
@@ -309,4 +322,98 @@ fn invariant<A: VlleAdapter>(
         tp: lower,
         diagnostics,
     })
+}
+
+/// Newton refinement of an invariant point: C + 1 coexisting phases at fixed
+/// pressure, unknowns ln x_ki (active components) and T, equations equal
+/// ln(x_ki φ_ki) across phases and Σ_i x_ki = 1. Each phase stays on the root of
+/// its label. Returns `None` (keep the bracket estimate) when the phase count does
+/// not make the point invariant or Newton fails; the lever-rule residual checks
+/// that follow still apply.
+fn refine_invariant<A: VlleAdapter>(
+    make: &impl Fn(f64) -> Result<A, Error>,
+    act: &[usize],
+    n: usize,
+    phases: &[MultiphasePhase<A::State>],
+    t0: f64,
+) -> Option<(f64, Vec<Vec<f64>>)> {
+    let (np, na) = (phases.len(), act.len());
+    if np != na + 1 {
+        return None;
+    }
+    let compositions = |u: &[f64]| -> Vec<Vec<f64>> {
+        (0..np)
+            .map(|k| {
+                let raw: Vec<f64> = (0..na).map(|q| u[k * na + q].exp()).collect();
+                let sum: f64 = raw.iter().sum();
+                let mut x = vec![0.0; n];
+                for (q, &i) in act.iter().enumerate() {
+                    x[i] = raw[q] / sum;
+                }
+                x
+            })
+            .collect()
+    };
+    let residual = |u: &[f64]| -> Result<Vec<f64>, Error> {
+        let a = make(u[np * na])?;
+        let xs = compositions(u);
+        let mut mu = Vec::with_capacity(np);
+        let mut r = Vec::with_capacity(np * na + 1);
+        for (k, p) in phases.iter().enumerate() {
+            let phi = a.ln_phi_labelled(&xs[k], p.kind, p.phase)?;
+            mu.push(
+                act.iter()
+                    .enumerate()
+                    .map(|(q, &i)| u[k * na + q] + phi[i])
+                    .collect::<Vec<f64>>(),
+            );
+            r.push((0..na).map(|q| u[k * na + q].exp()).sum::<f64>() - 1.0);
+        }
+        for m in &mu[1..] {
+            r.extend(m.iter().zip(&mu[0]).map(|(a, b)| a - b));
+        }
+        Ok(r)
+    };
+    let norm = |r: &[f64]| r.iter().map(|v| v.abs()).fold(0.0, f64::max);
+    let mut u: Vec<f64> = phases
+        .iter()
+        .flat_map(|p| act.iter().map(|&i| p.composition[i].ln()))
+        .chain([t0])
+        .collect();
+    let mut r = residual(&u).ok()?;
+    for _ in 0..30 {
+        if norm(&r) <= 1e-13 {
+            return Some((u[np * na], compositions(&u)));
+        }
+        let m = u.len();
+        let mut jacobian = vec![vec![0.0; m]; m];
+        for j in 0..m {
+            let h = 1e-6 * u[j].abs().max(1.0);
+            let mut plus = u.clone();
+            plus[j] += h;
+            let mut minus = u.clone();
+            minus[j] -= h;
+            let (rp, rm) = (residual(&plus).ok()?, residual(&minus).ok()?);
+            for (row, (p, q)) in jacobian.iter_mut().zip(rp.iter().zip(&rm)) {
+                row[j] = (p - q) / (2.0 * h);
+            }
+        }
+        let step = core::solve_dense(jacobian, r.iter().map(|v| -v).collect())?;
+        let mut lambda = 1.0;
+        loop {
+            let candidate: Vec<f64> = u.iter().zip(&step).map(|(u, s)| u + lambda * s).collect();
+            if let Ok(rc) = residual(&candidate)
+                && norm(&rc) < norm(&r)
+            {
+                u = candidate;
+                r = rc;
+                break;
+            }
+            lambda *= 0.5;
+            if lambda < 1e-6 {
+                return None;
+            }
+        }
+    }
+    (norm(&r) <= 1e-12).then(|| (u[np * na], compositions(&u)))
 }

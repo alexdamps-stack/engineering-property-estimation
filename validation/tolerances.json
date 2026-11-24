@@ -440,6 +440,74 @@
       },
       "domain": "3 ideal-gas equilibrium cases (Gibbs, water-gas shift with a 20 K approach, methanol synthesis with a correlation K; 480..560 K, 1..20 bar) and 3 isothermal kinetic cases (CSTR, catalytic plug flow with power-law and LHHW rates, constant-pressure batch with PR volume; 500..560 K, 3..6 bar); standard Gibbs energies of 7 components at 300, 450 and 600 K",
       "rationale": "Cantera equilibrate is converged to rtol 1e-14 and SciPy brentq/DOP853 to 1e-13; the engine converges equilibria to 1e-13 scaled constraint residuals and integrates at rtol 1e-9, so the flow budget leaves margin for the integrator; duties are sums of NASA7 enthalpies of those flows."
+    },
+    {
+      "fixture": "validation/fixtures/vlle-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "Z": [
+          2e-10,
+          2e-09
+        ],
+        "composition": [
+          1e-08,
+          1e-07
+        ],
+        "fugacity_residual": [
+          1e-07,
+          0.0
+        ],
+        "molar_volume": [
+          1e-12,
+          2e-09
+        ],
+        "cv": [
+          2e-05,
+          2e-08
+        ],
+        "mass_density": [
+          1e-07,
+          2e-09
+        ],
+        "s_res": [
+          2e-07,
+          2e-09
+        ],
+        "h": [
+          2e-05,
+          2e-09
+        ],
+        "temperature": [
+          2e-06,
+          0.0
+        ],
+        "cp": [
+          2e-05,
+          2e-08
+        ],
+        "ln_phi": [
+          2e-09,
+          2e-09
+        ],
+        "h_res": [
+          2e-05,
+          2e-09
+        ],
+        "sound": [
+          0.0002,
+          2e-08
+        ],
+        "s": [
+          2e-07,
+          2e-09
+        ],
+        "fraction": [
+          2e-08,
+          0.0
+        ]
+      },
+      "domain": "6 PR/PR-BM methane/propane/water and propane/water TP states (VLLE, LLE, vapor-aqueous liquid, single vapor; 300..400 K, 5..50 bar; explicit water-hydrocarbon kij 0.5), 5 TP states of a synthetic NRTL pair on methanol/water pure data, and 2 binary three-phase (invariant) PH states; docs/vlle-status.md",
+      "rationale": "Independent Clapeyron.jl fugacities and NRTL activity coefficients solved to 256 bits with grid-TPD phase-count acceptance; composition and fugacity budgets meet the #224 acceptance (<= 1e-7), the remaining budgets reuse the clapeyron-v1 regular-state budgets."
     }
   ],
   "deferred": [
@@ -448,7 +516,7 @@
       "owner": "A13 follow-up",
       "atol": null,
       "rtol": null,
-      "status": "Outside bounded A13 qualification; no critical-point accuracy, wet VLLE or retrograde/global-envelope budget is approved"
+      "status": "Outside bounded A13 qualification; no critical-point accuracy or retrograde/global-envelope budget is approved (VLLE/LLE flash budgets: vlle-v1.json)"
     }
   ],
   "ideal_gas_budgets": {

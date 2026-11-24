@@ -30,6 +30,16 @@ pub(crate) trait VlleAdapter {
     fn state_ln_phi(state: &Self::State) -> &[f64];
     /// Single-phase label of a phase.
     fn label(&self, x: &[f64], kind: FluidKind, state: &Self::State) -> Result<Phase, Error>;
+    /// ln φ on the root matching a phase label (cubic: largest volume for vapor,
+    /// smallest for liquid), for coexisting roots at an invariant temperature.
+    fn ln_phi_labelled(&self, x: &[f64], kind: FluidKind, phase: Phase) -> Result<Vec<f64>, Error>;
+    /// Full state on the root matching a phase label.
+    fn state_labelled(
+        &self,
+        x: &[f64],
+        kind: FluidKind,
+        phase: Phase,
+    ) -> Result<Self::State, Error>;
 }
 
 /// Index of water (by component identifier) among the components.
@@ -41,6 +51,15 @@ pub(crate) fn water_index(components: &[Component]) -> Option<usize> {
 pub(crate) fn is_hydrocarbon(component: &Component) -> bool {
     let elements = component.elements();
     elements.iter().any(|(e, _)| e == "C") && elements.iter().all(|(e, _)| e == "C" || e == "H")
+}
+
+/// Cubic root of a labelled phase.
+fn root_for(phase: Phase) -> RootSelection {
+    if phase == Phase::Liquid {
+        RootSelection::SmallestVolume
+    } else {
+        RootSelection::LargestVolume
+    }
 }
 
 pub(crate) struct CubicAt<'a> {
@@ -104,6 +123,28 @@ impl VlleAdapter for CubicAt<'_> {
     }
     fn label(&self, x: &[f64], _kind: FluidKind, s: &HomogeneousState) -> Result<Phase, Error> {
         Ok(crate::single_phase_label(&self.model.with_fractions(x)?, s))
+    }
+    fn ln_phi_labelled(
+        &self,
+        x: &[f64],
+        _kind: FluidKind,
+        phase: Phase,
+    ) -> Result<Vec<f64>, Error> {
+        Ok(self
+            .model
+            .with_fractions(x)?
+            .ln_fugacity(self.t, self.p, root_for(phase))?
+            .ln_fugacity_coefficients)
+    }
+    fn state_labelled(
+        &self,
+        x: &[f64],
+        _kind: FluidKind,
+        phase: Phase,
+    ) -> Result<HomogeneousState, Error> {
+        self.model
+            .with_fractions(x)?
+            .evaluate(self.t, self.p, root_for(phase))
     }
 }
 
@@ -191,6 +232,22 @@ impl VlleAdapter for ActivityAt<'_> {
     }
     fn state_ln_phi(s: &ActivityPhaseState) -> &[f64] {
         &s.ln_fugacity_coefficients
+    }
+    fn ln_phi_labelled(
+        &self,
+        x: &[f64],
+        kind: FluidKind,
+        _phase: Phase,
+    ) -> Result<Vec<f64>, Error> {
+        self.ln_phi(x, kind)
+    }
+    fn state_labelled(
+        &self,
+        x: &[f64],
+        kind: FluidKind,
+        _phase: Phase,
+    ) -> Result<ActivityPhaseState, Error> {
+        self.state(x, kind)
     }
     fn label(&self, _x: &[f64], kind: FluidKind, _s: &ActivityPhaseState) -> Result<Phase, Error> {
         Ok(match kind {
