@@ -95,7 +95,7 @@ the unit and the operation.
 | Three-phase (VLLE/LLE) stability and flash | Three-phase separator, decanter, three-phase column, extractor | — | — | — | — | #224 |
 | Viscosity, thermal conductivity, surface tension | Pipe segment, relief valve, exchanger rating, column hydraulics | — | — | — | — | #225 |
 | Engineering liquid density | Liquid-phase kinetics, pump hydraulics, relief and pipe sizing | — | — | — | — | #228 |
-| Pseudo-components from assay data | Petroleum fractionator | — | — | — | — | #229 |
+| Pseudo-components from assay data | Petroleum fractionator | ✔ ([status](pseudo-components-status.md)) | — | — | — | #229 |
 
 Today, operations other than TP and PH are reached through
 `CalcContext::cubic_package()`, the `FlowsheetPackage::cubic()` escape

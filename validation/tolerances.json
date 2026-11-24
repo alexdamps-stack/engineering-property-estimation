@@ -440,6 +440,24 @@
       },
       "domain": "3 ideal-gas equilibrium cases (Gibbs, water-gas shift with a 20 K approach, methanol synthesis with a correlation K; 480..560 K, 1..20 bar) and 3 isothermal kinetic cases (CSTR, catalytic plug flow with power-law and LHHW rates, constant-pressure batch with PR volume; 500..560 K, 3..6 bar); standard Gibbs energies of 7 components at 300, 450 and 600 K",
       "rationale": "Cantera equilibrate is converged to rtol 1e-14 and SciPy brentq/DOP853 to 1e-13; the engine converges equilibria to 1e-13 scaled constraint residuals and integrates at rtol 1e-9, so the flow budget leaves margin for the integrator; duties are sums of NASA7 enthalpies of those flows."
+    },
+    {
+      "fixture": "validation/fixtures/pseudo-components-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "correlation_relative": 1e-12,
+        "kesler_lee_cp0_vs_coolprop_relative": 0.05,
+        "critical_temperature_vs_surrogate_relative": 0.02,
+        "critical_pressure_vs_surrogate_relative": 0.08,
+        "acentric_factor_vs_surrogate_relative": 0.1,
+        "molar_mass_vs_surrogate_relative": 0.05,
+        "bubble_dew_temperature_vs_surrogate_K": 5.0,
+        "liquid_mass_density_vs_surrogate_relative": 0.06,
+        "specific_enthalpy_change_vs_surrogate_relative": 0.05,
+        "recorded_exceedance_reproduction_absolute": 0.001
+      },
+      "domain": "Kerosene surrogate case of docs/pseudo-components-status.md: m-xylene/n-decane/n-dodecane (0.2/0.4/0.4 mol) as defined compounds (CoolProp 7.2.0 HEOS constants) versus pseudo-components characterised from Tb and SG; PR, 1 atm, 300..560 K; ideal-gas cp at 300..600 K",
+      "rationale": "correlation_relative is implementation agreement with an independent plain-Python evaluation of the same correlations; the other budgets are model-comparison limits declared before the first comparison, with the two m-xylene exceedances it found recorded in the fixture instead of widening a budget. Not experimental accuracy."
     }
   ],
   "deferred": [

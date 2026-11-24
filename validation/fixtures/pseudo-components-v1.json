@@ -1,0 +1,150 @@
+{
+  "schema": "pseudo-component-reference-v1",
+  "generator": "validation/generate-pseudo-component-references.py",
+  "python": "3.14.4",
+  "packages": {
+    "CoolProp": "7.2.0",
+    "CoolProp.__version__": "7.2.0"
+  },
+  "independence": "CoolProp HEOS multiparameter fluids (the reference equations of state cited by CoolProp 7.2.0 for m-xylene, n-decane and n-dodecane) for species data; correlations re-typed in plain Python; no Rust calls",
+  "scope": "Kerosene surrogate case of docs/pseudo-components-status.md: species data of the defined-compound surrogate, an independent evaluation of the characterisation correlations, and declared model-comparison budgets",
+  "specific_gravity_definition": "rho(T, 101325 Pa) / rho_water(T, 101325 Pa) at T = 60 degF = 288.7056 K, both from CoolProp HEOS",
+  "ideal_gas_cp_temperatures_K": [
+    300.0,
+    400.0,
+    500.0,
+    600.0
+  ],
+  "comparison_pressure_Pa": 101325.0,
+  "tolerances": {
+    "correlation_relative": 1e-12,
+    "kesler_lee_cp0_vs_coolprop_relative": 0.05,
+    "critical_temperature_vs_surrogate_relative": 0.02,
+    "critical_pressure_vs_surrogate_relative": 0.08,
+    "acentric_factor_vs_surrogate_relative": 0.1,
+    "molar_mass_vs_surrogate_relative": 0.05,
+    "bubble_dew_temperature_vs_surrogate_K": 5.0,
+    "liquid_mass_density_vs_surrogate_relative": 0.06,
+    "specific_enthalpy_change_vs_surrogate_relative": 0.05,
+    "recorded_exceedance_reproduction_absolute": 0.001
+  },
+  "recorded_exceedances": [
+    {
+      "species": "pseudo:surrogate-m-xylene",
+      "quantity": "molar_mass_vs_surrogate_relative",
+      "representation": "pseudo",
+      "observed": 0.0509,
+      "reason": "Riazi-Daubert (1987) M for a pure aromatic with Watson K 10.4; the correlation is fitted to petroleum fractions"
+    },
+    {
+      "species": "pseudo:surrogate-m-xylene",
+      "quantity": "kesler_lee_cp0_vs_coolprop_relative",
+      "representation": "pseudo",
+      "temperatures_K": [
+        300.0,
+        400.0,
+        500.0,
+        600.0
+      ],
+      "observed": [
+        0.0813,
+        0.0768,
+        0.0847,
+        0.0959
+      ],
+      "reason": "Kesler-Lee cp overpredicts a pure aromatic (Watson K 10.4) when evaluated with the correlated omega and M; with the HEOS omega and M (surrogate representation) the deviation is 2.3-3.9 %"
+    }
+  ],
+  "species": [
+    {
+      "id": "pseudo:surrogate-m-xylene",
+      "coolprop_fluid": "m-Xylene",
+      "cas": "108-38-3",
+      "surrogate_mole_fraction": 0.2,
+      "normal_boiling_point_K": 412.21394789221426,
+      "specific_gravity_60F": 0.8688630909640543,
+      "molar_mass_kg_per_mol": 0.106165,
+      "critical_temperature_K": 616.890000360268,
+      "critical_pressure_Pa": 3534599.0782215013,
+      "acentric_factor": 0.326,
+      "ideal_gas_cp_J_per_mol_K": [
+        126.3752702370821,
+        167.55211986145682,
+        202.13075910024006,
+        230.99307870007024
+      ],
+      "correlations": {
+        "watson_k": 10.419504031161393,
+        "critical_temperature_K": 621.0287642772118,
+        "critical_pressure_Pa": 3694410.958545005,
+        "acentric_factor": 0.31205775451056117,
+        "molar_mass_kg_per_mol": 0.11157012041425866,
+        "ideal_gas_cp_over_R": [
+          -2.9238524427199803,
+          0.07343853330708423,
+          -2.970075700599778e-05
+        ]
+      }
+    },
+    {
+      "id": "pseudo:surrogate-n-decane",
+      "coolprop_fluid": "n-Decane",
+      "cas": "124-18-5",
+      "surrogate_mole_fraction": 0.4,
+      "normal_boiling_point_K": 447.2701716720618,
+      "specific_gravity_60F": 0.7345857510878627,
+      "molar_mass_kg_per_mol": 0.14228168,
+      "critical_temperature_K": 617.6988452458754,
+      "critical_pressure_Pa": 2101336.691813891,
+      "acentric_factor": 0.4884,
+      "ideal_gas_cp_J_per_mol_K": [
+        234.1901301595204,
+        297.98317033273935,
+        356.4330087785295,
+        405.7329420044975
+      ],
+      "correlations": {
+        "watson_k": 12.66402173120515,
+        "critical_temperature_K": 616.0486631918243,
+        "critical_pressure_Pa": 2044995.8202427023,
+        "acentric_factor": 0.4914912240282625,
+        "molar_mass_kg_per_mol": 0.1443476747241576,
+        "ideal_gas_cp_over_R": [
+          1.4028606789688582,
+          0.10180805349637057,
+          -3.917906648098543e-05
+        ]
+      }
+    },
+    {
+      "id": "pseudo:surrogate-n-dodecane",
+      "coolprop_fluid": "n-Dodecane",
+      "cas": "112-40-3",
+      "surrogate_mole_fraction": 0.4,
+      "normal_boiling_point_K": 489.44152797341627,
+      "specific_gravity_60F": 0.7534767631640733,
+      "molar_mass_kg_per_mol": 0.17033484,
+      "critical_temperature_K": 658.1000268582027,
+      "critical_pressure_Pa": 1817569.5498990365,
+      "acentric_factor": 0.574182221240689,
+      "ideal_gas_cp_J_per_mol_K": [
+        279.70963195486746,
+        356.369132856989,
+        426.1243647793655,
+        484.8173643734433
+      ],
+      "correlations": {
+        "watson_k": 12.72295262589863,
+        "critical_temperature_K": 654.7670594297612,
+        "critical_pressure_Pa": 1746273.7862521592,
+        "acentric_factor": 0.5884762930918441,
+        "molar_mass_kg_per_mol": 0.17379608267710625,
+        "ideal_gas_cp_over_R": [
+          1.830032397402957,
+          0.12277023550593177,
+          -4.71980150194358e-05
+        ]
+      }
+    }
+  ]
+}

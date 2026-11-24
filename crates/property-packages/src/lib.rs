@@ -5,6 +5,11 @@ mod eos_cg;
 pub use eos_cg::EosCgPackage;
 mod flowsheet;
 pub use flowsheet::{FlowsheetPackage, GergPackage, NrtlPackage};
+mod pseudo;
+pub use pseudo::{
+    PSEUDO_CUBIC_TEMPERATURE_RANGE_K, cubic_model_with_pseudo_components,
+    cubic_package_with_pseudo_components, pseudo_component_database,
+};
 
 use thermo_models::{CubicModel, HomogeneousState};
 // The cubic homogeneous envelope, re-exported for interfaces that build packages
