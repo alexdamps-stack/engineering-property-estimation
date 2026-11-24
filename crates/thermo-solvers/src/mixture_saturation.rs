@@ -149,7 +149,11 @@ fn gerg_saturation_model(
         ));
     }
     // Rejects components outside the qualified dry set before any solve.
-    validate(model, Temperature::new(options.minimum_temperature_k)?, Pressure::new(1e5)?)?;
+    validate(
+        model,
+        Temperature::new(options.minimum_temperature_k)?,
+        Pressure::new(1e5)?,
+    )?;
     GergEquilibrium::new(model)
 }
 
@@ -159,8 +163,11 @@ trait SaturationModel: EquilibriumModel {
     fn component_ids(&self) -> Vec<&str>;
     fn critical_temperature(&self, index: usize) -> f64;
     /// Saturation pressure and iterations of the canonical pure model at T.
-    fn pure_saturation_pressure(&self, t: f64, max_iterations: usize)
-    -> Result<(f64, usize), Error>;
+    fn pure_saturation_pressure(
+        &self,
+        t: f64,
+        max_iterations: usize,
+    ) -> Result<(f64, usize), Error>;
     /// Saturation temperature and iterations of the canonical pure model at p,
     /// searched in `bracket` (already limited to 0.95 Tc).
     fn pure_saturation_temperature(
@@ -169,8 +176,7 @@ trait SaturationModel: EquilibriumModel {
         bracket: [f64; 2],
         max_iterations: usize,
     ) -> Result<(f64, usize), Rejection>;
-    fn assess_stability(&self, t: Temperature, p: Pressure)
-    -> Result<StabilityAssessment, Error>;
+    fn assess_stability(&self, t: Temperature, p: Pressure) -> Result<StabilityAssessment, Error>;
 }
 
 impl SaturationModel for CubicModel {
@@ -216,15 +222,13 @@ impl SaturationModel for CubicModel {
             }
         }
         if b - a >= 1e-9 {
-            return Err(Error::NonConvergence("A13 pure temperature iteration limit".into()).into());
+            return Err(
+                Error::NonConvergence("A13 pure temperature iteration limit".into()).into(),
+            );
         }
         Ok(((a + b) / 2.0, count))
     }
-    fn assess_stability(
-        &self,
-        t: Temperature,
-        p: Pressure,
-    ) -> Result<StabilityAssessment, Error> {
+    fn assess_stability(&self, t: Temperature, p: Pressure) -> Result<StabilityAssessment, Error> {
         assess_stability(self, t, p, StabilityOptions::default())
     }
 }
@@ -256,11 +260,7 @@ impl SaturationModel for GergEquilibrium {
             )),
         }
     }
-    fn assess_stability(
-        &self,
-        t: Temperature,
-        p: Pressure,
-    ) -> Result<StabilityAssessment, Error> {
+    fn assess_stability(&self, t: Temperature, p: Pressure) -> Result<StabilityAssessment, Error> {
         let options = StabilityOptions::default();
         options.validate()?;
         assess_stability_impl(self, t, p, options)
@@ -628,10 +628,7 @@ fn point<M: SaturationModel>(
             ));
         }
     }
-    let phase_stability = [
-        lm.assess_stability(tm, pr)?,
-        vm.assess_stability(tm, pr)?,
-    ];
+    let phase_stability = [lm.assess_stability(tm, pr)?, vm.assess_stability(tm, pr)?];
     for phase in &phase_stability {
         if !phase.stable_in_trials {
             return Err(Rejection::new(

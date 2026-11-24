@@ -221,7 +221,6 @@ pub struct ActivityPsFlash {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-
 /// Whether any phase rests on an inferred NRTL regression interval; if so, appends
 /// the warning diagnostic. Only a flag is added: no result value changes.
 fn flag_inferred_interval(

@@ -27,7 +27,7 @@ use thermo_types::Phase;
 /// Relative precision of the isentropic enthalpy change, scaled by
 /// max(|h_in|, T_in |s_in|, 1 J/mol): a hundred times the PS entropy tolerance.
 const ISENTROPIC_RESOLUTION: f64 = 1e-8;
-const SINGLE: [PortSpec; 2] =[PortSpec::inlet("in"), PortSpec::outlet("out")];
+const SINGLE: [PortSpec; 2] = [PortSpec::inlet("in"), PortSpec::outlet("out")];
 const POWER_IN: [PortSpec; 1] = [PortSpec::energy_inlet("power")];
 const POWER_OUT: [PortSpec; 1] = [PortSpec::energy_outlet("power")];
 const MULTISTAGE_ENERGY: [PortSpec; 2] = [
@@ -294,9 +294,7 @@ fn stage(
                 .abs()
                 .max(inlet.temperature_k * inlet.entropy().abs())
                 .max(1.0);
-        if !dh_s.is_finite()
-            || (compress && dh_s < -resolution)
-            || (!compress && dh_s > resolution)
+        if !dh_s.is_finite() || (compress && dh_s < -resolution) || (!compress && dh_s > resolution)
         {
             return Err(format!(
                 "{name} isentropic enthalpy change {dh_s} J/mol has the wrong sign"

@@ -396,7 +396,10 @@ fn caloric_flash(
         return Err(outside());
     }
     let split = |t: f64| -> Result<f64, Error> {
-        Ok(spec.mixture(&tp_flash(model, Temperature::new(t)?, pressure, options, false)?.phases) - target)
+        Ok(
+            spec.mixture(&tp_flash(model, Temperature::new(t)?, pressure, options, false)?.phases)
+                - target,
+        )
     };
     let (mut fa, mut fb) = (split(a)?, split(b)?);
     let scale = target.abs().max(fb - fa).max(1.0);

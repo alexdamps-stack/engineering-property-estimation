@@ -16,8 +16,8 @@ use thermo_types::{
 };
 
 use crate::{
-    Convergence, CubicPackage, EquilibriumPhase, EquilibriumState, PhaseProperties,
-    SaturationKind, SaturationState,
+    Convergence, CubicPackage, EquilibriumPhase, EquilibriumState, PhaseProperties, SaturationKind,
+    SaturationState,
 };
 
 /// Equilibrium operations required by a sequential flowsheet.
@@ -468,7 +468,10 @@ impl NrtlPackage {
         root: RootSelection,
     ) -> Result<ActivityFlashPhase, CalculationError> {
         let model = self.model.with_fractions(fractions)?;
-        let (t, p) = (Temperature::new(temperature_k)?, Pressure::new(pressure_pa)?);
+        let (t, p) = (
+            Temperature::new(temperature_k)?,
+            Pressure::new(pressure_pa)?,
+        );
         let state = match root {
             RootSelection::SmallestVolume => model.liquid(t, p)?,
             RootSelection::LargestVolume => model.vapor(t, p)?,

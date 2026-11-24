@@ -17,3 +17,4 @@ thermo-solvers = { path = "../thermo-solvers" }
 
 [dev-dependencies]
 thermo-data = { path = "../thermo-data" }
+serde_json = { workspace = true }

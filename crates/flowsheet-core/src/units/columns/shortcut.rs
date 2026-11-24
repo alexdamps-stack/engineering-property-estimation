@@ -375,8 +375,7 @@ pub(super) fn calculate(
         let (_, x_d) = fractions(&split.distillate);
         let (_, x_b) = fractions(&split.bottoms);
         let top = ctx.saturation_t(&x_d, p, SaturationKind::Dew, "overhead dew point")?;
-        let bottom =
-            ctx.saturation_t(&x_b, p, SaturationKind::Bubble, "bottoms bubble point")?;
+        let bottom = ctx.saturation_t(&x_b, p, SaturationKind::Bubble, "bottoms bubble point")?;
         let a_top = ctx.relative_volatilities(&top, hk)?;
         let a_bottom = ctx.relative_volatilities(&bottom, hk)?;
         let next: Vec<f64> = a_top
@@ -455,12 +454,8 @@ pub(super) fn calculate(
     let rectifying = finite("feed location", stages * kirkbride / (1.0 + kirkbride))?;
 
     // Saturated-liquid products and duties.
-    let distillate_bubble = ctx.saturation_t(
-        &x_d,
-        p,
-        SaturationKind::Bubble,
-        "distillate bubble point",
-    )?;
+    let distillate_bubble =
+        ctx.saturation_t(&x_d, p, SaturationKind::Bubble, "distillate bubble point")?;
     let distillate_state = ctx.tp(&x_d, distillate_bubble.temperature_k, p)?;
     let bottoms_state = ctx.tp(&x_b, bottom.temperature_k, p)?;
     if !(bottom.temperature_k > top.temperature_k) {

@@ -214,7 +214,12 @@ impl FlowsheetPackage for EosCgPackage {
     /// PS on the single gas branch, with the structure of PH: a bracketed
     /// temperature solve over the package interval. Entropy increases with T at
     /// fixed p on the branch (c_p > 0).
-    fn ps(&self, fractions: &[f64], pressure_pa: f64, entropy: f64) -> Result<EquilibriumState, Error> {
+    fn ps(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        entropy: f64,
+    ) -> Result<EquilibriumState, Error> {
         if !entropy.is_finite() {
             return Err(Error::OutsideValidityDomain(
                 "EOS-CG-2021 requires a finite molar entropy".into(),

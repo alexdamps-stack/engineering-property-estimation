@@ -160,7 +160,8 @@ fn solve(
     if let Some(tc) = model.pure_critical_temperature() {
         let top = hi.min(0.95 * tc);
         if top >= lo
-            && let Some(sat) = gerg_pure_saturation_temperature(model, p, lo, top, options.max_iterations)?
+            && let Some(sat) =
+                gerg_pure_saturation_temperature(model, p, lo, top, options.max_iterations)?
         {
             let t = Temperature::new(sat.temperature_k)?;
             let liquid = adapter.evaluate(t, p, RootSelection::SmallestVolume)?;
@@ -276,8 +277,10 @@ pub(crate) fn gerg_pure_saturation_pressure(
         .position(|x| *x > 0.)
         .ok_or_else(|| Error::NumericalFailure("GERG pure model has no active component".into()))?;
     let temperature = Temperature::new(t)?;
+    // exp(ln p) can round just outside the envelope at its ends.
+    let envelope = |ln_p: f64| ln_p.exp().clamp(1e5, 1e7);
     let sample = |ln_p: f64| -> Result<(f64, bool), Error> {
-        let roots = gerg_outer_roots(model, temperature, Pressure::new(ln_p.exp())?)?;
+        let roots = gerg_outer_roots(model, temperature, Pressure::new(envelope(ln_p))?)?;
         if roots.len() == 1 {
             let liquid = roots[0].state.molar_density > model.reducing_density();
             return Ok((if liquid { -1. } else { 1. }, false));
@@ -291,7 +294,7 @@ pub(crate) fn gerg_pure_saturation_pressure(
     let (right, right_two) = sample(hi)?;
     for (value, two, ln_p) in [(left, left_two, lo), (right, right_two, hi)] {
         if two && value.abs() <= 1e-12 {
-            return Ok((ln_p.exp(), 0));
+            return Ok((envelope(ln_p), 0));
         }
     }
     if left < 0. || right > 0. {
@@ -303,7 +306,7 @@ pub(crate) fn gerg_pure_saturation_pressure(
         let mid = lo + 0.5 * (hi - lo);
         let (difference, two) = sample(mid)?;
         if two && difference.abs() <= 1e-12 {
-            return Ok((mid.exp(), iteration));
+            return Ok((envelope(mid), iteration));
         }
         if mid == lo || mid == hi {
             break;
