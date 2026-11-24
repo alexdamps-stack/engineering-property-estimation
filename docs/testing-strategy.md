@@ -55,6 +55,9 @@ Add tests with the capability they verify. Do not add numerical placeholders tha
 
 ## 3. Reference cases and independence
 
+For new property models and packages, the coverage required per capability is
+listed in section 6 of the [property-model requirements](property-model-requirements.md).
+
 Each reference case must record:
 
 - A stable case identifier and purpose: implementation verification, model comparison, or experimental validation.

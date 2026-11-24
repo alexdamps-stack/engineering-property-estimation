@@ -116,7 +116,7 @@ The original plan proposed the following Rust crates. The repository now contain
 | `thermo-cli` | Reproducible examples, batch calculations, and regression entry point |
 | `thermo-desktop` | Native interface and flowsheet editor using the same calculation API |
 
-A property package defines the equilibrium and caloric methods and, where appropriate, a separate liquid-density method. Supported combinations and reference states must be verified. A density correlation must not silently replace the derivatives or fugacities of another thermodynamic model.
+A property package defines the equilibrium and caloric methods and, where appropriate, a separate liquid-density method. Supported combinations and reference states must be verified. A density correlation must not silently replace the derivatives or fugacities of another thermodynamic model. The [property-model requirements](property-model-requirements.md) list what every new model or package must provide, verify and document, and which unit operations need each capability.
 
 Calculation results must identify model and data versions, phases, units, validity status, and solver diagnostics. Missing parameters, unsupported phase regions, and nonconvergence must be distinguishable outcomes. After an input changes, a previously successful state must not remain displayed as current.
 

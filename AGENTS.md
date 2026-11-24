@@ -15,6 +15,12 @@ The locked Julia environment and offline reference tests are described in
 Rust engine. Do not automatically replace committed fixtures or widen tolerances
 to resolve a failure; review formulation, data, and reference-state compatibility.
 
+When adding a property model or package, or a capability of one (PS flash,
+fugacities, saturation, multiphase flash, transport properties, liquid density,
+pseudo-components), follow `docs/property-model-requirements.md`. Do not add new
+`FlowsheetPackage::cubic()` dependencies in unit code; extend the package
+interface and return `UnsupportedCapability` where a package lacks an operation.
+
 For flowsheet, PFD/P&ID, equipment-symbol, or process-interface design, consult
 `docs/design-reference/iso-10628/README.md` and `manifest.json` before choosing
 equipment graphics. The library contains all 296 symbols from the linked Commons

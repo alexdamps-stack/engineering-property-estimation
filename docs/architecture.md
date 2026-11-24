@@ -12,8 +12,11 @@ from a library target plus a thin `main.rs`.
   flash and pure saturation ([A4 status](a4-status.md)), native GERG density
   inversion and TP/PH flash, NRTL bubble/dew and flash, and bounded PR/PR-BM
   mixture bubble/dew points and envelope tracing ([A13](a13-status.md)).
-- `property-packages` supplies the immutable cubic (PR/PR-BM) package adapter
-  that retains model, interaction, data and caloric-reference metadata.
+- `property-packages` supplies the immutable flowsheet packages behind the
+  `FlowsheetPackage` interface: cubic (PR, PR-BM, SRK), NRTL-IG, GERG-2008 and
+  EOS-CG-2021. Each retains model, interaction, data and caloric-reference
+  metadata. New models and packages follow the
+  [property-model requirements](property-model-requirements.md).
 - `flowsheet-core` holds a GUI-independent topology and sequential calculation
   engine: units, ports, material streams, specifications, balances and
   diagnostics ([A8 record](a8-status.md)), with tear-stream recycle solving
