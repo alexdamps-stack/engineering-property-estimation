@@ -255,6 +255,9 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         ui.end_row();
                     }
                 }
+                if let Some(m) = &r.rotating {
+                    rotating_rows(ui, u, stale, m);
+                }
                 // These quantities combine the solved duty with the current specification.
                 if !stale
                     && let Some(UnitSpec::HeatTransport(HeatTransportSpec::AirCooler(s))) =
@@ -516,6 +519,71 @@ fn stage_profile(
             stale,
         ));
         ui.end_row();
+    }
+}
+
+/// Shaft power, isentropic states and intercooling of a rotating machine.
+fn rotating_rows(
+    ui: &mut Ui,
+    units: DisplayUnits,
+    stale: bool,
+    m: &flowsheet_project::RotatingPerformance,
+) {
+    let row = |ui: &mut Ui, label: String, q: Quantity, v: f64| {
+        ui.label(label);
+        ui.label(value_text(format_quantity(units, q, v), stale));
+        ui.end_row();
+    };
+    row(
+        ui,
+        "Shaft power (+ into fluid)".into(),
+        Quantity::Duty,
+        m.power_w(),
+    );
+    let multistage = m.stages.len() > 1;
+    for (k, s) in m.stages.iter().enumerate() {
+        let prefix = if multistage {
+            format!("Stage {} ", k + 1)
+        } else {
+            String::new()
+        };
+        if multistage {
+            row(
+                ui,
+                format!("{prefix}discharge pressure"),
+                Quantity::Pressure,
+                s.outlet_pressure_pa,
+            );
+            row(ui, format!("{prefix}power"), Quantity::Duty, s.power_w);
+        }
+        row(
+            ui,
+            format!("{prefix}isentropic power"),
+            Quantity::Duty,
+            s.isentropic_power_w,
+        );
+        row(
+            ui,
+            format!("{prefix}isentropic outlet T"),
+            Quantity::Temperature,
+            s.isentropic_outlet_temperature_k,
+        );
+        if multistage {
+            row(
+                ui,
+                format!("{prefix}discharge T"),
+                Quantity::Temperature,
+                s.outlet_temperature_k,
+            );
+        }
+    }
+    if multistage {
+        row(
+            ui,
+            "Intercooler duty (+ removed)".into(),
+            Quantity::Duty,
+            m.intercooler_duty_w,
+        );
     }
 }
 

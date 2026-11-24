@@ -2,15 +2,15 @@
 //! multistage compressor); owned by the rotating work package.
 
 use eframe::egui::Ui;
-use flowsheet_core::units::{GroupSpec, RotatingSpec};
-use flowsheet_core::{PressureRise, PressureSpec, UnitKind, UnitSpec};
+use flowsheet_core::units::RotatingSpec;
+use flowsheet_core::units::rotating::MAX_COMPRESSOR_STAGES;
+use flowsheet_core::{PressureRise, PressureSpec, UnitSpec};
 
-use super::{choice, drawn_only_note, note_row, opt_field, value_field};
+use super::{choice, count_field, note_row, opt_field, value_field};
 use crate::units::{DisplayUnits, Quantity};
 
-/// Equipment models are still pending (proposal section 2.3).
-const ROTATING_DEFERRED: &str =
-    "Calculation deferred: needs a rotating-equipment efficiency model.";
+const COMPRESSION_NOTE: &str = "Isentropic efficiency: Δh = Δh_is / η (PS then PH flash).";
+const EXPANSION_NOTE: &str = "Isentropic efficiency: Δh = η · Δh_is (PS then PH flash).";
 
 /// Form of the core pump/compressor ([`UnitSpec::Pressurize`]) and
 /// expander ([`UnitSpec::Expand`]) specifications.
@@ -34,8 +34,14 @@ pub(super) fn core_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
                     opt_field(ui, "Pressure increase", dp, Quantity::PressureDrop, u)
                 }
             }
-            value_field(ui, "Efficiency", efficiency, Quantity::Fraction, u);
-            note_row(ui, ROTATING_DEFERRED);
+            value_field(
+                ui,
+                "Isentropic efficiency",
+                efficiency,
+                Quantity::Fraction,
+                u,
+            );
+            note_row(ui, COMPRESSION_NOTE);
         }
         UnitSpec::Expand {
             pressure,
@@ -62,17 +68,44 @@ pub(super) fn core_form(ui: &mut Ui, spec: &mut UnitSpec, u: DisplayUnits) {
                 Quantity::Fraction,
                 u,
             );
-            note_row(ui, ROTATING_DEFERRED);
+            note_row(ui, EXPANSION_NOTE);
         }
         _ => unreachable!("not a pump, compressor or expander specification"),
     }
 }
 
 /// Form of a [`RotatingSpec`].
-pub(super) fn form(ui: &mut Ui, spec: &mut RotatingSpec, _u: DisplayUnits) {
-    let kind: UnitKind = spec.kind();
+pub(super) fn form(ui: &mut Ui, spec: &mut RotatingSpec, u: DisplayUnits) {
     match spec {
-        RotatingSpec::MultistageCompressor(_) => {}
+        RotatingSpec::MultistageCompressor(s) => {
+            count_field(ui, "Stages", &mut s.stages, 1..=MAX_COMPRESSOR_STAGES);
+            opt_field(
+                ui,
+                "Outlet pressure",
+                &mut s.outlet_pressure_pa,
+                Quantity::Pressure,
+                u,
+            );
+            value_field(
+                ui,
+                "Stage isentropic efficiency",
+                &mut s.efficiency,
+                Quantity::Fraction,
+                u,
+            );
+            if s.stages > 1 {
+                opt_field(
+                    ui,
+                    "Intercooler outlet T",
+                    &mut s.intercooler_temperature_k,
+                    Quantity::Temperature,
+                    u,
+                );
+            }
+            note_row(
+                ui,
+                "Equal stage pressure ratio; intercoolers between stages, no aftercooler.",
+            );
+        }
     }
-    drawn_only_note(ui, kind);
 }

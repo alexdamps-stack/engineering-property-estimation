@@ -17,7 +17,41 @@ feasible in steady state* (with the reason).
 
 | Kind | Issue | Status | Specification | Validation / reference | Notes |
 |---|---|---|---|---|---|
-| Cubic pressure–entropy flash | A14 | calculated | Overall mole fractions, absolute pressure, molar entropy on the cubic caloric reference | 28 matched PR/PR-BM states in `validation/rotating/ps-v1.json`, consumed by `thermo-solvers/tests/ps.rs` | Available through `CubicPackage::ps`. Pump, compressor, expander and multistage compressor remain drawable. The fixture also holds outlet and power references for subsequent rotating-unit work. |
+| Cubic pressure–entropy flash | A14 | calculated | Overall mole fractions, absolute pressure, molar entropy on the cubic caloric reference | 28 matched PR/PR-BM states in `validation/rotating/ps-v1.json`, consumed by `thermo-solvers/tests/ps.rs` | Available through `CubicPackage::ps`. |
+| Pump, compressor | A14 | calculated | Outlet pressure or pressure increase; isentropic efficiency (0, 1] | `ng-compressor` and `water-pump` references in `ps-v1.json` (PR and PR-BM), consumed by `flowsheet-core/tests/rotating.rs` | Shaft power on the optional `power` inlet. |
+| Expander | A14 | calculated | Outlet pressure or pressure drop; isentropic efficiency (0, 1] | `ng-expander` and `propane-two-phase-expander` references (lever-rule outlet) | Recovered power on the optional `power` outlet. Two-phase outlets are allowed and warned. |
+| Multistage compressor | #182 | calculated | Stages 1–8, discharge pressure, stage isentropic efficiency, intercooler outlet temperature (two or more stages) | `ng-two-stage-intercooled` reference: stage outlets, stage powers, intercooler duty | Total power on `power`, heat removed on `intercooler duty`. |
+
+All four machines use the isentropic-efficiency model. A PS flash at the
+outlet pressure and the inlet molar entropy gives the ideal outlet and
+\(\Delta h_s\). Pumps and compressors take \(\Delta h = \Delta h_s/\eta\),
+expanders \(\Delta h = \eta\,\Delta h_s\), and a PH flash at the outlet
+pressure gives the actual outlet. At \(\eta = 1\) the isentropic state is the
+outlet. The shaft power \(W = \dot n\,\Delta h\) is the unit's external duty,
+positive into the fluid, and closes the engine's component and energy
+balances. Results report, per stage, the inlet and outlet pressures, the
+isentropic and actual outlet temperatures, and the isentropic and actual
+power (`UnitResult::rotating`, added behind format version 4).
+
+Rules and failures:
+
+- A pump inlet with any vapor fails, as does a compressor inlet with any
+  liquid. A single supercritical phase is accepted by both. A pump outlet with
+  vapor or a compressor discharge with liquid is a warning.
+- Pumps and compressors reject an outlet pressure below the inlet pressure;
+  expanders reject one above it. Equal pressures pass the inlet state through
+  with zero power.
+- Zero inlet flow gives an empty outlet, zero power and a warning.
+- The multistage compressor uses an equal pressure ratio
+  \((p_{out}/p_{in})^{1/N}\) and cools to the same temperature at constant
+  pressure after every stage except the last (no aftercooler). An intercooler
+  that would heat the gas or condense liquid fails; add a separator for
+  condensate knockout.
+
+Not modelled: polytropic efficiency, performance curves, speed, mechanical
+and driver efficiency, pressure ratio as a specification, intercooler
+pressure drop, power taken from an energy stream (for example an expander
+driving a compressor), and NRTL/GERG PS paths.
 
 ## Heat transport
 

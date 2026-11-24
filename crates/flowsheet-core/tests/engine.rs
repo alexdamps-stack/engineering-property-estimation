@@ -554,12 +554,12 @@ fn invalid_specs_zero_flow_domain_and_unsupported_units_fail_explicitly() {
         (
             UnitKind::Pump,
             UnitSpec::Pressurize {
-                pressure: PressureRise::OutletPressure(Some(6e6)),
+                pressure: PressureRise::OutletPressure(Some(4e6)),
                 efficiency: 0.75,
             },
             330.0,
             1.0,
-            "efficiency model",
+            "below the inlet pressure",
         ),
         (
             UnitKind::Splitter,
