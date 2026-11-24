@@ -93,7 +93,7 @@ the unit and the operation.
 | Bubble and dew temperature and pressure | Shortcut column, condenser and reboiler states, vapor-fraction specifications | ✔ (A13 domain) | — | — | — | #226, #227 |
 | Formation properties on the package reference | All reactors | ✔ | — | — | — | #226 |
 | Three-phase (VLLE/LLE) stability and flash | Three-phase separator, decanter, three-phase column, extractor | — | — | — | — | #224 |
-| Viscosity, thermal conductivity, surface tension | Pipe segment, relief valve, exchanger rating, column hydraulics | — | — | — | — | #225 |
+| Viscosity, thermal conductivity, surface tension | Pipe segment, relief valve, exchanger rating, column hydraulics | ✔ (8 components, [domain](transport-properties.md)) | ✔ (same) | ✔ (same) | ✔ (CO2 only; H2 has no data) | #225 |
 | Engineering liquid density | Liquid-phase kinetics, pump hydraulics, relief and pipe sizing | — | — | — | — | #228 |
 | Pseudo-components from assay data | Petroleum fractionator | — | — | — | — | #229 |
 

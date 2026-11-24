@@ -1,0 +1,469 @@
+{
+  "schema": "transport-source-extract-v1",
+  "version": "2026-11-24.1",
+  "status": "source transcription for #225 transport properties; accuracy is qualified separately against CoolProp 7.2.0 in validation/transport",
+  "sources": [
+    {
+      "id": "chemsep_pcd",
+      "url": "https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml",
+      "sha256": "31e72c40b2b3b084161314c3262e227fcdd773c0bf2070bacbae9c5da203533f"
+    },
+    {
+      "id": "artistic_license_2_0",
+      "url": "https://raw.githubusercontent.com/spdx/license-list-data/v3.24.0/text/Artistic-2.0.txt",
+      "sha256": "bae466ac8d7100c304fe76632ccc627203a3897d3f7166f3cce00fb9df8c2074"
+    }
+  ],
+  "chemsep_library": "glycerolChemSep v8.3 pure component data - Copyright (c) Harry Kooijman and Ross Taylor (2021) - http://www.perlfoundation.org/artistic_license_2_0",
+  "equations": {
+    "101": "Y = exp(A + B/T + C ln(T/K) + D T^E), T in K",
+    "16": "Y = A + exp(B/T + C + D T + E T^2), T in K"
+  },
+  "association_factor_source": "Chung, Ajlan, Lee, Starling (1988), Ind. Eng. Chem. Res. 27, 671-679, Table I; reproduced in Poling, Prausnitz, O'Connell (2001), Table 9-1. Zero for non-associating species.",
+  "unit_conversions": {
+    "critical_volume": "ChemSep m3/kmol divided by 1000",
+    "debye_C_m": 3.33564095198152e-30
+  },
+  "components": [
+    {
+      "id": "methane",
+      "cas": "74-82-8",
+      "chemsep_name": "Methane",
+      "chemsep_index": 1,
+      "critical_volume_m3_per_mol": 9.86e-05,
+      "dipole_moment_C_m": 0.0,
+      "dipole_moment_debye": 0.0,
+      "association_factor": 0.0,
+      "liquid_viscosity": {
+        "equation": 101,
+        "coefficients": [
+          -45.328,
+          724.39,
+          6.5917,
+          -0.00010373,
+          2.0
+        ],
+        "units": "Pa s",
+        "temperature_range_K": [
+          88.15,
+          190.0
+        ]
+      },
+      "liquid_thermal_conductivity": {
+        "equation": 16,
+        "coefficients": [
+          0.011567,
+          -46.041,
+          0.10435,
+          -0.012133,
+          -5.1716e-06
+        ],
+        "units": "W/(m K)",
+        "temperature_range_K": [
+          90.69,
+          180.0
+        ]
+      },
+      "surface_tension": {
+        "equation": 16,
+        "coefficients": [
+          -0.040703,
+          -6.9523,
+          -2.3114,
+          -0.0055565,
+          5.7595e-06
+        ],
+        "units": "N/m",
+        "temperature_range_K": [
+          90.0,
+          193.15
+        ]
+      }
+    },
+    {
+      "id": "ethane",
+      "cas": "74-84-0",
+      "chemsep_name": "Ethane",
+      "chemsep_index": 2,
+      "critical_volume_m3_per_mol": 0.00014549999999999999,
+      "dipole_moment_C_m": 0.0,
+      "dipole_moment_debye": 0.0,
+      "association_factor": 0.0,
+      "liquid_viscosity": {
+        "equation": 101,
+        "coefficients": [
+          -33.92204,
+          743.404,
+          4.302492,
+          -3.64469e-05,
+          2.0
+        ],
+        "units": "Pa s",
+        "temperature_range_K": [
+          90.35,
+          300.0
+        ]
+      },
+      "liquid_thermal_conductivity": {
+        "equation": 16,
+        "coefficients": [
+          -0.073876,
+          -9.6787,
+          -0.67405,
+          -0.003407,
+          -2.2023e-06
+        ],
+        "units": "W/(m K)",
+        "temperature_range_K": [
+          90.35,
+          300.0
+        ]
+      },
+      "surface_tension": {
+        "equation": 16,
+        "coefficients": [
+          -0.0092564,
+          30.13,
+          -3.5743,
+          0.0026003,
+          -2.1736e-05
+        ],
+        "units": "N/m",
+        "temperature_range_K": [
+          89.88,
+          305.32
+        ]
+      }
+    },
+    {
+      "id": "propane",
+      "cas": "74-98-6",
+      "chemsep_name": "Propane",
+      "chemsep_index": 3,
+      "critical_volume_m3_per_mol": 0.0002,
+      "dipole_moment_C_m": 0.0,
+      "dipole_moment_debye": 0.0,
+      "association_factor": 0.0,
+      "liquid_viscosity": {
+        "equation": 101,
+        "coefficients": [
+          -35.23159,
+          966.1472,
+          4.395026,
+          -2.55079e-05,
+          2.0
+        ],
+        "units": "Pa s",
+        "temperature_range_K": [
+          85.47,
+          363.15
+        ]
+      },
+      "liquid_thermal_conductivity": {
+        "equation": 16,
+        "coefficients": [
+          0.02937,
+          -16.323,
+          -1.3313,
+          -0.0012596,
+          -1.1206e-05
+        ],
+        "units": "W/(m K)",
+        "temperature_range_K": [
+          85.47,
+          350.0
+        ]
+      },
+      "surface_tension": {
+        "equation": 16,
+        "coefficients": [
+          -0.0093557,
+          17.245,
+          -3.1909,
+          0.00024043,
+          -1.1944e-05
+        ],
+        "units": "N/m",
+        "temperature_range_K": [
+          85.44,
+          369.98
+        ]
+      }
+    },
+    {
+      "id": "nitrogen",
+      "cas": "7727-37-9",
+      "chemsep_name": "Nitrogen",
+      "chemsep_index": 905,
+      "critical_volume_m3_per_mol": 9.01e-05,
+      "dipole_moment_C_m": 0.0,
+      "dipole_moment_debye": 0.0,
+      "association_factor": 0.0,
+      "liquid_viscosity": {
+        "equation": 101,
+        "coefficients": [
+          3.4358,
+          -24.706,
+          -2.6748,
+          -4.1603e-05,
+          2.0
+        ],
+        "units": "Pa s",
+        "temperature_range_K": [
+          63.15,
+          125.0
+        ]
+      },
+      "liquid_thermal_conductivity": {
+        "equation": 16,
+        "coefficients": [
+          -0.21743,
+          10.383,
+          -1.0631,
+          0.00036245,
+          -2.3265e-05
+        ],
+        "units": "W/(m K)",
+        "temperature_range_K": [
+          60.0,
+          124.0
+        ]
+      },
+      "surface_tension": {
+        "equation": 16,
+        "coefficients": [
+          -0.0025409,
+          96.836,
+          -7.6473,
+          0.05313,
+          -0.00036553
+        ],
+        "units": "N/m",
+        "temperature_range_K": [
+          63.15,
+          126.2
+        ]
+      }
+    },
+    {
+      "id": "carbon-dioxide",
+      "cas": "124-38-9",
+      "chemsep_name": "Carbon dioxide",
+      "chemsep_index": 909,
+      "critical_volume_m3_per_mol": 9.4e-05,
+      "dipole_moment_C_m": 0.0,
+      "dipole_moment_debye": 0.0,
+      "association_factor": 0.0,
+      "liquid_viscosity": {
+        "equation": 101,
+        "coefficients": [
+          -7.7022,
+          -166.34,
+          0.38094,
+          -4.018e-05,
+          2.0
+        ],
+        "units": "Pa s",
+        "temperature_range_K": [
+          216.58,
+          303.15
+        ]
+      },
+      "liquid_thermal_conductivity": {
+        "equation": 16,
+        "coefficients": [
+          -0.24975,
+          -55.106,
+          0.41735,
+          -0.0051067,
+          2.0157e-06
+        ],
+        "units": "W/(m K)",
+        "temperature_range_K": [
+          216.58,
+          300.0
+        ]
+      },
+      "surface_tension": {
+        "equation": 16,
+        "coefficients": [
+          -0.011629,
+          -183.67,
+          0.069773,
+          -0.012408,
+          -1.8232e-06
+        ],
+        "units": "N/m",
+        "temperature_range_K": [
+          216.58,
+          304.21
+        ]
+      }
+    },
+    {
+      "id": "oxygen",
+      "cas": "7782-44-7",
+      "chemsep_name": "Oxygen",
+      "chemsep_index": 901,
+      "critical_volume_m3_per_mol": 7.337000000000001e-05,
+      "dipole_moment_C_m": 0.0,
+      "dipole_moment_debye": 0.0,
+      "association_factor": 0.0,
+      "liquid_viscosity": {
+        "equation": 101,
+        "coefficients": [
+          -5.2319,
+          116.13,
+          -1.0315,
+          3.4376e-06,
+          2.0
+        ],
+        "units": "Pa s",
+        "temperature_range_K": [
+          54.36,
+          150.0
+        ]
+      },
+      "liquid_thermal_conductivity": {
+        "equation": 16,
+        "coefficients": [
+          -0.19654,
+          -10.535,
+          -0.46717,
+          -0.0052064,
+          -3.3418e-07
+        ],
+        "units": "W/(m K)",
+        "temperature_range_K": [
+          50.0,
+          150.0
+        ]
+      },
+      "surface_tension": {
+        "equation": 16,
+        "coefficients": [
+          -0.0062662,
+          17.53,
+          -3.9173,
+          0.0058473,
+          -9.1613e-05
+        ],
+        "units": "N/m",
+        "temperature_range_K": [
+          54.35,
+          154.58
+        ]
+      }
+    },
+    {
+      "id": "water",
+      "cas": "7732-18-5",
+      "chemsep_name": "Water",
+      "chemsep_index": 1921,
+      "critical_volume_m3_per_mol": 5.595e-05,
+      "dipole_moment_C_m": 6.17e-30,
+      "dipole_moment_debye": 1.8497194658600002,
+      "association_factor": 0.075908,
+      "liquid_viscosity": {
+        "equation": 101,
+        "coefficients": [
+          -133.7,
+          6785.7,
+          18.47,
+          -1.4736e-05,
+          2.0
+        ],
+        "units": "Pa s",
+        "temperature_range_K": [
+          273.1,
+          647.13
+        ]
+      },
+      "liquid_thermal_conductivity": {
+        "equation": 16,
+        "coefficients": [
+          -1.5697,
+          -55.141,
+          0.7832,
+          0.0011484,
+          -1.8151e-06
+        ],
+        "units": "W/(m K)",
+        "temperature_range_K": [
+          273.1,
+          633.15
+        ]
+      },
+      "surface_tension": {
+        "equation": 16,
+        "coefficients": [
+          -0.031819,
+          167.09,
+          -3.6781,
+          0.0053717,
+          -8.4188e-06
+        ],
+        "units": "N/m",
+        "temperature_range_K": [
+          265.1,
+          647.1
+        ]
+      }
+    },
+    {
+      "id": "methanol",
+      "cas": "67-56-1",
+      "chemsep_name": "Methanol",
+      "chemsep_index": 1101,
+      "critical_volume_m3_per_mol": 0.000118,
+      "dipole_moment_C_m": 5.67e-30,
+      "dipole_moment_debye": 1.6998232368600004,
+      "association_factor": 0.215175,
+      "liquid_viscosity": {
+        "equation": 101,
+        "coefficients": [
+          -32.996,
+          1981.4,
+          3.3666,
+          -3.9246e-06,
+          2.0
+        ],
+        "units": "Pa s",
+        "temperature_range_K": [
+          175.47,
+          412.0
+        ]
+      },
+      "liquid_thermal_conductivity": {
+        "equation": 16,
+        "coefficients": [
+          -0.056817,
+          13.156,
+          -1.2214,
+          -0.00028282,
+          -1.0129e-06
+        ],
+        "units": "W/(m K)",
+        "temperature_range_K": [
+          150.0,
+          512.0
+        ]
+      },
+      "surface_tension": {
+        "equation": 16,
+        "coefficients": [
+          -0.094523,
+          33.559,
+          -2.3648,
+          0.001011,
+          -2.2169e-06
+        ],
+        "units": "N/m",
+        "temperature_range_K": [
+          273.1,
+          503.15
+        ]
+      }
+    }
+  ]
+}

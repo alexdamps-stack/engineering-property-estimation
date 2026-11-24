@@ -15,7 +15,9 @@ from a library target plus a thin `main.rs`.
 - `property-packages` supplies the immutable flowsheet packages behind the
   `FlowsheetPackage` interface: cubic (PR, PR-BM, SRK), NRTL-IG, GERG-2008 and
   EOS-CG-2021. Each retains model, interaction, data and caloric-reference
-  metadata. New models and packages follow the
+  metadata. Phase viscosity, thermal conductivity and surface tension come
+  from the package-independent transport methods
+  ([transport properties](transport-properties.md), #225). New models and packages follow the
   [property-model requirements](property-model-requirements.md).
 - `flowsheet-core` holds a GUI-independent topology and sequential calculation
   engine: units, ports, material streams, specifications, balances and

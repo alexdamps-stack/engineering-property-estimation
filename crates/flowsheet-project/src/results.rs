@@ -50,10 +50,83 @@ pub struct PhaseResult {
     pub dynamic_viscosity_pa_s: Option<f64>,
     #[serde(default)]
     pub thermal_conductivity_w_m_k: Option<f64>,
+    /// Surface tension of a liquid phase in N/m, when available (#225).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface_tension_n_m: Option<f64>,
+    /// Transport method, data, validity and the reason for each unavailable
+    /// transport property (#225). Absent in results from older versions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<TransportResult>,
     /// Computational validity of the phase state.
     pub validity: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nrtl_regression_interval_inferred: Option<bool>,
+}
+
+/// Identity and availability of a phase's transport properties (#225).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TransportResult {
+    /// `gas`, `dense fluid` or `liquid`; `None` when the phase could not be
+    /// evaluated at all (for example a component without transport data).
+    pub regime: Option<String>,
+    /// Method identifier and implementation version.
+    pub method: Option<String>,
+    /// Transport dataset identifier and version.
+    pub data: Option<String>,
+    /// `within declared domain` (one component) or `unassessed` (mixing rules).
+    pub validity: Option<String>,
+    /// Why each unavailable property is unavailable, `property: reason`.
+    pub unavailable: Vec<String>,
+}
+
+impl TransportResult {
+    fn from_state(
+        transport: &Result<property_packages::TransportProperties, thermo_types::CalculationError>,
+        liquid: bool,
+    ) -> Self {
+        let t = match transport {
+            Ok(t) => t,
+            Err(e) => {
+                return Self {
+                    regime: None,
+                    method: None,
+                    data: None,
+                    validity: None,
+                    unavailable: vec![format!("transport: {e}")],
+                };
+            }
+        };
+        let mut unavailable = Vec::new();
+        let mut note = |name: &str, r: &Result<f64, thermo_types::CalculationError>| {
+            if let Err(e) = r {
+                unavailable.push(format!("{name}: {e}"));
+            }
+        };
+        note("viscosity", &t.viscosity);
+        note("thermal conductivity", &t.thermal_conductivity);
+        if liquid {
+            note("surface tension", &t.surface_tension);
+        }
+        Self {
+            regime: Some(t.regime.label().into()),
+            method: Some(format!(
+                "{} {}",
+                t.model.identifier, t.model.implementation_version
+            )),
+            data: Some(format!("{} {}", t.data.identifier, t.data.version)),
+            validity: Some(validity_label(t.validity).into()),
+            unavailable,
+        }
+    }
+}
+
+fn validity_label(v: ValidityStatus) -> &'static str {
+    match v {
+        ValidityStatus::WithinDeclaredDomain => "within declared domain",
+        ValidityStatus::Extrapolated => "extrapolated",
+        ValidityStatus::Unassessed => "unassessed",
+    }
 }
 
 /// Equilibrium state of a stream.
@@ -581,6 +654,7 @@ impl ResultSet {
                             || opt(p.speed_of_sound_m_s)
                             || opt(p.dynamic_viscosity_pa_s)
                             || opt(p.thermal_conductivity_w_m_k)
+                            || opt(p.surface_tension_n_m)
                             || p.mole_fractions.iter().any(|v| bad(*v))
                     })
             });
@@ -681,6 +755,17 @@ fn stream_result(s: &MaterialStream, fingerprint: Fingerprint) -> StreamResult {
                     speed_of_sound_m_s: p.state.speed_of_sound,
                     dynamic_viscosity_pa_s: p.state.dynamic_viscosity,
                     thermal_conductivity_w_m_k: p.state.thermal_conductivity,
+                    surface_tension_n_m: p
+                        .state
+                        .transport
+                        .as_ref()
+                        .and_then(|t| t.as_ref().ok())
+                        .and_then(|t| t.surface_tension.clone().ok()),
+                    transport: p
+                        .state
+                        .transport
+                        .as_ref()
+                        .map(|t| TransportResult::from_state(t, p.phase == Phase::Liquid)),
                     validity: validity.into(),
                     nrtl_regression_interval_inferred: p
                         .state
