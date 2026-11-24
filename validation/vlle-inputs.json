@@ -1,0 +1,35 @@
+{
+  "schema": "vlle-inputs-v1",
+  "purpose": "Case inputs for the #224 VLLE/LLE references (generate_vlle.jl). Inputs only: no expected values.",
+  "cubic_interactions": "Explicit kij = 0.5 for every water-hydrocarbon pair and 0 for hydrocarbon pairs: an approximation chosen for implementation verification, not a qualified dataset.",
+  "cubic_tp": [
+    {"id": "pr-c1c3w-vlle-300K-20bar", "variant": "PR", "ids": ["methane", "propane", "water"], "z": [0.1, 0.4, 0.5], "T": 300.0, "p": 2000000.0},
+    {"id": "pr-c1c3w-vlle-300K-14bar", "variant": "PR", "ids": ["methane", "propane", "water"], "z": [0.1, 0.4, 0.5], "T": 300.0, "p": 1400000.0},
+    {"id": "prbm-c1c3w-vlle-300K-25bar", "variant": "PR-BM", "ids": ["methane", "propane", "water"], "z": [0.1, 0.4, 0.5], "T": 300.0, "p": 2500000.0},
+    {"id": "pr-c3w-lle-300K-50bar", "variant": "PR", "ids": ["propane", "water"], "z": [0.5, 0.5], "T": 300.0, "p": 5000000.0},
+    {"id": "pr-c1c3w-vlw-320K-5bar", "variant": "PR", "ids": ["methane", "propane", "water"], "z": [0.1, 0.4, 0.5], "T": 320.0, "p": 500000.0},
+    {"id": "pr-c1c3w-vapor-400K-5bar", "variant": "PR", "ids": ["methane", "propane", "water"], "z": [0.6, 0.39, 0.01], "T": 400.0, "p": 500000.0}
+  ],
+  "cubic_ph_round_trip": ["pr-c1c3w-vlle-300K-20bar", "pr-c3w-lle-300K-50bar", "pr-c1c3w-vlw-320K-5bar"],
+  "cubic_ph_invariant": [
+    {"id": "pr-c3w-three-phase-20bar", "variant": "PR", "ids": ["propane", "water"], "z": [0.5, 0.5], "p": 2000000.0, "vapor_fraction": 0.3, "T_guess": 330.0}
+  ],
+  "nrtl": {
+    "ids": ["methanol", "water"],
+    "b12_K": 350.0,
+    "b21_K": 520.0,
+    "alpha": 0.2,
+    "note": "Synthetic partially miscible NRTL pair (tau_12 = 350 K/T, tau_21 = 520 K/T, alpha = 0.2) on the methanol and water pure-liquid and ideal-gas data. Implementation verification only; not a physical mixture."
+  },
+  "nrtl_tp": [
+    {"id": "nrtl-lle-300K-1bar", "z": [0.5, 0.5], "T": 300.0, "p": 100000.0},
+    {"id": "nrtl-lle-370K-5bar", "z": [0.5, 0.5], "T": 370.0, "p": 500000.0},
+    {"id": "nrtl-vl-300K-15kPa", "z": [0.5, 0.5], "T": 300.0, "p": 15000.0},
+    {"id": "nrtl-liquid-300K-1bar", "z": [0.05, 0.95], "T": 300.0, "p": 100000.0},
+    {"id": "nrtl-vapor-350K-10kPa", "z": [0.5, 0.5], "T": 350.0, "p": 10000.0}
+  ],
+  "nrtl_ph_round_trip": ["nrtl-lle-300K-1bar", "nrtl-vl-300K-15kPa"],
+  "nrtl_ph_invariant": [
+    {"id": "nrtl-three-phase-1bar", "z": [0.5, 0.5], "p": 100000.0, "vapor_fraction": 0.3, "T_guess": 340.0}
+  ]
+}

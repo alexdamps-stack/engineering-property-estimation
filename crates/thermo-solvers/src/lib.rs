@@ -6,8 +6,9 @@
 //!
 //! Stability is assessed from a finite, documented set of tangent-plane-distance
 //! trials. Passing those trials is evidence, not a proof of global stability.
-//! At most two phases (vapor–liquid or liquid–liquid by volume label) are solved;
-//! an additional phase indicated after the split is reported as unsupported.
+//! The two-phase flashes solve at most two phases (vapor–liquid or liquid–liquid by
+//! volume label) and report an additional phase indicated after the split as
+//! unsupported; `multiphase` adds VLLE/LLE stability and TP/PH flash (#224).
 mod activity;
 mod equilibrium_model;
 mod flash;
@@ -15,6 +16,7 @@ mod gerg_density;
 mod gerg_flash;
 mod gerg_ph;
 mod mixture_saturation;
+mod multiphase;
 mod ph;
 mod ps;
 mod rachford_rice;
@@ -27,6 +29,7 @@ pub use gerg_density::*;
 pub use gerg_flash::*;
 pub use gerg_ph::*;
 pub use mixture_saturation::*;
+pub use multiphase::*;
 pub use ph::*;
 pub use ps::*;
 pub use rachford_rice::*;

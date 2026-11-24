@@ -92,7 +92,7 @@ the unit and the operation.
 | ln φ (fugacity coefficients) | K-values, equilibrium and Gibbs reactors (package basis) | ✔ | — | — | — | #226 |
 | Bubble and dew temperature and pressure | Shortcut column, condenser and reboiler states, vapor-fraction specifications | ✔ (A13 domain) | — | — | — | #226, #227 |
 | Formation properties on the package reference | All reactors | ✔ | — | — | — | #226 |
-| Three-phase (VLLE/LLE) stability and flash | Three-phase separator, decanter, three-phase column, extractor | — | — | — | — | #224 |
+| Three-phase (VLLE/LLE) stability and TP/PH flash (`vlle_tp`, `vlle_ph`) | Three-phase separator, decanter, three-phase column, extractor | ✔ ([status](vlle-status.md)) | ✔ (one ideal-gas vapor, up to two NRTL liquids) | — | — | #224 |
 | Viscosity, thermal conductivity, surface tension | Pipe segment, relief valve, exchanger rating, column hydraulics | — | — | — | — | #225 |
 | Engineering liquid density | Liquid-phase kinetics, pump hydraulics, relief and pipe sizing | — | — | — | — | #228 |
 | Pseudo-components from assay data | Petroleum fractionator | — | — | — | — | #229 |

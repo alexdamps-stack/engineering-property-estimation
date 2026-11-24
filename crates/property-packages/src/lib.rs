@@ -4,7 +4,7 @@
 mod eos_cg;
 pub use eos_cg::EosCgPackage;
 mod flowsheet;
-pub use flowsheet::{FlowsheetPackage, GergPackage, NrtlPackage};
+pub use flowsheet::{FlowsheetPackage, GergPackage, MultiphaseEquilibrium, NrtlPackage, PhaseRole};
 
 use thermo_models::{CubicModel, HomogeneousState};
 // The cubic homogeneous envelope, re-exported for interfaces that build packages

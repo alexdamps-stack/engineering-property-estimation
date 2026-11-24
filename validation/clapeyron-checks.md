@@ -13,7 +13,7 @@ root, run:
 julia --project=validation/julia validation/julia/check.jl
 ```
 
-The script instantiates `validation/julia/Manifest.toml` and checks three
+The script instantiates `validation/julia/Manifest.toml` and checks four
 committed fixtures in turn:
 
 | Fixture | Generator | Rust test (`cargo test -p thermo-solvers --locked --test …`) | Candidate variable |
@@ -21,6 +21,7 @@ committed fixtures in turn:
 | `clapeyron-v1.json` (PR/PR-BM homogeneous and PH) | `generate.jl` | `clapeyron` | `THERMO_CLAPEYRON_REFERENCE` |
 | `nrtl-v1.json` (A7 NRTL/gamma–phi) | `generate_nrtl.jl` | `nrtl_clapeyron` | `THERMO_NRTL_REFERENCE` |
 | `a13-v1.json` (A13 bubble/dew and envelope) | `generate_a13.jl` | `a13_clapeyron` | `THERMO_A13_REFERENCE` |
+| `vlle-v1.json` (#224 VLLE/LLE TP and PH) | `generate_vlle.jl` | `vlle_clapeyron` | `THERMO_VLLE_REFERENCE` |
 
 For each fixture it verifies the committed input, generator and environment
 hashes, generates a temporary Julia candidate, checks that the candidate
@@ -230,3 +231,21 @@ supplied solutions. The fixture's `fugacity_residual` entries are solver
 diagnostics; the live comparison treats them as a bound (`1e-8`) rather than a
 reference value. Scope, the 62 points and the tolerances are in
 [A13 status](../docs/a13-status.md).
+
+## #224 VLLE/LLE check
+
+`check.jl` also verifies `fixtures/vlle-v1.json` (input, generator and manifest
+hashes), regenerates it live with `generate_vlle.jl` from
+`validation/vlle-inputs.json` and runs
+`cargo test -p thermo-solvers --test vlle_clapeyron` with
+`THERMO_VLLE_REFERENCE`. The PR/PR-BM cases reuse the `generate.jl` model
+adapter with an explicit water–hydrocarbon kij of 0.5. The NRTL cases use
+Clapeyron's `NRTL` with a synthetic partially miscible pair on the transcribed
+methanol/water ancillaries of `generate_nrtl.jl`, with an ideal-gas vapor.
+Clapeyron's native multiphase flash only supplies initial phase sets: each
+candidate is solved to 256 bits by Newton's method on Clapeyron ln fugacities and
+component balances, and accepted only when a composition-grid TPD scan finds no
+negative TPD (see [VLLE status](../docs/vlle-status.md) for why). The binary
+three-phase temperatures of the invariant PH cases are solved the same way. No
+Rust call or output enters the generator. Scope, cases and tolerances are in
+the [VLLE status](../docs/vlle-status.md).
