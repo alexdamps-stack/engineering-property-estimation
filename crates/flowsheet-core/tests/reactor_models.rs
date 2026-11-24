@@ -215,6 +215,7 @@ fn kinetics(case: &Value) -> Kinetics {
             })
             .collect(),
         catalyst_bulk_density_kg_m3: case["catalyst_bulk_density_kg_m3"].as_f64(),
+        liquid_volume: Default::default(),
     }
 }
 

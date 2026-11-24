@@ -440,6 +440,32 @@
       },
       "domain": "3 ideal-gas equilibrium cases (Gibbs, water-gas shift with a 20 K approach, methanol synthesis with a correlation K; 480..560 K, 1..20 bar) and 3 isothermal kinetic cases (CSTR, catalytic plug flow with power-law and LHHW rates, constant-pressure batch with PR volume; 500..560 K, 3..6 bar); standard Gibbs energies of 7 components at 300, 450 and 600 K",
       "rationale": "Cantera equilibrate is converged to rtol 1e-14 and SciPy brentq/DOP853 to 1e-13; the engine converges equilibria to 1e-13 scaled constraint residuals and integrates at rtol 1e-9, so the flow budget leaves margin for the integrator; duties are sums of NASA7 enthalpies of those flows."
+    },
+    {
+      "fixture": "validation/fixtures/liquid-density-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "implementation": {
+          "quantity": "molar volume and pseudo saturation pressure",
+          "atol": 0.0,
+          "rtol": 1e-11,
+          "rationale": "Same closed-form expressions in double precision; R differs from fluids.constants by 2e-12 relative"
+        },
+        "experimental": [
+          {
+            "reduced_temperature_max": 0.9,
+            "max_abs_relative_deviation": 0.02,
+            "rationale": "Hankinson-Thomson report about 0.4 % average deviation for pure saturated liquids and Thomson-Brobst-Hankinson about 1 % for compressed liquids below Tr 0.95; 2 % bounds single points"
+          },
+          {
+            "reduced_temperature_max": 0.95,
+            "max_abs_relative_deviation": 0.05,
+            "rationale": "Near-critical band 0.90 < Tr <= 0.95 where the corresponding-states fit and the reference EOS both lose accuracy"
+          }
+        ]
+      },
+      "domain": "COSTALD engineering liquid density (#228): 0.25 <= T/Tcm <= 0.95, p <= 69 MPa; implementation cases for 10 pure fluids and 8 mixtures; experimental points for 10 pure fluids (saturated and compressed) and 10 bubble-point mixtures, budgets applied to the qualified scope only",
+      "rationale": "Implementation: same closed-form expressions as chemicals 1.5.2 in double precision. Experimental: Hankinson-Thomson / Thomson-Brobst-Hankinson reported accuracy against CoolProp 7.2.0 reference EOS; components failing the budget (water, methanol, hydrogen; CO2 in hydrocarbon mixtures) were excluded from the qualified scope instead of widening it."
     }
   ],
   "deferred": [

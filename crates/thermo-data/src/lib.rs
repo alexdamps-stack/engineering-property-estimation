@@ -2,6 +2,8 @@
 //! Source coefficients and notices are retained in `data/source-extracts`.
 mod liquid;
 pub use liquid::*;
+mod costald;
+pub use costald::*;
 
 use serde::Deserialize;
 use thermo_types::{

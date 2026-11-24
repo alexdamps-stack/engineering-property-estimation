@@ -7,7 +7,10 @@ use thermo_solvers::{
 };
 use thermo_types::{CalculationError, MOLAR_GAS_CONSTANT, Phase, Pressure, Temperature};
 
-use crate::{Convergence, CubicPackage, EquilibriumPhase, EquilibriumState, PhaseProperties};
+use crate::{
+    Convergence, CubicPackage, EngineeringLiquidDensity, EquilibriumPhase, EquilibriumState,
+    PhaseProperties,
+};
 
 /// Equilibrium operations required by a sequential flowsheet.
 pub trait FlowsheetPackage: Debug + Send + Sync {
@@ -30,6 +33,21 @@ pub trait FlowsheetPackage: Debug + Send + Sync {
 
     /// Access for legacy unit models that depend on cubic-specific operations.
     fn cubic(&self) -> Result<&CubicPackage, CalculationError>;
+
+    /// Engineering liquid density of one liquid phase at T, p and phase mole
+    /// fractions (#228). It is reported beside the phase's EOS density and
+    /// never enters equilibrium or caloric results. Packages without one
+    /// return `UnsupportedCapability`; nothing is substituted.
+    fn engineering_liquid_density(
+        &self,
+        _fractions: &[f64],
+        _temperature_k: f64,
+        _pressure_pa: f64,
+    ) -> Result<EngineeringLiquidDensity, CalculationError> {
+        Err(CalculationError::UnsupportedCapability(
+            "this property package provides no engineering liquid density".into(),
+        ))
+    }
 }
 
 /// The bounded NRTL liquid and ideal-gas vapor package.
@@ -259,6 +277,15 @@ impl FlowsheetPackage for CubicPackage {
 
     fn cubic(&self) -> Result<&CubicPackage, CalculationError> {
         Ok(self)
+    }
+
+    fn engineering_liquid_density(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+    ) -> Result<EngineeringLiquidDensity, CalculationError> {
+        CubicPackage::engineering_liquid_density(self, fractions, temperature_k, pressure_pa)
     }
 }
 

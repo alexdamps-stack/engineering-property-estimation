@@ -680,11 +680,13 @@ pub fn solve_project(
             message: e.message,
             cancelled: e.cancelled,
         })?;
-    Ok(ResultSet::from_calculation(
+    let mut results = ResultSet::from_calculation(
         &calc,
         &project.flowsheet,
         &fingerprints,
         package.provenance().clone(),
         solved_at_unix_s,
-    ))
+    );
+    results.attach_engineering_liquid_densities(&calc, package.package());
+    Ok(results)
 }

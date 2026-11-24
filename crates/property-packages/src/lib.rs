@@ -5,6 +5,9 @@ mod eos_cg;
 pub use eos_cg::EosCgPackage;
 mod flowsheet;
 pub use flowsheet::{FlowsheetPackage, GergPackage, NrtlPackage};
+mod liquid_density;
+// The engineering liquid density (#228), re-exported for unit and project code.
+pub use thermo_models::{CostaldLiquidDensity, EngineeringLiquidDensity};
 
 use thermo_models::{CubicModel, HomogeneousState};
 // The cubic homogeneous envelope, re-exported for interfaces that build packages
@@ -196,6 +199,8 @@ pub struct CubicPackage {
     model: CubicModel,
     options: PhFlashOptions,
     identity: std::sync::Arc<()>,
+    /// Optional engineering liquid density (#228); never used by the EOS results.
+    liquid_density: Option<std::sync::Arc<thermo_models::CostaldLiquidDensity>>,
 }
 
 impl CubicPackage {
@@ -204,6 +209,7 @@ impl CubicPackage {
             model,
             options,
             identity: std::sync::Arc::new(()),
+            liquid_density: None,
         }
     }
 

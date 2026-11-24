@@ -184,6 +184,22 @@ is deferred to A3 because no qualified correlation, parameters or formulation
 has been accepted by A2. Report EOS and engineering density distinctly if both
 are exposed.
 
+**#228 decision (November 2026):** the cubic packages (PR, PR-BM, SRK) gain a
+separately labelled *engineering* liquid density, COSTALD (Hankinson and
+Thomson 1979) with the COSTALD-Tait compressed-liquid correction (Thomson,
+Brobst and Hankinson 1982). No volume translation is applied: the EOS volume,
+fugacities, caloric properties and every flash result are unchanged, which
+identity tests verify bit for bit. The engineering density is evaluated on
+request for liquid phases only (`FlowsheetPackage::engineering_liquid_density`),
+carries its own model, data and validity metadata, and is stored beside the
+EOS density. It is outside the domain (`OutsideValidityDomain`) above
+T/T_cm = 0.95, below 0.25, above 69 MPa, and for liquids with more than
+0.1 mol % water, methanol or hydrogen, for which the correlation failed its
+experimental budget. Consumers state their basis: pump hydraulics and
+volumetric liquid flows use the engineering density or are *Unavailable*;
+kinetic reactors use the EOS volume unless `LiquidVolumeBasis::EngineeringDensity`
+is selected. See [liquid-density-status.md](liquid-density-status.md).
+
 ## Numerical decisions and verification gates
 
 Use `f64`, checked constructors and dedicated newtypes now. No linear-algebra

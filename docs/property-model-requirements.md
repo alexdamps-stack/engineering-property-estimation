@@ -94,7 +94,7 @@ the unit and the operation.
 | Formation properties on the package reference | All reactors | ✔ | — | — | — | #226 |
 | Three-phase (VLLE/LLE) stability and flash | Three-phase separator, decanter, three-phase column, extractor | — | — | — | — | #224 |
 | Viscosity, thermal conductivity, surface tension | Pipe segment, relief valve, exchanger rating, column hydraulics | — | — | — | — | #225 |
-| Engineering liquid density | Liquid-phase kinetics, pump hydraulics, relief and pipe sizing | — | — | — | — | #228 |
+| Engineering liquid density | Liquid-phase kinetics, pump hydraulics, relief and pipe sizing | ✔ (COSTALD; qualified components, see [status](liquid-density-status.md)) | — | — | — | #228 |
 | Pseudo-components from assay data | Petroleum fractionator | — | — | — | — | #229 |
 
 Today, operations other than TP and PH are reached through
@@ -221,5 +221,5 @@ A new package or capability is done when:
 | #225 Transport | Report the method per phase (gas, liquid, dense). Mixture rules and the pure-component data source are recorded. Outside the domain, the property is *Unavailable* rather than extrapolated. Units that need a missing property fail explicitly. |
 | #226 Operations for every package | PS uses the same structure as PH, including the saturation path. Fugacity and K-values come from the package's own phases (for NRTL-IG, γ and the vapor model). Saturation solvers are bounded by each package's domain. |
 | #227 Bubble/dew domain | Each added component set and range needs new independent saturation references. Near-critical states fail explicitly. |
-| #228 Liquid density | Choose between a volume translation and a separate correlation, following section 3.4. Report the EOS density and the engineering density separately. Reactor concentrations must say which density they use. |
+| #228 Liquid density | Choose between a volume translation and a separate correlation, following section 3.4. Report the EOS density and the engineering density separately. Reactor concentrations must say which density they use. *Done for the cubic packages with a separate COSTALD correlation; water, methanol and hydrogen are not qualified ([status](liquid-density-status.md)).* |
 | #229 Pseudo-components | Characterisation correlations and their inputs (Tb, SG, M) are stored with the project. Pseudo-component IDs are stable and cannot collide with database IDs. Interaction parameters remain explicit. |

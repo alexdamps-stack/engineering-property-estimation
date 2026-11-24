@@ -2,9 +2,11 @@
 
 use std::sync::Arc;
 
-use property_packages::{CubicPackage, EosCgPackage, FlowsheetPackage, GergPackage, NrtlPackage};
+use property_packages::{
+    CostaldLiquidDensity, CubicPackage, EosCgPackage, FlowsheetPackage, GergPackage, NrtlPackage,
+};
 use serde::{Deserialize, Serialize};
-use thermo_data::{COMPONENT_DATASET_ID, ComponentDatabase, LiquidDatabase};
+use thermo_data::{COMPONENT_DATASET_ID, ComponentDatabase, CostaldDatabase, LiquidDatabase};
 use thermo_models::{
     ActivityModel, CUBIC_TEMPERATURE_RANGE_K, CubicModel, CubicVariant, GERG_CALORIC_REFERENCE_ID,
     GERG_DATA_REVISION, GERG_MODEL_VERSION, GergModel, VaporModel,
@@ -343,7 +345,21 @@ impl PackageSelection {
         };
         let data = db.metadata_for(self.components.iter().map(String::as_str));
         let provenance = provenance_of(&model, data);
-        Ok((Arc::new(CubicPackage::new(model, options)), provenance))
+        // Separately labelled engineering liquid density (#228). It does not
+        // change any EOS result, so the provenance and fingerprints of the
+        // equilibrium results are unchanged; each density carries its own
+        // model and data versions.
+        let ids: Vec<&str> = self.components.iter().map(String::as_str).collect();
+        let density = CostaldLiquidDensity::from_databases(
+            &db,
+            &CostaldDatabase::embedded().map_err(|e| package(&e))?,
+            &ids,
+        )
+        .map_err(|e| package(&e))?;
+        let cubic = CubicPackage::new(model, options)
+            .with_engineering_liquid_density(density)
+            .map_err(|e| package(&e))?;
+        Ok((Arc::new(cubic), provenance))
     }
 }
 

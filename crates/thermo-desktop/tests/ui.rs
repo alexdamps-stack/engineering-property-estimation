@@ -1523,6 +1523,7 @@ fn snapshot_solved_kinetic_reactors() {
             },
         }],
         catalyst_bulk_density_kg_m3: None,
+        liquid_volume: Default::default(),
     };
     ed.fs.set_spec(
         cstr,

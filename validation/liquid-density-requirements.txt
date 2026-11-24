@@ -1,0 +1,2 @@
+chemicals==1.5.2
+CoolProp==7.2.0

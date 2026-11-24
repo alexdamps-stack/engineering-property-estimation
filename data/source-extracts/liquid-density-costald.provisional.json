@@ -1,0 +1,115 @@
+{
+  "schema": "issue-228-costald-source-extract-v1",
+  "version": "2026-11-24.1",
+  "status": "source transcription; experimental comparison in validation/fixtures/liquid-density-v1.json",
+  "gas_constant_J_per_mol_K": 8.31446261815324,
+  "method": {
+    "saturated": "Hankinson, R. W.; Thomson, G. H. A new correlation for saturated densities of liquids and their mixtures. AIChE J. 1979, 25 (4), 653-663. doi:10.1002/aic.690250412",
+    "compressed": "Thomson, G. H.; Brobst, K. R.; Hankinson, R. W. An improved correlation for densities of compressed liquids and liquid mixtures. AIChE J. 1982, 28 (4), 671-676. doi:10.1002/aic.690280420",
+    "parameters": "V* and omega_SRK from Hankinson and Thomson (1979) Table 1 as redistributed by chemicals 1.5.2 (MIT, Caleb Bell); critical temperatures are taken from the embedded component database, not from this extract"
+  },
+  "sources": [
+    {
+      "id": "chemicals_costald",
+      "url": "https://raw.githubusercontent.com/CalebBell/chemicals/7fca9acf7708e2a646bc04d2b6f6996d0325e77d/chemicals/Density/COSTALD%20Parameters.tsv",
+      "sha256": "32a43781673544c0e0d09d2f1dd58c4632b32f7f9128cd0335af4b0832f2168b"
+    },
+    {
+      "id": "chemicals_license",
+      "url": "https://raw.githubusercontent.com/CalebBell/chemicals/7fca9acf7708e2a646bc04d2b6f6996d0325e77d/LICENSE.txt",
+      "sha256": "dc8d90b7aed69e19ad9ca2528ee00c02be22e1d063b2b00db7c35e0b99854edb"
+    }
+  ],
+  "components": [
+    {
+      "id": "methane",
+      "cas": "74-82-8",
+      "source_name": "Methane",
+      "characteristic_volume_m3_per_mol": 9.939e-05,
+      "characteristic_volume_text": "0.00009939",
+      "omega_srk": 0.0074,
+      "omega_srk_text": "0.0074"
+    },
+    {
+      "id": "ethane",
+      "cas": "74-84-0",
+      "source_name": "Ethane",
+      "characteristic_volume_m3_per_mol": 0.0001458,
+      "characteristic_volume_text": "0.0001458",
+      "omega_srk": 0.0983,
+      "omega_srk_text": "0.0983"
+    },
+    {
+      "id": "propane",
+      "cas": "74-98-6",
+      "source_name": "Propane",
+      "characteristic_volume_m3_per_mol": 0.0002001,
+      "characteristic_volume_text": "0.0002001",
+      "omega_srk": 0.1532,
+      "omega_srk_text": "0.1532"
+    },
+    {
+      "id": "nitrogen",
+      "cas": "7727-37-9",
+      "source_name": "nitrogen",
+      "characteristic_volume_m3_per_mol": 9.012e-05,
+      "characteristic_volume_text": "0.00009012",
+      "omega_srk": 0.0358,
+      "omega_srk_text": "0.0358"
+    },
+    {
+      "id": "carbon-dioxide",
+      "cas": "124-38-9",
+      "source_name": "carbon dioxide",
+      "characteristic_volume_m3_per_mol": 9.384e-05,
+      "characteristic_volume_text": "0.00009384",
+      "omega_srk": 0.2373,
+      "omega_srk_text": "0.2373"
+    },
+    {
+      "id": "oxygen",
+      "cas": "7782-44-7",
+      "source_name": "oxygen",
+      "characteristic_volume_m3_per_mol": 7.382e-05,
+      "characteristic_volume_text": "0.00007382",
+      "omega_srk": 0.0298,
+      "omega_srk_text": "0.0298"
+    },
+    {
+      "id": "water",
+      "cas": "7732-18-5",
+      "source_name": "water",
+      "characteristic_volume_m3_per_mol": 4.357e-05,
+      "characteristic_volume_text": "0.00004357",
+      "omega_srk": 0.3852,
+      "omega_srk_text": "0.3852"
+    },
+    {
+      "id": "methanol",
+      "cas": "67-56-1",
+      "source_name": "methyl alcohol",
+      "characteristic_volume_m3_per_mol": 0.0001198,
+      "characteristic_volume_text": "0.0001198",
+      "omega_srk": 0.5536,
+      "omega_srk_text": "0.5536"
+    },
+    {
+      "id": "hydrogen",
+      "cas": "1333-74-0",
+      "source_name": "hydrogen",
+      "characteristic_volume_m3_per_mol": 6.423e-05,
+      "characteristic_volume_text": "0.00006423",
+      "omega_srk": -0.2324,
+      "omega_srk_text": "-0.2324"
+    },
+    {
+      "id": "carbon-monoxide",
+      "cas": "630-08-0",
+      "source_name": "carbon monoxide",
+      "characteristic_volume_m3_per_mol": 9.214e-05,
+      "characteristic_volume_text": "0.00009214",
+      "omega_srk": 0.0295,
+      "omega_srk_text": "0.0295"
+    }
+  ]
+}
