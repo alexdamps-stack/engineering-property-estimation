@@ -3,7 +3,6 @@
 use property_packages::EquilibriumPhase;
 use property_packages::{Convergence, EquilibriumState};
 use thermo_models::RootSelection;
-use thermo_solvers::SaturationOptions;
 use thermo_types::Phase;
 
 use super::stages::{ColumnEnds, Condenser, Stage, StageCascade, StageProperties};
@@ -17,11 +16,16 @@ const MIN_VAPOR_LIQUID_VOLUME_RATIO: f64 = 1.05;
 const MAX_ITERATIONS: usize = 40;
 const RESIDUAL_TOLERANCE: f64 = 2e-11;
 
+/// Stage temperatures stay inside the package interval and the interval of the
+/// package's bubble/dew solver.
 pub(super) fn temperature_range(ctx: &CalcContext<'_>) -> Result<[f64; 2], String> {
-    let options = SaturationOptions::default();
+    let [vle_lo, vle_hi] = ctx
+        .package()
+        .saturation_temperature_interval()
+        .map_err(|e| e.to_string())?;
     let [lo, hi] = ctx.package().temperature_interval();
-    let lo = lo.max(options.minimum_temperature_k);
-    let hi = hi.min(options.maximum_temperature_k);
+    let lo = lo.max(vle_lo);
+    let hi = hi.min(vle_hi);
     if lo >= hi {
         Err("package temperature interval does not overlap the column VLE interval".into())
     } else {
@@ -158,7 +162,7 @@ pub(super) fn residuals(
 pub(super) fn verify_phases(ctx: &CalcContext<'_>, cascade: &StageCascade) -> Result<(), String> {
     for (j, stage) in cascade.stages.iter().enumerate() {
         // The midpoint of each tie line must independently flash to both
-        // solved phases. Forced cubic roots alone do not certify VLE.
+        // solved phases. Forced phase roots alone do not certify VLE.
         let midpoint: Vec<_> = stage
             .x
             .iter()

@@ -1,13 +1,24 @@
 use std::{fmt::Debug, sync::Arc};
 
-use thermo_models::{ACTIVITY_TEMPERATURE_RANGE_K, ActivityModel, GergModel};
+use thermo_data::Component;
+use thermo_models::{ACTIVITY_TEMPERATURE_RANGE_K, ActivityModel, GergModel, RootSelection};
 use thermo_solvers::{
-    ActivityFlashPhase, ActivityOptions, GergPhFlashOptions, QUALIFIED_DRY_COMPONENTS,
-    activity_ph_flash, activity_tp_flash, gerg_ph_flash, gerg_tp_flash,
+    ActivityFlashPhase, ActivityOptions, ActivitySaturation, GergPhFlashOptions,
+    QUALIFIED_DRY_COMPONENTS, SaturationOptions, activity_bubble_pressure,
+    activity_bubble_temperature, activity_dew_pressure, activity_dew_temperature,
+    activity_ph_flash, activity_ps_flash, activity_tp_flash, gerg_homogeneous, gerg_ln_fugacity,
+    gerg_ph_flash, gerg_ps_flash, gerg_saturation_pressure, gerg_saturation_temperature,
+    gerg_tp_flash, liquid_stability,
 };
-use thermo_types::{CalculationError, MOLAR_GAS_CONSTANT, Phase, Pressure, Temperature};
+use thermo_types::{
+    CalculationError, Diagnostic, DiagnosticSeverity, MOLAR_GAS_CONSTANT, Phase, Pressure,
+    Temperature,
+};
 
-use crate::{Convergence, CubicPackage, EquilibriumPhase, EquilibriumState, PhaseProperties};
+use crate::{
+    Convergence, CubicPackage, EquilibriumPhase, EquilibriumState, PhaseProperties,
+    SaturationKind, SaturationState,
+};
 
 /// Equilibrium operations required by a sequential flowsheet.
 pub trait FlowsheetPackage: Debug + Send + Sync {
@@ -29,7 +40,123 @@ pub trait FlowsheetPackage: Debug + Send + Sync {
     ) -> Result<EquilibriumState, CalculationError>;
 
     /// Access for legacy unit models that depend on cubic-specific operations.
+    /// No unit uses it; new code must call package operations instead.
     fn cubic(&self) -> Result<&CubicPackage, CalculationError>;
+
+    // --- Operations beyond TP/PH (#226). Each package overrides the ones it
+    // supports; the defaults fail explicitly and never substitute a model.
+
+    /// PS equilibrium at p and molar entropy on the package caloric reference,
+    /// with the structure of PH (including the pure saturation lever rule).
+    fn ps(
+        &self,
+        _fractions: &[f64],
+        _pressure_pa: f64,
+        _entropy: f64,
+    ) -> Result<EquilibriumState, CalculationError> {
+        Err(unsupported("PS flash"))
+    }
+
+    /// Properties of one homogeneous phase of composition `fractions` at T, p
+    /// on the selected root. No phase-stability claim.
+    fn homogeneous(
+        &self,
+        _fractions: &[f64],
+        _temperature_k: f64,
+        _pressure_pa: f64,
+        _root: RootSelection,
+    ) -> Result<PhaseProperties, CalculationError> {
+        Err(unsupported("homogeneous phase evaluation"))
+    }
+
+    /// ln φ per component (package order) of one homogeneous phase on the
+    /// selected root, from the package's own phase model.
+    fn ln_fugacity_coefficients(
+        &self,
+        _fractions: &[f64],
+        _temperature_k: f64,
+        _pressure_pa: f64,
+        _root: RootSelection,
+    ) -> Result<Vec<f64>, CalculationError> {
+        Err(unsupported("fugacity coefficients"))
+    }
+
+    /// Equilibrium ratios K_i = φ_i(x, liquid root) / φ_i(y, vapor root) at T
+    /// and p, from [`Self::ln_fugacity_coefficients`]. A successive-substitution
+    /// building block; it does not check phase existence or stability.
+    fn k_values(
+        &self,
+        x: &[f64],
+        y: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+    ) -> Result<Vec<f64>, CalculationError> {
+        let liquid = self.ln_fugacity_coefficients(
+            x,
+            temperature_k,
+            pressure_pa,
+            RootSelection::SmallestVolume,
+        )?;
+        let vapor = self.ln_fugacity_coefficients(
+            y,
+            temperature_k,
+            pressure_pa,
+            RootSelection::LargestVolume,
+        )?;
+        let k: Vec<f64> = liquid
+            .iter()
+            .zip(&vapor)
+            .map(|(l, v)| (l - v).exp())
+            .collect();
+        if k.iter().all(|v| v.is_finite() && *v > 0.0) {
+            Ok(k)
+        } else {
+            Err(CalculationError::NumericalFailure(
+                "nonfinite equilibrium ratio".into(),
+            ))
+        }
+    }
+
+    /// Temperature interval, K, searched by the package's bubble/dew solver.
+    fn saturation_temperature_interval(&self) -> Result<[f64; 2], CalculationError> {
+        Err(unsupported("bubble/dew calculation"))
+    }
+
+    /// Bubble or dew pressure at T. `fractions` are the material phase: the
+    /// liquid for a bubble point, the vapor for a dew point.
+    fn saturation_pressure(
+        &self,
+        _fractions: &[f64],
+        _temperature_k: f64,
+        _kind: SaturationKind,
+    ) -> Result<SaturationState, CalculationError> {
+        Err(unsupported("bubble/dew pressure"))
+    }
+
+    /// Bubble or dew temperature at p, inside
+    /// [`Self::saturation_temperature_interval`].
+    fn saturation_temperature(
+        &self,
+        _fractions: &[f64],
+        _pressure_pa: f64,
+        _kind: SaturationKind,
+    ) -> Result<SaturationState, CalculationError> {
+        Err(unsupported("bubble/dew temperature"))
+    }
+
+    /// Components with element and formation data, in package order, when the
+    /// package enthalpy is on the formation-compatible ideal-gas reference
+    /// (pure ideal gas h = s = 0 at 298.15 K and 1 bar). Reactors add standard
+    /// formation enthalpies to stream enthalpies on this basis.
+    fn formation_components(&self) -> Result<&[Component], CalculationError> {
+        Err(unsupported("reaction formation basis"))
+    }
+}
+
+fn unsupported(operation: &str) -> CalculationError {
+    CalculationError::UnsupportedCapability(format!(
+        "the selected property package does not support {operation}"
+    ))
 }
 
 /// The bounded NRTL liquid and ideal-gas vapor package.
@@ -220,6 +347,186 @@ impl FlowsheetPackage for NrtlPackage {
                 .into(),
         ))
     }
+
+    fn ps(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        entropy: f64,
+    ) -> Result<EquilibriumState, CalculationError> {
+        let r = activity_ps_flash(
+            &self.model.with_fractions(fractions)?,
+            Pressure::new(pressure_pa)?,
+            entropy,
+            self.options,
+        )?;
+        Ok(EquilibriumState {
+            temperature_k: r.temperature_k,
+            pressure_pa: r.pressure_pa,
+            mole_fractions: fractions.to_vec(),
+            phases: r
+                .phases
+                .into_iter()
+                .map(|p| self.phase(p))
+                .collect::<Result<_, _>>()?,
+            iterations: r.iterations,
+            convergence: Convergence {
+                max_ln_fugacity_residual: r
+                    .tp
+                    .as_ref()
+                    .map_or(0.0, |tp| tp.max_ln_fugacity_residual),
+                max_component_balance_residual: r
+                    .tp
+                    .as_ref()
+                    .map(|tp| tp.max_component_balance_residual),
+                scaled_energy_residual: None,
+                scaled_entropy_residual: Some(r.scaled_entropy_residual),
+            },
+            diagnostics: r.diagnostics,
+        })
+    }
+
+    fn homogeneous(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+        root: RootSelection,
+    ) -> Result<PhaseProperties, CalculationError> {
+        let phase = self.homogeneous_phase(fractions, temperature_k, pressure_pa, root)?;
+        Ok(self.phase(phase)?.state)
+    }
+
+    fn ln_fugacity_coefficients(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+        root: RootSelection,
+    ) -> Result<Vec<f64>, CalculationError> {
+        Ok(self
+            .homogeneous_phase(fractions, temperature_k, pressure_pa, root)?
+            .state
+            .ln_fugacity_coefficients)
+    }
+
+    fn saturation_temperature_interval(&self) -> Result<[f64; 2], CalculationError> {
+        Ok(self.temperature_interval())
+    }
+
+    fn saturation_pressure(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        kind: SaturationKind,
+    ) -> Result<SaturationState, CalculationError> {
+        let [lo, hi] = self.temperature_interval();
+        if !(lo..=hi).contains(&temperature_k) {
+            return Err(CalculationError::OutsideValidityDomain(
+                "temperature outside NRTL-IG package search interval".into(),
+            ));
+        }
+        let model = self.model.with_fractions(fractions)?;
+        let t = Temperature::new(temperature_k)?;
+        let point = match kind {
+            SaturationKind::Bubble => activity_bubble_pressure(&model, t)?,
+            SaturationKind::Dew => activity_dew_pressure(&model, t, self.options)?,
+        };
+        self.saturation_state(point, kind)
+    }
+
+    fn saturation_temperature(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        kind: SaturationKind,
+    ) -> Result<SaturationState, CalculationError> {
+        let model = self.model.with_fractions(fractions)?;
+        let p = Pressure::new(pressure_pa)?;
+        let point = match kind {
+            SaturationKind::Bubble => activity_bubble_temperature(&model, p, self.options)?,
+            SaturationKind::Dew => activity_dew_temperature(&model, p, self.options)?,
+        };
+        self.saturation_state(point, kind)
+    }
+
+    fn formation_components(&self) -> Result<&[Component], CalculationError> {
+        // NRTL-IG shares the NASA7 ideal-gas caloric zero of the cubic packages.
+        Ok(self.model.components())
+    }
+}
+
+impl NrtlPackage {
+    /// The gamma–phi phase on the selected root: the NRTL liquid for the smallest
+    /// volume, the ideal-gas vapor for the largest, and the one of lower molar
+    /// Gibbs energy for minimum Gibbs. No liquid–liquid stability claim.
+    fn homogeneous_phase(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+        root: RootSelection,
+    ) -> Result<ActivityFlashPhase, CalculationError> {
+        let model = self.model.with_fractions(fractions)?;
+        let (t, p) = (Temperature::new(temperature_k)?, Pressure::new(pressure_pa)?);
+        let state = match root {
+            RootSelection::SmallestVolume => model.liquid(t, p)?,
+            RootSelection::LargestVolume => model.vapor(t, p)?,
+            RootSelection::MinimumGibbs => {
+                let (liquid, vapor) = (model.liquid(t, p)?, model.vapor(t, p)?);
+                if liquid.gibbs_energy <= vapor.gibbs_energy {
+                    liquid
+                } else {
+                    vapor
+                }
+            }
+        };
+        Ok(ActivityFlashPhase {
+            phase: state.phase,
+            phase_fraction: 1.0,
+            composition: fractions.to_vec(),
+            state,
+        })
+    }
+
+    /// Phase states of a gamma–phi bubble/dew point. The liquid must pass the
+    /// NRTL tangent-plane trials: a liquid–liquid split is unsupported (#224).
+    fn saturation_state(
+        &self,
+        point: ActivitySaturation,
+        kind: SaturationKind,
+    ) -> Result<SaturationState, CalculationError> {
+        let (t, p) = (point.temperature_k, point.pressure_pa);
+        let stability = liquid_stability(
+            &self.model,
+            Temperature::new(t)?,
+            &point.liquid,
+            self.options,
+        )?;
+        if !stability.stable_in_trials {
+            return Err(CalculationError::UnsupportedCapability(
+                "NRTL saturation liquid fails tangent-plane trials: liquid-liquid split (VLLE/LLE) is not supported".into(),
+            ));
+        }
+        let liquid = self.homogeneous_phase(&point.liquid, t, p, RootSelection::SmallestVolume)?;
+        let vapor = self.homogeneous_phase(&point.vapor, t, p, RootSelection::LargestVolume)?;
+        Ok(SaturationState {
+            kind,
+            temperature_k: t,
+            pressure_pa: p,
+            liquid: self.phase(liquid)?.state,
+            vapor: self.phase(vapor)?.state,
+            liquid_composition: point.liquid,
+            vapor_composition: point.vapor,
+            max_ln_fugacity_residual: point.max_ln_fugacity_residual,
+            iterations: point.iterations,
+            diagnostics: vec![Diagnostic {
+                code: "A7-GAMMA-PHI-SATURATION".into(),
+                severity: DiagnosticSeverity::Information,
+                message: "Modified Raoult bubble/dew point: NRTL liquid, ideal-gas vapor, no Poynting factor; liquid stable in finite NRTL tangent-plane trials.".into(),
+            }],
+        })
+    }
 }
 
 impl FlowsheetPackage for CubicPackage {
@@ -259,6 +566,85 @@ impl FlowsheetPackage for CubicPackage {
 
     fn cubic(&self) -> Result<&CubicPackage, CalculationError> {
         Ok(self)
+    }
+
+    fn ps(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        entropy: f64,
+    ) -> Result<EquilibriumState, CalculationError> {
+        self.ps(fractions, pressure_pa, entropy)
+    }
+
+    fn homogeneous(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+        root: RootSelection,
+    ) -> Result<PhaseProperties, CalculationError> {
+        CubicPackage::homogeneous(self, fractions, temperature_k, pressure_pa, root).map(Into::into)
+    }
+
+    fn ln_fugacity_coefficients(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+        root: RootSelection,
+    ) -> Result<Vec<f64>, CalculationError> {
+        self.validate_composition(fractions)?;
+        Ok(self
+            .model()
+            .with_fractions(fractions)?
+            .ln_fugacity(
+                Temperature::new(temperature_k)?,
+                Pressure::new(pressure_pa)?,
+                root,
+            )?
+            .ln_fugacity_coefficients)
+    }
+
+    fn saturation_temperature_interval(&self) -> Result<[f64; 2], CalculationError> {
+        let bounds = self.default_saturation_bounds()?;
+        Ok([bounds.minimum_temperature_k, bounds.maximum_temperature_k])
+    }
+
+    fn saturation_pressure(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        kind: SaturationKind,
+    ) -> Result<SaturationState, CalculationError> {
+        let point = CubicPackage::saturation_pressure(
+            self,
+            fractions,
+            temperature_k,
+            kind.into(),
+            self.default_saturation_bounds()?,
+        )?;
+        Ok(SaturationState::from_point(point, "Cubic"))
+    }
+
+    fn saturation_temperature(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        kind: SaturationKind,
+    ) -> Result<SaturationState, CalculationError> {
+        let point = CubicPackage::saturation_temperature(
+            self,
+            fractions,
+            pressure_pa,
+            kind.into(),
+            self.default_saturation_bounds()?,
+        )?;
+        Ok(SaturationState::from_point(point, "Cubic"))
+    }
+
+    fn formation_components(&self) -> Result<&[Component], CalculationError> {
+        Ok(self.model().components())
     }
 }
 
@@ -366,5 +752,106 @@ impl FlowsheetPackage for GergPackage {
             "this unit's thermodynamic calculation requires a cubic package; selected GERG-2008"
                 .into(),
         ))
+    }
+
+    fn ps(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        entropy: f64,
+    ) -> Result<EquilibriumState, CalculationError> {
+        let result = gerg_ps_flash(
+            &self.model.with_fractions(fractions)?,
+            Pressure::new(pressure_pa)?,
+            entropy,
+            self.options,
+        )?;
+        Ok(EquilibriumState::from_ps(result, fractions))
+    }
+
+    fn homogeneous(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+        root: RootSelection,
+    ) -> Result<PhaseProperties, CalculationError> {
+        gerg_homogeneous(
+            &self.model.with_fractions(fractions)?,
+            Temperature::new(temperature_k)?,
+            Pressure::new(pressure_pa)?,
+            root,
+        )
+        .map(Into::into)
+    }
+
+    fn ln_fugacity_coefficients(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+        root: RootSelection,
+    ) -> Result<Vec<f64>, CalculationError> {
+        Ok(gerg_ln_fugacity(
+            &self.model.with_fractions(fractions)?,
+            Temperature::new(temperature_k)?,
+            Pressure::new(pressure_pa)?,
+            root,
+        )?
+        .ln_fugacity_coefficients)
+    }
+
+    fn saturation_temperature_interval(&self) -> Result<[f64; 2], CalculationError> {
+        Ok(self.temperature_interval())
+    }
+
+    fn saturation_pressure(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        kind: SaturationKind,
+    ) -> Result<SaturationState, CalculationError> {
+        let point = gerg_saturation_pressure(
+            &self.model.with_fractions(fractions)?,
+            Temperature::new(temperature_k)?,
+            kind.into(),
+            self.saturation_bounds(),
+        )?;
+        Ok(SaturationState::from_point(point, "GERG-2008"))
+    }
+
+    fn saturation_temperature(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        kind: SaturationKind,
+    ) -> Result<SaturationState, CalculationError> {
+        let point = gerg_saturation_temperature(
+            &self.model.with_fractions(fractions)?,
+            Pressure::new(pressure_pa)?,
+            kind.into(),
+            self.saturation_bounds(),
+        )?;
+        Ok(SaturationState::from_point(point, "GERG-2008"))
+    }
+
+    fn formation_components(&self) -> Result<&[Component], CalculationError> {
+        Err(CalculationError::UnsupportedCapability(
+            "reactors need the ideal-gas formation basis (h = s = 0 at 298.15 K and 1 bar); GERG-2008 uses its native caloric reference and supplies no conversion offset".into(),
+        ))
+    }
+}
+
+impl GergPackage {
+    /// A13 bubble/dew bounds: the package temperature interval and the GERG
+    /// equilibrium pressure envelope.
+    fn saturation_bounds(&self) -> SaturationOptions {
+        SaturationOptions {
+            minimum_temperature_k: self.options.minimum_temperature_k,
+            maximum_temperature_k: self.options.maximum_temperature_k,
+            minimum_pressure_pa: 1e5,
+            maximum_pressure_pa: 1e7,
+            ..SaturationOptions::default()
+        }
     }
 }

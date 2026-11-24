@@ -26,7 +26,7 @@ use crate::{
     FugacityBasis, KineticReaction, Kinetics, PlugFlowThermal, RateBasis, RateLaw, ReactingPhase,
     SeparatorThermal,
 };
-use property_packages::{CubicPackage, EquilibriumState};
+use property_packages::{EquilibriumState, FlowsheetPackage, RootSelection};
 use thermo_types::{MOLAR_GAS_CONSTANT as R, Phase, Temperature};
 
 const P0: f64 = 1.0e5;
@@ -43,10 +43,10 @@ enum Constraint<'a> {
 }
 
 /// Standard Gibbs energies over RT of all package components at `t`.
-fn gibbs_over_rt(pkg: &CubicPackage, t: f64) -> Result<Vec<f64>, String> {
+fn gibbs_over_rt(pkg: &dyn FlowsheetPackage, t: f64) -> Result<Vec<f64>, String> {
     let temperature = Temperature::new(t).map_err(|e| e.to_string())?;
-    pkg.model()
-        .components()
+    pkg.formation_components()
+        .map_err(|e| e.to_string())?
         .iter()
         .map(|c| {
             c.standard_gibbs_energy(temperature)
@@ -74,7 +74,7 @@ fn dot(a: &[f64], b: &[f64]) -> f64 {
 fn equilibrium_flows(
     constraint: &Constraint,
     chemistry: &Chemistry,
-    pkg: &CubicPackage,
+    pkg: &dyn FlowsheetPackage,
     inlet: &[f64],
     t: f64,
     p: f64,
@@ -134,7 +134,7 @@ fn equilibrium_flows(
     minimize_gibbs(&c, &invariants, inlet, |x| match fugacity {
         FugacityBasis::IdealGas => Ok(vec![0.0; x.len()]),
         FugacityBasis::Package => pkg
-            .ln_fugacity_coefficients(x, t, p)
+            .ln_fugacity_coefficients(x, t, p, RootSelection::MinimumGibbs)
             .map_err(|e| format!("equilibrium fugacity coefficients: {e}")),
     })
 }
@@ -145,7 +145,7 @@ pub(crate) struct Feed<'a> {
     pub state: &'a EquilibriumState,
     pub flows: Vec<f64>,
     pub pressure: f64,
-    pub pkg: &'a CubicPackage,
+    pub pkg: &'a dyn FlowsheetPackage,
     pub chemistry: Chemistry,
 }
 

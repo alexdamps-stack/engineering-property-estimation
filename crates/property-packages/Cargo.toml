@@ -10,6 +10,7 @@ description = "Compatible combinations of thermodynamic models and data."
 workspace = true
 
 [dependencies]
+thermo-data = { path = "../thermo-data" }
 thermo-types = { path = "../thermo-types" }
 thermo-models = { path = "../thermo-models" }
 thermo-solvers = { path = "../thermo-solvers" }

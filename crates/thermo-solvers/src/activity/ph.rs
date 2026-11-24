@@ -1,4 +1,7 @@
-//! Gamma–phi PH flash on the option temperature bracket.
+//! Gamma–phi PH and PS flashes on the option temperature bracket. Both use one
+//! bracketed structure: liquid and vapor branches split at the feed bubble and dew
+//! temperatures, a two-phase mixture range, and a lever rule at the saturation
+//! temperature of a single active component.
 
 use thermo_models::{ActivityModel, ActivityPhaseState};
 use thermo_types::{
@@ -11,8 +14,9 @@ use super::saturation::{
     activity_bubble_temperature, activity_dew_temperature, bubble_at, dew_at, solve_temperature,
 };
 use super::{
-    ActivityFlashPhase, ActivityOptions, ActivityPhFlash, ActivitySaturation, SaturationKind,
-    active, check_pressure, diagnostic, flag_inferred_interval, pures,
+    ActivityFlashPhase, ActivityOptions, ActivityPhFlash, ActivityPsFlash, ActivitySaturation,
+    ActivityTpFlash, SaturationKind, active, check_pressure, diagnostic, flag_inferred_interval,
+    pures,
 };
 
 /// Position of a feed saturation temperature at p relative to the option bracket.
@@ -60,6 +64,69 @@ fn locate_saturation(
     }))
 }
 
+/// The caloric quantity a flash specifies with pressure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Spec {
+    Enthalpy,
+    Entropy,
+}
+
+impl Spec {
+    fn of(self, s: &ActivityPhaseState) -> f64 {
+        match self {
+            Self::Enthalpy => s.enthalpy,
+            Self::Entropy => s.entropy,
+        }
+    }
+    /// Temperature derivative at fixed p and composition: c_p or c_p/T.
+    fn slope(self, s: &ActivityPhaseState) -> f64 {
+        match self {
+            Self::Enthalpy => s.cp,
+            Self::Entropy => s.cp / s.temperature_k,
+        }
+    }
+    fn mixture(self, phases: &[ActivityFlashPhase]) -> f64 {
+        phases
+            .iter()
+            .map(|ph| ph.phase_fraction * self.of(&ph.state))
+            .sum()
+    }
+    fn flash(self) -> &'static str {
+        match self {
+            Self::Enthalpy => "PH",
+            Self::Entropy => "PS",
+        }
+    }
+    fn residual(self) -> &'static str {
+        match self {
+            Self::Enthalpy => "PH energy",
+            Self::Entropy => "PS entropy",
+        }
+    }
+    fn unit(self) -> &'static str {
+        match self {
+            Self::Enthalpy => "J/mol",
+            Self::Entropy => "J/(mol K)",
+        }
+    }
+}
+
+/// Result of the shared PH/PS structure before it is named for its specification.
+struct CaloricFlash {
+    temperature_k: f64,
+    pressure_pa: f64,
+    value: f64,
+    scaled_residual: f64,
+    scale: f64,
+    phases: Vec<ActivityFlashPhase>,
+    bubble_temperature_k: Option<f64>,
+    dew_temperature_k: Option<f64>,
+    iterations: usize,
+    tp: Option<ActivityTpFlash>,
+    inferred_regression_interval: bool,
+    diagnostics: Vec<Diagnostic>,
+}
+
 /// Pressure/enthalpy gamma–phi flash on the option temperature bracket.
 ///
 /// The feed's bubble and dew temperatures at p split the bracket into a liquid branch
@@ -78,8 +145,71 @@ pub fn activity_ph_flash(
     target_enthalpy: f64,
     options: ActivityOptions,
 ) -> Result<ActivityPhFlash, Error> {
-    if !target_enthalpy.is_finite() {
-        return Err(InputError::NonFinite("target enthalpy").into());
+    let r = caloric_flash(model, pressure, target_enthalpy, options, Spec::Enthalpy)?;
+    Ok(ActivityPhFlash {
+        temperature_k: r.temperature_k,
+        pressure_pa: r.pressure_pa,
+        target_enthalpy,
+        enthalpy: r.value,
+        scaled_energy_residual: r.scaled_residual,
+        energy_scale: r.scale,
+        phases: r.phases,
+        bubble_temperature_k: r.bubble_temperature_k,
+        dew_temperature_k: r.dew_temperature_k,
+        iterations: r.iterations,
+        tp: r.tp,
+        inferred_regression_interval: r.inferred_regression_interval,
+        diagnostics: r.diagnostics,
+    })
+}
+
+/// Pressure/entropy gamma–phi flash with the structure of [`activity_ph_flash`]:
+/// the same branches, saturation path and solvers, with molar entropy as the
+/// specification, ∂s/∂T = c_p/T on single-phase branches, and the entropy scales
+/// max(|s_target|, 1 J/(mol K)) and max(|s_target|, two-phase entropy span,
+/// 1 J/(mol K)). `energy_tolerance` bounds the scaled entropy residual.
+///
+/// The gamma–phi liquid has no pressure dependence of enthalpy or entropy (no
+/// Poynting term), so an isentropic liquid compression has zero work in this model.
+pub fn activity_ps_flash(
+    model: &ActivityModel,
+    pressure: Pressure,
+    target_entropy: f64,
+    options: ActivityOptions,
+) -> Result<ActivityPsFlash, Error> {
+    let r = caloric_flash(model, pressure, target_entropy, options, Spec::Entropy)?;
+    let enthalpy = Spec::Enthalpy.mixture(&r.phases);
+    Ok(ActivityPsFlash {
+        temperature_k: r.temperature_k,
+        pressure_pa: r.pressure_pa,
+        target_entropy,
+        entropy: r.value,
+        enthalpy,
+        scaled_entropy_residual: r.scaled_residual,
+        entropy_scale: r.scale,
+        phases: r.phases,
+        bubble_temperature_k: r.bubble_temperature_k,
+        dew_temperature_k: r.dew_temperature_k,
+        iterations: r.iterations,
+        tp: r.tp,
+        inferred_regression_interval: r.inferred_regression_interval,
+        diagnostics: r.diagnostics,
+    })
+}
+
+fn caloric_flash(
+    model: &ActivityModel,
+    pressure: Pressure,
+    target: f64,
+    options: ActivityOptions,
+    spec: Spec,
+) -> Result<CaloricFlash, Error> {
+    if !target.is_finite() {
+        return Err(InputError::NonFinite(match spec {
+            Spec::Enthalpy => "target enthalpy",
+            Spec::Entropy => "target entropy",
+        })
+        .into());
     }
     options.validate()?;
     let p = pressure.value();
@@ -109,14 +239,25 @@ pub fn activity_ph_flash(
         Saturation::At(s) => Some(s.temperature_k),
         Saturation::Above => None,
     };
-    let mut diagnostics = vec![diagnostic(
-        "A7-PH-GAMMA-PHI",
-        "PH energy uses phase-weighted gamma-phi enthalpy (NASA7 ideal gas; saturation-pressure slope for pure liquids; NRTL excess); single-phase scale max(|h_target|, 1 J/mol), two-phase mixture scale max(|h_target|, two-phase enthalpy span, 1 J/mol).",
-        DiagnosticSeverity::Information,
-    )];
+    let (flash, residual, unit) = (spec.flash(), spec.residual(), spec.unit());
+    let mut diagnostics = vec![match spec {
+        Spec::Enthalpy => diagnostic(
+            "A7-PH-GAMMA-PHI",
+            "PH energy uses phase-weighted gamma-phi enthalpy (NASA7 ideal gas; saturation-pressure slope for pure liquids; NRTL excess); single-phase scale max(|h_target|, 1 J/mol), two-phase mixture scale max(|h_target|, two-phase enthalpy span, 1 J/mol).",
+            DiagnosticSeverity::Information,
+        ),
+        Spec::Entropy => diagnostic(
+            "A14-PS-GAMMA-PHI",
+            "PS entropy uses phase-weighted gamma-phi entropy (NASA7 ideal gas with ideal mixing; Clausius-Clapeyron pure liquids without pressure dependence; NRTL excess); single-phase scale max(|s_target|, 1 J/(mol K)), two-phase mixture scale max(|s_target|, two-phase entropy span, 1 J/(mol K)).",
+            DiagnosticSeverity::Information,
+        ),
+    }];
     if tb.is_none() || td.is_none() {
         diagnostics.push(diagnostic(
-            "A7-PH-SATURATION-OUTSIDE-BRACKET",
+            match spec {
+                Spec::Enthalpy => "A7-PH-SATURATION-OUTSIDE-BRACKET",
+                Spec::Entropy => "A14-PS-SATURATION-OUTSIDE-BRACKET",
+            },
             format!(
                 "Feed bubble and/or dew temperature at {p} Pa lies outside {t_min}..={t_max} K; only the phase branches inside the bracket are searched."
             ),
@@ -129,24 +270,20 @@ pub fn activity_ph_flash(
                   tp,
                   mut diagnostics: Vec<Diagnostic>,
                   scale: f64| {
-        let enthalpy: f64 = phases
-            .iter()
-            .map(|ph: &ActivityFlashPhase| ph.phase_fraction * ph.state.enthalpy)
-            .sum();
-        let scaled = (enthalpy - target_enthalpy) / scale;
+        let value = spec.mixture(&phases);
+        let scaled = (value - target) / scale;
         if !scaled.is_finite() || scaled.abs() > options.energy_tolerance {
             return Err(Error::NonConvergence(format!(
-                "PH energy residual {scaled:e} exceeds tolerance"
+                "{residual} residual {scaled:e} exceeds tolerance"
             )));
         }
         let inferred_regression_interval = flag_inferred_interval(&phases, &mut diagnostics);
-        Ok(ActivityPhFlash {
+        Ok(CaloricFlash {
             temperature_k: t,
             pressure_pa: p,
-            target_enthalpy,
-            enthalpy,
-            scaled_energy_residual: scaled,
-            energy_scale: scale,
+            value,
+            scaled_residual: scaled,
+            scale,
             phases,
             bubble_temperature_k: tb,
             dew_temperature_k: td,
@@ -164,7 +301,7 @@ pub fn activity_ph_flash(
             state,
         }]
     };
-    let scale = target_enthalpy.abs().max(1.0);
+    let scale = target.abs().max(1.0);
     let budget = options.energy_tolerance * scale;
     // Single-phase branches.
     let branches = [
@@ -176,15 +313,15 @@ pub fn activity_ph_flash(
         let edge_t = if phase == Phase::Liquid { hi } else { lo };
         let edge = state(edge_t)?;
         let inside = if phase == Phase::Liquid {
-            target_enthalpy <= edge.enthalpy + budget
+            target <= spec.of(&edge) + budget
         } else {
-            target_enthalpy >= edge.enthalpy - budget
+            target >= spec.of(&edge) - budget
         };
         if !inside {
             continue;
         }
         let (t, iterations, s) =
-            if ((edge.enthalpy - target_enthalpy) / scale).abs() <= options.energy_tolerance {
+            if ((spec.of(&edge) - target) / scale).abs() <= options.energy_tolerance {
                 (edge_t, 0, edge)
             } else {
                 let (t, iterations) = solve_temperature(
@@ -194,9 +331,9 @@ pub fn activity_ph_flash(
                     options.energy_tolerance,
                     |t| {
                         let s = state(t)?;
-                        Ok(((s.enthalpy - target_enthalpy) / scale, s.cp / scale))
+                        Ok(((spec.of(&s) - target) / scale, spec.slope(&s) / scale))
                     },
-                    "PH single-phase temperature",
+                    &format!("{flash} single-phase temperature"),
                 )?;
                 (t, iterations, state(t)?)
             };
@@ -207,7 +344,7 @@ pub fn activity_ph_flash(
     }
     let outside = || {
         Error::OutsideValidityDomain(format!(
-            "PH target {target_enthalpy} J/mol at {p} Pa is not reachable within {t_min}..={t_max} K"
+            "{flash} target {target} {unit} at {p} Pa is not reachable within {t_min}..={t_max} K"
         ))
     };
     if pure_feed {
@@ -217,16 +354,26 @@ pub fn activity_ph_flash(
         let t = sat.temperature_k;
         let lb = phase_state(model, Phase::Liquid, t, p, &z)?;
         let vb = phase_state(model, Phase::Vapor, t, p, &z)?;
-        let latent = vb.enthalpy - lb.enthalpy;
+        let latent = spec.of(&vb) - spec.of(&lb);
         if latent <= 0.0 || !latent.is_finite() {
-            return Err(Error::NumericalFailure("nonpositive latent heat".into()));
+            return Err(Error::NumericalFailure(match spec {
+                Spec::Enthalpy => "nonpositive latent heat".into(),
+                Spec::Entropy => "nonpositive entropy of vaporization".into(),
+            }));
         }
-        let beta = ((target_enthalpy - lb.enthalpy) / latent).clamp(0.0, 1.0);
-        diagnostics.push(diagnostic(
-            "A7-PURE-SATURATION-LEVER-RULE",
-            "Single active component: saturation temperature from the vapor-pressure correlation; vapor fraction from the lever rule.",
-            DiagnosticSeverity::Information,
-        ));
+        let beta = ((target - spec.of(&lb)) / latent).clamp(0.0, 1.0);
+        diagnostics.push(match spec {
+            Spec::Enthalpy => diagnostic(
+                "A7-PURE-SATURATION-LEVER-RULE",
+                "Single active component: saturation temperature from the vapor-pressure correlation; vapor fraction from the lever rule.",
+                DiagnosticSeverity::Information,
+            ),
+            Spec::Entropy => diagnostic(
+                "A14-PURE-SATURATION-LEVER-RULE",
+                "Single active component: saturation temperature from the vapor-pressure correlation; vapor fraction from the entropy lever rule.",
+                DiagnosticSeverity::Information,
+            ),
+        });
         let phases = vec![
             ActivityFlashPhase {
                 phase: Phase::Vapor,
@@ -243,19 +390,16 @@ pub fn activity_ph_flash(
         ];
         return finish(t, phases, sat.iterations, None, diagnostics, scale);
     }
-    // Two-phase mixture: the split enthalpy increases with T over [lo, hi].
+    // Two-phase mixture: the split enthalpy and entropy increase with T over [lo, hi].
     let (mut a, mut b) = (liquid_top.unwrap_or(t_min), vapor_bottom.unwrap_or(t_max));
     if a >= b {
         return Err(outside());
     }
     let split = |t: f64| -> Result<f64, Error> {
-        Ok(
-            tp_flash(model, Temperature::new(t)?, pressure, options, false)?.enthalpy()
-                - target_enthalpy,
-        )
+        Ok(spec.mixture(&tp_flash(model, Temperature::new(t)?, pressure, options, false)?.phases) - target)
     };
     let (mut fa, mut fb) = (split(a)?, split(b)?);
-    let scale = target_enthalpy.abs().max(fb - fa).max(1.0);
+    let scale = target.abs().max(fb - fa).max(1.0);
     let tolerance = options.energy_tolerance * scale;
     if fa > tolerance || fb < -tolerance {
         return Err(outside());
@@ -287,7 +431,11 @@ pub fn activity_ph_flash(
         };
         if c <= a || c >= b {
             return Err(Error::NonConvergence(format!(
-                "PH two-phase temperature reached floating-point resolution at {c} K without meeting the energy tolerance"
+                "{flash} two-phase temperature reached floating-point resolution at {c} K without meeting the {} tolerance",
+                match spec {
+                    Spec::Enthalpy => "energy",
+                    Spec::Entropy => "entropy",
+                }
             )));
         }
         let fc = split(c)?;
@@ -311,7 +459,11 @@ pub fn activity_ph_flash(
         }
     }
     Err(Error::NonConvergence(format!(
-        "PH two-phase temperature iteration did not reach the energy tolerance within {} iterations",
+        "{flash} two-phase temperature iteration did not reach the {} tolerance within {} iterations",
+        match spec {
+            Spec::Enthalpy => "energy",
+            Spec::Entropy => "entropy",
+        },
         options.max_temperature_iterations
     )))
 }

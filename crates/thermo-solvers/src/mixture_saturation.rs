@@ -1,11 +1,17 @@
-//! Bounded PR/PR-BM bubble/dew boundaries; no critical-point or retrograde continuation.
+//! Bounded PR/PR-BM and GERG-2008 bubble/dew boundaries; no critical-point or
+//! retrograde continuation.
+use crate::equilibrium_model::EquilibriumModel;
+use crate::gerg_flash::{GergEquilibrium, validate};
+use crate::gerg_ph::{gerg_pure_saturation_pressure, gerg_pure_saturation_temperature};
+use crate::stability::assess_stability_impl;
 use crate::{
     SATURATION_MAX_REDUCED_TEMPERATURE, StabilityAssessment, StabilityOptions, assess_stability,
     gerg_flash::QUALIFIED_DRY_COMPONENTS, pure_saturation_pressure,
     saturation::single_active_component,
 };
 use thermo_models::{
-    CUBIC_PRESSURE_RANGE_PA, CUBIC_TEMPERATURE_RANGE_K, CubicModel, HomogeneousState, RootSelection,
+    CUBIC_PRESSURE_RANGE_PA, CUBIC_TEMPERATURE_RANGE_K, CubicModel, GergModel, HomogeneousState,
+    RootSelection,
 };
 use thermo_types::{CalculationError as Error, Pressure, Temperature};
 
@@ -102,6 +108,165 @@ pub fn saturation_temperature(
     solve(model, pressure.value(), false, kind, options).map_err(|r| r.error)
 }
 
+/// Bubble/dew pressure of a native GERG-2008 fluid with the bounded A13 algorithm
+/// (the same seeds, fugacity re-check, near-critical, metastability and TPD
+/// rejections as the cubic solver), restricted to the GERG equilibrium domain
+/// (qualified dry components, 230..=350 K, 0.1..=10 MPa).
+pub fn gerg_saturation_pressure(
+    model: &GergModel,
+    temperature: Temperature,
+    kind: CubicSaturationKind,
+    options: SaturationOptions,
+) -> Result<SaturationPoint, Error> {
+    let adapter = gerg_saturation_model(model, options)?;
+    solve(&adapter, temperature.value(), true, kind, options).map_err(|r| r.error)
+}
+
+/// Bubble/dew temperature of a native GERG-2008 fluid; see [`gerg_saturation_pressure`].
+pub fn gerg_saturation_temperature(
+    model: &GergModel,
+    pressure: Pressure,
+    kind: CubicSaturationKind,
+    options: SaturationOptions,
+) -> Result<SaturationPoint, Error> {
+    let adapter = gerg_saturation_model(model, options)?;
+    solve(&adapter, pressure.value(), false, kind, options).map_err(|r| r.error)
+}
+
+fn gerg_saturation_model(
+    model: &GergModel,
+    options: SaturationOptions,
+) -> Result<GergEquilibrium, Error> {
+    options.validate()?;
+    if options.minimum_temperature_k < 230.0
+        || options.maximum_temperature_k > 350.0
+        || options.minimum_pressure_pa < 1e5
+        || options.maximum_pressure_pa > 1e7
+    {
+        return Err(Error::OutsideValidityDomain(
+            "GERG saturation bounds must lie in the equilibrium envelope 230..=350 K, 0.1..=10 MPa"
+                .into(),
+        ));
+    }
+    // Rejects components outside the qualified dry set before any solve.
+    validate(model, Temperature::new(options.minimum_temperature_k)?, Pressure::new(1e5)?)?;
+    GergEquilibrium::new(model)
+}
+
+/// Model operations of the bounded saturation algorithm beyond the shared
+/// equilibrium contract: pure-fluid saturation and finite-trial stability.
+trait SaturationModel: EquilibriumModel {
+    fn component_ids(&self) -> Vec<&str>;
+    fn critical_temperature(&self, index: usize) -> f64;
+    /// Saturation pressure and iterations of the canonical pure model at T.
+    fn pure_saturation_pressure(&self, t: f64, max_iterations: usize)
+    -> Result<(f64, usize), Error>;
+    /// Saturation temperature and iterations of the canonical pure model at p,
+    /// searched in `bracket` (already limited to 0.95 Tc).
+    fn pure_saturation_temperature(
+        &self,
+        p: f64,
+        bracket: [f64; 2],
+        max_iterations: usize,
+    ) -> Result<(f64, usize), Rejection>;
+    fn assess_stability(&self, t: Temperature, p: Pressure)
+    -> Result<StabilityAssessment, Error>;
+}
+
+impl SaturationModel for CubicModel {
+    fn component_ids(&self) -> Vec<&str> {
+        self.component_ids()
+    }
+    fn critical_temperature(&self, index: usize) -> f64 {
+        self.components()[index].critical_temperature()
+    }
+    fn pure_saturation_pressure(
+        &self,
+        t: f64,
+        max_iterations: usize,
+    ) -> Result<(f64, usize), Error> {
+        let r = pure_saturation_pressure(self, temperature(t)?, max_iterations)?;
+        Ok((r.pressure_pa, r.iterations))
+    }
+    fn pure_saturation_temperature(
+        &self,
+        fixed: f64,
+        [mut a, mut b]: [f64; 2],
+        max_iterations: usize,
+    ) -> Result<(f64, usize), Rejection> {
+        let p_a = pure_saturation_pressure(self, temperature(a)?, 200)?.pressure_pa;
+        let p_b = pure_saturation_pressure(self, temperature(b)?, 200)?.pressure_pa;
+        if fixed < p_a || fixed > p_b {
+            return Err(Rejection::near_critical(
+                "A13 pure saturation not bracketed; near-critical or outside requested range",
+            ));
+        }
+        let mut count = 0;
+        for i in 1..=max_iterations {
+            count = i;
+            let mid = (a + b) / 2.0;
+            let r = pure_saturation_pressure(self, temperature(mid)?, 200)?;
+            if r.pressure_pa < fixed {
+                a = mid;
+            } else {
+                b = mid;
+            }
+            if (b - a) < 1e-9 {
+                break;
+            }
+        }
+        if b - a >= 1e-9 {
+            return Err(Error::NonConvergence("A13 pure temperature iteration limit".into()).into());
+        }
+        Ok(((a + b) / 2.0, count))
+    }
+    fn assess_stability(
+        &self,
+        t: Temperature,
+        p: Pressure,
+    ) -> Result<StabilityAssessment, Error> {
+        assess_stability(self, t, p, StabilityOptions::default())
+    }
+}
+
+impl SaturationModel for GergEquilibrium {
+    fn component_ids(&self) -> Vec<&str> {
+        self.model.component_ids()
+    }
+    fn critical_temperature(&self, index: usize) -> f64 {
+        self.critical_temperature(index)
+    }
+    fn pure_saturation_pressure(
+        &self,
+        t: f64,
+        max_iterations: usize,
+    ) -> Result<(f64, usize), Error> {
+        gerg_pure_saturation_pressure(&self.model, t, max_iterations)
+    }
+    fn pure_saturation_temperature(
+        &self,
+        p: f64,
+        [a, b]: [f64; 2],
+        max_iterations: usize,
+    ) -> Result<(f64, usize), Rejection> {
+        match gerg_pure_saturation_temperature(&self.model, pressure(p)?, a, b, max_iterations)? {
+            Some(sat) => Ok((sat.temperature_k, sat.iterations)),
+            None => Err(Rejection::near_critical(
+                "A13 pure saturation not bracketed; near-critical or outside requested range",
+            )),
+        }
+    }
+    fn assess_stability(
+        &self,
+        t: Temperature,
+        p: Pressure,
+    ) -> Result<StabilityAssessment, Error> {
+        let options = StabilityOptions::default();
+        options.validate()?;
+        assess_stability_impl(self, t, p, options)
+    }
+}
+
 /// Why a boundary was not returned, ordered from least to most specific. When no
 /// verified root exists, the most specific rejection over all seeds is reported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -155,8 +320,8 @@ fn keep_most_specific(best: &mut Option<Rejection>, candidate: Rejection) {
 /// differ little only because the feed is dilute.
 const NEAR_CRITICAL_LN_K: f64 = 0.03;
 
-fn solve(
-    model: &CubicModel,
+fn solve<M: SaturationModel>(
+    model: &M,
     fixed: f64,
     pressure_unknown: bool,
     kind: CubicSaturationKind,
@@ -198,18 +363,18 @@ fn solve(
         fractions[index] = 1.0;
         let pure_model = model.with_fractions(&fractions)?;
         let model = &pure_model;
-        let tc = model.components()[index].critical_temperature();
+        let tc = model.critical_temperature(index);
         let (t, p, it) = if pressure_unknown {
             if fixed / tc > SATURATION_MAX_REDUCED_TEMPERATURE {
                 return Err(Rejection::near_critical(&format!(
                     "A13 near-critical diagnostic: pure saturation supported for T/Tc <= {SATURATION_MAX_REDUCED_TEMPERATURE}"
                 )));
             }
-            let r = pure_saturation_pressure(model, temperature(fixed)?, o.max_iterations)?;
-            (fixed, r.pressure_pa, r.iterations)
+            let (p, iterations) = model.pure_saturation_pressure(fixed, o.max_iterations)?;
+            (fixed, p, iterations)
         } else {
-            let mut a = o.minimum_temperature_k;
-            let mut b = o
+            let a = o.minimum_temperature_k;
+            let b = o
                 .maximum_temperature_k
                 .min(SATURATION_MAX_REDUCED_TEMPERATURE * tc);
             if b <= a {
@@ -217,33 +382,9 @@ fn solve(
                     "A13 near-critical diagnostic: no supported pure-temperature interval",
                 ));
             }
-            let p_a = pure_saturation_pressure(model, temperature(a)?, 200)?.pressure_pa;
-            let p_b = pure_saturation_pressure(model, temperature(b)?, 200)?.pressure_pa;
-            if fixed < p_a || fixed > p_b {
-                return Err(Rejection::near_critical(
-                    "A13 pure saturation not bracketed; near-critical or outside requested range",
-                ));
-            }
-            let mut count = 0;
-            for i in 1..=o.max_iterations {
-                count = i;
-                let mid = (a + b) / 2.0;
-                let r = pure_saturation_pressure(model, temperature(mid)?, 200)?;
-                if r.pressure_pa < fixed {
-                    a = mid;
-                } else {
-                    b = mid;
-                }
-                if (b - a) < 1e-9 {
-                    break;
-                }
-            }
-            if b - a >= 1e-9 {
-                return Err(
-                    Error::NonConvergence("A13 pure temperature iteration limit".into()).into(),
-                );
-            }
-            ((a + b) / 2.0, fixed, count)
+            let (t, iterations) =
+                model.pure_saturation_temperature(fixed, [a, b], o.max_iterations)?;
+            (t, fixed, iterations)
         };
         if p < o.minimum_pressure_pa || p > o.maximum_pressure_pa {
             return Err(Error::OutsideValidityDomain(
@@ -276,7 +417,7 @@ fn solve(
         } else {
             (u.exp(), fixed)
         };
-        let k = crate::wilson_k(model, temperature(t)?, pressure(p)?);
+        let k = model.wilson_values(temperature(t)?, pressure(p)?);
         let mut q = vec![u];
         q.extend(active.iter().map(|i| k[*i].ln()));
         for iteration in 1..=o.max_iterations {
@@ -373,8 +514,8 @@ fn pressure(value: f64) -> Result<Pressure, Error> {
 }
 type ResidualEvaluation = (Vec<f64>, Vec<f64>, Vec<f64>);
 
-fn residual(
-    model: &CubicModel,
+fn residual<M: SaturationModel>(
+    model: &M,
     fixed: f64,
     pressure_unknown: bool,
     kind: CubicSaturationKind,
@@ -424,8 +565,8 @@ fn residual(
     );
     Ok((r, x, y))
 }
-fn point(
-    model: &CubicModel,
+fn point<M: SaturationModel>(
+    model: &M,
     t: f64,
     p: f64,
     kind: CubicSaturationKind,
@@ -488,8 +629,8 @@ fn point(
         }
     }
     let phase_stability = [
-        assess_stability(&lm, tm, pr, StabilityOptions::default())?,
-        assess_stability(&vm, tm, pr, StabilityOptions::default())?,
+        lm.assess_stability(tm, pr)?,
+        vm.assess_stability(tm, pr)?,
     ];
     for phase in &phase_stability {
         if !phase.stable_in_trials {

@@ -16,9 +16,11 @@
 //! their own file (Rust allows inherent impls anywhere in the crate), so
 //! property-access helpers do not collide. See `docs/a17-architecture.md`.
 
-use property_packages::{CubicPackage, EquilibriumState, FlowsheetPackage};
-use thermo_models::{FugacityState, HomogeneousState, RootSelection};
-use thermo_types::{Composition, Pressure, Temperature};
+use property_packages::{
+    CubicPackage, EquilibriumState, FlowsheetPackage, PhaseProperties, RootSelection,
+    SaturationKind, SaturationState,
+};
+use thermo_types::Composition;
 
 use crate::engine::{MaterialExchange, MaterialStream};
 use crate::unit::{PortSpec, SpecIssue, UnitKind};
@@ -183,7 +185,8 @@ impl<'a> CalcContext<'a> {
         self.package
     }
 
-    /// Access to a cubic-specific thermodynamic operation.
+    /// Legacy access to the cubic package. No unit uses it: call the package
+    /// operations below, which every package implements or rejects explicitly.
     pub fn cubic_package(&self) -> Result<&'a CubicPackage, String> {
         self.package.cubic().map_err(|e| e.to_string())
     }
@@ -214,42 +217,40 @@ impl<'a> CalcContext<'a> {
         self.package.ph(z, p_pa, h_j_mol).map_err(|e| e.to_string())
     }
 
+    /// PS equilibrium of overall composition `z` (molar entropy in J/(mol K)
+    /// on the package caloric reference).
+    pub fn ps(&self, z: &[f64], p_pa: f64, s_j_mol_k: f64) -> Result<EquilibriumState, String> {
+        self.package
+            .ps(z, p_pa, s_j_mol_k)
+            .map_err(|e| e.to_string())
+    }
+
     /// Homogeneous single-phase properties (enthalpy, entropy, cp, density,
-    /// ln φ, …) of composition `x` at T and p on the selected root. No
-    /// stability claim.
+    /// ln φ, …) of composition `x` at T and p on the selected root, from the
+    /// package's own phase model. No stability claim.
     pub fn homogeneous(
         &self,
         x: &[f64],
         t_k: f64,
         p_pa: f64,
         root: RootSelection,
-    ) -> Result<HomogeneousState, String> {
-        let model = self
-            .cubic_package()?
-            .model()
-            .with_fractions(x)
-            .map_err(|e| e.to_string())?;
-        model
-            .evaluate(temperature(t_k)?, pressure(p_pa)?, root)
+    ) -> Result<PhaseProperties, String> {
+        self.package
+            .homogeneous(x, t_k, p_pa, root)
             .map_err(|e| e.to_string())
     }
 
     /// Fugacity coefficients (as ln φ, package order) of composition `x` on
-    /// the selected root, without caloric evaluation.
+    /// the selected root, without phase-stability assessment.
     pub fn ln_fugacity_coefficients(
         &self,
         x: &[f64],
         t_k: f64,
         p_pa: f64,
         root: RootSelection,
-    ) -> Result<FugacityState, String> {
-        let model = self
-            .cubic_package()?
-            .model()
-            .with_fractions(x)
-            .map_err(|e| e.to_string())?;
-        model
-            .ln_fugacity(temperature(t_k)?, pressure(p_pa)?, root)
+    ) -> Result<Vec<f64>, String> {
+        self.package
+            .ln_fugacity_coefficients(x, t_k, p_pa, root)
             .map_err(|e| e.to_string())
     }
 
@@ -258,28 +259,23 @@ impl<'a> CalcContext<'a> {
     /// root. A successive-substitution building block for column and
     /// multiphase solvers; it does not check phase stability.
     pub fn k_values(&self, x: &[f64], y: &[f64], t_k: f64, p_pa: f64) -> Result<Vec<f64>, String> {
-        let liquid = self.ln_fugacity_coefficients(x, t_k, p_pa, RootSelection::SmallestVolume)?;
-        let vapor = self.ln_fugacity_coefficients(y, t_k, p_pa, RootSelection::LargestVolume)?;
-        let k: Vec<f64> = liquid
-            .ln_fugacity_coefficients
-            .iter()
-            .zip(&vapor.ln_fugacity_coefficients)
-            .map(|(l, v)| (l - v).exp())
-            .collect();
-        if k.iter().all(|v| v.is_finite() && *v > 0.0) {
-            Ok(k)
-        } else {
-            Err("nonfinite equilibrium ratio".into())
-        }
+        self.package
+            .k_values(x, y, t_k, p_pa)
+            .map_err(|e| e.to_string())
     }
-}
 
-fn temperature(t_k: f64) -> Result<Temperature, String> {
-    Temperature::new(t_k).map_err(|e| e.to_string())
-}
-
-fn pressure(p_pa: f64) -> Result<Pressure, String> {
-    Pressure::new(p_pa).map_err(|e| e.to_string())
+    /// Bubble or dew temperature of `x` at `p_pa` from the package's
+    /// saturation solver, inside its declared interval.
+    pub fn saturation_temperature(
+        &self,
+        x: &[f64],
+        p_pa: f64,
+        kind: SaturationKind,
+    ) -> Result<SaturationState, String> {
+        self.package
+            .saturation_temperature(x, p_pa, kind)
+            .map_err(|e| e.to_string())
+    }
 }
 
 /// Shared test helpers for the group modules: every group kind has
