@@ -7,7 +7,7 @@ use crate::{
     PortDirection, PortMedium, PortRef, PressureSpec, SeparatorThermal, Stream, StreamId,
     ThermalSpec, Unit, UnitId, UnitKind, UnitSpec,
 };
-use property_packages::{CubicPackage, EquilibriumState};
+use property_packages::{CubicPackage, EquilibriumState, FlowsheetPackage};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::ops::ControlFlow;
@@ -140,7 +140,7 @@ pub struct UnitCalculation {
 pub struct Calculation {
     topology: Flowsheet,
     feeds: FeedCompositions,
-    package: CubicPackage,
+    package_identity: std::sync::Arc<()>,
     pub order: Vec<UnitId>,
     pub streams: BTreeMap<StreamId, MaterialStream>,
     /// Solved energy streams; material streams are in `streams`.
@@ -158,11 +158,11 @@ impl Calculation {
         &self,
         flowsheet: &Flowsheet,
         feeds: &FeedCompositions,
-        package: &CubicPackage,
+        package: &dyn FlowsheetPackage,
     ) -> bool {
         self.topology.same_calculation_inputs(flowsheet)
             && self.feeds == *feeds
-            && self.package.same_configuration(package)
+            && std::sync::Arc::ptr_eq(&self.package_identity, package.identity())
     }
 }
 
@@ -260,7 +260,7 @@ impl Flowsheet {
     /// fresh report, so a failed solve cannot reuse old downstream results.
     pub fn solve(
         &self,
-        package: &CubicPackage,
+        package: &dyn FlowsheetPackage,
         feeds: &FeedCompositions,
     ) -> Result<Calculation, SolveError> {
         self.solve_with_progress(package, feeds, |_| ControlFlow::Continue(()))
@@ -272,7 +272,7 @@ impl Flowsheet {
     /// The callback cannot interrupt a property calculation in progress.
     pub fn solve_with_progress(
         &self,
-        package: &CubicPackage,
+        package: &dyn FlowsheetPackage,
         feeds: &FeedCompositions,
         progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
     ) -> Result<Calculation, SolveError> {
@@ -283,7 +283,7 @@ impl Flowsheet {
 
     pub(crate) fn validate_inputs(
         &self,
-        package: &CubicPackage,
+        package: &dyn FlowsheetPackage,
         feeds: &FeedCompositions,
     ) -> Result<(), SolveError> {
         let fail = |id: UnitId, message: String| SolveError {
@@ -301,7 +301,10 @@ impl Flowsheet {
                     .map_or_else(String::new, |n| format!(" (#{n})"));
                 return Err(fail(u.id, format!("{} {reason}{issue}", u.kind)));
             }
-            check_chemistry(&u.spec, package).map_err(|e| fail(u.id, e))?;
+            if u.kind.group() == crate::UnitGroup::Reactors {
+                let cubic = package.cubic().map_err(|e| fail(u.id, e.to_string()))?;
+                check_chemistry(&u.spec, cubic).map_err(|e| fail(u.id, e))?;
+            }
             if u.kind == UnitKind::Feed {
                 let c = feeds
                     .get(&u.id)
@@ -311,7 +314,7 @@ impl Flowsheet {
                         .iter()
                         .map(|(id, _)| id.as_str())
                         .collect::<Vec<_>>()
-                        != package.model().component_ids()
+                        != package.component_ids()
                 {
                     return Err(fail(
                         u.id,
@@ -343,7 +346,7 @@ impl Flowsheet {
     /// reuse the same inputs and do not repeat it.
     pub(crate) fn solve_pass(
         &self,
-        package: &CubicPackage,
+        package: &dyn FlowsheetPackage,
         feeds: &FeedCompositions,
         order: Vec<UnitId>,
         tears: &BTreeMap<StreamId, MaterialStream>,
@@ -358,7 +361,7 @@ impl Flowsheet {
         let mut report = Calculation {
             topology: self.clone(),
             feeds: feeds.clone(),
-            package: package.clone(),
+            package_identity: package.identity().clone(),
             order: order.clone(),
             streams: BTreeMap::new(),
             energy_streams: BTreeMap::new(),
@@ -442,7 +445,11 @@ impl Flowsheet {
                     ),
                 ));
             }
-            let chemistry = reaction.as_ref().map(|_| Chemistry::of(package));
+            let chemistry = reaction
+                .as_ref()
+                .map(|_| package.cubic().map(Chemistry::of))
+                .transpose()
+                .map_err(|e| fail(id, e.to_string()))?;
             let balance = if u.kind.is_boundary() {
                 None
             } else {
@@ -452,7 +459,7 @@ impl Flowsheet {
                         &outlets,
                         duty_w,
                         material_exchange.as_ref(),
-                        package.model().fractions().len(),
+                        package.component_ids().len(),
                         reaction.as_ref().zip(chemistry.as_ref()),
                     )
                     .map_err(|e| fail(id, e))?,
@@ -597,7 +604,7 @@ pub(crate) fn validate_empty_thermal_spec(
     spec: &UnitSpec,
     inputs: &[MaterialStream],
     outputs: &[MaterialStream],
-    package: &CubicPackage,
+    package: &dyn FlowsheetPackage,
 ) -> Result<(), String> {
     let zero = |s: &MaterialStream| s.molar_flow_mol_s == 0.0;
     match *spec {
@@ -665,7 +672,7 @@ fn requires_heat(
     input: &MaterialStream,
     output: &MaterialStream,
     temperature: f64,
-    package: &CubicPackage,
+    package: &dyn FlowsheetPackage,
 ) -> Result<bool, String> {
     let inlet = input
         .state
@@ -714,7 +721,7 @@ fn calculate_unit(
     }
     let inputs = unit_inputs.material;
     let feed: Option<&Composition> = ctx.feed();
-    let pkg: &CubicPackage = ctx.package();
+    let pkg = ctx.package();
     fn state(s: &MaterialStream) -> Result<&EquilibriumState, String> {
         s.state.as_ref().ok_or_else(|| {
             "inlet has no material phase; cannot apply a thermodynamic specification".to_string()
@@ -793,7 +800,7 @@ fn calculate_unit(
                 return Err("mixer needs a finite positive total inlet flow".into());
             }
             let mut pmin = f64::INFINITY;
-            let mut z = vec![0.0; pkg.model().fractions().len()];
+            let mut z = vec![0.0; ctx.component_count()];
             let mut h = 0.0;
             for s in active {
                 let a = state(s)?;
@@ -1084,6 +1091,7 @@ fn calculate_unit(
             thermal,
             pressure_drop_pa,
         } => {
+            let pkg = pkg.cubic().map_err(|e| e.to_string())?;
             let chemistry = Chemistry::of(pkg);
             let a = state(&inputs[0])?;
             let inlet = inputs[0].component_flows_mol_s(a.mole_fractions.len());
@@ -1104,6 +1112,7 @@ fn calculate_unit(
             thermal,
             pressure_drop_pa,
         } => {
+            let pkg = pkg.cubic().map_err(|e| e.to_string())?;
             let chemistry = Chemistry::of(pkg);
             let a = state(&inputs[0])?;
             let inlet = inputs[0].component_flows_mol_s(a.mole_fractions.len());
@@ -1180,7 +1189,7 @@ fn calculate_unit(
 /// Reactor inlet context at the outlet pressure `p_in - pressure_drop`.
 fn reactor_feed<'a>(
     inlet: &'a MaterialStream,
-    pkg: &'a CubicPackage,
+    pkg: &'a dyn FlowsheetPackage,
     pressure_drop: f64,
 ) -> Result<reactors::Feed<'a>, String> {
     let state = inlet
@@ -1191,6 +1200,7 @@ fn reactor_feed<'a>(
     if !(p.is_finite() && p > 0.0) {
         return Err("pressure drop leaves nonpositive absolute outlet pressure".into());
     }
+    let pkg = pkg.cubic().map_err(|e| e.to_string())?;
     Ok(reactors::Feed {
         inlet,
         state,

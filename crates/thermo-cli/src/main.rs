@@ -316,8 +316,9 @@ fn calculate(case: Case) -> Result<Value, Box<dyn std::error::Error>> {
     let variant = match case.model.as_str() {
         "PR" => CubicVariant::PengRobinson,
         "PR-BM" => CubicVariant::PengRobinsonBostonMathias,
+        "SRK" => CubicVariant::SoaveRedlichKwong,
         "NRTL-IG" => return activity::calculate(case),
-        _ => return Err("model must be PR, PR-BM or NRTL-IG".into()),
+        _ => return Err("model must be PR, PR-BM, SRK, GERG-2008 or NRTL-IG".into()),
     };
     let calculation = case.calculation.as_deref().unwrap_or("homogeneous");
     let flash = match calculation {

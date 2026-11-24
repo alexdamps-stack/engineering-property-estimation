@@ -25,6 +25,9 @@ Component data (embedded)
   Cantera-License.txt.
 - ChemSep/DECHEMA methanol/water NRTL row via the MIT-licensed `thermo`
   redistribution - see thermo-LICENSE.txt.
+- GERG-2008 parameter tables derived from NIST AGA8 GERG2008 2.01 - see
+  NIST-GERG-LICENSE.txt.
+- EOS-CG-2021 component and interaction coefficients - see EOS-CG-2021-NOTICE.md.
 Data provenance and qualification limits: data/README.md in the source
 repository.
 

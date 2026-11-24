@@ -163,7 +163,7 @@ impl CalcContext<'_> {
         p_pa: f64,
         s_j_mol_k: f64,
     ) -> Result<property_packages::EquilibriumState, String> {
-        self.package()
+        self.cubic_package()?
             .ps(z, p_pa, s_j_mol_k)
             .map_err(|e| e.to_string())
     }

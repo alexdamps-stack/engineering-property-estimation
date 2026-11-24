@@ -196,7 +196,7 @@ impl CalcContext<'_> {
         kind: CubicSaturationKind,
         what: &str,
     ) -> Result<SaturationPoint, String> {
-        self.package()
+        self.cubic_package()?
             .saturation_temperature(x, p_pa, kind, SaturationOptions::default())
             .map_err(|e| format!("shortcut column {what}: {e}"))
     }

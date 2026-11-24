@@ -1,8 +1,9 @@
 //! Shared thermodynamic validation and Newton iteration for equilibrium cascades.
 
+use property_packages::EquilibriumPhase;
 use property_packages::{Convergence, EquilibriumState};
 use thermo_models::RootSelection;
-use thermo_solvers::{FlashPhase, SaturationOptions};
+use thermo_solvers::SaturationOptions;
 use thermo_types::Phase;
 
 use super::stages::{ColumnEnds, Condenser, Stage, StageCascade, StageProperties};
@@ -167,7 +168,7 @@ pub(super) fn verify_phases(ctx: &CalcContext<'_>, cascade: &StageCascade) -> Re
         let flashed = ctx
             .tp(&midpoint, stage.temperature_k, stage.pressure_pa)
             .map_err(|e| format!("stage {} phase check: {e}", j + 1))?;
-        let matches = |phase: &FlashPhase, expected: &[f64]| {
+        let matches = |phase: &EquilibriumPhase, expected: &[f64]| {
             (phase.phase_fraction - 0.5).abs() <= 2e-5
                 && phase
                     .composition
@@ -206,11 +207,11 @@ pub(super) fn product(
             temperature_k: stage.temperature_k,
             pressure_pa: stage.pressure_pa,
             mole_fractions: composition.clone(),
-            phases: vec![FlashPhase {
+            phases: vec![EquilibriumPhase {
                 phase,
                 phase_fraction: 1.0,
                 composition: composition.clone(),
-                state,
+                state: state.into(),
             }],
             iterations: 0,
             convergence: Convergence {

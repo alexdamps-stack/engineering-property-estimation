@@ -13,7 +13,7 @@ use thermo_types::{
 
 /// The qualified dry five-component fluid set shared by the GERG equilibrium path
 /// and the A13 cubic mixture-saturation domain.
-pub(crate) const QUALIFIED_DRY_COMPONENTS: [&str; 5] =
+pub const QUALIFIED_DRY_COMPONENTS: [&str; 5] =
     ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide"];
 
 pub(crate) fn validate(model: &GergModel, t: Temperature, p: Pressure) -> Result<(), Error> {

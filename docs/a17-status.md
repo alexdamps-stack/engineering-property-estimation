@@ -51,7 +51,7 @@ Rules and failures:
 Not modelled: polytropic efficiency, performance curves, speed, mechanical
 and driver efficiency, pressure ratio as a specification, intercooler
 pressure drop, power taken from an energy stream (for example an expander
-driving a compressor), and NRTL/GERG PS paths.
+driving a compressor). The PS flash is implemented for the PR/PR-BM package only, so the four machines fail with an explicit error under the NRTL, GERG-2008 and EOS-CG flowsheet packages.
 
 ## Heat transport
 
