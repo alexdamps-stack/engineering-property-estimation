@@ -64,7 +64,7 @@ Each unit has material and optional energy ports, with variable ports where the 
 | Plug-flow reactor (A17, #196) | 1 in, 1 out | Kinetic reactions; length and diameter; one of isothermal T, adiabatic, or coolant T and U; plus linear pressure drop | Isothermal T, length, diameter (required) | Adaptive integration along the length ([reactors](a17-reactors.md)) |
 | Batch reactor (A17, #197) | 1 in, 1 out | Kinetic reactions; reaction time; isothermal T or adiabatic | Isothermal T and time (required) | Constant-pressure time integration; outlet is the averaged product ([reactors](a17-reactors.md)) |
 
-Pumps, compressors, and expanders can be placed and specified. The cubic pressure–entropy flash is available, and flowsheets containing these units still stop in preflight while their equipment models are pending. They are scheduled as A14 in the [development plan](development-plan.md) (section 5.1).
+Pumps, compressors, expanders and the multistage compressor calculate with an isentropic-efficiency model on the cubic package (A14). See the rotating section of the [A17 status](a17-status.md#rotating) for the formulation, inlet-phase rules and validation.
 
 *Original proposal, not implemented.* The first version of this table also proposed feed flows as mass or standard volume, feed compositions as mass fractions, n-inlet mixers and n-outlet splitters (n−1 split fractions), energy ports on heaters, coolers and separators, and outlet vapor-fraction specifications. These are scheduled in the development plan: extended specifications and n-port units as A15, vapor-fraction specifications after A13.
 

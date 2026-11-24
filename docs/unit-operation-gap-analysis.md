@@ -23,9 +23,9 @@ they do not imply compatibility with either product.
 | Heat exchanger | Calculated | Heat Exchanger | HeatX |
 | Valve | Calculated | Valve | Valve |
 | Separator (V/L) | Calculated | Separator | Flash2 |
-| Pump | Drawn only (A14) | Pump | Pump |
-| Compressor | Drawn only (A14) | Compressor | Compr |
-| Expander | Drawn only (A14) | Expander | Compr (turbine mode) |
+| Pump | Calculated (A14) | Pump | Pump |
+| Compressor | Calculated (A14) | Compressor | Compr |
+| Expander | Calculated (A14) | Expander | Compr (turbine mode) |
 
 Extensions of these items (n-port mixer/splitter, vapor-fraction
 specifications, UA/approach exchanger, compressor curves) are covered by A14
@@ -73,7 +73,7 @@ and dynamics, so most items below are blocked by one of those decisions.
 
 | Missing item | HYSYS | Aspen Plus | Prerequisite |
 |---|---|---|---|
-| Multistage compressor with intercooling | (Compressor + Cooler) | MCompr | A14 |
+| Multistage compressor with intercooling | (Compressor + Cooler) | MCompr | Calculated (A14, #182) |
 | Pipe segment / pipeline | Pipe Segment, Compressible Gas Pipe | Pipe, Pipeline | Pressure-drop correlations, A14 for elevation/work terms |
 | Relief valve | Relief Valve | (Pressure relief analysis) | Relief sizing basis |
 

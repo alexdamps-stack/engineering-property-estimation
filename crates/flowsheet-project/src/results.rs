@@ -126,6 +126,10 @@ pub struct UnitResult {
     /// Adiabatic absorber or stripper stage profile (#187).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub absorber: Option<AbsorberProfile>,
+    /// Pump, compressor, expander or multistage compressor stages and power
+    /// (A14, #182; added behind format version 4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotating: Option<RotatingPerformance>,
     /// Engine warnings (for example a single-phase separator).
     pub warnings: Vec<String>,
     /// Largest scaled component balance residual (internal units only).
@@ -258,6 +262,73 @@ impl From<&flowsheet_core::units::columns::AbsorberResult> for AbsorberProfile {
     }
 }
 
+/// Saved isentropic-efficiency stage of a rotating machine. Powers are W,
+/// positive into the fluid (negative for an expander).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RotatingStageResult {
+    pub inlet_pressure_pa: f64,
+    pub outlet_pressure_pa: f64,
+    pub isentropic_outlet_temperature_k: f64,
+    pub outlet_temperature_k: f64,
+    pub isentropic_power_w: f64,
+    pub power_w: f64,
+}
+
+/// Saved performance of a pump, compressor, expander or multistage
+/// compressor.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RotatingPerformance {
+    pub efficiency: f64,
+    pub stages: Vec<RotatingStageResult>,
+    /// Heat removed by all intercoolers, W.
+    pub intercooler_duty_w: f64,
+}
+
+impl RotatingPerformance {
+    /// Total shaft power, W, positive into the fluid.
+    pub fn power_w(&self) -> f64 {
+        self.stages.iter().map(|s| s.power_w).sum()
+    }
+
+    fn numbers(&self) -> impl Iterator<Item = f64> + '_ {
+        [self.efficiency, self.intercooler_duty_w]
+            .into_iter()
+            .chain(self.stages.iter().flat_map(|s| {
+                [
+                    s.inlet_pressure_pa,
+                    s.outlet_pressure_pa,
+                    s.isentropic_outlet_temperature_k,
+                    s.outlet_temperature_k,
+                    s.isentropic_power_w,
+                    s.power_w,
+                ]
+            }))
+    }
+}
+
+impl From<&flowsheet_core::units::rotating::RotatingResult> for RotatingPerformance {
+    fn from(r: &flowsheet_core::units::rotating::RotatingResult) -> Self {
+        Self {
+            efficiency: r.efficiency,
+            stages: r
+                .stages
+                .iter()
+                .map(|s| RotatingStageResult {
+                    inlet_pressure_pa: s.inlet_pressure_pa,
+                    outlet_pressure_pa: s.outlet_pressure_pa,
+                    isentropic_outlet_temperature_k: s.isentropic_outlet_temperature_k,
+                    outlet_temperature_k: s.outlet_temperature_k,
+                    isentropic_power_w: s.isentropic_power_w,
+                    power_w: s.power_w,
+                })
+                .collect(),
+            intercooler_duty_w: r.intercooler_duty_w,
+        }
+    }
+}
+
 /// External material contribution, positive flow into the unit.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -345,6 +416,7 @@ impl ResultSet {
                         shortcut_column: u.shortcut_column.as_ref().map(Into::into),
                         distillation_column: u.distillation_column.as_ref().map(Into::into),
                         absorber: u.absorber.as_ref().map(Into::into),
+                        rotating: u.rotating.as_ref().map(Into::into),
                         warnings: u.warnings.clone(),
                         max_scaled_component_residual: u
                             .balance
@@ -461,6 +533,7 @@ impl ResultSet {
                 || u.absorber.as_ref().is_some_and(|r| {
                     opt(r.packed_height_m) || r.stage_temperatures_k.iter().copied().any(bad)
                 })
+                || u.rotating.as_ref().is_some_and(|r| r.numbers().any(bad))
                 || opt(u.max_scaled_component_residual)
                 || opt(u.scaled_energy_residual)
                 || u.reaction.as_ref().is_some_and(|r| {

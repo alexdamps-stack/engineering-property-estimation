@@ -90,6 +90,8 @@ pub struct UnitOutput {
     pub distillation_column: Option<columns::DistillationColumnResult>,
     /// Stage temperatures of an adiabatic absorber or stripper.
     pub absorber: Option<columns::AbsorberResult>,
+    /// Stages, isentropic states and power of a rotating machine.
+    pub rotating: Option<rotating::RotatingResult>,
     /// Material crossing the flowsheet boundary at this unit.
     pub material_exchange: Option<MaterialExchange>,
     /// Species generation and formation-enthalpy terms for reacting units.
@@ -114,6 +116,7 @@ impl UnitOutput {
             shortcut_column: None,
             distillation_column: None,
             absorber: None,
+            rotating: None,
             material_exchange: None,
             reaction: None,
             warnings,

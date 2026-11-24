@@ -537,10 +537,8 @@ impl UnitKind {
         }
     }
 
-    /// Whether the steady-state engine calculates this kind. Pumps,
-    /// compressors, and expanders need a PS flash and efficiency models and
-    /// are deferred (A14); most A17 kinds are drawn only until their group
-    /// implements them. They can be drawn and specified but not yet solved.
+    /// Whether the steady-state engine calculates this kind. Kinds that are
+    /// drawn only can be placed and specified but not yet solved.
     pub fn calculation_planned(self) -> bool {
         self.calculation_status() == CalculationStatus::Calculated
     }
