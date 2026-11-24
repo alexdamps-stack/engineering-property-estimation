@@ -215,7 +215,7 @@ pub(super) fn product(
                 phase,
                 phase_fraction: 1.0,
                 composition: composition.clone(),
-                state: state.into(),
+                state,
             }],
             iterations: 0,
             convergence: Convergence {

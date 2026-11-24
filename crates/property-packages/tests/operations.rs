@@ -420,8 +420,8 @@ fn gerg_homogeneous_and_fugacity_match_independent_tp_phases() {
     }
     // At the reference split the package K-values reproduce y/x.
     let k = package.k_values(&x, &y, t, p).unwrap();
-    for i in 0..2 {
-        close("GERG K", k[i], y[i] / x[i], [0.0, 1e-7]);
+    for ((k, x), y) in k.iter().zip(&x).zip(&y) {
+        close("GERG K", *k, y / x, [0.0, 1e-7]);
     }
     assert!(matches!(
         package.formation_components(),
@@ -596,13 +596,12 @@ fn cubic_package_operations_delegate_to_the_cubic_model() {
             3e6,
         )
         .unwrap();
-    for i in 0..2 {
-        close(
-            "cubic K",
-            k[i],
-            bubble.vapor_composition[i] / bubble.liquid_composition[i],
-            [0.0, 1e-8],
-        );
+    for ((k, x), y) in k
+        .iter()
+        .zip(&bubble.liquid_composition)
+        .zip(&bubble.vapor_composition)
+    {
+        close("cubic K", *k, y / x, [0.0, 1e-8]);
     }
     let state = dynamic
         .homogeneous(&z, 300.0, 1e6, RootSelection::MinimumGibbs)
