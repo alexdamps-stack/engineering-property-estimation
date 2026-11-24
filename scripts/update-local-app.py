@@ -78,6 +78,8 @@ def write_notices(stage, metadata):
     shutil.copy2(ROOT / "packaging/windows/NOTICE.txt", notices)
     for name in ("CoolProp-LICENSE.txt", "Cantera-License.txt", "thermo-LICENSE.txt"):
         shutil.copy2(ROOT / "data/source-extracts" / name, notices)
+    shutil.copy2(ROOT / "data/source-extracts/gerg/LICENSE", notices / "NIST-GERG-LICENSE.txt")
+    shutil.copy2(ROOT / "data/EOS-CG-2021-NOTICE.md", notices)
     packages = {p["id"]: p for p in metadata["packages"]}
     nodes = {n["id"]: n for n in metadata["resolve"]["nodes"]}
     pending = [p["id"] for p in packages.values() if p["name"] == "thermo-desktop"]

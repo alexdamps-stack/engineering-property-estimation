@@ -1,9 +1,14 @@
-//! Exact cubic package selection stored in a project.
+//! Property package selection stored in a project.
 
-use property_packages::CubicPackage;
+use std::sync::Arc;
+
+use property_packages::{CubicPackage, EosCgPackage, FlowsheetPackage, GergPackage, NrtlPackage};
 use serde::{Deserialize, Serialize};
-use thermo_data::{COMPONENT_DATASET_ID, ComponentDatabase};
-use thermo_models::{CUBIC_TEMPERATURE_RANGE_K, CubicModel, CubicVariant};
+use thermo_data::{COMPONENT_DATASET_ID, ComponentDatabase, LiquidDatabase};
+use thermo_models::{
+    ActivityModel, CUBIC_TEMPERATURE_RANGE_K, CubicModel, CubicVariant, GERG_CALORIC_REFERENCE_ID,
+    GERG_DATA_REVISION, GERG_MODEL_VERSION, GergModel, VaporModel,
+};
 use thermo_solvers::PhFlashOptions;
 use thermo_types::{ComponentId, Composition, CompositionBasis, DataMetadata, NormalizationPolicy};
 
@@ -12,57 +17,84 @@ use crate::{Fingerprint, ProjectError};
 const LEGACY_PR_BM_ID: &str = "PR-exact-BM-Clapeyron-0.6.30";
 const LEGACY_COMPONENT_DATASET_ID: &str = "coolprop-7.2-cubic-cantera-3.2-nasa7";
 
-/// Cubic equation of state variant.
+/// Property model supported by the flowsheet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CubicVariantChoice {
+pub enum PackageChoice {
     /// Peng–Robinson (1976).
     #[serde(rename = "PR")]
     PengRobinson,
     /// Peng–Robinson with the Boston–Mathias alpha extrapolation.
     #[serde(rename = "PR-BM")]
     PengRobinsonBostonMathias,
+    #[serde(rename = "SRK")]
+    SoaveRedlichKwong,
+    #[serde(rename = "GERG-2008")]
+    Gerg2008,
+    #[serde(rename = "EOS-CG-2021")]
+    EosCg2021,
+    #[serde(rename = "NRTL-IG")]
+    NrtlIdealGas,
 }
 
-impl CubicVariantChoice {
-    /// Both variants, in menu order.
-    pub const ALL: [CubicVariantChoice; 2] = [
-        CubicVariantChoice::PengRobinsonBostonMathias,
-        CubicVariantChoice::PengRobinson,
+/// Existing name for the PR and PR-BM selection API.
+pub type CubicVariantChoice = PackageChoice;
+
+impl PackageChoice {
+    pub const ALL: [Self; 6] = [
+        Self::PengRobinsonBostonMathias,
+        Self::PengRobinson,
+        Self::SoaveRedlichKwong,
+        Self::Gerg2008,
+        Self::EosCg2021,
+        Self::NrtlIdealGas,
     ];
 
-    /// Short label, `PR` or `PR-BM`.
     pub fn label(self) -> &'static str {
         match self {
-            CubicVariantChoice::PengRobinson => "PR",
-            CubicVariantChoice::PengRobinsonBostonMathias => "PR-BM",
+            Self::PengRobinson => "PR",
+            Self::PengRobinsonBostonMathias => "PR-BM",
+            Self::SoaveRedlichKwong => "SRK",
+            Self::Gerg2008 => "GERG-2008",
+            Self::EosCg2021 => "EOS-CG-2021",
+            Self::NrtlIdealGas => "NRTL-IG",
         }
     }
 
-    fn model(self) -> CubicVariant {
+    pub fn temperature_range(self) -> [f64; 2] {
         match self {
-            CubicVariantChoice::PengRobinson => CubicVariant::PengRobinson,
-            CubicVariantChoice::PengRobinsonBostonMathias => {
-                CubicVariant::PengRobinsonBostonMathias
-            }
+            Self::Gerg2008 => GergPackage::TEMPERATURE_RANGE_K,
+            Self::EosCg2021 => EosCgPackage::TEMPERATURE_RANGE_K,
+            Self::NrtlIdealGas => NrtlPackage::TEMPERATURE_RANGE_K,
+            _ => CUBIC_TEMPERATURE_RANGE_K,
         }
+    }
+
+    fn cubic_model(self) -> Option<CubicVariant> {
+        match self {
+            Self::PengRobinson => Some(CubicVariant::PengRobinson),
+            Self::PengRobinsonBostonMathias => Some(CubicVariant::PengRobinsonBostonMathias),
+            Self::SoaveRedlichKwong => Some(CubicVariant::SoaveRedlichKwong),
+            Self::Gerg2008 | Self::EosCg2021 | Self::NrtlIdealGas => None,
+        }
+    }
+
+    pub fn uses_kij(self) -> bool {
+        self.cubic_model().is_some()
     }
 }
 
-/// One immutable cubic package choice for the whole flowsheet.
-///
-/// The interaction matrix and its source are always explicit; no missing
-/// pair is filled in. The PH interval bounds the temperature search of
-/// PH flashes and must lie within the 200..600 K cubic domain.
+/// One immutable package choice for the whole flowsheet.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PackageSelection {
-    /// PR or PR-BM.
-    pub variant: CubicVariantChoice,
+    pub variant: PackageChoice,
     /// Ordered component identifiers from the embedded database.
     pub components: Vec<String>,
-    /// Full symmetric binary interaction matrix in component order.
+    /// Full symmetric cubic interaction matrix in component order. Empty for embedded packages.
+    #[serde(default)]
     pub kij: Vec<Vec<f64>>,
     /// Source of the interaction values, or an explicit approximation note.
+    #[serde(default)]
     pub interaction_source: String,
     /// Lower PH search temperature, K.
     pub ph_minimum_temperature_k: f64,
@@ -85,6 +117,8 @@ pub struct Provenance {
     pub data: String,
     /// Component dataset version.
     pub data_version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caloric_reference: Option<String>,
 }
 
 impl Provenance {
@@ -136,9 +170,54 @@ impl PackageSelection {
         Ok(db.components().iter().map(|c| c.id().to_string()).collect())
     }
 
+    pub fn available_components_for(variant: PackageChoice) -> Result<Vec<String>, ProjectError> {
+        match variant {
+            PackageChoice::Gerg2008 => Ok(GergPackage::COMPONENTS.map(String::from).to_vec()),
+            PackageChoice::EosCg2021 => Ok(EosCgPackage::COMPONENTS.map(String::from).to_vec()),
+            PackageChoice::NrtlIdealGas => Ok(NrtlPackage::COMPONENTS.map(String::from).to_vec()),
+            _ => Self::available_components(),
+        }
+    }
+
+    pub fn with_model(&self, variant: PackageChoice, zero_kij_source: &str) -> Self {
+        use PackageChoice::{PengRobinson, PengRobinsonBostonMathias};
+        if variant == self.variant
+            || matches!(
+                (self.variant, variant),
+                (PengRobinson, PengRobinsonBostonMathias)
+                    | (PengRobinsonBostonMathias, PengRobinson)
+            )
+        {
+            return Self {
+                variant,
+                ..self.clone()
+            };
+        }
+        Self::default_for(variant, self.components.clone(), zero_kij_source)
+    }
+
+    pub fn default_for(
+        variant: PackageChoice,
+        components: Vec<String>,
+        zero_kij_source: &str,
+    ) -> Self {
+        if variant.uses_kij() {
+            return Self::zero_interactions(variant, components, zero_kij_source);
+        }
+        let [lo, hi] = variant.temperature_range();
+        Self {
+            variant,
+            components,
+            kij: Vec::new(),
+            interaction_source: String::new(),
+            ph_minimum_temperature_k: lo,
+            ph_maximum_temperature_k: hi,
+        }
+    }
+
     /// Builds the immutable package. Each call creates a new package
     /// identity; result currency in this crate is decided by fingerprints.
-    pub fn build(&self) -> Result<CubicPackage, ProjectError> {
+    pub fn build(&self) -> Result<Arc<dyn FlowsheetPackage>, ProjectError> {
         Ok(self.build_with_model()?.0)
     }
 
@@ -147,8 +226,7 @@ impl PackageSelection {
     /// remembers the selection it was built from, so a solve refuses a
     /// package that does not belong to the project being solved.
     pub fn prepare(&self) -> Result<PreparedPackage, ProjectError> {
-        let (package, model, data) = self.build_with_model()?;
-        let provenance = provenance_of(&model, data);
+        let (package, provenance) = self.build_with_model()?;
         let fingerprint = crate::fingerprint::package_fingerprint(self, &provenance);
         Ok(PreparedPackage {
             selection: self.clone(),
@@ -160,11 +238,10 @@ impl PackageSelection {
 
     /// Model/data/engine identity of results computed with this selection.
     pub fn provenance(&self) -> Result<Provenance, ProjectError> {
-        let (_, model, data) = self.build_with_model()?;
-        Ok(provenance_of(&model, data))
+        Ok(self.build_with_model()?.1)
     }
 
-    fn build_with_model(&self) -> Result<(CubicPackage, CubicModel, DataMetadata), ProjectError> {
+    fn build_with_model(&self) -> Result<(Arc<dyn FlowsheetPackage>, Provenance), ProjectError> {
         let package = |e: &dyn std::fmt::Display| ProjectError::Package(e.to_string());
         if self.components.is_empty() {
             return Err(ProjectError::Package(
@@ -172,7 +249,7 @@ impl PackageSelection {
             ));
         }
         let (lo, hi) = (self.ph_minimum_temperature_k, self.ph_maximum_temperature_k);
-        let [t_lo, t_hi] = CUBIC_TEMPERATURE_RANGE_K;
+        let [t_lo, t_hi] = self.variant.temperature_range();
         if !(lo.is_finite() && hi.is_finite() && (t_lo..=t_hi).contains(&lo))
             || !(t_lo..=t_hi).contains(&hi)
             || lo >= hi
@@ -181,7 +258,6 @@ impl PackageSelection {
                 "PH search interval must be ordered and within {t_lo}..{t_hi} K"
             )));
         }
-        let db = ComponentDatabase::embedded().map_err(|e| package(&e))?;
         let entries = self
             .components
             .iter()
@@ -194,10 +270,68 @@ impl PackageSelection {
             NormalizationPolicy::Normalize,
         )
         .map_err(|e| package(&e))?;
+        let Some(cubic_variant) = self.variant.cubic_model() else {
+            if !self.kij.is_empty() || !self.interaction_source.is_empty() {
+                return Err(ProjectError::Package(format!(
+                    "{} uses embedded interactions. Clear the cubic matrix and source.",
+                    self.variant.label()
+                )));
+            }
+            if self.variant == PackageChoice::EosCg2021 {
+                let model = EosCgPackage::new(self.components.clone(), [lo, hi])
+                    .map_err(|e| package(&e))?;
+                let provenance = Provenance {
+                    engine: crate::ENGINE_REVISION.into(),
+                    model: self.variant.label().into(),
+                    model_version: EosCgPackage::VERSION.into(),
+                    data: EosCgPackage::DATA.into(),
+                    data_version: EosCgPackage::DATA_VERSION.into(),
+                    caloric_reference: Some(EosCgPackage::REFERENCE.into()),
+                };
+                return Ok((Arc::new(model), provenance));
+            }
+            if self.variant == PackageChoice::NrtlIdealGas {
+                let components = ComponentDatabase::embedded().map_err(|e| package(&e))?;
+                let liquids = LiquidDatabase::embedded().map_err(|e| package(&e))?;
+                let model = ActivityModel::from_databases(
+                    &components,
+                    &liquids,
+                    &composition,
+                    VaporModel::IdealGas,
+                )
+                .map_err(|e| package(&e))?;
+                let metadata = model.metadata();
+                let component_data =
+                    components.metadata_for(self.components.iter().map(String::as_str));
+                let liquid_data = liquids.metadata();
+                let provenance = Provenance {
+                    engine: crate::ENGINE_REVISION.into(),
+                    model: self.variant.label().into(),
+                    model_version: metadata.implementation_version,
+                    data: format!("{} + {}", component_data.identifier, liquid_data.identifier),
+                    data_version: format!("{} + {}", component_data.version, liquid_data.version),
+                    caloric_reference: Some(ActivityModel::caloric_reference().identifier),
+                };
+                let nrtl = NrtlPackage::new(model, [lo, hi]).map_err(|e| package(&e))?;
+                return Ok((Arc::new(nrtl), provenance));
+            }
+            let model = GergModel::new(&composition).map_err(|e| package(&e))?;
+            let gerg = GergPackage::new(model, [lo, hi]).map_err(|e| package(&e))?;
+            let provenance = Provenance {
+                engine: crate::ENGINE_REVISION.into(),
+                model: self.variant.label().into(),
+                model_version: GERG_MODEL_VERSION.into(),
+                data: "NIST AGA8 GERG2008 2.01".into(),
+                data_version: GERG_DATA_REVISION.into(),
+                caloric_reference: Some(GERG_CALORIC_REFERENCE_ID.into()),
+            };
+            return Ok((Arc::new(gerg), provenance));
+        };
+        let db = ComponentDatabase::embedded().map_err(|e| package(&e))?;
         let model = CubicModel::new(
             &db,
             &composition,
-            self.variant.model(),
+            cubic_variant,
             self.kij.clone(),
             self.interaction_source.clone(),
         )
@@ -207,11 +341,9 @@ impl PackageSelection {
             maximum_temperature_k: hi,
             ..Default::default()
         };
-        Ok((
-            CubicPackage::new(model.clone(), options),
-            model,
-            db.metadata_for(self.components.iter().map(String::as_str)),
-        ))
+        let data = db.metadata_for(self.components.iter().map(String::as_str));
+        let provenance = provenance_of(&model, data);
+        Ok((Arc::new(CubicPackage::new(model, options)), provenance))
     }
 }
 
@@ -223,6 +355,7 @@ fn provenance_of(model: &CubicModel, data: DataMetadata) -> Provenance {
         model_version: m.implementation_version,
         data: data.identifier,
         data_version: data.version,
+        caloric_reference: None,
     }
 }
 
@@ -233,7 +366,7 @@ fn provenance_of(model: &CubicModel, data: DataMetadata) -> Provenance {
 #[derive(Debug, Clone)]
 pub struct PreparedPackage {
     selection: PackageSelection,
-    package: CubicPackage,
+    package: Arc<dyn FlowsheetPackage>,
     provenance: Provenance,
     fingerprint: Fingerprint,
 }
@@ -244,9 +377,9 @@ impl PreparedPackage {
         &self.selection
     }
 
-    /// The built cubic package.
-    pub fn package(&self) -> &CubicPackage {
-        &self.package
+    /// The built property package.
+    pub fn package(&self) -> &dyn FlowsheetPackage {
+        self.package.as_ref()
     }
 
     /// Provenance recorded with results of this package.

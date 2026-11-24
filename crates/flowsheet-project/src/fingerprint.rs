@@ -242,7 +242,10 @@ mod tests {
 
     #[test]
     fn legacy_labels_load_with_current_results() {
-        for variant in CubicVariantChoice::ALL {
+        for variant in [
+            CubicVariantChoice::PengRobinson,
+            CubicVariantChoice::PengRobinsonBostonMathias,
+        ] {
             let mut project = demonstration(variant);
             let package = project.package.prepare().unwrap();
             let provenance = package.provenance();

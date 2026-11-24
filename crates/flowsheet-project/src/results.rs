@@ -37,8 +37,23 @@ pub struct PhaseResult {
     pub enthalpy_j_mol: f64,
     /// Molar entropy, J/(mol K).
     pub entropy_j_mol_k: f64,
+    /// Molar isobaric heat capacity in J/(mol K). Absent in older results.
+    #[serde(default)]
+    pub cp_j_mol_k: Option<f64>,
+    /// Molar isochoric heat capacity in J/(mol K), when available.
+    #[serde(default)]
+    pub cv_j_mol_k: Option<f64>,
+    /// Phase speed of sound in m/s, when available.
+    #[serde(default)]
+    pub speed_of_sound_m_s: Option<f64>,
+    #[serde(default)]
+    pub dynamic_viscosity_pa_s: Option<f64>,
+    #[serde(default)]
+    pub thermal_conductivity_w_m_k: Option<f64>,
     /// Computational validity of the phase state.
     pub validity: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nrtl_regression_interval_inferred: Option<bool>,
 }
 
 /// Equilibrium state of a stream.
@@ -488,6 +503,11 @@ impl ResultSet {
                         ]
                         .into_iter()
                         .any(bad)
+                            || opt(p.cp_j_mol_k)
+                            || opt(p.cv_j_mol_k)
+                            || opt(p.speed_of_sound_m_s)
+                            || opt(p.dynamic_viscosity_pa_s)
+                            || opt(p.thermal_conductivity_w_m_k)
                             || p.mole_fractions.iter().any(|v| bad(*v))
                     })
             });
@@ -583,7 +603,16 @@ fn stream_result(s: &MaterialStream, fingerprint: Fingerprint) -> StreamResult {
                     compressibility: p.state.compressibility,
                     enthalpy_j_mol: p.state.enthalpy,
                     entropy_j_mol_k: p.state.entropy,
+                    cp_j_mol_k: Some(p.state.cp),
+                    cv_j_mol_k: p.state.cv,
+                    speed_of_sound_m_s: p.state.speed_of_sound,
+                    dynamic_viscosity_pa_s: p.state.dynamic_viscosity,
+                    thermal_conductivity_w_m_k: p.state.thermal_conductivity,
                     validity: validity.into(),
+                    nrtl_regression_interval_inferred: p
+                        .state
+                        .inferred_regression_interval
+                        .then_some(true),
                 }
             })
             .collect();

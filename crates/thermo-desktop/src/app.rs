@@ -11,8 +11,7 @@ use eframe::egui::{
     ViewportCommand, vec2,
 };
 use flowsheet_core::{CalculationStatus, PaletteCategory, UnitKind};
-use flowsheet_project::{CubicVariantChoice, PackageSelection, format_utc};
-use property_packages::CUBIC_TEMPERATURE_RANGE_K;
+use flowsheet_project::{CubicVariantChoice, PackageChoice, PackageSelection, format_utc};
 
 use crate::canvas;
 use crate::editor::{Editor, ItemStatus};
@@ -32,7 +31,7 @@ pub const DIALOG_INTERACTIONS: &str = "explicit synthetic zero-kij approximation
 pub struct NewProjectDialog {
     /// Available components and whether each is selected, in database order.
     pub components: Vec<(String, bool)>,
-    pub variant: CubicVariantChoice,
+    pub variant: PackageChoice,
     pub ph_minimum_temperature_k: f64,
     pub ph_maximum_temperature_k: f64,
     pub error: Option<String>,
@@ -40,22 +39,46 @@ pub struct NewProjectDialog {
 
 impl NewProjectDialog {
     fn open() -> Self {
-        let (components, error) = match PackageSelection::available_components() {
-            Ok(ids) => (ids.into_iter().map(|id| (id, false)).collect(), None),
-            Err(e) => (Vec::new(), Some(e.to_string())),
+        let variant = PackageChoice::PengRobinsonBostonMathias;
+        let mut dialog = Self {
+            components: Vec::new(),
+            variant,
+            ph_minimum_temperature_k: 0.0,
+            ph_maximum_temperature_k: 0.0,
+            error: None,
         };
-        Self {
-            components,
-            variant: CubicVariantChoice::PengRobinsonBostonMathias,
-            ph_minimum_temperature_k: CUBIC_TEMPERATURE_RANGE_K[0],
-            ph_maximum_temperature_k: CUBIC_TEMPERATURE_RANGE_K[1],
-            error,
+        dialog.select_model(variant);
+        dialog
+    }
+
+    fn select_model(&mut self, variant: PackageChoice) {
+        self.variant = variant;
+        [self.ph_minimum_temperature_k, self.ph_maximum_temperature_k] =
+            variant.temperature_range();
+        self.error = None;
+        match PackageSelection::available_components_for(variant) {
+            Ok(ids) => {
+                self.components = ids
+                    .into_iter()
+                    .map(|id| {
+                        let selected = self
+                            .components
+                            .iter()
+                            .any(|(previous, on)| *on && *previous == id);
+                        (id, selected)
+                    })
+                    .collect();
+            }
+            Err(error) => {
+                self.components.clear();
+                self.error = Some(error.to_string());
+            }
         }
     }
 
     /// The selection the dialog would create.
     pub fn selection(&self) -> PackageSelection {
-        let mut s = PackageSelection::zero_interactions(
+        let mut s = PackageSelection::default_for(
             self.variant,
             self.components
                 .iter()
@@ -447,6 +470,17 @@ impl FlowsheetApp {
             ui.set_width(420.0);
             ui.heading("New project");
             ui.add_space(4.0);
+            ui.strong("Property package");
+            let mut variant = dialog.variant;
+            ui.horizontal_wrapped(|ui| {
+                for v in PackageChoice::ALL {
+                    ui.radio_value(&mut variant, v, v.label());
+                }
+            });
+            if variant != dialog.variant {
+                dialog.select_model(variant);
+            }
+            ui.add_space(6.0);
             ui.strong("Components");
             ui.label(
                 RichText::new("Order of selection is the database order shown here.")
@@ -462,30 +496,25 @@ impl FlowsheetApp {
                 }
             });
             ui.add_space(6.0);
-            ui.strong("Property package");
-            ui.horizontal(|ui| {
-                for v in CubicVariantChoice::ALL {
-                    ui.radio_value(&mut dialog.variant, v, v.label());
-                }
-            });
-            ui.label(
-                RichText::new(
-                    "Binary interactions: all kij = 0, recorded in the project as an explicit \
-                     synthetic approximation. No measured interaction data is applied.",
-                )
-                .small(),
-            );
+            let interactions = match variant {
+                PackageChoice::Gerg2008 => "Embedded GERG-2008 interactions. Flash pressure range: 0.1–10 MPa.",
+                PackageChoice::EosCg2021 => "CO₂ and normal hydrogen, single gas phase. Pressure range 0.1–2 MPa.",
+                PackageChoice::NrtlIdealGas => "Embedded methanol–water interactions. Ideal-gas vapor. Flash pressure range: 100–500,000 Pa.",
+                _ => "Binary interactions: all kij = 0, recorded as a synthetic approximation.",
+            };
+            ui.label(RichText::new(interactions).small());
+            let [minimum, maximum] = variant.temperature_range();
             ui.horizontal(|ui| {
                 ui.label("PH search interval");
                 ui.add(
                     egui::DragValue::new(&mut dialog.ph_minimum_temperature_k)
-                        .range(CUBIC_TEMPERATURE_RANGE_K[0]..=CUBIC_TEMPERATURE_RANGE_K[1])
+                        .range(minimum..=maximum)
                         .suffix(" K"),
                 );
                 ui.label("to");
                 ui.add(
                     egui::DragValue::new(&mut dialog.ph_maximum_temperature_k)
-                        .range(CUBIC_TEMPERATURE_RANGE_K[0]..=CUBIC_TEMPERATURE_RANGE_K[1])
+                        .range(minimum..=maximum)
                         .suffix(" K"),
                 );
             });

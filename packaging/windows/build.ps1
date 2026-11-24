@@ -54,6 +54,8 @@ try {
     foreach ($f in 'CoolProp-LICENSE.txt', 'Cantera-License.txt', 'thermo-LICENSE.txt') {
         Copy-Item (Join-Path $root "data\source-extracts\$f") $notices
     }
+    Copy-Item -LiteralPath (Join-Path $root 'data/source-extracts/gerg/LICENSE') -Destination (Join-Path $notices 'NIST-GERG-LICENSE.txt')
+    Copy-Item -LiteralPath (Join-Path $root 'data/EOS-CG-2021-NOTICE.md') -Destination $notices
 
     # Crates compiled into the executable (normal dependencies only).
     $meta = cargo metadata --format-version 1 --locked --filter-platform $target | ConvertFrom-Json

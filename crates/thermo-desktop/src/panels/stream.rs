@@ -118,6 +118,26 @@ pub(super) fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
                     ui.label(value_text(format_value(p.compressibility), stale));
                 }
                 ui.end_row();
+                type PhaseProperty = fn(&flowsheet_project::PhaseResult) -> Option<f64>;
+                let properties: [(&str, PhaseProperty); 5] = [
+                    ("Cp (J/mol K)", |p| p.cp_j_mol_k),
+                    ("Cv (J/mol K)", |p| p.cv_j_mol_k),
+                    ("Speed of sound (m/s)", |p| p.speed_of_sound_m_s),
+                    ("Viscosity (Pa s)", |p| p.dynamic_viscosity_pa_s),
+                    ("Thermal conductivity (W/m K)", |p| {
+                        p.thermal_conductivity_w_m_k
+                    }),
+                ];
+                for (label, property) in properties {
+                    ui.label(label);
+                    ui.label("");
+                    for phase in &s.phases {
+                        let text =
+                            property(phase).map_or_else(|| "Unavailable".to_owned(), format_value);
+                        ui.label(value_text(text, stale));
+                    }
+                    ui.end_row();
+                }
                 for (i, c) in components.iter().enumerate() {
                     ui.label(format!("x {c}"));
                     ui.label(value_text(fraction_text(&s.mole_fractions, i), stale));
