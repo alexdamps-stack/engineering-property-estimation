@@ -7,9 +7,11 @@ use thermo_types::{
 
 pub const OMEGA_A: f64 = 0.457_235_528_921_382_2;
 pub const OMEGA_B: f64 = 0.077_796_073_903_888_46;
-/// Temperature envelope of the homogeneous PR/PR-BM evaluators, in K.
+const SRK_OMEGA_A: f64 = 0.427_480_233_540_341_4;
+const SRK_OMEGA_B: f64 = 0.086_640_349_964_957_72;
+/// Temperature envelope of the homogeneous cubic evaluators, in K.
 pub const CUBIC_TEMPERATURE_RANGE_K: [f64; 2] = [200.0, 600.0];
-/// Pressure part of the homogeneous PR/PR-BM envelope, in Pa (absolute).
+/// Pressure part of the homogeneous cubic envelope, in Pa (absolute).
 pub const CUBIC_PRESSURE_RANGE_PA: [f64; 2] = [0.01, 100_000_000.0];
 /// Temperature envelope of `CubicModel::pressure_derivatives` (K).
 pub const MECHANICAL_TEMPERATURE_RANGE_K: [f64; 2] = [100.0, 1000.0];
@@ -18,6 +20,7 @@ pub const MECHANICAL_TEMPERATURE_RANGE_K: [f64; 2] = [100.0, 1000.0];
 pub enum CubicVariant {
     PengRobinson,
     PengRobinsonBostonMathias,
+    SoaveRedlichKwong,
 }
 
 impl CubicVariant {
@@ -26,6 +29,14 @@ impl CubicVariant {
         match self {
             Self::PengRobinson => "PR-exact-1976",
             Self::PengRobinsonBostonMathias => "PR-exact-BM",
+            Self::SoaveRedlichKwong => "SRK-1972",
+        }
+    }
+
+    fn constants(self) -> (f64, f64) {
+        match self {
+            Self::SoaveRedlichKwong => (SRK_OMEGA_A, SRK_OMEGA_B),
+            _ => (OMEGA_A, OMEGA_B),
         }
     }
 }
@@ -98,12 +109,33 @@ pub struct CubicModel {
 
 #[derive(Debug)]
 struct Parameters {
+    variant: CubicVariant,
     a: f64,
     da: f64,
     d2a: f64,
     b: f64,
     bi: Vec<f64>,
     cross: Vec<f64>,
+}
+
+impl Parameters {
+    fn attraction_denominator(&self, v: f64) -> f64 {
+        match self.variant {
+            CubicVariant::SoaveRedlichKwong => v * (v + self.b),
+            _ => v * v + 2.0 * self.b * v - self.b * self.b,
+        }
+    }
+
+    fn attraction_integral(&self, v: f64) -> f64 {
+        match self.variant {
+            CubicVariant::SoaveRedlichKwong => (self.b / v).ln_1p() / self.b,
+            _ => {
+                // Form the small increment directly to preserve the dilute limit.
+                let scale = 2.0 * SQRT_2 * self.b;
+                (scale / (v + (1.0 - SQRT_2) * self.b)).ln_1p() / scale
+            }
+        }
+    }
 }
 
 impl CubicModel {
@@ -165,11 +197,17 @@ impl CubicModel {
     }
 
     pub fn metadata(&self) -> ModelMetadata {
+        let (omega_a, omega_b) = self.variant.constants();
         ModelMetadata {
             identifier: self.variant.identifier().into(),
-            implementation_version: "a3-v1".into(),
+            implementation_version: if self.variant == CubicVariant::SoaveRedlichKwong {
+                "srk-v1"
+            } else {
+                "a3-v1"
+            }
+            .into(),
             formulation: format!(
-                "OmegaA={OMEGA_A}; OmegaB={OMEGA_B}; R={R}; quadratic attraction; linear b; no translation; caloric EOS departures at same T,p,x; constant symmetric kij: {}; ordered components={:?}; kij={:?}",
+                "OmegaA={omega_a}; OmegaB={omega_b}; R={R}; quadratic attraction; linear b; no translation; caloric EOS departures at same T,p,x; constant symmetric kij: {}; ordered components={:?}; kij={:?}",
                 self.interaction_source,
                 self.component_ids(),
                 self.kij
@@ -182,6 +220,7 @@ impl CubicModel {
     }
 
     fn parameters_at(&self, t: f64, fractions: &[f64]) -> Result<Parameters, Error> {
+        let (omega_a, omega_b) = self.variant.constants();
         let mut bi = Vec::new();
         let mut g = Vec::new();
         let mut dg = Vec::new();
@@ -192,7 +231,7 @@ impl CubicModel {
                 t / c.critical_temperature(),
                 c.acentric_factor(),
             )?;
-            let ac = OMEGA_A * R * R * c.critical_temperature().powi(2) / c.critical_pressure();
+            let ac = omega_a * R * R * c.critical_temperature().powi(2) / c.critical_pressure();
             let tc = c.critical_temperature();
             let root = (ac * alpha).sqrt();
             g.push(root);
@@ -201,7 +240,7 @@ impl CubicModel {
                 ac * d2 / (tc * tc) / (2.0 * root)
                     - ac * ac * d * d / (tc * tc) / (4.0 * root.powi(3)),
             );
-            bi.push(OMEGA_B * R * tc / c.critical_pressure());
+            bi.push(omega_b * R * tc / c.critical_pressure());
         }
         let mut a = 0.0;
         let mut da = 0.0;
@@ -223,6 +262,7 @@ impl CubicModel {
             ));
         }
         Ok(Parameters {
+            variant: self.variant,
             a,
             da,
             d2a,
@@ -266,13 +306,15 @@ impl CubicModel {
         let par = self.parameters(t)?;
         let a = par.a * p / (R * t).powi(2);
         let b = par.b * p / (R * t);
-        let mut roots = real_roots(
-            b - 1.0,
-            a - 3.0 * b * b - 2.0 * b,
-            -a * b + b * b + b.powi(3),
-            b,
-            128,
-        )?;
+        let (c2, c1, c0) = match self.variant {
+            CubicVariant::SoaveRedlichKwong => (-1.0, a - b - b * b, -a * b),
+            _ => (
+                b - 1.0,
+                a - 3.0 * b * b - 2.0 * b,
+                -a * b + b * b + b.powi(3),
+            ),
+        };
+        let mut roots = real_roots(c2, c1, c0, b, 128)?;
         roots.retain(|z| *z > b && z.is_finite());
         if roots.is_empty() {
             return Err(Error::NumericalFailure("no admissible Z > B root".into()));
@@ -303,9 +345,9 @@ impl CubicModel {
         let (z, ln_phi) = self.select_root(&roots, selection, &par, t, p);
         let v = z * R * t / p;
         let pv = accepted_root_slope(&par, t, v)?;
-        let denom = v * v + 2.0 * par.b * v - par.b * par.b;
+        let denom = par.attraction_denominator(v);
         let pt = R / (v - par.b) - par.da / denom;
-        let q = attraction_integral(v, par.b);
+        let q = par.attraction_integral(v);
         let hr = R * t * (z - 1.0) + (t * par.da - par.a) * q;
         let sr = R * (z - par.b * p / (R * t)).ln() + par.da * q;
         let mut h0 = 0.0;
@@ -361,7 +403,7 @@ impl CubicModel {
         })
     }
 
-    /// Caloric reference of every [`HomogeneousState`] from this model (both variants).
+    /// Caloric reference shared by the cubic variants.
     pub fn caloric_reference() -> CaloricReference {
         crate::ideal_gas_caloric_reference()
     }
@@ -403,10 +445,11 @@ impl CubicModel {
 
     /// Mixture covolume b in m³/mol at the model fractions (temperature independent).
     pub fn covolume(&self) -> f64 {
+        let (_, omega_b) = self.variant.constants();
         self.components
             .iter()
             .zip(&self.fractions)
-            .map(|(c, x)| x * OMEGA_B * R * c.critical_temperature() / c.critical_pressure())
+            .map(|(c, x)| x * omega_b * R * c.critical_temperature() / c.critical_pressure())
             .sum()
     }
 
@@ -495,8 +538,11 @@ impl CubicModel {
         if !v.is_finite() || v <= par.b {
             return Err(InputError::NotPositive("molar volume minus b").into());
         }
-        let d = v * v + 2.0 * par.b * v - par.b * par.b;
-        let dd = 2.0 * (v + par.b);
+        let d = par.attraction_denominator(v);
+        let dd = match par.variant {
+            CubicVariant::SoaveRedlichKwong => 2.0 * v + par.b,
+            _ => 2.0 * (v + par.b),
+        };
         let rt = R * temperature.value();
         let result = (
             rt / (v - par.b) - par.a / d,
@@ -532,7 +578,7 @@ impl CubicModel {
         if v <= par.b {
             return Err(Error::OutsideValidityDomain("V/n must exceed b".into()));
         }
-        let q = attraction_integral(v, par.b);
+        let q = par.attraction_integral(v);
         let result = moles * (-R * temperature.value() * (-par.b / v).ln_1p() - par.a * q);
         if !result.is_finite() {
             return Err(Error::NumericalFailure("Helmholtz overflow".into()));
@@ -543,7 +589,7 @@ impl CubicModel {
 
 fn ln_phi(par: &Parameters, t: f64, p: f64, z: f64) -> Vec<f64> {
     let b_red = par.b * p / (R * t);
-    let q = attraction_integral(z * R * t / p, par.b);
+    let q = par.attraction_integral(z * R * t / p);
     (0..par.bi.len())
         .map(|i| {
             par.bi[i] / par.b * (z - 1.0)
@@ -561,22 +607,18 @@ pub const MIN_REDUCED_BULK_MODULUS: f64 = 1e-8;
 
 /// (∂p/∂v)_T at the selected root if it is mechanically acceptable.
 fn accepted_root_slope(par: &Parameters, t: f64, v: f64) -> Result<f64, Error> {
-    let denom = v * v + 2.0 * par.b * v - par.b * par.b;
-    let pv = -R * t / (v - par.b).powi(2) + par.a * (2.0 * v + 2.0 * par.b) / denom.powi(2);
+    let denom = par.attraction_denominator(v);
+    let dd = match par.variant {
+        CubicVariant::SoaveRedlichKwong => 2.0 * v + par.b,
+        _ => 2.0 * v + 2.0 * par.b,
+    };
+    let pv = -R * t / (v - par.b).powi(2) + par.a * dd / denom.powi(2);
     if !pv.is_finite() || pv >= 0.0 || -pv * v * v / (R * t) < MIN_REDUCED_BULK_MODULUS {
         return Err(Error::NumericalFailure(
             "selected root is mechanically unstable or at a spinodal".into(),
         ));
     }
     Ok(pv)
-}
-
-// Equivalent to ln((v+(1+sqrt(2))*b)/(v+(1-sqrt(2))*b))/(2*sqrt(2)*b).
-// Form the small increment directly: the ratio can round to 1 in dilute states,
-// destroying the attractive contribution before the logarithm is evaluated.
-fn attraction_integral(v: f64, b: f64) -> f64 {
-    let scale = 2.0 * SQRT_2 * b;
-    (scale / (v + (1.0 - SQRT_2) * b)).ln_1p() / scale
 }
 
 /// Alpha, d(alpha)/dTr and d²(alpha)/dTr². Low branch owns Tr=1;
@@ -597,7 +639,10 @@ pub fn alpha_derivatives(
             "alpha: 0.01<=Tr<=100, -0.5<=omega<=1.5".into(),
         ));
     }
-    let m = 0.37464 + 1.54226 * omega - 0.26992 * omega * omega;
+    let m = match variant {
+        CubicVariant::SoaveRedlichKwong => 0.48 + 1.574 * omega - 0.176 * omega * omega,
+        _ => 0.37464 + 1.54226 * omega - 0.26992 * omega * omega,
+    };
     let result = if variant == CubicVariant::PengRobinsonBostonMathias && tr > 1.0 {
         let d = 1.0 + m / 2.0;
         let c = 2.0 * (1.0 - 1.0 / d);

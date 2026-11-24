@@ -5,7 +5,7 @@ use crate::{
     MaterialStream, PortMedium, PortRef, SeparatorThermal, SolveError, SolveProgress, StreamId,
     ThermalSpec, UnitKind, UnitSpec,
 };
-use property_packages::CubicPackage;
+use property_packages::FlowsheetPackage;
 use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::ops::ControlFlow;
 
@@ -50,7 +50,7 @@ impl Flowsheet {
     /// Recycle-capable solve using deterministic automatic tears and defaults.
     pub fn solve_network(
         &self,
-        package: &CubicPackage,
+        package: &dyn FlowsheetPackage,
         feeds: &FeedCompositions,
     ) -> Result<Calculation, SolveError> {
         self.solve_network_with_progress(package, feeds, |_| ControlFlow::Continue(()))
@@ -102,7 +102,7 @@ impl Flowsheet {
     /// [`Self::solve_recycles`].
     pub fn solve_network_with_progress(
         &self,
-        package: &CubicPackage,
+        package: &dyn FlowsheetPackage,
         feeds: &FeedCompositions,
         mut progress: impl FnMut(SolveProgress) -> ControlFlow<()>,
     ) -> Result<Calculation, SolveError> {
@@ -199,7 +199,7 @@ impl Flowsheet {
     /// iteration exhaustion returns no partially current calculation.
     pub fn solve_recycles(
         &self,
-        package: &CubicPackage,
+        package: &dyn FlowsheetPackage,
         feeds: &FeedCompositions,
         guesses: &BTreeMap<StreamId, MaterialStream>,
         options: RecycleOptions,
@@ -274,7 +274,7 @@ impl Flowsheet {
                 .map(|(&id, old)| {
                     (
                         id,
-                        mismatch(old, &report.streams[&id], package.model().fractions().len()),
+                        mismatch(old, &report.streams[&id], package.component_ids().len()),
                     )
                 })
                 .collect();
@@ -356,7 +356,7 @@ impl Flowsheet {
     fn close_balances(
         &self,
         report: &mut Calculation,
-        package: &CubicPackage,
+        package: &dyn FlowsheetPackage,
     ) -> Result<Option<String>, SolveError> {
         for u in self.units().filter(|u| !u.kind.is_boundary()) {
             let ports = self.unit_ports(u);
@@ -378,13 +378,15 @@ impl Flowsheet {
                 .map(|r| r.terms.clone());
             let chemistry = terms
                 .as_ref()
-                .map(|_| crate::reaction::Chemistry::of(package));
+                .map(|_| package.cubic().map(crate::reaction::Chemistry::of))
+                .transpose()
+                .map_err(|e| error(format!("{}: {e}", u.name)))?;
             let balance = crate::engine::balance(
                 &inputs,
                 &outputs,
                 unit.duty_w,
                 unit.material_exchange.as_ref(),
-                package.model().fractions().len(),
+                package.component_ids().len(),
                 terms.as_ref().zip(chemistry.as_ref()),
             );
             match balance {

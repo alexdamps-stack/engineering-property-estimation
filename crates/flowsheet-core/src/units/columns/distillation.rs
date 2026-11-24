@@ -318,7 +318,7 @@ pub(super) fn calculate(
         return Err("column withdrawals must leave positive bottoms flow and finite reflux".into());
     }
     let seed = ctx
-        .package()
+        .cubic_package()?
         .saturation_temperature(
             &feed_composition,
             pressure,
@@ -329,7 +329,7 @@ pub(super) fn calculate(
     // The condenser liquid starts at the composition of the vapor leaving
     // the first tray. Its own bubble point can be much colder than the tray.
     let condenser_seed = ctx
-        .package()
+        .cubic_package()?
         .saturation_temperature(
             &seed.vapor_composition,
             pressure,

@@ -19,3 +19,5 @@ fn ideal_gas_caloric_reference() -> thermo_types::CaloricReference {
         definition: "NASA7 cp integrals; pure ideal h=s=0 at 298.15 K, 100000 Pa; ideal mixing entropy; J/mol and J/(mol K)".into(),
     }
 }
+mod eos_cg;
+pub use eos_cg::{EosCg2021, EosCg2021State};

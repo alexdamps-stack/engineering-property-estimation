@@ -16,8 +16,8 @@
 //! their own file (Rust allows inherent impls anywhere in the crate), so
 //! property-access helpers do not collide. See `docs/a17-architecture.md`.
 
-use property_packages::{CubicPackage, EquilibriumState};
-use thermo_models::{CubicModel, FugacityState, HomogeneousState, RootSelection};
+use property_packages::{CubicPackage, EquilibriumState, FlowsheetPackage};
+use thermo_models::{FugacityState, HomogeneousState, RootSelection};
 use thermo_types::{Composition, Pressure, Temperature};
 
 use crate::engine::{MaterialExchange, MaterialStream};
@@ -158,41 +158,41 @@ pub fn numbered(port: PortSpec, count: u16) -> impl Iterator<Item = PortSpec> {
 pub(crate) const DRAWN_ONLY: crate::CalculationStatus =
     crate::CalculationStatus::DrawnOnly("is drawn only; its calculation is not implemented yet");
 
-/// Property access for unit calculations: one immutable cubic package and,
+/// Property access for unit calculations: one immutable property package and,
 /// for feeds, the feed composition. Methods return `Err(String)` with the
 /// property error, so calculations can use `?` and fail explicitly.
 ///
 /// Group modules may add methods in their own `impl CalcContext<'_>` block.
 #[derive(Debug, Clone, Copy)]
 pub struct CalcContext<'a> {
-    package: &'a CubicPackage,
+    package: &'a dyn FlowsheetPackage,
     feed: Option<&'a Composition>,
 }
 
 impl<'a> CalcContext<'a> {
     /// Context for one unit calculation.
-    pub fn new(package: &'a CubicPackage, feed: Option<&'a Composition>) -> Self {
+    pub fn new(package: &'a dyn FlowsheetPackage, feed: Option<&'a Composition>) -> Self {
         Self { package, feed }
     }
 
     /// The property package.
-    pub fn package(&self) -> &'a CubicPackage {
+    pub fn package(&self) -> &'a dyn FlowsheetPackage {
         self.package
     }
 
-    /// The cubic model (component data, interactions, variant).
-    pub fn model(&self) -> &'a CubicModel {
-        self.package.model()
+    /// Access to a cubic-specific thermodynamic operation.
+    pub fn cubic_package(&self) -> Result<&'a CubicPackage, String> {
+        self.package.cubic().map_err(|e| e.to_string())
     }
 
     /// Number of components, in package order.
     pub fn component_count(&self) -> usize {
-        self.package.model().fractions().len()
+        self.package.component_ids().len()
     }
 
     /// Component identifiers in package order.
     pub fn component_ids(&self) -> Vec<&'a str> {
-        self.package.model().component_ids()
+        self.package.component_ids()
     }
 
     /// Feed composition (feeds only).
@@ -221,7 +221,11 @@ impl<'a> CalcContext<'a> {
         p_pa: f64,
         root: RootSelection,
     ) -> Result<HomogeneousState, String> {
-        let model = self.model().with_fractions(x).map_err(|e| e.to_string())?;
+        let model = self
+            .cubic_package()?
+            .model()
+            .with_fractions(x)
+            .map_err(|e| e.to_string())?;
         model
             .evaluate(temperature(t_k)?, pressure(p_pa)?, root)
             .map_err(|e| e.to_string())
@@ -236,7 +240,11 @@ impl<'a> CalcContext<'a> {
         p_pa: f64,
         root: RootSelection,
     ) -> Result<FugacityState, String> {
-        let model = self.model().with_fractions(x).map_err(|e| e.to_string())?;
+        let model = self
+            .cubic_package()?
+            .model()
+            .with_fractions(x)
+            .map_err(|e| e.to_string())?;
         model
             .ln_fugacity(temperature(t_k)?, pressure(p_pa)?, root)
             .map_err(|e| e.to_string())

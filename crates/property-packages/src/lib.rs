@@ -1,12 +1,93 @@
 //! One immutable model/data/interaction selection for a connected flowsheet.
-//! The initial adapter supports exact PR and PR-BM on their existing TP/PH/PS domain.
+//! The flowsheet package interface shares TP/PH states across EOS backends.
 
-use thermo_models::CubicModel;
+mod eos_cg;
+pub use eos_cg::EosCgPackage;
+mod flowsheet;
+pub use flowsheet::{FlowsheetPackage, GergPackage, NrtlPackage};
+
+use thermo_models::{CubicModel, HomogeneousState};
 // The cubic homogeneous envelope, re-exported for interfaces that build packages
 // without depending on `thermo-models` directly.
 pub use thermo_models::{CUBIC_PRESSURE_RANGE_PA, CUBIC_TEMPERATURE_RANGE_K};
 use thermo_solvers::{FlashPhase, PhFlashOptions, ph_flash, ps_flash, tp_flash};
-use thermo_types::{CalculationError, Diagnostic, Pressure, Temperature};
+use thermo_types::{
+    CalculationError, CaloricReference, DataMetadata, Diagnostic, ModelMetadata, Phase, Pressure,
+    Temperature, ValidityStatus,
+};
+
+/// Properties shared by homogeneous EOS and activity-package phases.
+#[derive(Debug, Clone)]
+pub struct PhaseProperties {
+    pub temperature_k: f64,
+    pub pressure_pa: f64,
+    pub compressibility: f64,
+    pub molar_volume: f64,
+    pub mass_density: f64,
+    pub ln_fugacity_coefficients: Vec<f64>,
+    pub residual_enthalpy: f64,
+    pub enthalpy: f64,
+    pub entropy: f64,
+    pub cp: f64,
+    /// Molar isochoric heat capacity in J/(mol K), when supplied by the model.
+    pub cv: Option<f64>,
+    /// Phase speed of sound in m/s, when supplied by the model.
+    pub speed_of_sound: Option<f64>,
+    /// Dynamic viscosity in Pa s, when supplied by the model.
+    pub dynamic_viscosity: Option<f64>,
+    /// Thermal conductivity in W/(m K), when supplied by the model.
+    pub thermal_conductivity: Option<f64>,
+    pub model: ModelMetadata,
+    pub data: DataMetadata,
+    pub caloric_reference: CaloricReference,
+    pub validity: ValidityStatus,
+    pub inferred_regression_interval: bool,
+}
+
+impl From<HomogeneousState> for PhaseProperties {
+    fn from(s: HomogeneousState) -> Self {
+        Self {
+            temperature_k: s.temperature_k,
+            pressure_pa: s.pressure_pa,
+            compressibility: s.compressibility,
+            molar_volume: s.molar_volume,
+            mass_density: s.mass_density,
+            ln_fugacity_coefficients: s.ln_fugacity_coefficients,
+            residual_enthalpy: s.residual_enthalpy,
+            enthalpy: s.enthalpy,
+            entropy: s.entropy,
+            cp: s.cp,
+            cv: Some(s.cv),
+            speed_of_sound: Some(s.speed_of_sound),
+            dynamic_viscosity: None,
+            thermal_conductivity: None,
+            model: s.model,
+            data: s.data,
+            caloric_reference: s.caloric_reference,
+            validity: s.validity,
+            inferred_regression_interval: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EquilibriumPhase {
+    pub phase: Phase,
+    pub phase_fraction: f64,
+    pub composition: Vec<f64>,
+    pub state: PhaseProperties,
+}
+
+impl From<FlashPhase> for EquilibriumPhase {
+    fn from(p: FlashPhase) -> Self {
+        Self {
+            phase: p.phase,
+            phase_fraction: p.phase_fraction,
+            composition: p.composition,
+            state: p.state.into(),
+        }
+    }
+}
 
 /// Equilibrium state in package component order. Phase states retain model,
 /// dataset, caloric-reference and validity metadata, densities, Z and entropy.
@@ -15,7 +96,7 @@ pub struct EquilibriumState {
     pub temperature_k: f64,
     pub pressure_pa: f64,
     pub mole_fractions: Vec<f64>,
-    pub phases: Vec<FlashPhase>,
+    pub phases: Vec<EquilibriumPhase>,
     pub iterations: usize,
     pub convergence: Convergence,
     pub diagnostics: Vec<Diagnostic>,
@@ -33,6 +114,50 @@ pub struct Convergence {
 }
 
 impl EquilibriumState {
+    fn from_tp(r: thermo_solvers::TpFlash, fractions: &[f64]) -> Self {
+        Self {
+            temperature_k: r.temperature_k,
+            pressure_pa: r.pressure_pa,
+            mole_fractions: fractions.to_vec(),
+            phases: r.phases.into_iter().map(Into::into).collect(),
+            iterations: r.iterations,
+            convergence: Convergence {
+                max_ln_fugacity_residual: r.max_ln_fugacity_residual,
+                max_component_balance_residual: Some(r.max_component_balance_residual),
+                scaled_energy_residual: None,
+                scaled_entropy_residual: None,
+            },
+            diagnostics: r.diagnostics,
+        }
+    }
+
+    fn from_ph(r: thermo_solvers::PhFlash, fractions: &[f64]) -> Self {
+        Self {
+            temperature_k: r.temperature_k,
+            pressure_pa: r.pressure_pa,
+            mole_fractions: fractions.to_vec(),
+            phases: r.phases.into_iter().map(Into::into).collect(),
+            iterations: r.iterations,
+            convergence: Convergence {
+                max_ln_fugacity_residual: r.tp.as_ref().map_or_else(
+                    || {
+                        r.pure_saturation
+                            .as_ref()
+                            .map_or(0.0, |s| s.fugacity_residual)
+                    },
+                    |tp| tp.max_ln_fugacity_residual,
+                ),
+                max_component_balance_residual: r
+                    .tp
+                    .as_ref()
+                    .map(|tp| tp.max_component_balance_residual),
+                scaled_energy_residual: Some(r.scaled_energy_residual),
+                scaled_entropy_residual: None,
+            },
+            diagnostics: r.diagnostics,
+        }
+    }
+
     /// Phase-weighted molar enthalpy, J/mol, on the package caloric reference.
     pub fn enthalpy(&self) -> f64 {
         self.phases
@@ -53,7 +178,14 @@ impl EquilibriumState {
     /// first phase's fraction for a split, 1/0 for a single vapor/liquid phase and
     /// `None` for a single supercritical phase.
     pub fn vapor_fraction(&self) -> Option<f64> {
-        thermo_solvers::vapor_fraction_of(&self.phases)
+        (!self.phases.is_empty() && self.phases.iter().all(|p| p.phase != Phase::Supercritical))
+            .then(|| {
+                self.phases
+                    .iter()
+                    .filter(|p| p.phase == Phase::Vapor)
+                    .map(|p| p.phase_fraction)
+                    .sum()
+            })
     }
 }
 
@@ -153,20 +285,7 @@ impl CubicPackage {
             Pressure::new(pressure_pa)?,
             self.options.tp,
         )?;
-        Ok(EquilibriumState {
-            temperature_k: r.temperature_k,
-            pressure_pa: r.pressure_pa,
-            mole_fractions: fractions.to_vec(),
-            phases: r.phases,
-            iterations: r.iterations,
-            convergence: Convergence {
-                max_ln_fugacity_residual: r.max_ln_fugacity_residual,
-                max_component_balance_residual: Some(r.max_component_balance_residual),
-                scaled_energy_residual: None,
-                scaled_entropy_residual: None,
-            },
-            diagnostics: r.diagnostics,
-        })
+        Ok(EquilibriumState::from_tp(r, fractions))
     }
 
     /// PH equilibrium on the same reference and bounded search interval.
@@ -183,30 +302,7 @@ impl CubicPackage {
             enthalpy,
             self.options,
         )?;
-        Ok(EquilibriumState {
-            temperature_k: r.temperature_k,
-            pressure_pa: r.pressure_pa,
-            mole_fractions: fractions.to_vec(),
-            phases: r.phases,
-            iterations: r.iterations,
-            convergence: Convergence {
-                max_ln_fugacity_residual: r.tp.as_ref().map_or_else(
-                    || {
-                        r.pure_saturation
-                            .as_ref()
-                            .map_or(0.0, |s| s.fugacity_residual)
-                    },
-                    |tp| tp.max_ln_fugacity_residual,
-                ),
-                max_component_balance_residual: r
-                    .tp
-                    .as_ref()
-                    .map(|tp| tp.max_component_balance_residual),
-                scaled_energy_residual: Some(r.scaled_energy_residual),
-                scaled_entropy_residual: None,
-            },
-            diagnostics: r.diagnostics,
-        })
+        Ok(EquilibriumState::from_ph(r, fractions))
     }
 
     /// PS equilibrium (A14) on the same reference and bounded search interval.
@@ -227,7 +323,7 @@ impl CubicPackage {
             temperature_k: r.temperature_k,
             pressure_pa: r.pressure_pa,
             mole_fractions: fractions.to_vec(),
-            phases: r.phases,
+            phases: r.phases.into_iter().map(Into::into).collect(),
             iterations: r.iterations,
             convergence: Convergence {
                 max_ln_fugacity_residual: r.tp.as_ref().map_or_else(
