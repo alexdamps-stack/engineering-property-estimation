@@ -161,6 +161,11 @@ statistics must be defined alongside actual algorithms. Input edits must
 invalidate derived results at the owning application/package layer; no cached
 result or mutable input state is introduced here.
 
+The [property-model requirements](property-model-requirements.md) apply this
+vocabulary to new models and flowsheet packages. They cover the required
+interface, the capability matrix of the unit operations, consistency, provenance
+and verification.
+
 ## Liquid density and caloric coupling
 
 The initial cubic-model baseline is **untranslated PR/PR-BM density from its own
