@@ -312,3 +312,80 @@ fn reactors_fail_explicitly_without_a_formation_basis() {
     let dynamic: &dyn FlowsheetPackage = &package;
     assert!(dynamic.formation_components().is_err());
 }
+
+#[test]
+fn methanol_water_distillation_under_nrtl_uses_gamma_phi_stage_properties() {
+    // In the NRTL-IG domain: 1 atm, stage temperatures between the methanol
+    // (337.7 K) and water (373.1 K) boiling points.
+    let z = [0.5, 0.5];
+    let package = nrtl(&z);
+    let mut fs = Flowsheet::new();
+    let source = fs.add_unit(UnitKind::Feed);
+    let column = fs.add_unit(UnitKind::DistillationColumn);
+    assert!(fs.set_spec(
+        source,
+        UnitSpec::Feed {
+            temperature_k: Some(340.0),
+            pressure_pa: Some(101_325.0),
+            molar_flow_mol_s: Some(10.0),
+        }
+    ));
+    fs.try_set_spec(
+        column,
+        UnitSpec::Columns(units::ColumnSpec::Distillation(
+            units::columns::DistillationColumnSpec {
+                feed_stages: vec![5],
+                internals: units::columns::ColumnInternals::Trays(8),
+                pressure_pa: Some(101_325.0),
+                reflux_ratio: Some(1.5),
+                distillate_fraction: Some(0.5),
+                ..Default::default()
+            },
+        )),
+    )
+    .unwrap();
+    fs.connect(PortRef::new(source, 0), PortRef::new(column, 4))
+        .unwrap();
+    let products: Vec<StreamId> = [0, 1]
+        .into_iter()
+        .map(|port| {
+            let product = fs.add_unit(UnitKind::Product);
+            fs.connect(PortRef::new(column, port), PortRef::new(product, 0))
+                .unwrap()
+        })
+        .collect();
+    let sink = fs.add_unit(UnitKind::EnergySink);
+    fs.connect(PortRef::new(column, 2), PortRef::new(sink, 0))
+        .unwrap();
+    let heat = fs.add_unit(UnitKind::EnergySource);
+    assert!(fs.set_spec(
+        heat,
+        UnitSpec::EnergySource {
+            duty: EnergySourceDuty::Calculated
+        }
+    ));
+    fs.connect(PortRef::new(heat, 0), PortRef::new(column, 3))
+        .unwrap();
+    let mut feeds = FeedCompositions::new();
+    feeds.insert(source, composition(&["methanol", "water"], &z));
+    let calc = fs
+        .solve(&package, &feeds)
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    closed(&calc, column);
+    let top = calc.streams[&products[0]].state.as_ref().unwrap();
+    let bottom = calc.streams[&products[1]].state.as_ref().unwrap();
+    assert!(top.mole_fractions[0] > 0.8 && bottom.mole_fractions[0] < 0.2);
+    let profile = calc.units[&column].distillation_column.as_ref().unwrap();
+    for t in &profile.stage_temperatures_k {
+        assert!((337.0..=374.0).contains(t), "{t}");
+    }
+    // The bottoms leave at their own bubble point under the package.
+    let bubble = package
+        .saturation_temperature(
+            &bottom.mole_fractions,
+            101_325.0,
+            property_packages::SaturationKind::Bubble,
+        )
+        .unwrap();
+    assert!((bubble.temperature_k - bottom.temperature_k).abs() < 1e-6);
+}
