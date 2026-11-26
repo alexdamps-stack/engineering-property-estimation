@@ -13,6 +13,7 @@ workspace = true
 thermo-types = { path = "../thermo-types" }
 thermo-models = { path = "../thermo-models" }
 thermo-solvers = { path = "../thermo-solvers" }
+thermo-data = { path = "../thermo-data" }
 
 [dev-dependencies]
-thermo-data = { path = "../thermo-data" }
+serde_json = { workspace = true }
