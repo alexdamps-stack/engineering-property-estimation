@@ -196,6 +196,18 @@ fn nrtl_separator_keeps_inferred_regression_provenance_and_the_reference_split()
     let vapor_phase = &vapor.state.as_ref().unwrap().phases[0];
     assert!(vapor_phase.cv_j_mol_k.is_some_and(|v| v > 0.0));
     assert!(vapor_phase.speed_of_sound_m_s.is_some_and(|v| v > 0.0));
-    assert_eq!(vapor_phase.dynamic_viscosity_pa_s, None);
+    // Transport (#225): dilute polar vapor has a Chung viscosity but no
+    // qualified thermal conductivity; the saturated liquid has all three.
+    assert!(
+        vapor_phase
+            .dynamic_viscosity_pa_s
+            .is_some_and(|v| (5e-6..2e-5).contains(&v))
+    );
     assert_eq!(vapor_phase.thermal_conductivity_w_m_k, None);
+    assert!(liquid_phase.dynamic_viscosity_pa_s.is_some_and(|v| v > 0.0));
+    assert!(liquid_phase.surface_tension_n_m.is_some_and(|v| v > 0.0));
+    assert_eq!(
+        liquid_phase.transport.as_ref().unwrap().validity.as_deref(),
+        Some("unassessed")
+    );
 }

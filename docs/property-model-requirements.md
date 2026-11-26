@@ -93,9 +93,9 @@ the unit and the operation.
 | Bubble and dew temperature and pressure | Shortcut column, condenser and reboiler states, vapor-fraction specifications | ✔ (A13 domain) | ✔ (modified Raoult) | ✔ (A13 algorithm, dry set, 0.1–10 MPa) | — | #226, #227 |
 | Formation properties on the package reference | All reactors | ✔ | ✔ (same ideal-gas reference) | — (native reference, no offset) | — (embedded offsets) | #226 |
 | Three-phase (VLLE/LLE) stability and flash | Three-phase separator, decanter, three-phase column, extractor | — | — | — | — | #224 |
-| Viscosity, thermal conductivity, surface tension | Pipe segment, relief valve, exchanger rating, column hydraulics | — | — | — | — | #225 |
+| Viscosity, thermal conductivity, surface tension | Pipe segment, relief valve, exchanger rating, column hydraulics | ✔ (8 components, [domain](transport-properties.md)) | ✔ (same) | ✔ (same) | ✔ (CO2 only; H2 has no data) | #225 |
 | Engineering liquid density | Liquid-phase kinetics, pump hydraulics, relief and pipe sizing | — | — | — | — | #228 |
-| Pseudo-components from assay data | Petroleum fractionator | — | — | — | — | #229 |
+| Pseudo-components from assay data | Petroleum fractionator | ✔ ([status](pseudo-components-status.md)) | — | — | — | #229 |
 
 Since #226 these operations are `FlowsheetPackage` methods (`ps`,
 `homogeneous`, `ln_fugacity_coefficients`, `k_values`,

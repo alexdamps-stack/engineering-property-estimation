@@ -121,6 +121,7 @@ impl EosCgPackage {
                     speed_of_sound: Some(calculated.speed_of_sound),
                     dynamic_viscosity: None,
                     thermal_conductivity: None,
+                    transport: None,
                     model: ModelMetadata {
                         identifier: "EOS-CG-2021".into(),
                         implementation_version: Self::VERSION.into(),
