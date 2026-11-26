@@ -13,7 +13,7 @@ root, run:
 julia --project=validation/julia validation/julia/check.jl
 ```
 
-The script instantiates `validation/julia/Manifest.toml` and checks three
+The script instantiates `validation/julia/Manifest.toml` and checks four
 committed fixtures in turn:
 
 | Fixture | Generator | Rust test (`cargo test -p thermo-solvers --locked --test …`) | Candidate variable |
@@ -21,6 +21,7 @@ committed fixtures in turn:
 | `clapeyron-v1.json` (PR/PR-BM homogeneous and PH) | `generate.jl` | `clapeyron` | `THERMO_CLAPEYRON_REFERENCE` |
 | `nrtl-v1.json` (A7 NRTL/gamma–phi) | `generate_nrtl.jl` | `nrtl_clapeyron` | `THERMO_NRTL_REFERENCE` |
 | `a13-v1.json` (A13 bubble/dew and envelope) | `generate_a13.jl` | `a13_clapeyron` | `THERMO_A13_REFERENCE` |
+| `package-operations-v1.json` (#226 GERG bubble/dew, GERG/NRTL/EOS-CG machines) | `generate_packages.jl` | `-p flowsheet-core --test package_references` | `THERMO_PACKAGE_REFERENCE` |
 
 For each fixture it verifies the committed input, generator and environment
 hashes, generates a temporary Julia candidate, checks that the candidate
@@ -230,3 +231,40 @@ supplied solutions. The fixture's `fugacity_residual` entries are solver
 diagnostics; the live comparison treats them as a bound (`1e-8`) rather than a
 reference value. Scope, the 62 points and the tolerances are in
 [A13 status](../docs/a13-status.md).
+
+## #226 package-operation check
+
+`check.jl` also verifies `fixtures/package-operations-v1.json`, regenerates it
+with `generate_packages.jl` and runs
+`cargo test -p flowsheet-core --test package_references` with
+`THERMO_PACKAGE_REFERENCE`. The generator makes no Rust calls and is given no
+solutions:
+
+- **GERG-2008:** 13 bubble/dew pressures and temperatures from Clapeyron's
+  native `GERG2008` and its own saturation solvers, inside 230–350 K and
+  0.1–10 MPa. Points must have μ/RT equality within `1e-8` and a vapor volume
+  above 1.5 times the liquid volume. Enthalpies of a 2 → 4 MPa compressor and a
+  6 → 3 MPa expander carry the constant NIST ideal-anchor offsets of
+  `check-gerg.jl`. Entropy differences and outlet temperatures do not depend
+  on them.
+- **NRTL-IG:** a pump, a vapor compressor and a vapor expander. They use the
+  unchanged `generate_nrtl.jl` gamma–phi adapter, with bisection on its TP
+  entropy and enthalpy. The pump does no isentropic work, because the
+  formulation's liquid has no pressure dependence.
+- **EOS-CG-2021:** Clapeyron's `EOS_CG` (Neumann et al. 2023), the same
+  formulation as the package. It gives gas-branch compressor and expander
+  outlets inside 330–350 K and 0.1–2 MPa. The package's caloric zero is a
+  different constant per component, so only temperatures and enthalpy and
+  entropy differences from the inlet are stored. EOS-CG-2021, like GERG-2008,
+  multiplies the temperature-dependent ideal-gas terms of each pure fluid by
+  its published `R_source,i / R`, and the engine follows that formulation.
+  Clapeyron 0.6.30 evaluates these terms with the mixture R. The first
+  comparison differed by `2.7e-5 K` in isentropic outlet temperature, which
+  is consistent with that `~6e-6` relative difference in c_p0. The generator
+  therefore adds the published factor to Clapeyron's own ideal-gas
+  properties, using the per-component `source_gas_constant` from
+  `data/eos-cg-2021.json`. It asserts that the corrected part depends on
+  temperature only. No engine value, EOS parameter or tolerance changed.
+
+The budgets are the A13 saturation budgets and the A14 and A6 caloric and
+power budgets. They were declared in the generator before any comparison.

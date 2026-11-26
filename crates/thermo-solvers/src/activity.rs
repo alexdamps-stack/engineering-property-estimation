@@ -1,5 +1,5 @@
 //! Gamma–phi (NRTL + ideal-gas vapor) equilibrium: bubble/dew pressure and
-//! temperature, TP flash with an NRTL liquid tangent-plane check, and PH flash.
+//! temperature, TP flash with an NRTL liquid tangent-plane check, and PH and PS flashes.
 //!
 //! With an ideal-gas vapor, liquid fugacities independent of pressure and a single
 //! liquid phase, the feed is liquid for p ≥ p_bubble(T, z), vapor for
@@ -7,7 +7,7 @@
 //! tangent-plane trials (liquid–liquid split) is reported as unsupported; no VLLE.
 //!
 //! Laid out like the cubic solvers: `saturation` (bubble/dew points),
-//! `flash` (TP flash), `ph` (PH flash) and `stability` (liquid TPD trials).
+//! `flash` (TP flash), `ph` (PH and PS flashes) and `stability` (liquid TPD trials).
 //! This module holds the shared options, result types and helpers.
 
 mod flash;
@@ -16,7 +16,7 @@ mod saturation;
 mod stability;
 
 pub use flash::activity_tp_flash;
-pub use ph::activity_ph_flash;
+pub use ph::{activity_ph_flash, activity_ps_flash};
 pub use saturation::{
     activity_bubble_pressure, activity_bubble_temperature, activity_dew_pressure,
     activity_dew_temperature,
@@ -192,6 +192,31 @@ pub struct ActivityPhFlash {
     /// TP evidence for a two-phase mixture result.
     pub tp: Option<ActivityTpFlash>,
     /// As [`ActivityTpFlash::inferred_regression_interval`], over `phases`.
+    pub inferred_regression_interval: bool,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+/// Result of [`activity_ps_flash`]; fields as [`ActivityPhFlash`] with entropy
+/// as the specification.
+#[derive(Debug, Clone)]
+pub struct ActivityPsFlash {
+    pub temperature_k: f64,
+    pub pressure_pa: f64,
+    /// J/(mol K) of feed, on the ideal-gas caloric reference.
+    pub target_entropy: f64,
+    pub entropy: f64,
+    /// Phase-weighted molar enthalpy of the result, J/mol.
+    pub enthalpy: f64,
+    /// (s − s_target) / entropy_scale.
+    pub scaled_entropy_residual: f64,
+    /// Entropy scale of the branch that produced the result, J/(mol K).
+    pub entropy_scale: f64,
+    /// Vapor first, then liquid. Pure saturation endpoints retain a zero-fraction phase.
+    pub phases: Vec<ActivityFlashPhase>,
+    pub bubble_temperature_k: Option<f64>,
+    pub dew_temperature_k: Option<f64>,
+    pub iterations: usize,
+    pub tp: Option<ActivityTpFlash>,
     pub inferred_regression_interval: bool,
     pub diagnostics: Vec<Diagnostic>,
 }

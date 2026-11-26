@@ -5,6 +5,10 @@ mod eos_cg;
 pub use eos_cg::EosCgPackage;
 mod flowsheet;
 pub use flowsheet::{FlowsheetPackage, GergPackage, NrtlPackage};
+mod operations;
+pub use operations::{SaturationKind, SaturationState};
+// Root selection of the homogeneous package operations.
+pub use thermo_models::RootSelection;
 mod transport;
 pub use transport::{
     TransportModel, TransportProperties, TransportRegime, annotate_transport, phase_transport,
@@ -174,6 +178,33 @@ impl EquilibriumState {
         }
     }
 
+    fn from_ps(r: thermo_solvers::PsFlash, fractions: &[f64]) -> Self {
+        Self {
+            temperature_k: r.temperature_k,
+            pressure_pa: r.pressure_pa,
+            mole_fractions: fractions.to_vec(),
+            phases: r.phases.into_iter().map(Into::into).collect(),
+            iterations: r.iterations,
+            convergence: Convergence {
+                max_ln_fugacity_residual: r.tp.as_ref().map_or_else(
+                    || {
+                        r.pure_saturation
+                            .as_ref()
+                            .map_or(0.0, |s| s.fugacity_residual)
+                    },
+                    |tp| tp.max_ln_fugacity_residual,
+                ),
+                max_component_balance_residual: r
+                    .tp
+                    .as_ref()
+                    .map(|tp| tp.max_component_balance_residual),
+                scaled_energy_residual: None,
+                scaled_entropy_residual: Some(r.scaled_entropy_residual),
+            },
+            diagnostics: r.diagnostics,
+        }
+    }
+
     /// Phase-weighted molar enthalpy, J/mol, on the package caloric reference.
     pub fn enthalpy(&self) -> f64 {
         self.phases
@@ -335,30 +366,43 @@ impl CubicPackage {
             entropy,
             self.options,
         )?;
-        Ok(EquilibriumState {
-            temperature_k: r.temperature_k,
-            pressure_pa: r.pressure_pa,
-            mole_fractions: fractions.to_vec(),
-            phases: r.phases.into_iter().map(Into::into).collect(),
-            iterations: r.iterations,
-            convergence: Convergence {
-                max_ln_fugacity_residual: r.tp.as_ref().map_or_else(
-                    || {
-                        r.pure_saturation
-                            .as_ref()
-                            .map_or(0.0, |s| s.fugacity_residual)
-                    },
-                    |tp| tp.max_ln_fugacity_residual,
-                ),
-                max_component_balance_residual: r
-                    .tp
-                    .as_ref()
-                    .map(|tp| tp.max_component_balance_residual),
-                scaled_energy_residual: None,
-                scaled_entropy_residual: Some(r.scaled_entropy_residual),
-            },
-            diagnostics: r.diagnostics,
-        })
+        Ok(EquilibriumState::from_ps(r, fractions))
+    }
+
+    /// Homogeneous phase of composition `fractions` on the selected root, in the
+    /// cubic model's declared domain. No phase-stability claim.
+    pub fn homogeneous(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+        root: RootSelection,
+    ) -> Result<HomogeneousState, CalculationError> {
+        self.validate_options()?;
+        self.model.with_fractions(fractions)?.evaluate(
+            Temperature::new(temperature_k)?,
+            Pressure::new(pressure_pa)?,
+            root,
+        )
+    }
+
+    /// The A13 saturation bounds inside the package temperature interval.
+    fn default_saturation_bounds(
+        &self,
+    ) -> Result<thermo_solvers::SaturationOptions, CalculationError> {
+        let mut bounds = thermo_solvers::SaturationOptions::default();
+        bounds.minimum_temperature_k = bounds
+            .minimum_temperature_k
+            .max(self.options.minimum_temperature_k);
+        bounds.maximum_temperature_k = bounds
+            .maximum_temperature_k
+            .min(self.options.maximum_temperature_k);
+        if bounds.minimum_temperature_k >= bounds.maximum_temperature_k {
+            return Err(CalculationError::OutsideValidityDomain(
+                "package temperature interval does not overlap the A13 bubble/dew interval".into(),
+            ));
+        }
+        Ok(bounds)
     }
 }
 

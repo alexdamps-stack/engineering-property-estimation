@@ -156,6 +156,10 @@ impl GergEquilibrium {
             constants,
         })
     }
+    /// Database critical temperature of component `index`, K.
+    pub(crate) fn critical_temperature(&self, index: usize) -> f64 {
+        self.constants[index].0
+    }
     fn selected(
         &self,
         t: Temperature,
@@ -280,6 +284,31 @@ pub(crate) fn validate_flash_options(options: FlashOptions) -> Result<(), Error>
         ));
     }
     Ok(())
+}
+
+/// Homogeneous native GERG state of the model composition on the selected
+/// exterior density root, in the qualified equilibrium domain. With a single
+/// exterior root every selection returns it; no phase stability is claimed.
+pub fn gerg_homogeneous(
+    model: &GergModel,
+    t: Temperature,
+    p: Pressure,
+    selection: RootSelection,
+) -> Result<HomogeneousState, Error> {
+    validate(model, t, p)?;
+    GergEquilibrium::new(model)?.evaluate(t, p, selection)
+}
+
+/// Native GERG fugacity coefficients on the selected exterior root, as
+/// [`gerg_homogeneous`], without caloric evaluation.
+pub fn gerg_ln_fugacity(
+    model: &GergModel,
+    t: Temperature,
+    p: Pressure,
+    selection: RootSelection,
+) -> Result<FugacityState, Error> {
+    validate(model, t, p)?;
+    GergEquilibrium::new(model)?.ln_fugacity(t, p, selection)
 }
 
 /// Finite-trial stability on GERG exterior density branches in the dry-gas domain.

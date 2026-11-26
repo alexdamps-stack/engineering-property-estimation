@@ -378,7 +378,7 @@ impl Flowsheet {
                 .map(|r| r.terms.clone());
             let chemistry = terms
                 .as_ref()
-                .map(|_| package.cubic().map(crate::reaction::Chemistry::of))
+                .map(|_| crate::reaction::Chemistry::of(package))
                 .transpose()
                 .map_err(|e| error(format!("{}: {e}", u.name)))?;
             let balance = crate::engine::balance(

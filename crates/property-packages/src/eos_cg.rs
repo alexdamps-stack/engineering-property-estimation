@@ -8,7 +8,7 @@ use thermo_types::{
 
 use crate::{
     Convergence, CubicPackage, EquilibriumPhase, EquilibriumState, FlowsheetPackage,
-    PhaseProperties,
+    PhaseProperties, RootSelection, SaturationKind, SaturationState,
 };
 
 /// A bounded single-fluid-phase CO₂–normal H₂ flowsheet package.
@@ -211,6 +211,99 @@ impl FlowsheetPackage for EosCgPackage {
             "this unit requires a cubic property package; selected EOS-CG-2021".into(),
         ))
     }
+
+    /// PS on the single gas branch, with the structure of PH: a bracketed
+    /// temperature solve over the package interval. Entropy increases with T at
+    /// fixed p on the branch (c_p > 0).
+    fn ps(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        entropy: f64,
+    ) -> Result<EquilibriumState, Error> {
+        if !entropy.is_finite() {
+            return Err(Error::OutsideValidityDomain(
+                "EOS-CG-2021 requires a finite molar entropy".into(),
+            ));
+        }
+        let model = self.model(fractions)?;
+        let scale = entropy.abs().max(1.0);
+        let (mut state, iterations) = bracket(self.temperature, scale * 1e-10, |t| {
+            let state = self.state(&model, fractions, t, pressure_pa)?;
+            Ok((state.entropy() - entropy, state))
+        })?;
+        state.convergence.scaled_entropy_residual = Some((state.entropy() - entropy) / scale);
+        state.iterations += iterations;
+        Ok(state)
+    }
+
+    fn homogeneous(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+        root: RootSelection,
+    ) -> Result<PhaseProperties, Error> {
+        gas_branch_only(root)?;
+        let mut state = self.tp(fractions, temperature_k, pressure_pa)?;
+        Ok(state.phases.remove(0).state)
+    }
+
+    fn ln_fugacity_coefficients(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+        root: RootSelection,
+    ) -> Result<Vec<f64>, Error> {
+        Ok(self
+            .homogeneous(fractions, temperature_k, pressure_pa, root)?
+            .ln_fugacity_coefficients)
+    }
+
+    fn saturation_temperature_interval(&self) -> Result<[f64; 2], Error> {
+        Err(gas_branch_error())
+    }
+
+    fn saturation_pressure(
+        &self,
+        _fractions: &[f64],
+        _temperature_k: f64,
+        _kind: SaturationKind,
+    ) -> Result<SaturationState, Error> {
+        Err(gas_branch_error())
+    }
+
+    fn saturation_temperature(
+        &self,
+        _fractions: &[f64],
+        _pressure_pa: f64,
+        _kind: SaturationKind,
+    ) -> Result<SaturationState, Error> {
+        Err(gas_branch_error())
+    }
+
+    fn formation_components(&self) -> Result<&[thermo_data::Component], Error> {
+        Err(Error::UnsupportedCapability(
+            "reactors need the ideal-gas formation basis (h = s = 0 at 298.15 K and 1 bar); EOS-CG-2021 uses embedded pure-fluid offsets and supplies no conversion offset".into(),
+        ))
+    }
+}
+
+/// The package solves only the gas branch: a liquid root, a minimum-Gibbs
+/// selection (which needs every root) and phase boundaries are unsupported.
+fn gas_branch_only(root: RootSelection) -> Result<(), Error> {
+    if root == RootSelection::LargestVolume {
+        Ok(())
+    } else {
+        Err(gas_branch_error())
+    }
+}
+
+fn gas_branch_error() -> Error {
+    Error::UnsupportedCapability(
+        "EOS-CG-2021 package evaluates only its single gas branch (330–350 K, 0.1–2 MPa); liquid roots, minimum-Gibbs selection, K-values and bubble/dew points are unsupported".into(),
+    )
 }
 
 fn bracket<T>(

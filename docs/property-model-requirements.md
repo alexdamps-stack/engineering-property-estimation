@@ -87,19 +87,24 @@ the unit and the operation.
 | Operation | Needed by | PR / PR-BM / SRK | NRTL-IG | GERG-2008 | EOS-CG-2021 | Issue |
 |---|---|---|---|---|---|---|
 | TP, PH flash | All units | ✔ | ✔ | ✔ | ✔ (homogeneous gas branch) | — |
-| PS flash | Pump, compressor, expander, multistage compressor | ✔ | — | — | — | #226 |
-| Homogeneous phase at T, p, x with root selection | Rigorous column stage equations, reactor phase volumes | ✔ | — | — | — | #226 |
-| ln φ (fugacity coefficients) | K-values, equilibrium and Gibbs reactors (package basis) | ✔ | — | — | — | #226 |
-| Bubble and dew temperature and pressure | Shortcut column, condenser and reboiler states, vapor-fraction specifications | ✔ (A13 domain) | — | — | — | #226, #227 |
-| Formation properties on the package reference | All reactors | ✔ | — | — | — | #226 |
+| PS flash | Pump, compressor, expander, multistage compressor | ✔ | ✔ (no liquid pressure dependence) | ✔ | ✔ (gas branch) | #226 |
+| Homogeneous phase at T, p, x with root selection | Rigorous column stage equations, reactor phase volumes | ✔ | ✔ (liquid / ideal gas) | ✔ (exterior roots) | ✔ (gas root only) | #226 |
+| ln φ and K-values | K-values, equilibrium and Gibbs reactors (package basis) | ✔ | ✔ (γ p^sat / p) | ✔ | ✔ ln φ (gas); K-values — | #226 |
+| Bubble and dew temperature and pressure | Shortcut column, condenser and reboiler states, vapor-fraction specifications | ✔ (A13 domain) | ✔ (modified Raoult) | ✔ (A13 algorithm, dry set, 0.1–10 MPa) | — | #226, #227 |
+| Formation properties on the package reference | All reactors | ✔ | ✔ (same ideal-gas reference) | — (native reference, no offset) | — (embedded offsets) | #226 |
 | Three-phase (VLLE/LLE) stability and flash | Three-phase separator, decanter, three-phase column, extractor | — | — | — | — | #224 |
 | Viscosity, thermal conductivity, surface tension | Pipe segment, relief valve, exchanger rating, column hydraulics | ✔ (8 components, [domain](transport-properties.md)) | ✔ (same) | ✔ (same) | ✔ (CO2 only; H2 has no data) | #225 |
 | Engineering liquid density | Liquid-phase kinetics, pump hydraulics, relief and pipe sizing | — | — | — | — | #228 |
 | Pseudo-components from assay data | Petroleum fractionator | ✔ ([status](pseudo-components-status.md)) | — | — | — | #229 |
 
-Today, operations other than TP and PH are reached through
-`CalcContext::cubic_package()`, the `FlowsheetPackage::cubic()` escape
-hatch. **New unit code must not add `cubic()` dependencies.** Add the
+Since #226 these operations are `FlowsheetPackage` methods (`ps`,
+`homogeneous`, `ln_fugacity_coefficients`, `k_values`,
+`saturation_temperature_interval`, `saturation_pressure`,
+`saturation_temperature`, `formation_components`). Their default
+implementations return `UnsupportedCapability`, so a package supports only
+what it overrides. No unit uses `CalcContext::cubic_package()` or the
+`FlowsheetPackage::cubic()` escape hatch any more; both remain only for
+compatibility. **New unit code must not add `cubic()` dependencies.** Add the
 operation to `FlowsheetPackage` instead (#226), implement it for each package
 that can support it, and return `UnsupportedCapability` from the others. When
 a package gains an operation, update this table and the units' status
