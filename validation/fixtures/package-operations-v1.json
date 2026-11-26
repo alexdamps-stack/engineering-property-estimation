@@ -1,0 +1,645 @@
+{
+    "generator_sha256": "c1a03ca2c32a8dad7ac8880761183c4684dd79a56a66d17c870c6a9209e951e5",
+    "nrtl_units": [
+        {
+            "inlet": {
+                "vapor_fraction": 0,
+                "phases": 1,
+                "T": 320,
+                "h": -39352.285917273315,
+                "p": 101325,
+                "s": -106.20901063819251
+            },
+            "molar_flow_mol_s": 5,
+            "isentropic_power_W": -1.0913936421275139e-10,
+            "power_W": -1.5591337744678769e-10,
+            "id": "nrtl-pump",
+            "z": [
+                0.5,
+                0.5
+            ],
+            "ids": [
+                "methanol",
+                "water"
+            ],
+            "kind": "pump",
+            "efficiency": 0.7,
+            "isentropic_outlet": {
+                "vapor_fraction": 0,
+                "phases": 1,
+                "T": 319.9999999999998,
+                "h": -39352.28591727334,
+                "p": 500000,
+                "s": -106.20901063819257
+            },
+            "outlet": {
+                "vapor_fraction": 0,
+                "phases": 1,
+                "T": 319.99999999999955,
+                "h": -39352.285917273344,
+                "p": 500000,
+                "s": -106.2090106381926
+            }
+        },
+        {
+            "inlet": {
+                "vapor_fraction": 1,
+                "phases": 1,
+                "T": 380,
+                "h": 3301.0517036064603,
+                "p": 100000,
+                "s": 15.530821780037158
+            },
+            "molar_flow_mol_s": 2,
+            "isentropic_power_W": 4689.015734660157,
+            "power_W": 5861.269668325196,
+            "id": "nrtl-vapor-compressor",
+            "z": [
+                0.5,
+                0.5
+            ],
+            "ids": [
+                "methanol",
+                "water"
+            ],
+            "kind": "compressor",
+            "efficiency": 0.8,
+            "isentropic_outlet": {
+                "vapor_fraction": 1,
+                "phases": 1,
+                "T": 434.3274639974037,
+                "h": 5645.559570936539,
+                "p": 200000,
+                "s": 15.530821780037183
+            },
+            "outlet": {
+                "vapor_fraction": 1,
+                "phases": 1,
+                "T": 447.4509203402646,
+                "h": 6231.686537769061,
+                "p": 200000,
+                "s": 16.860296052771808
+            }
+        },
+        {
+            "inlet": {
+                "vapor_fraction": 1,
+                "phases": 1,
+                "T": 420,
+                "h": 5014.553093063476,
+                "p": 300000,
+                "s": 10.682318764054578
+            },
+            "molar_flow_mol_s": 2,
+            "isentropic_power_W": -6873.772113900471,
+            "power_W": -5499.017691120377,
+            "id": "nrtl-vapor-expander",
+            "z": [
+                0.5,
+                0.5
+            ],
+            "ids": [
+                "methanol",
+                "water"
+            ],
+            "kind": "expander",
+            "efficiency": 0.8,
+            "isentropic_outlet": {
+                "vapor_fraction": 0.9804255611099529,
+                "phases": 2,
+                "T": 357.75163962398074,
+                "h": 1577.6670361132406,
+                "p": 101325,
+                "s": 10.682318764054413
+            },
+            "outlet": {
+                "vapor_fraction": 0.9970151047803545,
+                "phases": 2,
+                "T": 357.98088342336223,
+                "h": 2265.044247503252,
+                "p": 101325,
+                "s": 12.603082480361419
+            }
+        }
+    ],
+    "gerg_saturation": [
+        {
+            "kind": "bubble-pressure",
+            "ids": [
+                "methane",
+                "propane"
+            ],
+            "T": 240,
+            "vapor": [
+                0.9304446189817669,
+                0.06955538101823307
+            ],
+            "vl": 7.048494219834865e-5,
+            "liquid": [
+                0.3,
+                0.7
+            ],
+            "vv": 0.0004925871027821925,
+            "z": [
+                0.3,
+                0.7
+            ],
+            "p": 3.3676122145999586e6
+        },
+        {
+            "kind": "bubble-pressure",
+            "ids": [
+                "methane",
+                "propane"
+            ],
+            "T": 270,
+            "vapor": [
+                0.8435506611453721,
+                0.15644933885462786
+            ],
+            "vl": 7.741631260319517e-5,
+            "liquid": [
+                0.3,
+                0.7
+            ],
+            "vv": 0.00037680737795371807,
+            "z": [
+                0.3,
+                0.7
+            ],
+            "p": 4.6872225076518925e6
+        },
+        {
+            "kind": "bubble-pressure",
+            "ids": [
+                "methane",
+                "propane"
+            ],
+            "T": 300,
+            "vapor": [
+                0.6944097577187883,
+                0.3055902422812117
+            ],
+            "vl": 8.856294726211598e-5,
+            "liquid": [
+                0.3,
+                0.7
+            ],
+            "vv": 0.00028899586108334564,
+            "z": [
+                0.3,
+                0.7
+            ],
+            "p": 6.01388944363542e6
+        },
+        {
+            "kind": "bubble-temperature",
+            "ids": [
+                "methane",
+                "propane"
+            ],
+            "T": 277.0039955198429,
+            "vapor": [
+                0.8154052925531589,
+                0.18459470744684112
+            ],
+            "vl": 7.948946465636477e-5,
+            "liquid": [
+                0.3,
+                0.7
+            ],
+            "vv": 0.0003553711148931872,
+            "z": [
+                0.3,
+                0.7
+            ],
+            "p": 5000000
+        },
+        {
+            "kind": "bubble-temperature",
+            "ids": [
+                "methane",
+                "propane"
+            ],
+            "T": 326.97847252776296,
+            "vapor": [
+                0.46453926534656653,
+                0.5354607346534335
+            ],
+            "vl": 0.00011134442149924188,
+            "liquid": [
+                0.3,
+                0.7
+            ],
+            "vv": 0.00019859826954468052,
+            "z": [
+                0.3,
+                0.7
+            ],
+            "p": 7000000
+        },
+        {
+            "kind": "dew-temperature",
+            "ids": [
+                "methane",
+                "propane"
+            ],
+            "T": 284.32693166760066,
+            "vapor": [
+                0.3,
+                0.7
+            ],
+            "vl": 8.54681096888228e-5,
+            "liquid": [
+                0.02225027149550777,
+                0.9777497285044923
+            ],
+            "vv": 0.0020325718262326114,
+            "z": [
+                0.3,
+                0.7
+            ],
+            "p": 1000000
+        },
+        {
+            "kind": "dew-temperature",
+            "ids": [
+                "methane",
+                "propane"
+            ],
+            "T": 324.2525973291787,
+            "vapor": [
+                0.3,
+                0.7
+            ],
+            "vl": 9.877795748049332e-5,
+            "liquid": [
+                0.06592089511831552,
+                0.9340791048816844
+            ],
+            "vv": 0.0006196025711509906,
+            "z": [
+                0.3,
+                0.7
+            ],
+            "p": 3000000
+        },
+        {
+            "kind": "bubble-pressure",
+            "ids": [
+                "ethane",
+                "propane"
+            ],
+            "T": 260,
+            "vapor": [
+                0.7995811670885233,
+                0.2004188329114766
+            ],
+            "vl": 7.41937410205262e-5,
+            "liquid": [
+                0.5,
+                0.5
+            ],
+            "vv": 0.001977776671122616,
+            "z": [
+                0.5,
+                0.5
+            ],
+            "p": 934072.595054875
+        },
+        {
+            "kind": "dew-pressure",
+            "ids": [
+                "ethane",
+                "propane"
+            ],
+            "T": 260,
+            "vapor": [
+                0.5,
+                0.5
+            ],
+            "vl": 7.807762765925468e-5,
+            "liquid": [
+                0.18995214204762517,
+                0.8100478579523749
+            ],
+            "vv": 0.003604461202196539,
+            "z": [
+                0.5,
+                0.5
+            ],
+            "p": 538364.4668163633
+        },
+        {
+            "kind": "bubble-temperature",
+            "ids": [
+                "ethane",
+                "propane"
+            ],
+            "T": 278.91969072058174,
+            "vapor": [
+                0.7599718241349784,
+                0.24002817586502156
+            ],
+            "vl": 7.895374539579668e-5,
+            "liquid": [
+                0.5,
+                0.5
+            ],
+            "vv": 0.0012291321938913045,
+            "z": [
+                0.5,
+                0.5
+            ],
+            "p": 1500000
+        },
+        {
+            "kind": "dew-temperature",
+            "ids": [
+                "ethane",
+                "propane"
+            ],
+            "T": 294.934834202268,
+            "vapor": [
+                0.5,
+                0.5
+            ],
+            "vl": 8.590053428847471e-5,
+            "liquid": [
+                0.25920755002273127,
+                0.7407924499772687
+            ],
+            "vv": 0.0012869544848378124,
+            "z": [
+                0.5,
+                0.5
+            ],
+            "p": 1500000
+        },
+        {
+            "kind": "bubble-temperature",
+            "ids": [
+                "methane",
+                "ethane",
+                "propane"
+            ],
+            "T": 306.78524080923194,
+            "vapor": [
+                0.3490173815898516,
+                0.42751338027595026,
+                0.2234692381341981
+            ],
+            "vl": 9.827362553199479e-5,
+            "liquid": [
+                0.2,
+                0.45,
+                0.35
+            ],
+            "vv": 0.00022032829434766622,
+            "z": [
+                0.2,
+                0.45,
+                0.35
+            ],
+            "p": 6000000
+        },
+        {
+            "kind": "dew-temperature",
+            "ids": [
+                "methane",
+                "ethane",
+                "propane"
+            ],
+            "T": 299.2378029102701,
+            "vapor": [
+                0.2,
+                0.45,
+                0.35
+            ],
+            "vl": 8.66130638593467e-5,
+            "liquid": [
+                0.037515066057689575,
+                0.3289927601709801,
+                0.6334921737713304
+            ],
+            "vv": 0.0007336510840088913,
+            "z": [
+                0.2,
+                0.45,
+                0.35
+            ],
+            "p": 2500000
+        }
+    ],
+    "julia_version": "1.11.7",
+    "formulation": "Clapeyron GERG2008 (native, NIST ideal-anchor enthalpy offsets) and EOS_CG (EOS-CG-2021) with Clapeyron bubble/dew solvers and Float64 bisection on entropy/enthalpy; NRTL-IG via the generate_nrtl.jl gamma-phi adapter",
+    "scope": "Implementation agreement for matched formulations inside the package domains; no experimental accuracy claim.",
+    "clapeyron_commit": "3440a15ba224664cac5b24441ac8adacbaf326f9",
+    "tolerances": {
+        "fraction": [
+            2.0e-8,
+            0.0
+        ],
+        "composition": [
+            2.0e-8,
+            1.0e-7
+        ],
+        "volume": [
+            1.0e-12,
+            2.0e-8
+        ],
+        "pressure": [
+            0.02,
+            2.0e-8
+        ],
+        "power": [
+            2.0e-5,
+            2.0e-8
+        ],
+        "h": [
+            2.0e-5,
+            2.0e-9
+        ],
+        "temperature": [
+            2.0e-6,
+            0.0
+        ],
+        "s": [
+            2.0e-7,
+            2.0e-9
+        ]
+    },
+    "input_sha256": {
+        "data/source-extracts/components.provisional.json": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147",
+        "data/gerg-2008.json": "d026e0d99a52addee05a2b60695a28162c1e1769af023d60dc8d9105b391a394",
+        "data/source-extracts/liquid-nrtl.provisional.json": "b2f56e9dd1a05d547df8d5a6ddfb10aea7daf12493d01c888b23a96d7fa14a2c",
+        "data/eos-cg-2021.json": "c88a5b3b4e397727759438829fe54030034ba2eaf9460982e3464378a557003f"
+    },
+    "schema": "clapeyron-package-operations-v1",
+    "manifest_sha256": "74244a901d7585cf0b6f243c906d546c40dcca3018503062a8716bd1deed16b0",
+    "gerg_units": [
+        {
+            "inlet": {
+                "phases": 1,
+                "T": 260,
+                "h": -1913.5847053572656,
+                "p": 2000000,
+                "s": -26.968841997899155
+            },
+            "molar_flow_mol_s": 10,
+            "isentropic_power_W": 15103.676054455109,
+            "power_W": 20138.234739273477,
+            "id": "gerg-ng-compressor",
+            "z": [
+                0.88,
+                0.06,
+                0.03,
+                0.02,
+                0.01
+            ],
+            "ids": [
+                "methane",
+                "ethane",
+                "propane",
+                "nitrogen",
+                "carbon-dioxide"
+            ],
+            "kind": "compressor",
+            "efficiency": 0.75,
+            "isentropic_outlet": {
+                "phases": 1,
+                "T": 307.06270325934986,
+                "h": -403.21709991175476,
+                "p": 4000000,
+                "s": -26.96884199789926
+            },
+            "outlet": {
+                "phases": 1,
+                "T": 318.7345048129638,
+                "h": 100.23876857008008,
+                "p": 4000000,
+                "s": -25.35964751204059
+            }
+        },
+        {
+            "inlet": {
+                "phases": 1,
+                "T": 340,
+                "h": 717.4274226485727,
+                "p": 6000000,
+                "s": -26.621703958912846
+            },
+            "molar_flow_mol_s": 10,
+            "isentropic_power_W": -16769.792743880127,
+            "power_W": -13415.8341951041,
+            "id": "gerg-ng-expander",
+            "z": [
+                0.88,
+                0.06,
+                0.03,
+                0.02,
+                0.01
+            ],
+            "ids": [
+                "methane",
+                "ethane",
+                "propane",
+                "nitrogen",
+                "carbon-dioxide"
+            ],
+            "kind": "expander",
+            "efficiency": 0.8,
+            "isentropic_outlet": {
+                "phases": 1,
+                "T": 289.1680100660925,
+                "h": -959.5518517394398,
+                "p": 3000000,
+                "s": -26.62170395891284
+            },
+            "outlet": {
+                "phases": 1,
+                "T": 297.21213966505456,
+                "h": -624.155996861838,
+                "p": 3000000,
+                "s": -25.477676614991758
+            }
+        }
+    ],
+    "clapeyron_version": "0.6.30",
+    "eoscg_units": [
+        {
+            "inlet": {
+                "phases": 1,
+                "T": 331,
+                "h_minus_inlet": 0,
+                "s_minus_inlet": 0,
+                "p": 1000000
+            },
+            "molar_flow_mol_s": 1,
+            "isentropic_power_W": 391.83427627555466,
+            "power_W": 489.7928453444433,
+            "id": "eoscg-compressor",
+            "z": [
+                0.3,
+                0.7
+            ],
+            "ids": [
+                "carbon-dioxide",
+                "hydrogen"
+            ],
+            "kind": "compressor",
+            "efficiency": 0.8,
+            "isentropic_outlet": {
+                "phases": 1,
+                "T": 343.3027840004322,
+                "h_minus_inlet": 391.83427627555466,
+                "s_minus_inlet": -1.4210854715202004e-14,
+                "p": 1150000
+            },
+            "outlet": {
+                "phases": 1,
+                "T": 346.32523017377457,
+                "h_minus_inlet": 489.7928453444438,
+                "s_minus_inlet": 0.2840926169894544,
+                "p": 1150000
+            }
+        },
+        {
+            "inlet": {
+                "phases": 1,
+                "T": 349,
+                "h_minus_inlet": 0,
+                "s_minus_inlet": 0,
+                "p": 1500000
+            },
+            "molar_flow_mol_s": 1,
+            "isentropic_power_W": -516.9416265399595,
+            "power_W": -413.5533012319677,
+            "id": "eoscg-expander",
+            "z": [
+                0.3,
+                0.7
+            ],
+            "ids": [
+                "carbon-dioxide",
+                "hydrogen"
+            ],
+            "kind": "expander",
+            "efficiency": 0.8,
+            "isentropic_outlet": {
+                "phases": 1,
+                "T": 332.7850551406167,
+                "h_minus_inlet": -516.9416265399595,
+                "s_minus_inlet": 0,
+                "p": 1250000
+            },
+            "outlet": {
+                "phases": 1,
+                "T": 335.9851570183422,
+                "h_minus_inlet": -413.5533012319702,
+                "s_minus_inlet": 0.30919143711653874,
+                "p": 1250000
+            }
+        }
+    ]
+}

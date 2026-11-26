@@ -7,9 +7,7 @@
 //! freshly generated candidate; otherwise the committed fixture is used.
 
 use flowsheet_core::*;
-use property_packages::{
-    EosCgPackage, FlowsheetPackage, GergPackage, NrtlPackage, SaturationKind,
-};
+use property_packages::{EosCgPackage, FlowsheetPackage, GergPackage, NrtlPackage, SaturationKind};
 use serde_json::Value;
 use thermo_data::{ComponentDatabase, LiquidDatabase};
 use thermo_models::{ActivityModel, GergModel, VaporModel};
@@ -92,7 +90,13 @@ fn gerg_bubble_and_dew_points_match_clapeyron() {
         };
         let what = format!("{ids:?} {kind} T={t} p={p}");
         let s = saturation.unwrap_or_else(|e| panic!("{what}: {e}"));
-        check(&fixture, &format!("{what} T"), "temperature", s.temperature_k, t);
+        check(
+            &fixture,
+            &format!("{what} T"),
+            "temperature",
+            s.temperature_k,
+            t,
+        );
         check(&fixture, &format!("{what} p"), "pressure", s.pressure_pa, p);
         for (a, e) in s.liquid_composition.iter().zip(numbers(&case["liquid"])) {
             check(&fixture, &format!("{what} x"), "composition", *a, e);
@@ -100,8 +104,20 @@ fn gerg_bubble_and_dew_points_match_clapeyron() {
         for (a, e) in s.vapor_composition.iter().zip(numbers(&case["vapor"])) {
             check(&fixture, &format!("{what} y"), "composition", *a, e);
         }
-        check(&fixture, &format!("{what} vl"), "volume", s.liquid.molar_volume, number(&case["vl"]));
-        check(&fixture, &format!("{what} vv"), "volume", s.vapor.molar_volume, number(&case["vv"]));
+        check(
+            &fixture,
+            &format!("{what} vl"),
+            "volume",
+            s.liquid.molar_volume,
+            number(&case["vl"]),
+        );
+        check(
+            &fixture,
+            &format!("{what} vv"),
+            "volume",
+            s.vapor.molar_volume,
+            number(&case["vv"]),
+        );
     }
 }
 
@@ -195,24 +211,82 @@ fn compare_machine(fixture: &Value, case: &Value, package: &dyn FlowsheetPackage
     assert!(balance.scaled_energy_residual <= 2e-9, "{id}");
     let stage = &report.rotating.as_ref().unwrap().stages[0];
     let (ideal, reference) = (&case["isentropic_outlet"], &case["outlet"]);
-    check(fixture, &format!("{id} isentropic T"), "temperature", stage.isentropic_outlet_temperature_k, number(&ideal["T"]));
-    check(fixture, &format!("{id} outlet T"), "temperature", stage.outlet_temperature_k, number(&reference["T"]));
-    check(fixture, &format!("{id} isentropic power"), "power", stage.isentropic_power_w, number(&case["isentropic_power_W"]));
-    check(fixture, &format!("{id} power"), "power", stage.power_w, number(&case["power_W"]));
+    check(
+        fixture,
+        &format!("{id} isentropic T"),
+        "temperature",
+        stage.isentropic_outlet_temperature_k,
+        number(&ideal["T"]),
+    );
+    check(
+        fixture,
+        &format!("{id} outlet T"),
+        "temperature",
+        stage.outlet_temperature_k,
+        number(&reference["T"]),
+    );
+    check(
+        fixture,
+        &format!("{id} isentropic power"),
+        "power",
+        stage.isentropic_power_w,
+        number(&case["isentropic_power_W"]),
+    );
+    check(
+        fixture,
+        &format!("{id} power"),
+        "power",
+        stage.power_w,
+        number(&case["power_W"]),
+    );
     let out = calc.streams[&outlet].state.as_ref().unwrap();
-    assert_eq!(out.phases.len() as u64, reference["phases"].as_u64().unwrap(), "{id}");
+    assert_eq!(
+        out.phases.len() as u64,
+        reference["phases"].as_u64().unwrap(),
+        "{id}"
+    );
     if let Some(beta) = reference["vapor_fraction"].as_f64() {
-        check(fixture, &format!("{id} vapor fraction"), "fraction", out.vapor_fraction().unwrap(), beta);
+        check(
+            fixture,
+            &format!("{id} vapor fraction"),
+            "fraction",
+            out.vapor_fraction().unwrap(),
+            beta,
+        );
     }
     if absolute {
-        check(fixture, &format!("{id} outlet h"), "h", out.enthalpy(), number(&reference["h"]));
-        check(fixture, &format!("{id} outlet s"), "s", out.entropy(), number(&reference["s"]));
+        check(
+            fixture,
+            &format!("{id} outlet h"),
+            "h",
+            out.enthalpy(),
+            number(&reference["h"]),
+        );
+        check(
+            fixture,
+            &format!("{id} outlet s"),
+            "s",
+            out.entropy(),
+            number(&reference["s"]),
+        );
     } else {
         let inlet = package
             .tp(&z, number(&case["inlet"]["T"]), number(&case["inlet"]["p"]))
             .unwrap();
-        check(fixture, &format!("{id} outlet Δh"), "h", out.enthalpy() - inlet.enthalpy(), number(&reference["h_minus_inlet"]));
-        check(fixture, &format!("{id} outlet Δs"), "s", out.entropy() - inlet.entropy(), number(&reference["s_minus_inlet"]));
+        check(
+            fixture,
+            &format!("{id} outlet Δh"),
+            "h",
+            out.enthalpy() - inlet.enthalpy(),
+            number(&reference["h_minus_inlet"]),
+        );
+        check(
+            fixture,
+            &format!("{id} outlet Δs"),
+            "s",
+            out.entropy() - inlet.entropy(),
+            number(&reference["s_minus_inlet"]),
+        );
     }
 }
 

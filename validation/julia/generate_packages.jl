@@ -11,7 +11,8 @@
 #   from bisection on the adapter's TP entropy and enthalpy.
 # - EOS-CG-2021: native Clapeyron EOS_CG (Neumann et al. 2023) CO2/H2 gas-branch
 #   isentropic outlets and PS states inside the package domain 330..350 K,
-#   0.1..2 MPa. The package's caloric zero differs by constant per-component
+#   0.1..2 MPa, with the published R_source/R ideal-gas factor applied (see
+#   eoscg_ideal_correction). The package caloric zero differs by constant per-component
 #   offsets, so only temperatures and enthalpy/entropy differences are stored.
 using Clapeyron, JSON3, SHA
 
@@ -165,10 +166,39 @@ end
 const EOSCG_IDS = ["carbon-dioxide", "hydrogen"]
 const EOSCG_Z = [0.3, 0.7]
 
+const EOSCG_DATA = joinpath(ROOT, "data/eos-cg-2021.json")
+const EOSCG = JSON3.read(read(EOSCG_DATA, String))
+# Indices in the EOS-CG-2021 component list (data/eos-cg-2021.json order).
+const EOSCG_INDEX = Dict("carbon-dioxide" => 1, "hydrogen" => 7)
+
+# EOS-CG-2021, like GERG-2008, keeps each pure fluid's published dimensional
+# ideal-gas heat capacity: the temperature-dependent ideal Helmholtz terms are
+# multiplied by R_source,i / R. Clapeyron's EOS_CG evaluates them with the
+# mixture R. The correction below applies the published factor to Clapeyron's
+# own ideal-gas properties. It is reference-side only; no Rust value or EOS
+# parameter changes. With alpha0_i = ln(delta_i) + phi_i(tau), the
+# phi-dependent parts are h_i - RT and s_i + R ln(delta_i). They depend on T
+# only; that is asserted at two volumes.
+function eoscg_ideal_correction(T)
+    dh, ds = 0.0, 0.0
+    for (id, name, x) in zip(EOSCG_IDS, ["carbon dioxide", "hydrogen"], EOSCG_Z)
+        c = EOSCG.components[EOSCG_INDEX[id]]
+        f = Float64(c.source_gas_constant) / Clapeyron.R̄ - 1
+        ideal = Clapeyron.idealmodel(EOS_CG([name]))
+        rc = Float64(c.critical_density)
+        phi_s(v) = Clapeyron.VT_entropy(ideal, v, T, [1.0]) + Clapeyron.R̄ * log(1 / (v * rc))
+        a, b = phi_s(1e-3), phi_s(1e-1)
+        abs(a - b) <= 1e-9 * max(abs(a), 1.0) || error("Clapeyron EOS_CG ideal density term is not ln(rho/rho_c) for $name")
+        dh += x * f * (Clapeyron.VT_enthalpy(ideal, 1e-2, T, [1.0]) - Clapeyron.R̄ * T)
+        ds += x * f * a
+    end
+    return dh, ds
+end
+
 function eoscg_units()
     m = EOS_CG(["carbon dioxide", "hydrogen"])
-    h(T, p) = enthalpy(m, p, T, EOSCG_Z; phase=:vapour)
-    s(T, p) = entropy(m, p, T, EOSCG_Z; phase=:vapour)
+    h(T, p) = enthalpy(m, p, T, EOSCG_Z; phase=:vapour) + eoscg_ideal_correction(T)[1]
+    s(T, p) = entropy(m, p, T, EOSCG_Z; phase=:vapour) + eoscg_ideal_correction(T)[2]
     units = [machine("eoscg-compressor", "compressor", h, s, 331.0, 1.0e6, 1.15e6, 0.8, 1.0, (330.0, 350.0)),
              machine("eoscg-expander", "expander", h, s, 349.0, 1.5e6, 1.25e6, 0.8, 1.0, (330.0, 350.0))]
     for u in units
@@ -176,6 +206,7 @@ function eoscg_units()
             T, p = u[key]["T"], u[key]["p"]
             (330.0 <= T <= 350.0 && 1e5 <= p <= 2e6) || error("$(u["id"]) $key outside the EOS-CG package domain")
             Clapeyron.isstable(m, p, T, EOSCG_Z) || error("$(u["id"]) $key is not a stable gas")
+            u[key]["phases"] = 1
             # Absolute h and s use Clapeyron's reference: keep only differences.
             u[key]["h_minus_inlet"] = u[key]["h"] - u["inlet"]["h"]
             u[key]["s_minus_inlet"] = u[key]["s"] - u["inlet"]["s"]
@@ -209,7 +240,7 @@ function packages_main()
     output = Dict("schema" => "clapeyron-package-operations-v1", "julia_version" => string(VERSION),
         "clapeyron_version" => string(pkgversion(Clapeyron)),
         "clapeyron_commit" => "3440a15ba224664cac5b24441ac8adacbaf326f9",
-        "input_sha256" => Dict(replace(relpath(p, ROOT), '\\' => '/') => bytes2hex(sha256(read(p))) for p in [GAS, LIQ, GERGDATA]),
+        "input_sha256" => Dict(replace(relpath(p, ROOT), '\\' => '/') => bytes2hex(sha256(read(p))) for p in [GAS, LIQ, GERGDATA, EOSCG_DATA]),
         "generator_sha256" => bytes2hex(sha256(read(@__FILE__))),
         "manifest_sha256" => bytes2hex(sha256(read(joinpath(@__DIR__, "Manifest.toml")))),
         "formulation" => "Clapeyron GERG2008 (native, NIST ideal-anchor enthalpy offsets) and EOS_CG (EOS-CG-2021) with Clapeyron bubble/dew solvers and Float64 bisection on entropy/enthalpy; NRTL-IG via the generate_nrtl.jl gamma-phi adapter",
