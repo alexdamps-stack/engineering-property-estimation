@@ -488,6 +488,24 @@
       },
       "domain": "24 implementation cases (13 gas incl. 4 mixtures, 11 liquid incl. 2 mixtures; 7 expected out-of-domain) and 130 pure-component CoolProp states of 8 components (gas 200..600 K, reduced density <= 1.3 nonpolar / 0.08 polar, away from saturation; liquid 0.5..0.74 Tc, p <= 5 MPa); docs/transport-properties.md",
       "rationale": "Implementation budgets: double-precision evaluation of the same formulation by an independent Python implementation (pure Chung conductivity also cross-checked against chemicals 1.5.2). CoolProp budgets are declared method accuracies (model comparison against REFPROP-quality fluid-specific correlations, including the PR gas-density difference), not implementation tolerances or experimental uncertainty."
+    },
+    {
+      "fixture": "validation/fixtures/pseudo-components-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "correlation_relative": 1e-12,
+        "kesler_lee_cp0_vs_coolprop_relative": 0.05,
+        "critical_temperature_vs_surrogate_relative": 0.02,
+        "critical_pressure_vs_surrogate_relative": 0.08,
+        "acentric_factor_vs_surrogate_relative": 0.1,
+        "molar_mass_vs_surrogate_relative": 0.05,
+        "bubble_dew_temperature_vs_surrogate_K": 5.0,
+        "liquid_mass_density_vs_surrogate_relative": 0.06,
+        "specific_enthalpy_change_vs_surrogate_relative": 0.05,
+        "recorded_exceedance_reproduction_absolute": 0.001
+      },
+      "domain": "Kerosene surrogate case of docs/pseudo-components-status.md: m-xylene/n-decane/n-dodecane (0.2/0.4/0.4 mol) as defined compounds (CoolProp 7.2.0 HEOS constants) versus pseudo-components characterised from Tb and SG; PR, 1 atm, 300..560 K; ideal-gas cp at 300..600 K",
+      "rationale": "correlation_relative is implementation agreement with an independent plain-Python evaluation of the same correlations; the other budgets are model-comparison limits declared before the first comparison, with the two m-xylene exceedances it found recorded in the fixture instead of widening a budget. Not experimental accuracy."
     }
   ],
   "deferred": [

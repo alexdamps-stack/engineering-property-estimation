@@ -1219,6 +1219,13 @@ fn reactor_feed<'a>(
 /// Preflight of reactor chemistry against the package: every named component
 /// must exist and every conversion-reactor reaction must conserve elements.
 fn check_chemistry(spec: &UnitSpec, package: &CubicPackage) -> Result<(), String> {
+    // Pseudo-components (#229) have no formula and no formation properties.
+    if let Some(c) = package.model().components().iter().find(|c| c.is_pseudo()) {
+        return Err(format!(
+            "reactors do not support petroleum pseudo-components ({} has no formula or formation properties)",
+            c.id()
+        ));
+    }
     match spec {
         UnitSpec::ConversionReactor { reactions, .. } => {
             let chemistry = Chemistry::of(package);

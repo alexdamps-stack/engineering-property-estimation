@@ -9,6 +9,11 @@ mod transport;
 pub use transport::{
     TransportModel, TransportProperties, TransportRegime, annotate_transport, phase_transport,
 };
+mod pseudo;
+pub use pseudo::{
+    PSEUDO_CUBIC_TEMPERATURE_RANGE_K, cubic_model_with_pseudo_components,
+    cubic_package_with_pseudo_components, pseudo_component_database,
+};
 
 use thermo_models::{CubicModel, HomogeneousState};
 // The cubic homogeneous envelope, re-exported for interfaces that build packages
