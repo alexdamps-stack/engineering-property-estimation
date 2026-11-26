@@ -30,6 +30,7 @@ pub mod reactors;
 pub mod rotating;
 pub mod simple_logical;
 pub mod solids;
+mod transport;
 
 pub use columns::ColumnSpec;
 pub use heat_transport::HeatTransportSpec;

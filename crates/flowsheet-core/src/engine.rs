@@ -467,8 +467,13 @@ impl Flowsheet {
             };
             transfer_energy(&ports.energy, duty_w, energy, &mut report.energy_streams)
                 .map_err(|e| fail(id, e))?;
-            for (stream, result) in ports.material_outlets.iter().zip(outlets) {
+            for (stream, mut result) in ports.material_outlets.iter().zip(outlets) {
                 if let Some(s) = stream {
+                    // Side properties of the stored stream (#225); they never
+                    // change the state, balances or recycle convergence.
+                    if let Some(state) = result.state.as_mut() {
+                        property_packages::annotate_transport(package, state);
+                    }
                     report.streams.insert(*s, result);
                 }
             }

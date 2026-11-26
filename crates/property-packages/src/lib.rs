@@ -5,6 +5,10 @@ mod eos_cg;
 pub use eos_cg::EosCgPackage;
 mod flowsheet;
 pub use flowsheet::{FlowsheetPackage, GergPackage, NrtlPackage};
+mod transport;
+pub use transport::{
+    TransportModel, TransportProperties, TransportRegime, annotate_transport, phase_transport,
+};
 mod pseudo;
 pub use pseudo::{
     PSEUDO_CUBIC_TEMPERATURE_RANGE_K, cubic_model_with_pseudo_components,
@@ -42,6 +46,12 @@ pub struct PhaseProperties {
     pub dynamic_viscosity: Option<f64>,
     /// Thermal conductivity in W/(m K), when supplied by the model.
     pub thermal_conductivity: Option<f64>,
+    /// Transport method, data, regime, surface tension and the reason for
+    /// each unavailable transport property (#225). `None` until
+    /// [`annotate_transport`] has evaluated the phase. When set,
+    /// `dynamic_viscosity` and `thermal_conductivity` hold its available values.
+    /// `Some(Err)` records why the phase could not be evaluated at all.
+    pub transport: Option<Result<TransportProperties, CalculationError>>,
     pub model: ModelMetadata,
     pub data: DataMetadata,
     pub caloric_reference: CaloricReference,
@@ -66,6 +76,7 @@ impl From<HomogeneousState> for PhaseProperties {
             speed_of_sound: Some(s.speed_of_sound),
             dynamic_viscosity: None,
             thermal_conductivity: None,
+            transport: None,
             model: s.model,
             data: s.data,
             caloric_reference: s.caloric_reference,

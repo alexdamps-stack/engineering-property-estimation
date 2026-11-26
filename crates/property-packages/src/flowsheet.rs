@@ -30,6 +30,18 @@ pub trait FlowsheetPackage: Debug + Send + Sync {
 
     /// Access for legacy unit models that depend on cubic-specific operations.
     fn cubic(&self) -> Result<&CubicPackage, CalculationError>;
+
+    /// Viscosity, thermal conductivity and surface tension of one phase of a
+    /// state returned by this package (#225). The provided method applies the
+    /// package-independent transport methods to the phase's own state
+    /// (molar volume from this package's model); a package without a usable
+    /// phase volume must override it and return `UnsupportedCapability`.
+    fn transport(
+        &self,
+        phase: &EquilibriumPhase,
+    ) -> Result<crate::TransportProperties, CalculationError> {
+        crate::phase_transport(&self.component_ids(), phase)
+    }
 }
 
 /// The bounded NRTL liquid and ideal-gas vapor package.
@@ -108,6 +120,7 @@ impl NrtlPackage {
                 speed_of_sound,
                 dynamic_viscosity: None,
                 thermal_conductivity: None,
+                transport: None,
                 model: s.model,
                 data: s.data,
                 caloric_reference: s.caloric_reference,
