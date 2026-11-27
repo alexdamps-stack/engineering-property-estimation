@@ -595,6 +595,7 @@ impl NrtlPackage {
             vapor_composition: point.vapor,
             max_ln_fugacity_residual: point.max_ln_fugacity_residual,
             iterations: point.iterations,
+            second_liquid: None,
             diagnostics: vec![Diagnostic {
                 code: "A7-GAMMA-PHI-SATURATION".into(),
                 severity: DiagnosticSeverity::Information,

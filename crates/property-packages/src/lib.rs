@@ -9,7 +9,7 @@ mod liquid_density;
 // The engineering liquid density (#228), re-exported for unit and project code.
 pub use thermo_models::{CostaldLiquidDensity, EngineeringLiquidDensity};
 mod operations;
-pub use operations::{SaturationKind, SaturationState};
+pub use operations::{SaturationKind, SaturationSecondLiquid, SaturationState};
 // Root selection of the homogeneous package operations.
 pub use thermo_models::RootSelection;
 mod transport;
@@ -392,25 +392,27 @@ impl CubicPackage {
         )
     }
 
-    /// The A13 saturation bounds inside the package temperature interval.
+    /// The package's bubble/dew bounds (#227): its whole temperature interval
+    /// (inside 200..600 K) and [`CUBIC_PACKAGE_SATURATION_PRESSURE_RANGE_PA`].
     fn default_saturation_bounds(
         &self,
     ) -> Result<thermo_solvers::SaturationOptions, CalculationError> {
-        let mut bounds = thermo_solvers::SaturationOptions::default();
-        bounds.minimum_temperature_k = bounds
-            .minimum_temperature_k
-            .max(self.options.minimum_temperature_k);
-        bounds.maximum_temperature_k = bounds
-            .maximum_temperature_k
-            .min(self.options.maximum_temperature_k);
-        if bounds.minimum_temperature_k >= bounds.maximum_temperature_k {
-            return Err(CalculationError::OutsideValidityDomain(
-                "package temperature interval does not overlap the A13 bubble/dew interval".into(),
-            ));
-        }
+        let [p_lo, p_hi] = CUBIC_PACKAGE_SATURATION_PRESSURE_RANGE_PA;
+        let bounds = thermo_solvers::SaturationOptions {
+            minimum_temperature_k: self.options.minimum_temperature_k,
+            maximum_temperature_k: self.options.maximum_temperature_k,
+            minimum_pressure_pa: p_lo,
+            maximum_pressure_pa: p_hi,
+            ..Default::default()
+        };
+        bounds.validate()?;
         Ok(bounds)
     }
 }
+
+/// Pressure bounds, Pa, of the cubic package's bubble/dew operations (#227).
+/// The lower bound admits the vapor pressure of water near ambient temperature.
+pub const CUBIC_PACKAGE_SATURATION_PRESSURE_RANGE_PA: [f64; 2] = [1e3, 1e7];
 
 impl CubicPackage {
     /// Bubble/dew pressure in the package's temperature interval and explicitly

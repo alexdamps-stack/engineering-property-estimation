@@ -266,16 +266,26 @@ impl<'a> CalcContext<'a> {
     }
 
     /// Bubble or dew temperature of `x` at `p_pa` from the package's
-    /// saturation solver, inside its declared interval.
+    /// saturation solver, inside its declared interval. The column models that
+    /// use it have one liquid per stage, so a three-phase bubble point (the
+    /// liquid splits into two liquids, #227) is an explicit error here.
     pub fn saturation_temperature(
         &self,
         x: &[f64],
         p_pa: f64,
         kind: SaturationKind,
     ) -> Result<SaturationState, String> {
-        self.package
+        let state = self
+            .package
             .saturation_temperature(x, p_pa, kind)
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        if state.second_liquid.is_some() {
+            return Err(format!(
+                "three-phase bubble point at {:.3} K: the liquid splits into two liquids, which this unit's single-liquid model does not support",
+                state.temperature_k
+            ));
+        }
+        Ok(state)
     }
 }
 

@@ -366,6 +366,8 @@ fn component_order_and_zero_fraction_do_not_change_boundaries() {
     assert_eq!(reordered.vapor_composition[1], 0.);
     c["ids"] = serde_json::json!(["propane", "water", "methane"]);
     c["z"] = serde_json::json!([0.49, 0.01, 0.5]);
+    // Since #227 water is inside the domain. This liquid splits off an aqueous
+    // liquid below the water triple point, where ice is not modelled.
     assert!(matches!(
         saturation_pressure(
             &model(&c),
@@ -373,7 +375,7 @@ fn component_order_and_zero_fraction_do_not_change_boundaries() {
             Kind::Bubble,
             opts
         ),
-        Err(thermo_types::CalculationError::UnsupportedCapability(_))
+        Err(thermo_types::CalculationError::OutsideValidityDomain(ref e)) if e.contains("triple point")
     ));
 }
 

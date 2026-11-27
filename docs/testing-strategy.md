@@ -169,6 +169,8 @@ Set property tolerances before implementation using reference quality and condit
 | Bubble/dew pressure / sampled envelope pressure | same | 0.02 Pa | 2e-8 | same | Explicit branch bounds; verified prefix only, near-critical diagnostic stop |
 | Saturation phase composition | same | 2e-8 | 1e-7 | same | Both incipient/material compositions; unchanged pre-comparison budget |
 | Saturation phase molar volume | same | 1e-12 m^3/mol | 2e-8 | same | Both phase volumes; guards exclude coalescing states |
+| Extended bubble/dew T, p, compositions, volumes (#227) | PR, PR-BM / native Clapeyron 0.6.30, 256-bit refined | A13 budgets | A13 budgets | all cases of `a13-extended-v1.json` | Water, methanol, 1-butanol, O2, H2, CO, pseudo-components, 200–600 K, sampled water and methanol/water envelopes; [A13 status](a13-status.md#227-extended-domain) |
+| Three-phase bubble second liquid: composition, molar volume, amount | same | 2e-8; 1e-12 m^3/mol; 2e-8 | 1e-7; 2e-8; 0 | three-phase cases of the same fixture | Propane/water and methane/propane/water, explicit kij 0.5 |
 | Critical-point / retrograde envelope continuation | PR, PR-BM | deferred | deferred | A13 follow-up | Outside bounded qualification; no extrapolated values or accuracy claim |
 | Homogeneous properties and derivatives | GERG-2008 / NIST AGA8 C++ 2.01 | 2e-8 in each reported SI unit | 2e-10 | 273 derivative states / 269 admissible property states, `gerg-v1.json` | Matched native ideal reference; fixed numerical comparison budget |
 | Molar density | GERG / NIST + SciPy | 2e-7 mol/m³ | 2e-9 | 42 TP roots, `gerg-density-v1.json` | Independent bracket/refinement |

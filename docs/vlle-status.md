@@ -134,7 +134,9 @@ comparison is the ignored test `water_butanol_mutual_solubility_is_close_to_expe
 - At most three phases. Solid phases and hydrate formation are out of scope.
 - The two-phase `tp`/`ph` operations still report a liquid–liquid split as
   unsupported (NRTL) or label it by volume (cubic); units must use `vlle_tp`.
-- No PS VLLE flash, and no three-phase bubble/dew points (#227).
+- No PS VLLE flash. Three-phase bubble points (two liquids and an incipient vapor) are
+  solved by the cubic bubble/dew operations since #227 ([A13 status](a13-status.md#227-extended-domain));
+  there is no three-phase dew point (an incipient liquid is a single phase).
 - The desktop interface and `thermo-cli` do not expose the VLLE operations yet.
 - Units #176, #177, #188 and #189 remain drawn only; they can now be built on
   `CalcContext::vlle`.

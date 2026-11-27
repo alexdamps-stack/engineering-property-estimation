@@ -10,7 +10,7 @@
 //! comparison, not experimental validation.
 use property_packages::{
     CubicPackage, EquilibriumState, FlowsheetPackage, PSEUDO_CUBIC_TEMPERATURE_RANGE_K,
-    cubic_package_with_pseudo_components,
+    SaturationKind, cubic_package_with_pseudo_components,
 };
 use serde_json::Value;
 use thermo_data::{PseudoComponentInput, SpecifiedConstants};
@@ -285,6 +285,19 @@ fn evaluate(package: &CubicPackage, inputs: &[PseudoComponentInput], x: &[f64]) 
         .sum();
     let bubble_k = transition(package, x, 350.0, 560.0, |v| v == 0.0);
     let dew_k = transition(package, x, 350.0, 560.0, |v| v < 1.0);
+    // The bubble/dew solvers (#227) agree with the TP-flash bisection.
+    for (kind, bisected) in [
+        (SaturationKind::Bubble, bubble_k),
+        (SaturationKind::Dew, dew_k),
+    ] {
+        let point = FlowsheetPackage::saturation_temperature(package, x, 101_325.0, kind).unwrap();
+        assert!(
+            (point.temperature_k - bisected).abs() < 2e-4,
+            "{kind:?}: {} vs {bisected}",
+            point.temperature_k
+        );
+        assert!(point.second_liquid.is_none());
+    }
     let liquid = package.tp(x, 300.0, 101_325.0).unwrap();
     assert_eq!(liquid.phases.len(), 1);
     assert_eq!(liquid.phases[0].phase, Phase::Liquid);
@@ -410,21 +423,24 @@ fn pseudo_component_packages_fail_explicitly() {
         build(&ids, &inputs, zero(3), KIJ_SOURCE, wide),
         Err(CalculationError::OutsideValidityDomain(_))
     ));
-    // Bubble/dew solvers are qualified for the A13 dry components only.
+    // Since #227 the bubble/dew solvers cover pseudo-components (independent
+    // references: a13-extended-v1.json). A bubble point outside the requested
+    // bounds still fails explicitly instead of being extrapolated.
     let package = package(&inputs);
-    assert!(matches!(
-        package.saturation_temperature(
-            &x,
-            101_325.0,
-            CubicSaturationKind::Bubble,
-            SaturationOptions {
-                minimum_temperature_k: 300.0,
-                maximum_temperature_k: 350.0,
-                ..Default::default()
-            }
-        ),
-        Err(CalculationError::UnsupportedCapability(_))
-    ));
+    assert!(
+        package
+            .saturation_temperature(
+                &x,
+                101_325.0,
+                CubicSaturationKind::Bubble,
+                SaturationOptions {
+                    minimum_temperature_k: 300.0,
+                    maximum_temperature_k: 350.0,
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
     // A pseudo-component next to database components in one package.
     let mut mixed = vec!["methane".to_string()];
     mixed.extend(ids.iter().cloned());

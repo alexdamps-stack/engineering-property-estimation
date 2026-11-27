@@ -578,12 +578,22 @@ fn cubic_package_operations_delegate_to_the_cubic_model() {
     let bubble = dynamic
         .saturation_temperature(&z, 3e6, SaturationKind::Bubble)
         .unwrap();
+    // The package operation searches its own interval and the package pressure
+    // bounds (#227).
+    let [t_lo, t_hi] = package.temperature_interval();
+    let [p_lo, p_hi] = property_packages::CUBIC_PACKAGE_SATURATION_PRESSURE_RANGE_PA;
     let direct = package
         .saturation_temperature(
             &z,
             3e6,
             thermo_solvers::CubicSaturationKind::Bubble,
-            thermo_solvers::SaturationOptions::default(),
+            thermo_solvers::SaturationOptions {
+                minimum_temperature_k: t_lo,
+                maximum_temperature_k: t_hi,
+                minimum_pressure_pa: p_lo,
+                maximum_pressure_pa: p_hi,
+                ..Default::default()
+            },
         )
         .unwrap();
     assert_eq!(bubble.temperature_k, direct.temperature_k);
