@@ -12,6 +12,13 @@ use property_packages::MultiphaseEquilibrium;
 use super::{CalcContext, DRAWN_ONLY, GroupSpec, UnitInputs, UnitOutput, kind_info};
 use crate::unit::{CalculationStatus, KindInfo, PaletteCategory, PortSpec, SpecIssue, UnitKind};
 
+// Liquid–liquid extractor (#189).
+pub mod extractor;
+pub use extractor::{
+    ExtractorInternals, ExtractorThermal, FeedPhase, LiquidExtractorResult, LiquidExtractorSpec,
+    MAX_EXTRACTOR_STAGES,
+};
+
 /// Metadata of a multiphase kind.
 pub(crate) fn info(kind: UnitKind) -> KindInfo {
     use PaletteCategory::{Columns as C, Separators as S};
@@ -64,8 +71,11 @@ pub(crate) fn info(kind: UnitKind) -> KindInfo {
 }
 
 /// Calculation status of a multiphase kind.
-pub(crate) fn status(_kind: UnitKind) -> CalculationStatus {
-    DRAWN_ONLY
+pub(crate) fn status(kind: UnitKind) -> CalculationStatus {
+    match kind {
+        UnitKind::LiquidExtractor => CalculationStatus::Calculated,
+        _ => DRAWN_ONLY,
+    }
 }
 
 /// Specifications of the multiphase kinds.
@@ -93,10 +103,6 @@ pub struct DecanterSpec {}
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ThreePhaseColumnSpec {}
 
-/// Liquid–liquid extractor specification (#189).
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct LiquidExtractorSpec {}
-
 /// Default specification of a multiphase kind.
 pub(crate) fn default_spec(kind: UnitKind) -> MultiphaseSpec {
     match kind {
@@ -119,7 +125,10 @@ impl GroupSpec for MultiphaseSpec {
     }
 
     fn issues(&self) -> Vec<SpecIssue> {
-        Vec::new()
+        match self {
+            MultiphaseSpec::LiquidExtractor(s) => s.issues(),
+            _ => Vec::new(),
+        }
     }
 }
 
@@ -150,11 +159,18 @@ impl CalcContext<'_> {
 /// Calculates a multiphase unit.
 pub(crate) fn calculate(
     kind: UnitKind,
-    _spec: &MultiphaseSpec,
-    _inputs: &UnitInputs,
-    _ctx: &CalcContext,
+    spec: &MultiphaseSpec,
+    inputs: &UnitInputs,
+    ctx: &CalcContext,
 ) -> Result<UnitOutput, String> {
-    Err(super::not_implemented(kind))
+    match spec {
+        MultiphaseSpec::LiquidExtractor(s) => {
+            let (mut output, result) = extractor::calculate(s, inputs.material, ctx)?;
+            output.liquid_extractor = Some(result);
+            Ok(output)
+        }
+        _ => Err(super::not_implemented(kind)),
+    }
 }
 
 #[cfg(test)]

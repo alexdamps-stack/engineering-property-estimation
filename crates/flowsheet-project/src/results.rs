@@ -257,6 +257,9 @@ pub struct UnitResult {
     /// Adiabatic absorber or stripper stage profile (#187).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub absorber: Option<AbsorberProfile>,
+    /// Liquid–liquid extractor stage profile (#189, added behind format version 4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub liquid_extractor: Option<LiquidExtractorProfile>,
     /// Pump, compressor, expander or multistage compressor stages and power
     /// (A14, #182; added behind format version 4).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -387,6 +390,54 @@ impl From<&flowsheet_core::units::columns::AbsorberResult> for AbsorberProfile {
     fn from(r: &flowsheet_core::units::columns::AbsorberResult) -> Self {
         Self {
             stage_temperatures_k: r.stage_temperatures_k.clone(),
+            packed_height_m: r.packed_height_m,
+            iterations: r.iterations,
+        }
+    }
+}
+
+/// Saved stage profile of a liquid–liquid extractor (#189), stages from the
+/// feed end (extract outlet) to the solvent end (raffinate outlet).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LiquidExtractorProfile {
+    pub stage_temperatures_k: Vec<f64>,
+    pub extract_flows_mol_s: Vec<f64>,
+    pub raffinate_flows_mol_s: Vec<f64>,
+    pub extract_compositions: Vec<Vec<f64>>,
+    pub raffinate_compositions: Vec<Vec<f64>>,
+    /// The raffinate (feed) phase is the heavier liquid: the feed enters at the top.
+    pub feed_is_heavy: bool,
+    /// Duty holding an isothermal column, W, positive into the unit.
+    pub duty_w: f64,
+    pub packed_height_m: Option<f64>,
+    pub iterations: usize,
+}
+
+impl LiquidExtractorProfile {
+    fn numbers(&self) -> impl Iterator<Item = f64> + '_ {
+        self.stage_temperatures_k
+            .iter()
+            .chain(&self.extract_flows_mol_s)
+            .chain(&self.raffinate_flows_mol_s)
+            .chain(self.extract_compositions.iter().flatten())
+            .chain(self.raffinate_compositions.iter().flatten())
+            .copied()
+            .chain([self.duty_w])
+            .chain(self.packed_height_m)
+    }
+}
+
+impl From<&flowsheet_core::units::multiphase::LiquidExtractorResult> for LiquidExtractorProfile {
+    fn from(r: &flowsheet_core::units::multiphase::LiquidExtractorResult) -> Self {
+        Self {
+            stage_temperatures_k: r.stage_temperatures_k.clone(),
+            extract_flows_mol_s: r.extract_flows_mol_s.clone(),
+            raffinate_flows_mol_s: r.raffinate_flows_mol_s.clone(),
+            extract_compositions: r.extract_compositions.clone(),
+            raffinate_compositions: r.raffinate_compositions.clone(),
+            feed_is_heavy: r.feed_is_heavy,
+            duty_w: r.duty_w,
             packed_height_m: r.packed_height_m,
             iterations: r.iterations,
         }
@@ -620,6 +671,7 @@ impl ResultSet {
                         shortcut_column: u.shortcut_column.as_ref().map(Into::into),
                         distillation_column: u.distillation_column.as_ref().map(Into::into),
                         absorber: u.absorber.as_ref().map(Into::into),
+                        liquid_extractor: u.liquid_extractor.as_ref().map(Into::into),
                         rotating: u.rotating.as_ref().map(Into::into),
                         warnings: u.warnings.clone(),
                         max_scaled_component_residual: u
@@ -776,6 +828,9 @@ impl ResultSet {
                 || u.absorber.as_ref().is_some_and(|r| {
                     opt(r.packed_height_m) || r.stage_temperatures_k.iter().copied().any(bad)
                 })
+                || u.liquid_extractor
+                    .as_ref()
+                    .is_some_and(|r| r.numbers().any(bad))
                 || u.rotating.as_ref().is_some_and(|r| r.numbers().any(bad))
                 || opt(u.max_scaled_component_residual)
                 || opt(u.scaled_energy_residual)
