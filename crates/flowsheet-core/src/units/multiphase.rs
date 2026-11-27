@@ -19,6 +19,12 @@ pub use extractor::{
     MAX_EXTRACTOR_STAGES,
 };
 
+// Three-phase distillation column (#188).
+pub mod three_phase_column;
+pub use three_phase_column::{
+    DecanterReflux, PhaseReflux, ThreePhaseColumnResult, ThreePhaseColumnSpec,
+};
+
 /// Metadata of a multiphase kind.
 pub(crate) fn info(kind: UnitKind) -> KindInfo {
     use PaletteCategory::{Columns as C, Separators as S};
@@ -73,7 +79,7 @@ pub(crate) fn info(kind: UnitKind) -> KindInfo {
 /// Calculation status of a multiphase kind.
 pub(crate) fn status(kind: UnitKind) -> CalculationStatus {
     match kind {
-        UnitKind::LiquidExtractor => CalculationStatus::Calculated,
+        UnitKind::LiquidExtractor | UnitKind::ThreePhaseColumn => CalculationStatus::Calculated,
         _ => DRAWN_ONLY,
     }
 }
@@ -99,10 +105,6 @@ pub struct ThreePhaseSeparatorSpec {}
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct DecanterSpec {}
 
-/// Three-phase distillation specification (#188).
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct ThreePhaseColumnSpec {}
-
 /// Default specification of a multiphase kind.
 pub(crate) fn default_spec(kind: UnitKind) -> MultiphaseSpec {
     match kind {
@@ -127,6 +129,7 @@ impl GroupSpec for MultiphaseSpec {
     fn issues(&self) -> Vec<SpecIssue> {
         match self {
             MultiphaseSpec::LiquidExtractor(s) => s.issues(),
+            MultiphaseSpec::ThreePhaseColumn(s) => s.issues(),
             _ => Vec::new(),
         }
     }
@@ -167,6 +170,11 @@ pub(crate) fn calculate(
         MultiphaseSpec::LiquidExtractor(s) => {
             let (mut output, result) = extractor::calculate(s, inputs.material, ctx)?;
             output.liquid_extractor = Some(result);
+            Ok(output)
+        }
+        MultiphaseSpec::ThreePhaseColumn(s) => {
+            let (mut output, result) = three_phase_column::calculate(s, inputs.material, ctx)?;
+            output.three_phase_column = Some(result);
             Ok(output)
         }
         _ => Err(super::not_implemented(kind)),

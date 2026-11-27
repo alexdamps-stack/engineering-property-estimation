@@ -128,6 +128,8 @@ pub struct UnitCalculation {
     pub absorber: Option<units::columns::AbsorberResult>,
     /// Stage profile of a liquid–liquid extractor (#189).
     pub liquid_extractor: Option<units::multiphase::LiquidExtractorResult>,
+    /// Stage profile and decanter of a three-phase column (#188).
+    pub three_phase_column: Option<units::multiphase::ThreePhaseColumnResult>,
     /// Stages, isentropic states and shaft power of a rotating machine.
     pub rotating: Option<units::rotating::RotatingResult>,
     /// Additional flowsheet boundary contribution from material and its enthalpy.
@@ -414,6 +416,7 @@ impl Flowsheet {
                 distillation_column,
                 absorber,
                 liquid_extractor,
+                three_phase_column,
                 rotating,
                 material_exchange,
                 warnings,
@@ -489,6 +492,7 @@ impl Flowsheet {
                     distillation_column,
                     absorber,
                     liquid_extractor,
+                    three_phase_column,
                     rotating,
                     material_exchange,
                     balance,
@@ -994,6 +998,7 @@ fn calculate_unit(
                 distillation_column: None,
                 absorber: None,
                 liquid_extractor: None,
+                three_phase_column: None,
                 rotating: None,
                 material_exchange: None,
                 energy: Vec::new(),
@@ -1087,6 +1092,7 @@ fn calculate_unit(
                 distillation_column: None,
                 absorber: None,
                 liquid_extractor: None,
+                three_phase_column: None,
                 rotating: None,
                 material_exchange: None,
                 energy: Vec::new(),

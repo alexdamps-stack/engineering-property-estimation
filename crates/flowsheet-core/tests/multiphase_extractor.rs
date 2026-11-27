@@ -513,16 +513,17 @@ fn unsupported_package_fails_explicitly() {
 }
 
 #[test]
-fn liquid_extractor_is_calculated_and_other_multiphase_kinds_stay_drawn_only() {
+fn liquid_extractor_and_three_phase_column_are_calculated_and_other_multiphase_kinds_stay_drawn_only()
+ {
+    assert_eq!(
+        UnitKind::ThreePhaseColumn.calculation_status(),
+        CalculationStatus::Calculated
+    );
     assert_eq!(
         UnitKind::LiquidExtractor.calculation_status(),
         CalculationStatus::Calculated
     );
-    for kind in [
-        UnitKind::ThreePhaseSeparator,
-        UnitKind::Decanter,
-        UnitKind::ThreePhaseColumn,
-    ] {
+    for kind in [UnitKind::ThreePhaseSeparator, UnitKind::Decanter] {
         assert!(matches!(
             kind.calculation_status(),
             CalculationStatus::DrawnOnly(_)

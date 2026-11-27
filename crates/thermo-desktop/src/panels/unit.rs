@@ -468,6 +468,32 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         ui.end_row();
                     }
                 }
+                if let Some(c) = &r.three_phase_column {
+                    for (label, q) in [
+                        ("Condenser duty (+ removed)", c.condenser_duty_w),
+                        ("Reboiler duty (+ supplied)", c.reboiler_duty_w),
+                    ] {
+                        ui.label(label);
+                        ui.label(value_text(format_quantity(u, Quantity::Duty, q), stale));
+                        ui.end_row();
+                    }
+                    for (label, q) in [
+                        ("Decanter light liquid", c.light_liquid_mol_s),
+                        ("Decanter heavy liquid", c.heavy_liquid_mol_s),
+                        ("Reflux", c.liquid_flows_mol_s.first().copied().unwrap_or(0.0)),
+                    ] {
+                        ui.label(label);
+                        ui.label(value_text(format_quantity(u, Quantity::MolarFlow, q), stale));
+                        ui.end_row();
+                    }
+                    ui.label("Reflux liquid");
+                    ui.label(value_text(
+                        if c.light_refluxed { "light" } else { "heavy" }.to_owned(),
+                        stale,
+                    ));
+                    ui.end_row();
+                    stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
+                }
                 if let Some(x) = &r.material_exchange {
                     ui.label("External material (+ into unit)");
                     ui.label(value_text(
