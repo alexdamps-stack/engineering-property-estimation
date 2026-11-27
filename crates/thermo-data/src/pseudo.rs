@@ -348,7 +348,7 @@ impl PseudoComponentInput {
                 breaks: [lo, hi, hi],
                 coefficients: [coefficients; 2],
             },
-            extension: false,
+            extension: Default::default(),
             pseudo: Some(Arc::new(c)),
         }))
     }

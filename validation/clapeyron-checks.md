@@ -22,6 +22,7 @@ committed fixtures in turn:
 | `nrtl-v1.json` (A7 NRTL/gamma–phi) | `generate_nrtl.jl` | `nrtl_clapeyron` | `THERMO_NRTL_REFERENCE` |
 | `a13-v1.json` (A13 bubble/dew and envelope) | `generate_a13.jl` | `a13_clapeyron` | `THERMO_A13_REFERENCE` |
 | `package-operations-v1.json` (#226 GERG bubble/dew, GERG/NRTL/EOS-CG machines) | `generate_packages.jl` | `-p flowsheet-core --test package_references` | `THERMO_PACKAGE_REFERENCE` |
+| `vlle-v1.json` (#224 VLLE/LLE TP and PH) | `generate_vlle.jl` | `vlle_clapeyron` | `THERMO_VLLE_REFERENCE` |
 
 For each fixture it verifies the committed input, generator and environment
 hashes, generates a temporary Julia candidate, checks that the candidate
@@ -268,3 +269,23 @@ solutions:
 
 The budgets are the A13 saturation budgets and the A14 and A6 caloric and
 power budgets. They were declared in the generator before any comparison.
+
+## #224 VLLE/LLE check
+
+`check.jl` also verifies `fixtures/vlle-v1.json` (input, generator and manifest
+hashes), regenerates it live with `generate_vlle.jl` from
+`validation/vlle-inputs.json` and runs
+`cargo test -p thermo-solvers --test vlle_clapeyron` with
+`THERMO_VLLE_REFERENCE`. The PR/PR-BM cases reuse the `generate.jl` model
+adapter with an explicit water–hydrocarbon kij of 0.5. The NRTL cases use
+Clapeyron's `NRTL` with a synthetic partially miscible pair on the transcribed
+methanol/water ancillaries of `generate_nrtl.jl`, and the physical ChemSep/DECHEMA
+water/1-butanol pair with the ChemSep 1-butanol extension extracts, both with an
+ideal-gas vapor.
+Clapeyron's native multiphase flash only supplies initial phase sets: each
+candidate is solved to 256 bits by Newton's method on Clapeyron ln fugacities and
+component balances, and accepted only when a composition-grid TPD scan finds no
+negative TPD (see [VLLE status](../docs/vlle-status.md) for why). The binary
+three-phase temperatures of the invariant PH cases are solved the same way. No
+Rust call or output enters the generator. Scope, cases and tolerances are in
+the [VLLE status](../docs/vlle-status.md).

@@ -1,0 +1,137 @@
+{
+  "schema": "a7-liquid-nrtl-source-extract-v1",
+  "version": "2026-11-27.1",
+  "status": "source transcription for #224 VLLE/LLE implementation verification; no experimental accuracy qualification",
+  "gas_constant_J_per_mol_K": 8.31446261815324,
+  "calorie_J": 4.184,
+  "sources": [
+    {
+      "id": "chemsep_pcd",
+      "url": "https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml",
+      "sha256": "31e72c40b2b3b084161314c3262e227fcdd773c0bf2070bacbae9c5da203533f"
+    },
+    {
+      "id": "dwsim_chemsep_nrtl",
+      "url": "https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/nrtl.dat",
+      "sha256": "8d2973322dfb68436fb9a2f01506303779ddfef6901b8c1cc28ec8137e8e753b"
+    },
+    {
+      "id": "thermo_chemsep_nrtl",
+      "url": "https://raw.githubusercontent.com/CalebBell/thermo/2bb466e98439c2395a004e7095d07f9b97a5a0f0/thermo/Interaction%20Parameters/ChemSep/nrtl.json",
+      "sha256": "14db0a06d3a4fd988b6e49e4eb8eac4ea9bc007a550149451c3ac36cc8774f7b"
+    },
+    {
+      "id": "artistic_license_2_0",
+      "url": "https://raw.githubusercontent.com/spdx/license-list-data/v3.24.0/text/Artistic-2.0.txt",
+      "sha256": "bae466ac8d7100c304fe76632ccc627203a3897d3f7166f3cce00fb9df8c2074"
+    }
+  ],
+  "pure_liquid": [
+    {
+      "id": "1-butanol",
+      "cas": "71-36-3",
+      "source": "chemsep_pcd",
+      "vapor_pressure": {
+        "form": "chemsep-101",
+        "description": "ln(p/Pa) = A + B/T + C ln(T/K) + D T^E",
+        "coefficients": [
+          94.3424,
+          -9140.942,
+          -10.0038,
+          1.706963e-06,
+          2.0
+        ],
+        "temperature_range_K": [
+          184.51,
+          563.0
+        ],
+        "units": "Pa"
+      },
+      "saturated_liquid_density": {
+        "form": "chemsep-105",
+        "description": "rho' = A / B^(1 + (1 - T/C)^D)",
+        "coefficients": [
+          0.7931,
+          0.24201,
+          563.05,
+          0.22263
+        ],
+        "temperature_range_K": [
+          184.51,
+          543.08
+        ],
+        "units": "kmol/m^3"
+      }
+    }
+  ],
+  "nrtl_binary": [
+    {
+      "i": "water",
+      "j": "1-butanol",
+      "source": "dwsim_chemsep_nrtl; cross-check thermo_chemsep_nrtl",
+      "source_row": "1921;1105;2633.6951;504.0381;0.4447;Water/n-Butanol p336 1/1a",
+      "source_comment": "Water/n-Butanol p336 1/1a",
+      "source_units": "A_ij in cal/mol (thermochemical calorie 4.184 J); tau_ij = A_ij/(R T)",
+      "A_ij_cal_per_mol": 2633.6951,
+      "A_ji_cal_per_mol": 504.0381,
+      "alpha": 0.4447,
+      "tau_form": "tau_ij = t0_ij + t1_ij/T + t2_ij ln(T/K) + t3_ij T; alpha_ij = a0_ij + a1_ij T",
+      "tau_ij": {
+        "t0": 0.0,
+        "t1_K": 1325.3268195999854,
+        "t2": 0.0,
+        "t3_per_K": 0.0
+      },
+      "tau_ji": {
+        "t0": 0.0,
+        "t1_K": 253.64181754760426,
+        "t2": 0.0,
+        "t3_per_K": 0.0
+      },
+      "alpha_ij": {
+        "a0": 0.4447,
+        "a1_per_K": 0.0
+      },
+      "regression_pressure_Pa": 101325.0,
+      "regression_temperature_K": [
+        373.12,
+        391.31
+      ],
+      "regression_temperature_basis": "isobaric 1 atm data: interval between pure normal boiling points from the transcribed vapor-pressure correlations, rounded outward to 0.01 K"
+    },
+    {
+      "i": "methanol",
+      "j": "1-butanol",
+      "source": "dwsim_chemsep_nrtl; cross-check thermo_chemsep_nrtl",
+      "source_row": "1101;1105;793.8173;-486.3299;0.2483;Methanol/1-Butanol p127 1/2c",
+      "source_comment": "Methanol/1-Butanol p127 1/2c",
+      "source_units": "A_ij in cal/mol (thermochemical calorie 4.184 J); tau_ij = A_ij/(R T)",
+      "A_ij_cal_per_mol": 793.8173,
+      "A_ji_cal_per_mol": -486.3299,
+      "alpha": 0.2483,
+      "tau_form": "tau_ij = t0_ij + t1_ij/T + t2_ij ln(T/K) + t3_ij T; alpha_ij = a0_ij + a1_ij T",
+      "tau_ij": {
+        "t0": 0.0,
+        "t1_K": 399.46437138924983,
+        "t2": 0.0,
+        "t3_per_K": 0.0
+      },
+      "tau_ji": {
+        "t0": 0.0,
+        "t1_K": -244.73070540450144,
+        "t2": 0.0,
+        "t3_per_K": 0.0
+      },
+      "alpha_ij": {
+        "a0": 0.2483,
+        "a1_per_K": 0.0
+      },
+      "regression_pressure_Pa": 101325.0,
+      "regression_temperature_K": [
+        337.69,
+        391.31
+      ],
+      "regression_temperature_basis": "isobaric 1 atm data: interval between pure normal boiling points from the transcribed vapor-pressure correlations, rounded outward to 0.01 K"
+    }
+  ]
+}

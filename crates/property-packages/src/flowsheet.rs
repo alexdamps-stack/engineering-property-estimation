@@ -20,6 +20,9 @@ use crate::{
     PhaseProperties, SaturationKind, SaturationState,
 };
 
+mod multiphase;
+pub use multiphase::{MultiphaseEquilibrium, PhaseRole};
+
 /// Equilibrium operations required by a sequential flowsheet.
 pub trait FlowsheetPackage: Debug + Send + Sync {
     fn identity(&self) -> &Arc<()>;
@@ -176,6 +179,28 @@ pub trait FlowsheetPackage: Debug + Send + Sync {
     fn formation_components(&self) -> Result<&[Component], CalculationError> {
         Err(unsupported("reaction formation basis"))
     }
+
+    /// Three-phase (VLLE/LLE) TP flash with multiphase stability (#224). Packages
+    /// without the capability return `UnsupportedCapability`.
+    fn vlle_tp(
+        &self,
+        _fractions: &[f64],
+        _temperature_k: f64,
+        _pressure_pa: f64,
+    ) -> Result<MultiphaseEquilibrium, CalculationError> {
+        Err(multiphase::unsupported("TP"))
+    }
+
+    /// Three-phase (VLLE/LLE) PH flash (#224). Packages without the capability
+    /// return `UnsupportedCapability`.
+    fn vlle_ph(
+        &self,
+        _fractions: &[f64],
+        _pressure_pa: f64,
+        _enthalpy: f64,
+    ) -> Result<MultiphaseEquilibrium, CalculationError> {
+        Err(multiphase::unsupported("PH"))
+    }
 }
 
 fn unsupported(operation: &str) -> CalculationError {
@@ -216,7 +241,10 @@ impl NrtlPackage {
         })
     }
 
-    fn phase(&self, p: ActivityFlashPhase) -> Result<EquilibriumPhase, CalculationError> {
+    pub(crate) fn phase(
+        &self,
+        p: ActivityFlashPhase,
+    ) -> Result<EquilibriumPhase, CalculationError> {
         let s = p.state;
         let (cv, speed_of_sound) = if p.phase == Phase::Vapor {
             // Ideal-gas acoustic derivative at fixed composition.
@@ -365,6 +393,24 @@ impl FlowsheetPackage for NrtlPackage {
             },
             diagnostics: r.diagnostics,
         })
+    }
+
+    fn vlle_tp(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+    ) -> Result<MultiphaseEquilibrium, CalculationError> {
+        multiphase::nrtl_tp(self, fractions, temperature_k, pressure_pa)
+    }
+
+    fn vlle_ph(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        enthalpy: f64,
+    ) -> Result<MultiphaseEquilibrium, CalculationError> {
+        multiphase::nrtl_ph(self, fractions, pressure_pa, enthalpy)
     }
 
     fn cubic(&self) -> Result<&CubicPackage, CalculationError> {
@@ -591,6 +637,24 @@ impl FlowsheetPackage for CubicPackage {
         enthalpy: f64,
     ) -> Result<EquilibriumState, CalculationError> {
         self.ph(fractions, pressure_pa, enthalpy)
+    }
+
+    fn vlle_tp(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+    ) -> Result<MultiphaseEquilibrium, CalculationError> {
+        multiphase::cubic_tp(self, fractions, temperature_k, pressure_pa)
+    }
+
+    fn vlle_ph(
+        &self,
+        fractions: &[f64],
+        pressure_pa: f64,
+        enthalpy: f64,
+    ) -> Result<MultiphaseEquilibrium, CalculationError> {
+        multiphase::cubic_ph(self, fractions, pressure_pa, enthalpy)
     }
 
     fn cubic(&self) -> Result<&CubicPackage, CalculationError> {

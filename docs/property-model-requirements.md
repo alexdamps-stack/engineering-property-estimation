@@ -92,7 +92,7 @@ the unit and the operation.
 | ln φ and K-values | K-values, equilibrium and Gibbs reactors (package basis) | ✔ | ✔ (γ p^sat / p) | ✔ | ✔ ln φ (gas); K-values — | #226 |
 | Bubble and dew temperature and pressure | Shortcut column, condenser and reboiler states, vapor-fraction specifications | ✔ (A13 domain) | ✔ (modified Raoult) | ✔ (A13 algorithm, dry set, 0.1–10 MPa) | — | #226, #227 |
 | Formation properties on the package reference | All reactors | ✔ | ✔ (same ideal-gas reference) | — (native reference, no offset) | — (embedded offsets) | #226 |
-| Three-phase (VLLE/LLE) stability and flash | Three-phase separator, decanter, three-phase column, extractor | — | — | — | — | #224 |
+| Three-phase (VLLE/LLE) stability and TP/PH flash (`vlle_tp`, `vlle_ph`) | Three-phase separator, decanter, three-phase column, extractor | ✔ ([status](vlle-status.md)) | ✔ (one ideal-gas vapor, up to two NRTL liquids) | — | — | #224 |
 | Viscosity, thermal conductivity, surface tension | Pipe segment, relief valve, exchanger rating, column hydraulics | ✔ (8 components, [domain](transport-properties.md)) | ✔ (same) | ✔ (same) | ✔ (CO2 only; H2 has no data) | #225 |
 | Engineering liquid density | Liquid-phase kinetics, pump hydraulics, relief and pipe sizing | ✔ (COSTALD + ChemSep water/methanol; qualified components, see [status](liquid-density-status.md)) | — | — | — | #228 |
 | Pseudo-components from assay data | Petroleum fractionator | ✔ ([status](pseudo-components-status.md)) | — | — | — | #229 |

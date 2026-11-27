@@ -4,7 +4,7 @@
 mod eos_cg;
 pub use eos_cg::EosCgPackage;
 mod flowsheet;
-pub use flowsheet::{FlowsheetPackage, GergPackage, NrtlPackage};
+pub use flowsheet::{FlowsheetPackage, GergPackage, MultiphaseEquilibrium, NrtlPackage, PhaseRole};
 mod liquid_density;
 // The engineering liquid density (#228), re-exported for unit and project code.
 pub use thermo_models::{CostaldLiquidDensity, EngineeringLiquidDensity};

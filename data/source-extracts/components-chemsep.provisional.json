@@ -1,0 +1,81 @@
+{
+  "schema": "a2-source-extract-provisional-v1",
+  "version": "2026-11-27.1",
+  "status": "source transcription for #224 VLLE/LLE implementation verification; no experimental accuracy qualification",
+  "sources": [
+    {
+      "id": "chemsep_pcd",
+      "url": "https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml",
+      "sha256": "31e72c40b2b3b084161314c3262e227fcdd773c0bf2070bacbae9c5da203533f"
+    },
+    {
+      "id": "artistic_license_2_0",
+      "url": "https://raw.githubusercontent.com/spdx/license-list-data/v3.24.0/text/Artistic-2.0.txt",
+      "sha256": "bae466ac8d7100c304fe76632ccc627203a3897d3f7166f3cce00fb9df8c2074"
+    }
+  ],
+  "components": [
+    {
+      "id": "1-butanol",
+      "cas": "71-36-3",
+      "formula": "C4H10O",
+      "source_name": "1-butanol",
+      "constants": {
+        "source": "chemsep_pcd",
+        "chemsep_library_index": 1105,
+        "critical_temperature_K": 563.05,
+        "critical_pressure_Pa": 4423000.0,
+        "acentric_factor": 0.591,
+        "molar_mass_kg_per_mol": 0.0741216
+      },
+      "ideal_gas": {
+        "source": "chemsep_pcd",
+        "species": "1-butanol",
+        "correlation": "NASA7",
+        "temperature_breaks_K": [
+          200.0,
+          1000.0,
+          1000.0
+        ],
+        "coefficients": [
+          [
+            4.467035538641888,
+            0.016395527439424414,
+            6.687984846860867e-05,
+            -9.689982828727309e-08,
+            3.86398995045766e-11,
+            -35504.994759808615,
+            10.943498475402656
+          ],
+          [
+            4.467035538641888,
+            0.016395527439424414,
+            6.687984846860867e-05,
+            -9.689982828727309e-08,
+            3.86398995045766e-11,
+            -35504.994759808615,
+            10.943498475402656
+          ]
+        ],
+        "source_correlation": {
+          "name": "ChemSep RPPHeatCapacityCp (Reid-Prausnitz-Poling)",
+          "eqno": 100,
+          "coefficients_J_per_kmol_K": [
+            37141.0,
+            136.32,
+            0.55607,
+            -0.00080567,
+            3.2127e-07
+          ],
+          "temperature_range_K": [
+            50.0,
+            1000.0
+          ]
+        },
+        "source_note": "a1..a5 = RPP cp polynomial / R (exact); a6, a7 from ChemSep IG heat of formation (-274600.0 J/mol) and IG absolute entropy (361.48 J/(mol K)) at 298.15 K",
+        "coefficient_order": "a1,a2,a3,a4,a5,a6,a7",
+        "reference_state_status": "engine anchoring h=s=0 at 298.15 K, 1 bar as for the base extract"
+      }
+    }
+  ]
+}

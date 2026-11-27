@@ -427,7 +427,7 @@ fn phase_fugacity<M: EquilibriumModel>(
 /// Newton on active ln K, differentiating the complete residual (including the
 /// implicit RR phase fraction) with central differences. Failed probes, singular
 /// Jacobians and failed line searches leave the caller's SS update available.
-fn newton_step(
+pub(crate) fn newton_step(
     point: &[f64],
     residual: &[f64],
     current_g: f64,
@@ -500,7 +500,7 @@ fn newton_step(
 }
 
 /// Michelsen-style dominant-eigenvalue extrapolation from the last three SS iterates.
-fn dominant_eigenvalue_step(history: &[Vec<f64>]) -> Option<Vec<f64>> {
+pub(crate) fn dominant_eigenvalue_step(history: &[Vec<f64>]) -> Option<Vec<f64>> {
     let [.., a, b, c] = history else {
         return None;
     };

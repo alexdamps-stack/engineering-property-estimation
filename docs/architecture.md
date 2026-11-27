@@ -13,10 +13,13 @@ from a library target plus a thin `main.rs`.
 - `thermo-solvers` implements Rachford–Rice, TPD stability, two-phase TP/PH
   flash and pure saturation ([A4 status](a4-status.md)), native GERG density
   inversion and TP/PH flash, NRTL bubble/dew and flash, and bounded PR/PR-BM
-  mixture bubble/dew points and envelope tracing ([A13](a13-status.md)).
+  mixture bubble/dew points and envelope tracing ([A13](a13-status.md)), and
+  multiphase (VLLE/LLE) stability and TP/PH flash for PR/PR-BM and NRTL-IG
+  ([VLLE status](vlle-status.md)).
 - `property-packages` supplies the immutable flowsheet packages behind the
   `FlowsheetPackage` interface: cubic (PR, PR-BM, SRK), NRTL-IG, GERG-2008 and
-  EOS-CG-2021. The cubic packages also accept characterised petroleum
+  EOS-CG-2021. Cubic and NRTL-IG also provide the three-phase `vlle_tp`/`vlle_ph`
+  operations; the others return `UnsupportedCapability`. The cubic packages also accept characterised petroleum
   pseudo-components (#229). Each retains model, interaction, data and caloric-reference
   metadata. Phase viscosity, thermal conductivity and surface tension come
   from the package-independent transport methods

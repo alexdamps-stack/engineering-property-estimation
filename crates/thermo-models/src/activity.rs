@@ -122,7 +122,11 @@ impl ActivityModel {
             .iter()
             .map(|id| liquids.pure(id.as_str()).cloned())
             .collect::<Result<Vec<_>, _>>()?;
-        let (d, l) = (database.metadata(), liquids.metadata());
+        let names: Vec<&str> = ids.iter().map(|id| id.as_str()).collect();
+        let (d, l) = (
+            database.metadata_for(names.iter().copied()),
+            liquids.metadata_for(names.iter().copied()),
+        );
         Ok(Self {
             vapor,
             components,

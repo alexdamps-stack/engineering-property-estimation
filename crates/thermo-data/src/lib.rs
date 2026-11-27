@@ -25,6 +25,9 @@ pub const COMPONENT_DATASET_ID: &str = "cubic-constants-nasa7";
 /// Version of the A17 reacting-component extension
 /// (`components-reacting.provisional.json`: hydrogen, carbon monoxide).
 pub const REACTING_DATA_VERSION: &str = "2026-11-23.1";
+/// Version of the #224 ChemSep component extension
+/// (`components-chemsep.provisional.json`: 1-butanol).
+pub const CHEMSEP_COMPONENT_DATA_VERSION: &str = "2026-11-27.1";
 const COMPONENT_SCHEMA: &str = "a2-source-extract-provisional-v1";
 pub const REFERENCE_TEMPERATURE: f64 = 298.15;
 pub const REFERENCE_PRESSURE: f64 = 100_000.0;
@@ -53,13 +56,26 @@ struct Record {
     formula: String,
     constants: Constants,
     ideal_gas: Nasa7,
-    /// From the reacting-component extension rather than the base extract.
+    /// Extract the record comes from.
     #[serde(skip)]
-    extension: bool,
+    extension: Extension,
     /// Characterisation of a petroleum pseudo-component (#229); `None` for
     /// embedded database records.
     #[serde(skip)]
     pseudo: Option<std::sync::Arc<PseudoCharacterisation>>,
+}
+
+/// Extract of an embedded component record.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum Extension {
+    /// `components.provisional.json` (and characterised pseudo-components).
+    #[default]
+    Base,
+    /// `components-reacting.provisional.json` (A17).
+    Reacting,
+    /// `components-chemsep.provisional.json` (#224): ChemSep constants and the
+    /// RPP ideal-gas polynomial, valid to 1000 K (empty upper NASA7 interval).
+    Chemsep,
 }
 
 /// Immutable component from the checked embedded dataset.
@@ -271,14 +287,21 @@ impl ComponentDatabase {
                 let mut components = Self::from_extract(
                     include_str!("../../../data/source-extracts/components.provisional.json"),
                     DATA_VERSION,
-                    false,
+                    Extension::Base,
                 )?;
                 components.extend(Self::from_extract(
                     include_str!(
                         "../../../data/source-extracts/components-reacting.provisional.json"
                     ),
                     REACTING_DATA_VERSION,
-                    true,
+                    Extension::Reacting,
+                )?);
+                components.extend(Self::from_extract(
+                    include_str!(
+                        "../../../data/source-extracts/components-chemsep.provisional.json"
+                    ),
+                    CHEMSEP_COMPONENT_DATA_VERSION,
+                    Extension::Chemsep,
                 )?);
                 for (i, c) in components.iter().enumerate() {
                     if components[..i].iter().any(|o| o.id() == c.id()) {
@@ -299,8 +322,14 @@ impl ComponentDatabase {
     fn from_extract(
         text: &str,
         version: &str,
-        extension: bool,
+        extension: Extension,
     ) -> Result<Vec<Component>, CalculationError> {
+        // ChemSep RPP polynomials end at 1000 K: their upper interval is empty.
+        let breaks = if extension == Extension::Chemsep {
+            [200.0, 1000.0, 1000.0]
+        } else {
+            [200.0, 1000.0, 6000.0]
+        };
         #[derive(Deserialize)]
         struct Extract {
             schema: String,
@@ -329,7 +358,7 @@ impl ComponentDatabase {
                 || !c.constants.pc.is_finite()
                 || c.constants.pc <= 0.0
                 || !c.constants.acentric_factor.is_finite()
-                || c.ideal_gas.breaks != [200.0, 1000.0, 6000.0]
+                || c.ideal_gas.breaks != breaks
                 || c.ideal_gas
                     .coefficients
                     .iter()
@@ -382,7 +411,10 @@ impl ComponentDatabase {
     pub fn metadata_for<'a>(&self, ids: impl IntoIterator<Item = &'a str>) -> DataMetadata {
         let selected: Vec<&Component> =
             ids.into_iter().filter_map(|id| self.get(id).ok()).collect();
-        let extended = selected.iter().any(|c| c.0.extension);
+        let extended = selected
+            .iter()
+            .any(|c| c.0.extension == Extension::Reacting);
+        let chemsep = selected.iter().any(|c| c.0.extension == Extension::Chemsep);
         let pseudo = selected.iter().any(|c| c.is_pseudo());
         let mut data = if extended {
             DataMetadata {
@@ -393,6 +425,13 @@ impl ComponentDatabase {
         } else {
             self.metadata()
         };
+        if chemsep {
+            data.version = format!("{}+chemsep-{CHEMSEP_COMPONENT_DATA_VERSION}", data.version);
+            data.source = format!(
+                "{}; components-chemsep.provisional.json (ChemSep v8.3 via DWSIM, Artistic-2.0)",
+                data.source
+            );
+        }
         if pseudo {
             // The characterisation inputs themselves are stored with the
             // selection (and its fingerprint); the version names the method set.
@@ -489,10 +528,10 @@ mod tests {
         let db = ComponentDatabase::embedded().unwrap();
         for id in ["hydrogen", "carbon-monoxide"] {
             let c = db.get(id).unwrap();
-            assert!(c.0.extension, "{id}");
+            assert_eq!(c.0.extension, Extension::Reacting, "{id}");
             assert!(c.ideal_gas(Temperature::new(500.0).unwrap()).is_ok());
         }
-        assert_eq!(db.components().len(), 10);
+        assert_eq!(db.components().len(), 11);
         assert_eq!(db.metadata_for(["methane", "water"]), db.metadata());
         let mixed = db.metadata_for(["methane", "hydrogen"]);
         assert_eq!(
@@ -507,11 +546,11 @@ mod tests {
         let stale = EMBEDDED.replacen(DATA_VERSION, "1999-01-01.1", 1);
         assert_ne!(stale, EMBEDDED);
         assert!(matches!(
-            ComponentDatabase::from_extract(&stale, DATA_VERSION, false),
+            ComponentDatabase::from_extract(&stale, DATA_VERSION, Extension::Base),
             Err(CalculationError::MissingParameter(_))
         ));
         let schema = EMBEDDED.replacen(COMPONENT_SCHEMA, "a2-source-extract-provisional-v0", 1);
         assert_ne!(schema, EMBEDDED);
-        assert!(ComponentDatabase::from_extract(&schema, DATA_VERSION, false).is_err());
+        assert!(ComponentDatabase::from_extract(&schema, DATA_VERSION, Extension::Base).is_err());
     }
 }

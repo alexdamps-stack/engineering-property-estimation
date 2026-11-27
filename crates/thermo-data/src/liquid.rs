@@ -7,15 +7,20 @@ use thermo_types::{CalculationError, ComponentId, DataMetadata, Temperature};
 pub const LIQUID_DATA_VERSION: &str = "2026-11-08.1";
 const EMBEDDED_EXTRACT: &str =
     include_str!("../../../data/source-extracts/liquid-nrtl.provisional.json");
+/// Version of the #224 ChemSep liquid extension
+/// (`liquid-chemsep-nrtl.provisional.json`: 1-butanol and its NRTL pairs).
+pub const LIQUID_CHEMSEP_DATA_VERSION: &str = "2026-11-27.1";
+const CHEMSEP_EXTRACT: &str =
+    include_str!("../../../data/source-extracts/liquid-chemsep-nrtl.provisional.json");
 
 /// Accepted NRTL non-randomness interval (lower bound exclusive). Regressed values
 /// sit near 0.2..0.47 (Renon & Prausnitz 1968); alpha <= 0 removes the
 /// local-composition effect and alpha > 1 has no physical interpretation here.
 const ALPHA_RANGE: (f64, f64) = (0.0, 1.0);
 
+/// CoolProp ancillary (A7): reduced exponent sums.
 #[derive(Debug, Clone, Deserialize)]
-struct Ancillary {
-    form: String,
+struct CoolPropAncillary {
     #[serde(rename = "reducing_temperature_K")]
     t_r: f64,
     reducing_value: f64,
@@ -24,6 +29,72 @@ struct Ancillary {
     t: Vec<f64>,
     #[serde(rename = "temperature_range_K")]
     range: [f64; 2],
+}
+
+/// ChemSep (DIPPR-numbered) temperature correlation, coefficients A, B, C, ...
+#[derive(Debug, Clone, Deserialize)]
+struct ChemsepCorrelation {
+    coefficients: Vec<f64>,
+    #[serde(rename = "temperature_range_K")]
+    range: [f64; 2],
+}
+
+/// Pure-liquid correlation by form. `pV` and `rhoLnoexp` are the CoolProp
+/// ancillaries of the A7 extract; `chemsep-101` (vapour pressure, Pa) and
+/// `chemsep-105` (saturated-liquid density, kmol/m³) come from the #224 ChemSep
+/// extension.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "form")]
+enum Ancillary {
+    #[serde(rename = "pV")]
+    CoolPropPv(CoolPropAncillary),
+    #[serde(rename = "rhoLnoexp")]
+    CoolPropRhoL(CoolPropAncillary),
+    #[serde(rename = "chemsep-101")]
+    Chemsep101(ChemsepCorrelation),
+    #[serde(rename = "chemsep-105")]
+    Chemsep105(ChemsepCorrelation),
+}
+
+impl Ancillary {
+    fn range(&self) -> [f64; 2] {
+        match self {
+            Self::CoolPropPv(a) | Self::CoolPropRhoL(a) => a.range,
+            Self::Chemsep101(c) | Self::Chemsep105(c) => c.range,
+        }
+    }
+
+    /// Shape checks; `vapor` selects the vapour-pressure forms.
+    fn valid(&self, vapor: bool) -> bool {
+        let range_ok = |r: [f64; 2]| 0.0 < r[0] && r[0] < r[1] && r[1].is_finite();
+        match (self, vapor) {
+            (Self::CoolPropPv(a), true) | (Self::CoolPropRhoL(a), false) => {
+                a.using_tau_r == vapor
+                    && a.n.len() == a.t.len()
+                    && !a.n.is_empty()
+                    && a.n.iter().chain(&a.t).all(|v| v.is_finite())
+                    && a.t_r > 0.0
+                    && a.reducing_value > 0.0
+                    && range_ok(a.range)
+                    && a.range[1] < a.t_r
+            }
+            (Self::Chemsep101(c), true) => {
+                c.coefficients.len() == 5
+                    && c.coefficients.iter().all(|v| v.is_finite())
+                    && range_ok(c.range)
+            }
+            // rho = A / B^(1 + (1 - T/C)^D): positive A, B and T < C over the range.
+            (Self::Chemsep105(c), false) => {
+                c.coefficients.len() == 4
+                    && c.coefficients.iter().all(|v| v.is_finite())
+                    && c.coefficients[0] > 0.0
+                    && c.coefficients[1] > 0.0
+                    && range_ok(c.range)
+                    && c.range[1] < c.coefficients[2]
+            }
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -110,21 +181,35 @@ impl PureLiquid {
     }
     /// Declared vapor-pressure correlation range in K (inclusive).
     pub fn vapor_pressure_range(&self) -> [f64; 2] {
-        self.0.vapor_pressure.range
+        self.0.vapor_pressure.range()
     }
     pub fn liquid_density_range(&self) -> [f64; 2] {
-        self.0.saturated_liquid_density.range
+        self.0.saturated_liquid_density.range()
     }
 
-    /// CoolProp pV ancillary: psat = p_r exp((T_r/T) Σ n_k θ^t_k), θ = 1 − T/T_r.
-    /// Analytical derivatives. Outside the declared range: `OutsideValidityDomain`.
+    /// Vapour pressure with analytical derivatives of ln p. CoolProp pV ancillary:
+    /// psat = p_r exp((T_r/T) Σ n_k θ^t_k), θ = 1 − T/T_r. ChemSep equation 101:
+    /// ln(p/Pa) = A + B/T + C ln T + D T^E. Outside the declared range:
+    /// `OutsideValidityDomain`.
     pub fn vapor_pressure(
         &self,
         temperature: Temperature,
     ) -> Result<VaporPressure, CalculationError> {
-        let a = &self.0.vapor_pressure;
         let t = temperature.value();
-        check_range(self.id(), "vapor pressure", a.range, t)?;
+        check_range(self.id(), "vapor pressure", self.vapor_pressure_range(), t)?;
+        let a = match &self.0.vapor_pressure {
+            Ancillary::CoolPropPv(a) => a,
+            Ancillary::Chemsep101(c) => {
+                let [a, b, cc, d, e] = c.coefficients[..] else {
+                    unreachable!("validated ChemSep 101 correlation")
+                };
+                let ln_p = a + b / t + cc * t.ln() + d * t.powf(e);
+                let d1 = -b / (t * t) + cc / t + d * e * t.powf(e - 1.0);
+                let d2 = 2.0 * b / (t * t * t) - cc / (t * t) + d * e * (e - 1.0) * t.powf(e - 2.0);
+                return finish_vapor_pressure(self.id(), ln_p, d1, d2);
+            }
+            _ => unreachable!("validated vapour-pressure form"),
+        };
         let theta = 1.0 - t / a.t_r;
         // S = Σ n θ^e; dθ/dT = −1/T_r. θ > 0 inside the range (Tmax < T_r).
         let (mut s, mut ds, mut d2s) = (0.0, 0.0, 0.0);
@@ -140,29 +225,36 @@ impl PureLiquid {
         let ln_p = a.reducing_value.ln() + q * s;
         let d1 = dq * s + q * ds;
         let d2 = d2q * s + 2.0 * dq * ds + q * d2s;
-        let pressure = ln_p.exp();
-        if ![pressure, ln_p, d1, d2].iter().all(|v| v.is_finite()) || pressure <= 0.0 {
-            return Err(CalculationError::NumericalFailure(format!(
-                "{} vapor pressure not representable",
-                self.id()
-            )));
-        }
-        Ok(VaporPressure {
-            pressure,
-            ln_pressure: ln_p,
-            d_ln_pressure_dt: d1,
-            d2_ln_pressure_dt2: d2,
-        })
+        finish_vapor_pressure(self.id(), ln_p, d1, d2)
     }
 
-    /// CoolProp rhoLnoexp ancillary: ρ' = ρ_r (1 + Σ n_k θ^t_k), mol/m³, saturated liquid.
+    /// Saturated-liquid molar density, mol/m³. CoolProp rhoLnoexp ancillary:
+    /// ρ' = ρ_r (1 + Σ n_k θ^t_k). ChemSep equation 105: ρ' = A / B^(1 + (1 − T/C)^D)
+    /// in kmol/m³.
     pub fn saturated_liquid_molar_density(
         &self,
         temperature: Temperature,
     ) -> Result<f64, CalculationError> {
-        let a = &self.0.saturated_liquid_density;
         let t = temperature.value();
-        check_range(self.id(), "saturated liquid density", a.range, t)?;
+        check_range(
+            self.id(),
+            "saturated liquid density",
+            self.liquid_density_range(),
+            t,
+        )?;
+        let a = match &self.0.saturated_liquid_density {
+            Ancillary::CoolPropRhoL(a) => a,
+            Ancillary::Chemsep105(c) => {
+                let [a, b, cc, d] = c.coefficients[..] else {
+                    unreachable!("validated ChemSep 105 correlation")
+                };
+                return positive_density(
+                    self.id(),
+                    1000.0 * a / b.powf(1.0 + (1.0 - t / cc).powf(d)),
+                );
+            }
+            _ => unreachable!("validated density form"),
+        };
         let theta = 1.0 - t / a.t_r;
         let rho = a.reducing_value
             * (1.0
@@ -171,14 +263,37 @@ impl PureLiquid {
                     .zip(&a.t)
                     .map(|(n, e)| n * theta.powf(*e))
                     .sum::<f64>());
-        if !rho.is_finite() || rho <= 0.0 {
-            return Err(CalculationError::NumericalFailure(format!(
-                "{} liquid density not positive",
-                self.id()
-            )));
-        }
-        Ok(rho)
+        positive_density(self.id(), rho)
     }
+}
+
+fn finish_vapor_pressure(
+    id: &str,
+    ln_p: f64,
+    d1: f64,
+    d2: f64,
+) -> Result<VaporPressure, CalculationError> {
+    let pressure = ln_p.exp();
+    if ![pressure, ln_p, d1, d2].iter().all(|v| v.is_finite()) || pressure <= 0.0 {
+        return Err(CalculationError::NumericalFailure(format!(
+            "{id} vapor pressure not representable"
+        )));
+    }
+    Ok(VaporPressure {
+        pressure,
+        ln_pressure: ln_p,
+        d_ln_pressure_dt: d1,
+        d2_ln_pressure_dt2: d2,
+    })
+}
+
+fn positive_density(id: &str, rho: f64) -> Result<f64, CalculationError> {
+    if !rho.is_finite() || rho <= 0.0 {
+        return Err(CalculationError::NumericalFailure(format!(
+            "{id} liquid density not positive"
+        )));
+    }
+    Ok(rho)
 }
 
 /// CAS Registry Number: `NNNNNNN-NN-N` (2..=7 leading digits). The check digit
@@ -250,6 +365,8 @@ pub struct LiquidDatabase {
     pure: Vec<PureLiquid>,
     binaries: Vec<BinaryRecord>,
     version: String,
+    /// Pure liquids from the ChemSep extension (#224).
+    extension_ids: Vec<String>,
 }
 
 impl LiquidDatabase {
@@ -259,24 +376,56 @@ impl LiquidDatabase {
         static EMBEDDED: std::sync::OnceLock<Result<LiquidDatabase, CalculationError>> =
             std::sync::OnceLock::new();
         EMBEDDED
-            .get_or_init(|| Self::from_extract(EMBEDDED_EXTRACT, &ComponentDatabase::embedded()?))
+            .get_or_init(|| {
+                Self::from_extracts(
+                    &[
+                        (EMBEDDED_EXTRACT, LIQUID_DATA_VERSION),
+                        (CHEMSEP_EXTRACT, LIQUID_CHEMSEP_DATA_VERSION),
+                    ],
+                    &ComponentDatabase::embedded()?,
+                )
+            })
             .clone()
+    }
+
+    /// The base A7 extract alone (tests of its checks).
+    #[cfg(test)]
+    fn from_extract(text: &str, components: &ComponentDatabase) -> Result<Self, CalculationError> {
+        Self::from_extracts(&[(text, LIQUID_DATA_VERSION)], components)
     }
 
     /// Pure-liquid IDs and CAS numbers must match `components`, NRTL pairs must name
     /// pure liquids in this extract, and every binary must carry a physical alpha
     /// over its regression interval and a finite positive regression pressure.
-    fn from_extract(text: &str, components: &ComponentDatabase) -> Result<Self, CalculationError> {
-        let extract: Extract = serde_json::from_str(text)
-            .map_err(|e| CalculationError::MissingParameter(e.to_string()))?;
+    /// Extracts after the first are extensions: their binaries may name pure
+    /// liquids of any extract, and no pure liquid or pair may appear twice.
+    fn from_extracts(
+        texts: &[(&str, &str)],
+        components: &ComponentDatabase,
+    ) -> Result<Self, CalculationError> {
         let bad =
             |what: &str| CalculationError::MissingParameter(format!("invalid embedded {what}"));
-        if extract.schema != "a7-liquid-nrtl-source-extract-v1"
-            || extract.version != LIQUID_DATA_VERSION
-            || extract.gas_constant != thermo_types::MOLAR_GAS_CONSTANT
-        {
-            return Err(bad("liquid extract header"));
+        let mut extract: Option<Extract> = None;
+        let mut extension_ids = Vec::new();
+        for (text, version) in texts {
+            let next: Extract = serde_json::from_str(text)
+                .map_err(|e| CalculationError::MissingParameter(e.to_string()))?;
+            if next.schema != "a7-liquid-nrtl-source-extract-v1"
+                || next.version != *version
+                || next.gas_constant != thermo_types::MOLAR_GAS_CONSTANT
+            {
+                return Err(bad("liquid extract header"));
+            }
+            match extract.as_mut() {
+                None => extract = Some(next),
+                Some(base) => {
+                    extension_ids.extend(next.pure_liquid.iter().map(|p| p.id.clone()));
+                    base.pure_liquid.extend(next.pure_liquid);
+                    base.nrtl_binary.extend(next.nrtl_binary);
+                }
+            }
         }
+        let extract = extract.ok_or_else(|| bad("liquid extract list"))?;
         for (k, p) in extract.pure_liquid.iter().enumerate() {
             ComponentId::new(&p.id)?;
             if extract.pure_liquid[..k].iter().any(|o| o.id == p.id) {
@@ -297,21 +446,8 @@ impl LiquidDatabase {
                     component.cas()
                 )));
             }
-            for (a, form, tau) in [
-                (&p.vapor_pressure, "pV", true),
-                (&p.saturated_liquid_density, "rhoLnoexp", false),
-            ] {
-                let finite = a.n.iter().chain(&a.t).all(|v| v.is_finite());
-                if a.form != form
-                    || a.using_tau_r != tau
-                    || a.n.len() != a.t.len()
-                    || a.n.is_empty()
-                    || !finite
-                    || !(a.t_r > 0.0 && a.reducing_value > 0.0)
-                    || !(0.0 < a.range[0] && a.range[0] < a.range[1] && a.range[1] < a.t_r)
-                {
-                    return Err(bad("pure liquid ancillary"));
-                }
+            if !p.vapor_pressure.valid(true) || !p.saturated_liquid_density.valid(false) {
+                return Err(bad("pure liquid ancillary"));
             }
         }
         for (k, b) in extract.nrtl_binary.iter().enumerate() {
@@ -366,6 +502,7 @@ impl LiquidDatabase {
             pure: extract.pure_liquid.into_iter().map(PureLiquid).collect(),
             binaries: extract.nrtl_binary,
             version: extract.version,
+            extension_ids,
         })
     }
 
@@ -413,6 +550,23 @@ impl LiquidDatabase {
             version: self.version.clone(),
             source: "data/source-extracts/liquid-nrtl.provisional.json; upstream URLs, hashes and notices retained".into(),
         }
+    }
+
+    /// Metadata of a selection: the base metadata unless a selected pure liquid
+    /// comes from the ChemSep extension, whose version and file are then added.
+    pub fn metadata_for<'a>(&self, ids: impl IntoIterator<Item = &'a str>) -> DataMetadata {
+        let mut data = self.metadata();
+        if ids
+            .into_iter()
+            .any(|id| self.extension_ids.iter().any(|e| e == id))
+        {
+            data.version = format!("{}+chemsep-{LIQUID_CHEMSEP_DATA_VERSION}", data.version);
+            data.source = format!(
+                "{}; liquid-chemsep-nrtl.provisional.json (ChemSep v8.3 and ChemSep/DECHEMA NRTL via DWSIM, Artistic-2.0)",
+                data.source
+            );
+        }
+        data
     }
 }
 

@@ -548,6 +548,74 @@
       },
       "domain": "COSTALD engineering liquid density (#228): 0.25 <= T/Tcm <= 0.95, p <= 69 MPa (10 MPa with water or methanol above trace); implementation cases for 10 pure fluids and 10 mixtures; experimental points for 10 pure fluids (saturated and compressed) and 10 bubble-point mixtures, budgets applied to the qualified scope only",
       "rationale": "Implementation: same closed-form expressions as chemicals 1.5.2 (COSTALD, COSTALD-Tait, DIPPR 105/106) in double precision. Experimental: Hankinson-Thomson / Thomson-Brobst-Hankinson reported accuracy against CoolProp 7.2.0 reference EOS; sets failing the budget (COSTALD for water and methanol, hydrogen, CO2 in hydrocarbon mixtures, water/methanol compression above 10 MPa) were excluded from the qualified scope or replaced by ChemSep correlations instead of widening it."
+    },
+    {
+      "fixture": "validation/fixtures/vlle-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "Z": [
+          2e-10,
+          2e-09
+        ],
+        "composition": [
+          1e-08,
+          1e-07
+        ],
+        "fugacity_residual": [
+          1e-07,
+          0.0
+        ],
+        "molar_volume": [
+          1e-12,
+          2e-09
+        ],
+        "cv": [
+          2e-05,
+          2e-08
+        ],
+        "mass_density": [
+          1e-07,
+          2e-09
+        ],
+        "s_res": [
+          2e-07,
+          2e-09
+        ],
+        "h": [
+          2e-05,
+          2e-09
+        ],
+        "temperature": [
+          2e-06,
+          0.0
+        ],
+        "cp": [
+          2e-05,
+          2e-08
+        ],
+        "ln_phi": [
+          2e-09,
+          2e-09
+        ],
+        "h_res": [
+          2e-05,
+          2e-09
+        ],
+        "sound": [
+          0.0002,
+          2e-08
+        ],
+        "s": [
+          2e-07,
+          2e-09
+        ],
+        "fraction": [
+          2e-08,
+          0.0
+        ]
+      },
+      "domain": "6 PR/PR-BM methane/propane/water and propane/water TP states (300..400 K, 5..50 bar; explicit water-hydrocarbon kij 0.5), 5 TP states of a synthetic NRTL pair, 4 TP states of the ChemSep/DECHEMA water/1-butanol NRTL pair (298..365 K), PH round trips and 3 binary three-phase (invariant) PH states; docs/vlle-status.md",
+      "rationale": "Independent Clapeyron.jl fugacities and NRTL activity coefficients solved to 256 bits with grid-TPD phase-count acceptance; composition and fugacity budgets meet the #224 acceptance (<= 1e-7), the remaining budgets reuse the clapeyron-v1 regular-state budgets."
     }
   ],
   "deferred": [
@@ -556,7 +624,7 @@
       "owner": "A13 follow-up",
       "atol": null,
       "rtol": null,
-      "status": "Outside bounded A13 qualification; no critical-point accuracy, wet VLLE or retrograde/global-envelope budget is approved"
+      "status": "Outside bounded A13 qualification; no critical-point accuracy or retrograde/global-envelope budget is approved (VLLE/LLE flash budgets: vlle-v1.json)"
     }
   ],
   "ideal_gas_budgets": {
