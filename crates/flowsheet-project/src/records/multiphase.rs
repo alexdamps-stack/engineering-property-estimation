@@ -5,15 +5,23 @@
 //! Liquid–liquid extractor fields (#189) were added behind format version 4;
 //! a version-4 record without them (`{"kind": "liquid_extractor"}`, written
 //! while the kind was drawn only) loads with the default specification.
+//!
+//! Three-phase column fields (#188) were added behind format version 4 in the
+//! same way: `{"kind": "three_phase_column"}` opens with five ideal trays,
+//! feed at stage 2, light-liquid total reflux and unset values.
 
 use flowsheet_core::units::MultiphaseSpec;
+use flowsheet_core::units::columns::ColumnInternals;
 use flowsheet_core::units::columns::packing::{
     PackedSectionBasis, PackedSectionSpec, StageRounding,
 };
 use flowsheet_core::units::multiphase::{
-    ExtractorInternals, ExtractorThermal, FeedPhase, LiquidExtractorSpec,
+    DecanterReflux, ExtractorInternals, ExtractorThermal, FeedPhase, LiquidExtractorSpec,
+    PhaseReflux, ThreePhaseColumnSpec,
 };
 use serde::{Deserialize, Serialize};
+
+use super::columns::InternalsRecord;
 
 /// Multiphase specification, tagged by unit kind.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -21,7 +29,21 @@ use serde::{Deserialize, Serialize};
 pub(crate) enum MultiphaseRecord {
     ThreePhaseSeparator {},
     Decanter {},
-    ThreePhaseColumn {},
+    ThreePhaseColumn {
+        /// `None` (a drawn-only record) opens with five ideal trays.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        internals: Option<InternalsRecord>,
+        #[serde(default = "default_feed_stage")]
+        feed_stage: u16,
+        #[serde(default)]
+        pressure_pa: Option<f64>,
+        #[serde(default)]
+        decanter_temperature_k: Option<f64>,
+        #[serde(default)]
+        reflux: DecanterRefluxRecord,
+        #[serde(default)]
+        bottoms_fraction: Option<f64>,
+    },
     LiquidExtractor {
         #[serde(default)]
         internals: ExtractorInternalsRecord,
@@ -32,6 +54,84 @@ pub(crate) enum MultiphaseRecord {
         #[serde(default)]
         feed_phase: FeedPhaseRecord,
     },
+}
+
+fn default_feed_stage() -> u16 {
+    ThreePhaseColumnSpec::default().feed_stage
+}
+
+/// Reflux phase and amount of the three-phase column decanter (#188).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+pub(crate) enum DecanterRefluxRecord {
+    #[default]
+    LightTotal,
+    HeavyTotal,
+    LightRatio {
+        #[serde(default)]
+        ratio: Option<f64>,
+    },
+    HeavyRatio {
+        #[serde(default)]
+        ratio: Option<f64>,
+    },
+    Fractions {
+        #[serde(default)]
+        light: Option<f64>,
+        #[serde(default)]
+        heavy: Option<f64>,
+    },
+}
+
+impl DecanterRefluxRecord {
+    fn numbers(self) -> Vec<f64> {
+        match self {
+            Self::LightTotal | Self::HeavyTotal => Vec::new(),
+            Self::LightRatio { ratio } | Self::HeavyRatio { ratio } => ratio.into_iter().collect(),
+            Self::Fractions { light, heavy } => light.into_iter().chain(heavy).collect(),
+        }
+    }
+}
+
+impl From<DecanterReflux> for DecanterRefluxRecord {
+    fn from(value: DecanterReflux) -> Self {
+        match value {
+            DecanterReflux::Light(PhaseReflux::Total) => Self::LightTotal,
+            DecanterReflux::Heavy(PhaseReflux::Total) => Self::HeavyTotal,
+            DecanterReflux::Light(PhaseReflux::Ratio(ratio)) => Self::LightRatio { ratio },
+            DecanterReflux::Heavy(PhaseReflux::Ratio(ratio)) => Self::HeavyRatio { ratio },
+            DecanterReflux::Fractions { light, heavy } => Self::Fractions { light, heavy },
+        }
+    }
+}
+
+impl From<DecanterRefluxRecord> for DecanterReflux {
+    fn from(value: DecanterRefluxRecord) -> Self {
+        match value {
+            DecanterRefluxRecord::LightTotal => Self::Light(PhaseReflux::Total),
+            DecanterRefluxRecord::HeavyTotal => Self::Heavy(PhaseReflux::Total),
+            DecanterRefluxRecord::LightRatio { ratio } => Self::Light(PhaseReflux::Ratio(ratio)),
+            DecanterRefluxRecord::HeavyRatio { ratio } => Self::Heavy(PhaseReflux::Ratio(ratio)),
+            DecanterRefluxRecord::Fractions { light, heavy } => Self::Fractions { light, heavy },
+        }
+    }
+}
+
+/// Every number of a column internals record.
+fn internals_numbers(internals: Option<InternalsRecord>) -> Vec<f64> {
+    match internals.map(ColumnInternals::from) {
+        Some(ColumnInternals::Packed(spec)) => {
+            let mut out: Vec<f64> = spec.hetp_m.into_iter().collect();
+            if let PackedSectionBasis::PackedHeight {
+                height_m: Some(h), ..
+            } = spec.basis
+            {
+                out.push(h);
+            }
+            out
+        }
+        _ => Vec::new(),
+    }
 }
 
 /// Ideal stages or one packed section of the extractor.
@@ -176,6 +276,20 @@ impl MultiphaseRecord {
                 }
                 out
             }
+            Self::ThreePhaseColumn {
+                internals,
+                pressure_pa,
+                decanter_temperature_k,
+                reflux,
+                bottoms_fraction,
+                ..
+            } => internals_numbers(*internals)
+                .into_iter()
+                .chain(*pressure_pa)
+                .chain(*decanter_temperature_k)
+                .chain(reflux.numbers())
+                .chain(*bottoms_fraction)
+                .collect(),
             _ => Vec::new(),
         }
     }
@@ -186,7 +300,14 @@ impl From<&MultiphaseSpec> for MultiphaseRecord {
         match s {
             MultiphaseSpec::ThreePhaseSeparator(_) => Self::ThreePhaseSeparator {},
             MultiphaseSpec::Decanter(_) => Self::Decanter {},
-            MultiphaseSpec::ThreePhaseColumn(_) => Self::ThreePhaseColumn {},
+            MultiphaseSpec::ThreePhaseColumn(c) => Self::ThreePhaseColumn {
+                internals: Some(c.internals.into()),
+                feed_stage: c.feed_stage,
+                pressure_pa: c.pressure_pa,
+                decanter_temperature_k: c.decanter_temperature_k,
+                reflux: c.reflux.into(),
+                bottoms_fraction: c.bottoms_fraction,
+            },
             MultiphaseSpec::LiquidExtractor(e) => Self::LiquidExtractor {
                 internals: (&e.internals).into(),
                 pressure_pa: e.pressure_pa,
@@ -215,7 +336,23 @@ impl TryFrom<MultiphaseRecord> for MultiphaseSpec {
                 Self::ThreePhaseSeparator(Default::default())
             }
             MultiphaseRecord::Decanter {} => Self::Decanter(Default::default()),
-            MultiphaseRecord::ThreePhaseColumn {} => Self::ThreePhaseColumn(Default::default()),
+            MultiphaseRecord::ThreePhaseColumn {
+                internals,
+                feed_stage,
+                pressure_pa,
+                decanter_temperature_k,
+                reflux,
+                bottoms_fraction,
+            } => Self::ThreePhaseColumn(ThreePhaseColumnSpec {
+                internals: internals
+                    .map(Into::into)
+                    .unwrap_or(ThreePhaseColumnSpec::default().internals),
+                feed_stage,
+                pressure_pa,
+                decanter_temperature_k,
+                reflux: reflux.into(),
+                bottoms_fraction,
+            }),
             MultiphaseRecord::LiquidExtractor {
                 internals,
                 pressure_pa,
@@ -288,6 +425,64 @@ mod tests {
         assert!(
             serde_json::from_str::<MultiphaseRecord>(
                 r#"{"kind": "liquid_extractor", "solvent_ratio": 1.0}"#
+            )
+            .is_err()
+        );
+    }
+
+    fn column_round_trip(spec: ThreePhaseColumnSpec) {
+        let spec = MultiphaseSpec::ThreePhaseColumn(spec);
+        let record = MultiphaseRecord::from(&spec);
+        let json = serde_json::to_string(&record).unwrap();
+        let back: MultiphaseRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(MultiphaseSpec::try_from(back).unwrap(), spec);
+    }
+
+    #[test]
+    fn three_phase_column_specifications_round_trip() {
+        column_round_trip(ThreePhaseColumnSpec::default());
+        column_round_trip(ThreePhaseColumnSpec {
+            internals: ColumnInternals::Trays(9),
+            feed_stage: 4,
+            pressure_pa: Some(101_325.0),
+            decanter_temperature_k: Some(320.0),
+            reflux: DecanterReflux::Heavy(PhaseReflux::Ratio(Some(3.0))),
+            bottoms_fraction: Some(0.7),
+        });
+        let spec = ThreePhaseColumnSpec {
+            internals: ColumnInternals::Packed(PackedSectionSpec {
+                hetp_m: Some(0.4),
+                basis: PackedSectionBasis::PackedHeight {
+                    height_m: Some(2.0),
+                    rounding: StageRounding::Up,
+                },
+            }),
+            reflux: DecanterReflux::Fractions {
+                light: Some(0.9),
+                heavy: None,
+            },
+            ..Default::default()
+        };
+        column_round_trip(spec.clone());
+        let record = MultiphaseRecord::from(&MultiphaseSpec::ThreePhaseColumn(spec));
+        assert_eq!(record.numbers(), [0.4, 2.0, 0.9]);
+        column_round_trip(ThreePhaseColumnSpec {
+            reflux: DecanterReflux::Light(PhaseReflux::Ratio(None)),
+            ..Default::default()
+        });
+    }
+
+    #[test]
+    fn drawn_only_three_phase_column_record_loads_with_defaults() {
+        let record: MultiphaseRecord =
+            serde_json::from_str(r#"{"kind": "three_phase_column"}"#).unwrap();
+        assert_eq!(
+            MultiphaseSpec::try_from(record).unwrap(),
+            MultiphaseSpec::ThreePhaseColumn(ThreePhaseColumnSpec::default())
+        );
+        assert!(
+            serde_json::from_str::<MultiphaseRecord>(
+                r#"{"kind": "three_phase_column", "boilup_ratio": 1.0}"#
             )
             .is_err()
         );

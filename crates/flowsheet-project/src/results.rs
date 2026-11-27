@@ -260,6 +260,9 @@ pub struct UnitResult {
     /// Liquid–liquid extractor stage profile (#189, added behind format version 4).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub liquid_extractor: Option<LiquidExtractorProfile>,
+    /// Three-phase column profile and decanter (#188, added behind format version 4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub three_phase_column: Option<ThreePhaseColumnProfile>,
     /// Pump, compressor, expander or multistage compressor stages and power
     /// (A14, #182; added behind format version 4).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -398,6 +401,72 @@ impl From<&flowsheet_core::units::columns::AbsorberResult> for AbsorberProfile {
     fn from(r: &flowsheet_core::units::columns::AbsorberResult) -> Self {
         Self {
             stage_temperatures_k: r.stage_temperatures_k.clone(),
+            packed_height_m: r.packed_height_m,
+            iterations: r.iterations,
+        }
+    }
+}
+
+/// Saved profile of a three-phase column (#188), stages from the decanter
+/// (stage 1) to the reboiler. Stage 1 holds the decanter temperature, the
+/// reflux (liquid) and the condensate (vapor) composition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ThreePhaseColumnProfile {
+    pub stage_temperatures_k: Vec<f64>,
+    pub liquid_flows_mol_s: Vec<f64>,
+    pub vapor_flows_mol_s: Vec<f64>,
+    pub liquid_compositions: Vec<Vec<f64>>,
+    pub vapor_compositions: Vec<Vec<f64>>,
+    pub light_liquid_mol_s: f64,
+    pub light_liquid_composition: Vec<f64>,
+    pub heavy_liquid_mol_s: f64,
+    pub heavy_liquid_composition: Vec<f64>,
+    pub light_refluxed: bool,
+    /// Heat removed by the condenser, W.
+    pub condenser_duty_w: f64,
+    /// Heat supplied to the reboiler, W.
+    pub reboiler_duty_w: f64,
+    pub packed_height_m: Option<f64>,
+    pub iterations: usize,
+}
+
+impl ThreePhaseColumnProfile {
+    fn numbers(&self) -> impl Iterator<Item = f64> + '_ {
+        self.stage_temperatures_k
+            .iter()
+            .chain(&self.liquid_flows_mol_s)
+            .chain(&self.vapor_flows_mol_s)
+            .chain(self.liquid_compositions.iter().flatten())
+            .chain(self.vapor_compositions.iter().flatten())
+            .chain(&self.light_liquid_composition)
+            .chain(&self.heavy_liquid_composition)
+            .copied()
+            .chain([
+                self.light_liquid_mol_s,
+                self.heavy_liquid_mol_s,
+                self.condenser_duty_w,
+                self.reboiler_duty_w,
+            ])
+            .chain(self.packed_height_m)
+    }
+}
+
+impl From<&flowsheet_core::units::multiphase::ThreePhaseColumnResult> for ThreePhaseColumnProfile {
+    fn from(r: &flowsheet_core::units::multiphase::ThreePhaseColumnResult) -> Self {
+        Self {
+            stage_temperatures_k: r.stage_temperatures_k.clone(),
+            liquid_flows_mol_s: r.liquid_flows_mol_s.clone(),
+            vapor_flows_mol_s: r.vapor_flows_mol_s.clone(),
+            liquid_compositions: r.liquid_compositions.clone(),
+            vapor_compositions: r.vapor_compositions.clone(),
+            light_liquid_mol_s: r.light_liquid_mol_s,
+            light_liquid_composition: r.light_liquid_composition.clone(),
+            heavy_liquid_mol_s: r.heavy_liquid_mol_s,
+            heavy_liquid_composition: r.heavy_liquid_composition.clone(),
+            light_refluxed: r.light_refluxed,
+            condenser_duty_w: r.condenser_duty_w,
+            reboiler_duty_w: r.reboiler_duty_w,
             packed_height_m: r.packed_height_m,
             iterations: r.iterations,
         }
@@ -680,6 +749,7 @@ impl ResultSet {
                         distillation_column: u.distillation_column.as_ref().map(Into::into),
                         absorber: u.absorber.as_ref().map(Into::into),
                         liquid_extractor: u.liquid_extractor.as_ref().map(Into::into),
+                        three_phase_column: u.three_phase_column.as_ref().map(Into::into),
                         rotating: u.rotating.as_ref().map(Into::into),
                         warnings: u.warnings.clone(),
                         max_scaled_component_residual: u
@@ -837,6 +907,9 @@ impl ResultSet {
                     opt(r.packed_height_m) || r.stage_temperatures_k.iter().copied().any(bad)
                 })
                 || u.liquid_extractor
+                    .as_ref()
+                    .is_some_and(|r| r.numbers().any(bad))
+                || u.three_phase_column
                     .as_ref()
                     .is_some_and(|r| r.numbers().any(bad))
                 || u.rotating.as_ref().is_some_and(|r| r.numbers().any(bad))

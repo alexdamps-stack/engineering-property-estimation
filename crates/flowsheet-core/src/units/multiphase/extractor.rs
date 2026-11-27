@@ -582,7 +582,7 @@ fn sum_squares(values: &[f64]) -> f64 {
 /// Thomas algorithm for diag_j r_j − r_{j−1} − upper_{j+1} r_{j+1} = rhs_j
 /// (sub-diagonal −1, super-diagonal −factor_{j+1}).
 #[allow(clippy::needless_range_loop)]
-fn thomas(diag: &[f64], factor: &[f64], rhs: &[f64]) -> Option<Vec<f64>> {
+pub(super) fn thomas(diag: &[f64], factor: &[f64], rhs: &[f64]) -> Option<Vec<f64>> {
     let n = diag.len();
     let mut c = vec![0.0; n];
     let mut d = vec![0.0; n];
@@ -652,7 +652,7 @@ fn solve_dense(mut a: Block, mut b: Block) -> Option<Block> {
 
 /// Block Thomas algorithm for L_j x_{j−1} + D_j x_j + U_j x_{j+1} = rhs_j.
 #[allow(clippy::needless_range_loop)]
-fn block_tridiagonal_solve(
+pub(super) fn block_tridiagonal_solve(
     lower: Vec<Block>,
     mut diag: Vec<Block>,
     upper: Vec<Block>,

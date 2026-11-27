@@ -138,5 +138,6 @@ comparison is the ignored test `water_butanol_mutual_solubility_is_close_to_expe
   solved by the cubic bubble/dew operations since #227 ([A13 status](a13-status.md#227-extended-domain));
   there is no three-phase dew point (an incipient liquid is a single phase).
 - The desktop interface and `thermo-cli` do not expose the VLLE operations yet.
-- Units #176, #177, #188 and #189 remain drawn only; they can now be built on
-  `CalcContext::vlle`.
+- Units #176 and #177 remain drawn only; they can now be built on
+  `CalcContext::vlle`. The extractor (#189) and the three-phase column (#188)
+  use it.
