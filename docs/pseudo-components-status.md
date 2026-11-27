@@ -91,7 +91,7 @@ reactors refuse them before solving.
 | PH and PS round trips at a two-phase TP state; cp = ∂h/∂T at liquid, vapor and low-pressure states | Consistency | `crates/property-packages/tests/pseudo_components.rs` | 1e-6 K; 1e-6 relative |
 | Kerosene surrogate against its pseudo-component characterisation | Model comparison | same test and fixture | Declared before the first comparison (below) |
 | Heater and flash separator with five TBP cuts and methane, save/reload, stale-on-edit | Flowsheet evidence | `crates/flowsheet-project/tests/pseudo_components.rs` | Component residual < 1e-8, scaled energy residual < 2e-9 |
-| Failure paths: undefined, unselected or duplicate pseudo-components, partial matrix, empty source, interval outside the cp domain, non-cubic packages, A13 saturation, reactors, out-of-domain inputs, unknown stored fields | Failure behaviour | the three test files | — |
+| Failure paths: undefined, unselected or duplicate pseudo-components, partial matrix, empty source, interval outside the cp domain, non-cubic packages, saturation outside the requested bounds, reactors, out-of-domain inputs, unknown stored fields | Failure behaviour | the three test files | — |
 
 ### Surrogate versus pseudo-component case
 
@@ -136,9 +136,11 @@ experimental validation of either one.
 
 ## Limits and gaps
 
-- **Bubble/dew solvers:** the A13 solvers are qualified only for the dry light
-  components. With pseudo-components they return `UnsupportedCapability`
-  (tested). The surrogate case finds bubble and dew points by bisecting TP flashes.
+- **Bubble/dew solvers:** since #227 the A13 solvers cover pseudo-components.
+  Independent Clapeyron references for the kerosene cuts (alone and with methane)
+  are in `validation/fixtures/a13-extended-v1.json`, built from the correlated
+  constants of this record's Python fixture; the surrogate test also checks that
+  the solvers reproduce its TP-flash bisection within 2e-4 K.
 - **No independent EOS fixture:** there is no Clapeyron/teqp fixture for PR
   flashes that include pseudo-components. The cubic formulation is shared and
   already qualified; the new paths are the constants and the cp polynomial,

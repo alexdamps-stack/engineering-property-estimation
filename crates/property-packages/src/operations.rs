@@ -41,13 +41,48 @@ pub struct SaturationState {
     /// max_i |ln(x_i φ_i^L) − ln(y_i φ_i^V)| over components present in both phases.
     pub max_ln_fugacity_residual: f64,
     pub iterations: usize,
+    /// The heavier liquid of a three-phase (heterogeneous) bubble point (#227):
+    /// the specified liquid has split, `liquid`/`liquid_composition` are then the
+    /// lighter liquid and this is the heavier one. `None` for a two-phase boundary.
+    /// Callers that assume one liquid must reject a state that carries it.
+    pub second_liquid: Option<SaturationSecondLiquid>,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+/// Heavier liquid of a three-phase bubble point.
+#[derive(Debug, Clone)]
+pub struct SaturationSecondLiquid {
+    pub composition: Vec<f64>,
+    pub properties: PhaseProperties,
+    /// Moles of this liquid per mole of the specified (overall) liquid.
+    pub material_fraction: f64,
 }
 
 impl SaturationState {
     /// A bounded A13 saturation point (cubic or GERG-2008) with its finite-trial
     /// stability evidence summarized as a diagnostic.
     pub(crate) fn from_point(point: thermo_solvers::SaturationPoint, model: &str) -> Self {
+        let mut diagnostics = vec![Diagnostic {
+            code: "A13-BOUNDED-SATURATION".into(),
+            severity: DiagnosticSeverity::Information,
+            message: format!(
+                "{model} bubble/dew point from the bounded A13 solver: liquid and vapor roots, fugacity re-check 1e-9, phases stable in finite TPD trials; no critical-point or retrograde continuation."
+            ),
+        }];
+        if !point.multiphase_stability.is_empty() {
+            diagnostics.push(Diagnostic {
+                code: "A13-MULTIPHASE-EVIDENCE".into(),
+                severity: DiagnosticSeverity::Information,
+                message: "Extended (non-dry) component set: the boundary phases also pass the multiphase (VLLE) aqueous, hydrocarbon and near-pure TPD trials.".into(),
+            });
+        }
+        if point.second_liquid.is_some() {
+            diagnostics.push(Diagnostic {
+                code: "A13-THREE-PHASE-BUBBLE".into(),
+                severity: DiagnosticSeverity::Warning,
+                message: "Three-phase bubble point: the specified liquid splits into two liquids in equilibrium with the incipient vapor.".into(),
+            });
+        }
         Self {
             kind: match point.kind {
                 thermo_solvers::CubicSaturationKind::Bubble => SaturationKind::Bubble,
@@ -61,13 +96,12 @@ impl SaturationState {
             vapor: point.vapor.into(),
             max_ln_fugacity_residual: point.max_ln_fugacity_residual,
             iterations: point.iterations,
-            diagnostics: vec![Diagnostic {
-                code: "A13-BOUNDED-SATURATION".into(),
-                severity: DiagnosticSeverity::Information,
-                message: format!(
-                    "{model} bubble/dew point from the bounded A13 solver: liquid and vapor roots, fugacity re-check 1e-9, both phases stable in finite TPD trials; no critical-point or retrograde continuation."
-                ),
-            }],
+            second_liquid: point.second_liquid.map(|l| SaturationSecondLiquid {
+                composition: l.composition,
+                properties: l.state.into(),
+                material_fraction: l.material_fraction,
+            }),
+            diagnostics,
         }
     }
 }

@@ -218,7 +218,18 @@ fn gerg_shortcut(
     p: f64,
     feed_t: f64,
 ) -> (Result<Calculation, SolveError>, UnitId) {
-    let package = gerg(ids, z);
+    shortcut(&gerg(ids, z), ids, z, p, feed_t, ("ethane", "propane"))
+}
+
+/// Shortcut column at `p` under `package`, fed at `feed_t`.
+fn shortcut(
+    package: &dyn FlowsheetPackage,
+    ids: &[&str],
+    z: &[f64],
+    p: f64,
+    feed_t: f64,
+    (light, heavy): (&str, &str),
+) -> (Result<Calculation, SolveError>, UnitId) {
     let mut flowsheet = Flowsheet::new();
     let source = flowsheet.add_unit(UnitKind::Feed);
     let column = flowsheet.add_unit(UnitKind::ShortcutColumn);
@@ -237,8 +248,8 @@ fn gerg_shortcut(
             column,
             UnitSpec::Columns(units::ColumnSpec::Shortcut(
                 units::columns::ShortcutColumnSpec {
-                    light_key: Some("ethane".into()),
-                    heavy_key: Some("propane".into()),
+                    light_key: Some(light.into()),
+                    heavy_key: Some(heavy.into()),
                     light_key_recovery: Some(0.95),
                     heavy_key_recovery: Some(0.95),
                     pressure_pa: Some(p),
@@ -258,7 +269,7 @@ fn gerg_shortcut(
         .unwrap();
     let mut feeds = FeedCompositions::new();
     feeds.insert(source, composition(ids, z));
-    (flowsheet.solve(&package, &feeds), column)
+    (flowsheet.solve(package, &feeds), column)
 }
 
 #[test]
@@ -284,6 +295,47 @@ fn shortcut_column_under_gerg_uses_gerg_bubble_and_dew_points() {
     assert_eq!(e.unit, Some(column));
     assert!(
         e.message.contains("distillate bubble point"),
+        "{}",
+        e.message
+    );
+}
+
+/// #227: a propane/water feed has a three-phase bubble point (two liquids). The
+/// cubic package returns it, and the single-liquid shortcut column rejects it
+/// instead of using one liquid's K-values.
+#[test]
+fn shortcut_column_rejects_a_three_phase_bubble_point() {
+    let ids = ["propane", "water"];
+    let z = [0.5, 0.5];
+    let model = thermo_models::CubicModel::new(
+        &ComponentDatabase::embedded().unwrap(),
+        &composition(&ids, &z),
+        thermo_models::CubicVariant::PengRobinson,
+        vec![vec![0.0, 0.5], vec![0.5, 0.0]],
+        "explicit water/hydrocarbon kij approximation",
+    )
+    .unwrap();
+    let package = property_packages::CubicPackage::new(
+        model,
+        thermo_solvers::PhFlashOptions {
+            minimum_temperature_k: 200.0,
+            maximum_temperature_k: 600.0,
+            ..Default::default()
+        },
+    );
+    let bubble = FlowsheetPackage::saturation_temperature(
+        &package,
+        &z,
+        1.5e6,
+        property_packages::SaturationKind::Bubble,
+    )
+    .unwrap();
+    assert!(bubble.second_liquid.is_some());
+    let (calc, column) = shortcut(&package, &ids, &z, 1.5e6, 300.0, ("propane", "water"));
+    let e = calc.unwrap_err();
+    assert_eq!(e.unit, Some(column));
+    assert!(
+        e.message.contains("three-phase bubble point"),
         "{}",
         e.message
     );

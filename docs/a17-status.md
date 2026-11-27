@@ -278,7 +278,7 @@ The solver fails explicitly when:
 - the feed has zero flow or no state;
 - a key is unknown, absent from the feed or the same as the other key;
 - the column pressure exceeds the feed pressure;
-- a bubble or dew point lies outside the A13 domain or is near critical;
+- a bubble or dew point lies outside the package's bubble/dew domain, is near critical, or is a three-phase bubble point (the feed liquid splits);
 - the keys are inverted or not adjacent;
 - the volatilities do not converge;
 - $R_{min}\le 0$, $R\le R_{min}$ or the multiple of minimum reflux is at most 1;
@@ -288,10 +288,13 @@ The solver fails explicitly when:
 It warns when the Gilliland abscissa lies outside 0.01–0.9 or when a non-key
 component distributes between the products.
 
-**Domain and limits.** Bubble and dew points use the bounded A13 saturation
-solver. Every feed component must be methane, ethane, propane, nitrogen or
-carbon dioxide, and states must lie within 200–350 K and 10 kPa–10 MPa.
-Water, methanol and oxygen are rejected. The results are design estimates.
+**Domain and limits.** Bubble and dew points use the package's bounded
+saturation solver. Under the cubic packages this covers every package component
+(including water, methanol and pseudo-components) over the package temperature
+interval and 1 kPa–10 MPa ([A13 status, #227](a13-status.md#227-extended-domain)).
+A feed whose liquid splits into two liquids is rejected, but the stage
+model does not test internal stages for a second liquid, so water–hydrocarbon
+systems remain outside the validated scope. The results are design estimates.
 Several things are not modelled:
 
 - tray hydraulics, column diameter and efficiencies;
@@ -314,7 +317,8 @@ $D$ can guide specifications for the [equilibrium-stage distillation
 column](a17-columns-stages.md). That column and the absorber both support
 ideal trays and HETP beds. Rate-based packing, three-phase columns,
 extraction and petroleum fractionation are later batches. Other mixtures
-need phase-equilibrium validation beyond the dry hydrocarbon/N2/CO2 set.
+need stage-level liquid–liquid checks before they are validated; the absorber
+still restricts its active components to the dry hydrocarbon/N2/CO2 set.
 A detailed condenser or reboiler heat-transfer model should expose a fixed
 temperature approach to a defined utility reference.
 

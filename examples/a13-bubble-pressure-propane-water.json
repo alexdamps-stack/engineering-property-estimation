@@ -1,0 +1,25 @@
+{
+  "id": "a13-bubble-pressure-propane-water",
+  "calculation": "bubble-pressure",
+  "components": [
+    "propane",
+    "water"
+  ],
+  "mole_fractions": [
+    0.5,
+    0.5
+  ],
+  "model": "PR",
+  "kij": [
+    [
+      0,
+      0.5
+    ],
+    [
+      0.5,
+      0
+    ]
+  ],
+  "interaction_source": "Explicit water/hydrocarbon kij = 0.5 approximation of the #224 VLLE references; not fitted VLE data",
+  "temperature_K": 320.0
+}

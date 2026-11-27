@@ -13,7 +13,7 @@ root, run:
 julia --project=validation/julia validation/julia/check.jl
 ```
 
-The script instantiates `validation/julia/Manifest.toml` and checks four
+The script instantiates `validation/julia/Manifest.toml` and checks six
 committed fixtures in turn:
 
 | Fixture | Generator | Rust test (`cargo test -p thermo-solvers --locked --test …`) | Candidate variable |
@@ -23,6 +23,7 @@ committed fixtures in turn:
 | `a13-v1.json` (A13 bubble/dew and envelope) | `generate_a13.jl` | `a13_clapeyron` | `THERMO_A13_REFERENCE` |
 | `package-operations-v1.json` (#226 GERG bubble/dew, GERG/NRTL/EOS-CG machines) | `generate_packages.jl` | `-p flowsheet-core --test package_references` | `THERMO_PACKAGE_REFERENCE` |
 | `vlle-v1.json` (#224 VLLE/LLE TP and PH) | `generate_vlle.jl` | `vlle_clapeyron` | `THERMO_VLLE_REFERENCE` |
+| `a13-extended-v1.json` (#227 bubble/dew beyond the dry set, three-phase bubble points) | `generate_a13_extended.jl` | `-p property-packages --test a13_extended_clapeyron` | `THERMO_A13_EXTENDED_REFERENCE` |
 
 For each fixture it verifies the committed input, generator and environment
 hashes, generates a temporary Julia candidate, checks that the candidate
@@ -289,3 +290,24 @@ negative TPD (see [VLLE status](../docs/vlle-status.md) for why). The binary
 three-phase temperatures of the invariant PH cases are solved the same way. No
 Rust call or output enters the generator. Scope, cases and tolerances are in
 the [VLLE status](../docs/vlle-status.md).
+
+## #227 extended bubble/dew check
+
+`check.jl` also verifies `fixtures/a13-extended-v1.json` (input, generator and
+manifest hashes), regenerates it with `generate_a13_extended.jl` from
+`validation/a13-extended-inputs.json` and runs
+`cargo test -p property-packages --test a13_extended_clapeyron` with
+`THERMO_A13_EXTENDED_REFERENCE`. Models come from the unchanged `generate.jl`
+adapter, extended by the reacting and ChemSep component extracts;
+pseudo-components use the correlated constants of the independent Python
+fixture `pseudo-components-v1.json`. Clapeyron's native bubble/dew solvers
+supply each two-phase root (water-bearing dew points are also started from
+aqueous and hydrocarbon incipient-liquid guesses). Each root is refined at 256
+bits and accepted only after bound, volume-ratio and tangent-plane tests of both
+phases (a composition grid up to three components, Clapeyron's `tpd` beyond);
+exactly one accepted root is required. The native 0.6.30 solvers stop near
+1e-8 in ln f, too loose for the A13 pressure budget, hence the refinement.
+Three-phase bubble points are solved at 256 bits from Clapeyron's multiphase
+flash at a stated liquid-side guess and accepted after a grid TPD test. No Rust
+call or output enters the generator. Scope, cases and tolerances are in the
+[A13 status](../docs/a13-status.md#227-extended-domain).

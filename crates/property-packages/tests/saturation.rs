@@ -130,3 +130,68 @@ fn package_accepts_near_unit_pure_fractions_without_panicking() {
         }
     }
 }
+
+/// #227: the package's bubble/dew bounds are its own temperature interval and
+/// 1 kPa..10 MPa; water-bearing and three-phase boundaries are package results.
+#[test]
+fn package_bounds_cover_the_interval_wet_components_and_three_phase_bubbles() {
+    use property_packages::{
+        CUBIC_PACKAGE_SATURATION_PRESSURE_RANGE_PA, FlowsheetPackage, SaturationKind,
+    };
+    let composition = Composition::new(
+        CompositionBasis::Mole,
+        vec![
+            (ComponentId::new("propane").unwrap(), 0.5),
+            (ComponentId::new("water").unwrap(), 0.5),
+        ],
+        NormalizationPolicy::RequireUnitSum,
+    )
+    .unwrap();
+    let model = CubicModel::new(
+        &ComponentDatabase::embedded().unwrap(),
+        &composition,
+        CubicVariant::PengRobinson,
+        vec![vec![0., 0.5], vec![0.5, 0.]],
+        "explicit water/hydrocarbon kij approximation",
+    )
+    .unwrap();
+    let package = CubicPackage::new(
+        model,
+        PhFlashOptions {
+            minimum_temperature_k: 200.,
+            maximum_temperature_k: 600.,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        FlowsheetPackage::saturation_temperature_interval(&package).unwrap(),
+        [200., 600.]
+    );
+    assert_eq!(CUBIC_PACKAGE_SATURATION_PRESSURE_RANGE_PA, [1e3, 1e7]);
+    // Pure water near ambient temperature (vapor pressure about 3 kPa).
+    let water =
+        FlowsheetPackage::saturation_pressure(&package, &[0., 1.], 300., SaturationKind::Bubble)
+            .unwrap();
+    assert!(water.pressure_pa > 2e3 && water.pressure_pa < 5e3);
+    assert!(water.second_liquid.is_none());
+    // Propane and water are immiscible liquids: the bubble point has three phases.
+    let bubble =
+        FlowsheetPackage::saturation_pressure(&package, &[0.5, 0.5], 320., SaturationKind::Bubble)
+            .unwrap();
+    let second = bubble.second_liquid.as_ref().unwrap();
+    assert!(second.composition[1] > 0.99 && bubble.liquid_composition[0] > 0.9);
+    assert!(second.material_fraction > 0.4 && second.material_fraction < 0.6);
+    assert!(
+        bubble
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "A13-THREE-PHASE-BUBBLE")
+    );
+    // Its dew point is an ordinary two-phase boundary with an aqueous liquid.
+    let dew =
+        FlowsheetPackage::saturation_pressure(&package, &[0.5, 0.5], 320., SaturationKind::Dew)
+            .unwrap();
+    assert!(dew.second_liquid.is_none());
+    assert!(dew.liquid_composition[1] > 0.99);
+    assert!(dew.pressure_pa < bubble.pressure_pa);
+}

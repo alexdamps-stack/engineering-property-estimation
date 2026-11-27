@@ -7,12 +7,20 @@ use thermo_solvers::{
 use thermo_types::{Pressure, Temperature};
 
 fn point(p: &SaturationPoint) -> Value {
-    json!({"temperature_K":p.temperature_k,"pressure_Pa_absolute":p.pressure_pa,
+    let mut value = json!({"temperature_K":p.temperature_k,"pressure_Pa_absolute":p.pressure_pa,
         "liquid_mole_fractions":p.liquid_composition,"vapor_mole_fractions":p.vapor_composition,
         "liquid":super::state_json(&p.liquid),"vapor":super::state_json(&p.vapor),
         "max_abs_ln_fugacity_residual":p.max_ln_fugacity_residual,"iterations":p.iterations,
         "phase_stability":p.phase_stability.iter().map(super::stability_json).collect::<Vec<_>>(),
-        "provenance":super::provenance(&p.liquid)})
+        "multiphase_stable_in_trials":p.multiphase_stability.iter().map(|s| s.stable_in_trials).collect::<Vec<_>>(),
+        "provenance":super::provenance(&p.liquid)});
+    // Three-phase bubble point (#227): `liquid` is the lighter liquid.
+    if let Some(second) = &p.second_liquid {
+        value["heavy_liquid_mole_fractions"] = json!(second.composition);
+        value["heavy_liquid"] = super::state_json(&second.state);
+        value["heavy_liquid_fraction_of_material"] = json!(second.material_fraction);
+    }
+    value
 }
 fn stop_json(stop: &EnvelopeStop) -> Value {
     match stop {
@@ -100,13 +108,22 @@ pub fn calculate(
     result["requested_pressure_range_Pa_absolute"] =
         json!([o.minimum_pressure_pa, o.maximum_pressure_pa]);
     result["validity"] = json!(
-        "A13 bounded dry cubic VLE; finite TPD trials, no global stability proof; volume ratio >=1.5, mixture composition separation >=0.03; no retrograde/critical extrapolation or experimental accuracy claim"
+        "A13 bounded cubic VLE (dry set, and since #227 every cubic component with multiphase TPD evidence and three-phase bubble points); finite TPD trials, no global stability proof; volume ratio >=1.5, mixture |ln K| >=0.03, liquids >=0.03 apart, pure T/Tc <=0.95, no solids below the water/CO2 triple point; no retrograde/critical extrapolation or experimental accuracy claim"
     );
     Ok(result)
 }
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+    #[test]
+    fn three_phase_bubble_example_reports_the_heavy_liquid() {
+        let input = include_str!("../../../examples/a13-bubble-pressure-propane-water.json");
+        let case = serde_json::from_str(input).unwrap();
+        let result = super::super::calculate(case).unwrap();
+        let text = result.to_string();
+        assert!(text.contains("heavy_liquid_mole_fractions"), "{text}");
+        assert!(text.contains("heavy_liquid_fraction_of_material"), "{text}");
+    }
     #[test]
     fn saturation_input_conflicts_are_rejected() {
         let input = include_str!("../../../examples/a13-bubble-pressure-binary.json");

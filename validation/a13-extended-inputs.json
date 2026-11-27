@@ -1,0 +1,2486 @@
+{
+  "schema": "a13-extended-inputs-v1",
+  "scope": "#227 bubble/dew cases beyond the dry A13 set: water, methanol, 1-butanol, oxygen, hydrogen, carbon monoxide and pseudo-components, 200-600 K, three-phase bubble points. Explicit synthetic kij = 0, except the explicit water/nonpolar approximation kij = 0.5 of the #224 VLLE references and a synthetic methanol/water kij = -0.08 (PR with kij = 0 predicts a spurious methanol/water liquid split below about 330 K); no fitted experimental accuracy claim.",
+  "default_bounds": {
+    "T": [
+      200.0,
+      600.0
+    ],
+    "p": [
+      1000.0,
+      10000000.0
+    ]
+  },
+  "cases": [
+    {
+      "id": "water-bubble-pressure-300K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 300.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-325K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 325.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-350K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 350.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-375K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 375.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-400K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 400.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-425K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 425.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-450K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 450.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-475K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 475.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-500K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 500.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-525K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 525.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-550K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 550.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-575K-PR",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 575.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "water-bubble"
+    },
+    {
+      "id": "water-bubble-pressure-600K-PR-BM",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 600.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          20000000.0
+        ]
+      }
+    },
+    {
+      "id": "water-dew-temperature-10000Pa-PR-BM",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 10000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "water-dew-temperature-101325Pa-PR-BM",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 101325.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "water-dew-temperature-1e+06Pa-PR-BM",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 1000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "water-dew-temperature-5e+06Pa-PR-BM",
+      "ids": [
+        "water"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 5000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "methanol-bubble-pressure-300K-PR",
+      "ids": [
+        "methanol"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 300.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "methanol-bubble-pressure-400K-PR",
+      "ids": [
+        "methanol"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 400.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "methanol-bubble-pressure-480K-PR",
+      "ids": [
+        "methanol"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 480.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "methanol-bubble-temperature-101325Pa-PR-BM",
+      "ids": [
+        "methanol"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 101325.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "methanol-bubble-temperature-1e+06Pa-PR-BM",
+      "ids": [
+        "methanol"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 1000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "ethane-dew-temperature-1e+06Pa-PR",
+      "ids": [
+        "ethane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 1000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "ethane-dew-temperature-3e+06Pa-PR",
+      "ids": [
+        "ethane"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 3000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "co2-bubble-pressure-220K-PR-BM",
+      "ids": [
+        "carbon-dioxide"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 220.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "co2-bubble-pressure-260K-PR-BM",
+      "ids": [
+        "carbon-dioxide"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 260.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "co2-bubble-pressure-285K-PR-BM",
+      "ids": [
+        "carbon-dioxide"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 285.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "butanol-bubble-pressure-400K-PR",
+      "ids": [
+        "1-butanol"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 400.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "butanol-bubble-pressure-500K-PR",
+      "ids": [
+        "1-butanol"
+      ],
+      "z": [
+        1.0
+      ],
+      "kij": [
+        [
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 500.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "mw-bubble-pressure-320K-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 320.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "mw-bubble"
+    },
+    {
+      "id": "mw-bubble-pressure-340K-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 340.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "mw-bubble"
+    },
+    {
+      "id": "mw-bubble-pressure-360K-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 360.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "mw-bubble"
+    },
+    {
+      "id": "mw-bubble-pressure-380K-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 380.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "mw-bubble"
+    },
+    {
+      "id": "mw-bubble-pressure-400K-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 400.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "mw-bubble"
+    },
+    {
+      "id": "mw-bubble-pressure-420K-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 420.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "mw-bubble"
+    },
+    {
+      "id": "mw-bubble-pressure-440K-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 440.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "mw-bubble"
+    },
+    {
+      "id": "mw-bubble-pressure-460K-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 460.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "trace_group": "mw-bubble"
+    },
+    {
+      "id": "mw-dew-pressure-350K-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 350.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "mw-dew-pressure-420K-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 420.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "mw-bubble-temperature-101325Pa-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 101325.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "mw-dew-temperature-101325Pa-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 101325.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "mw-bubble-temperature-1e+06Pa-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 1000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "mw-dew-temperature-1e+06Pa-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 1000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "mw-bubble-temperature-101325Pa-PR-BM",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.4,
+        0.6
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 101325.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "mw-dilute-bubble-temperature-101325Pa-PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.02,
+        0.98
+      ],
+      "kij": [
+        [
+          0.0,
+          -0.08
+        ],
+        [
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 101325.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "butanol-methanol-bubble-temperature-101325Pa-PR",
+      "ids": [
+        "1-butanol",
+        "methanol"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 101325.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "wet-methane-dew-temperature-1e+06Pa-PR",
+      "ids": [
+        "methane",
+        "water"
+      ],
+      "z": [
+        0.99,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 1000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "wet-methane-dew-temperature-5e+06Pa-PR",
+      "ids": [
+        "methane",
+        "water"
+      ],
+      "z": [
+        0.99,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 5000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "wet-methane-dew-temperature-5e+06Pa-PR-BM",
+      "ids": [
+        "methane",
+        "water"
+      ],
+      "z": [
+        0.99,
+        0.01
+      ],
+      "kij": [
+        [
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 5000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "flue-gas-dew-temperature-101325Pa-PR",
+      "ids": [
+        "nitrogen",
+        "oxygen",
+        "carbon-dioxide",
+        "water"
+      ],
+      "z": [
+        0.72,
+        0.04,
+        0.12,
+        0.12
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 101325.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "flue-gas-dew-pressure-330K-PR-BM",
+      "ids": [
+        "nitrogen",
+        "oxygen",
+        "carbon-dioxide",
+        "water"
+      ],
+      "z": [
+        0.72,
+        0.04,
+        0.12,
+        0.12
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 330.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "wet-gas-aqueous-dew-temperature-2e+06Pa-PR",
+      "ids": [
+        "methane",
+        "propane",
+        "water"
+      ],
+      "z": [
+        0.8,
+        0.15,
+        0.05
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 2000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "wet-gas-trace-water-dew-temperature-2e+06Pa-PR",
+      "ids": [
+        "methane",
+        "propane",
+        "water"
+      ],
+      "z": [
+        0.85,
+        0.149,
+        0.001
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 2000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "wet-gas-lean-water-dew-temperature-5e+06Pa-PR",
+      "ids": [
+        "methane",
+        "propane",
+        "water"
+      ],
+      "z": [
+        0.7,
+        0.29995,
+        5e-05
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 5000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "wet-gas-hydrocarbon-dew-temperature-2e+06Pa-PR",
+      "ids": [
+        "methane",
+        "propane",
+        "water"
+      ],
+      "z": [
+        0.6,
+        0.399999,
+        1e-06
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 2000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "syngas-methanol-dew-temperature-5e+06Pa-PR",
+      "ids": [
+        "hydrogen",
+        "carbon-monoxide",
+        "methanol"
+      ],
+      "z": [
+        0.7,
+        0.25,
+        0.05
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 5000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "syngas-methanol-dew-temperature-5e+06Pa-PR-BM",
+      "ids": [
+        "hydrogen",
+        "carbon-monoxide",
+        "methanol"
+      ],
+      "z": [
+        0.7,
+        0.25,
+        0.05
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 5000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "syngas-methanol-dew-pressure-340K-PR",
+      "ids": [
+        "hydrogen",
+        "carbon-monoxide",
+        "methanol"
+      ],
+      "z": [
+        0.7,
+        0.25,
+        0.05
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "pressure",
+      "fixed": 340.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "methane-methanol-water-dew-temperature-3e+06Pa-PR",
+      "ids": [
+        "methane",
+        "methanol",
+        "water"
+      ],
+      "z": [
+        0.9,
+        0.05,
+        0.05
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.0,
+          0.0,
+          -0.08
+        ],
+        [
+          0.5,
+          -0.08,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 3000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      }
+    },
+    {
+      "id": "kerosene-pseudo-bubble-temperature-101325Pa-PR",
+      "ids": [
+        "pseudo:surrogate-m-xylene",
+        "pseudo:surrogate-n-decane",
+        "pseudo:surrogate-n-dodecane"
+      ],
+      "z": [
+        0.2,
+        0.4,
+        0.4
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 101325.0,
+      "bounds": {
+        "T": [
+          250.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "pseudo": true
+    },
+    {
+      "id": "kerosene-pseudo-dew-temperature-101325Pa-PR",
+      "ids": [
+        "pseudo:surrogate-m-xylene",
+        "pseudo:surrogate-n-decane",
+        "pseudo:surrogate-n-dodecane"
+      ],
+      "z": [
+        0.2,
+        0.4,
+        0.4
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 101325.0,
+      "bounds": {
+        "T": [
+          250.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "pseudo": true
+    },
+    {
+      "id": "kerosene-pseudo-bubble-temperature-1e+06Pa-PR",
+      "ids": [
+        "pseudo:surrogate-m-xylene",
+        "pseudo:surrogate-n-decane",
+        "pseudo:surrogate-n-dodecane"
+      ],
+      "z": [
+        0.2,
+        0.4,
+        0.4
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 1000000.0,
+      "bounds": {
+        "T": [
+          250.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "pseudo": true
+    },
+    {
+      "id": "kerosene-pseudo-dew-temperature-1e+06Pa-PR",
+      "ids": [
+        "pseudo:surrogate-m-xylene",
+        "pseudo:surrogate-n-decane",
+        "pseudo:surrogate-n-dodecane"
+      ],
+      "z": [
+        0.2,
+        0.4,
+        0.4
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "dew",
+      "unknown": "temperature",
+      "fixed": 1000000.0,
+      "bounds": {
+        "T": [
+          250.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "pseudo": true
+    },
+    {
+      "id": "methane-kerosene-pseudo-bubble-pressure-450K-PR",
+      "ids": [
+        "methane",
+        "pseudo:surrogate-m-xylene",
+        "pseudo:surrogate-n-decane",
+        "pseudo:surrogate-n-dodecane"
+      ],
+      "z": [
+        0.1,
+        0.18,
+        0.36,
+        0.36
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 450.0,
+      "bounds": {
+        "T": [
+          250.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "pseudo": true
+    },
+    {
+      "id": "propane-water-3phase-bubble-pressure-320K-PR",
+      "ids": [
+        "propane",
+        "water"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 320.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "three_phase": true,
+      "guess": 2500000.0
+    },
+    {
+      "id": "propane-water-3phase-bubble-pressure-350K-PR-BM",
+      "ids": [
+        "propane",
+        "water"
+      ],
+      "z": [
+        0.3,
+        0.7
+      ],
+      "kij": [
+        [
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 350.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "three_phase": true,
+      "guess": 4000000.0
+    },
+    {
+      "id": "propane-water-3phase-bubble-temperature-2e+06Pa-PR",
+      "ids": [
+        "propane",
+        "water"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 2000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "three_phase": true,
+      "guess": 300.0
+    },
+    {
+      "id": "propane-water-3phase-bubble-temperature-1e+06Pa-PR-BM",
+      "ids": [
+        "propane",
+        "water"
+      ],
+      "z": [
+        0.5,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR-BM",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 1000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "three_phase": true,
+      "guess": 280.0
+    },
+    {
+      "id": "methane-propane-water-3phase-bubble-pressure-320K-PR",
+      "ids": [
+        "methane",
+        "propane",
+        "water"
+      ],
+      "z": [
+        0.05,
+        0.45,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "pressure",
+      "fixed": 320.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "three_phase": true,
+      "guess": 6000000.0
+    },
+    {
+      "id": "methane-propane-water-3phase-bubble-temperature-3e+06Pa-PR",
+      "ids": [
+        "methane",
+        "propane",
+        "water"
+      ],
+      "z": [
+        0.05,
+        0.45,
+        0.5
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.0,
+          0.0,
+          0.5
+        ],
+        [
+          0.5,
+          0.5,
+          0.0
+        ]
+      ],
+      "variant": "PR",
+      "kind": "bubble",
+      "unknown": "temperature",
+      "fixed": 3000000.0,
+      "bounds": {
+        "T": [
+          200.0,
+          600.0
+        ],
+        "p": [
+          1000.0,
+          10000000.0
+        ]
+      },
+      "three_phase": true,
+      "guess": 270.0
+    }
+  ]
+}

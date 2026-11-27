@@ -1,13 +1,22 @@
 //! Bounded PR/PR-BM and GERG-2008 bubble/dew boundaries; no critical-point or
 //! retrograde continuation.
+//!
+//! #227 extends the cubic domain beyond the dry C1–C3/N2/CO2 set to every
+//! component of the cubic package (including water, methanol and
+//! pseudo-components). A boundary whose active set is not dry (an *extended*
+//! set) additionally gets aqueous and hydrocarbon incipient-liquid seeds when
+//! water is present, multiphase (VLLE) tangent-plane evidence for its phases,
+//! and, for a bubble point whose specified liquid splits into two liquids, the
+//! three-phase (heterogeneous) bubble point bracketed with the VLLE flash.
 use crate::equilibrium_model::EquilibriumModel;
 use crate::gerg_flash::{GergEquilibrium, validate};
 use crate::gerg_ph::{gerg_pure_saturation_pressure, gerg_pure_saturation_temperature};
 use crate::stability::assess_stability_impl;
 use crate::{
+    MultiphaseOptions, MultiphaseStability, MultiphaseTpFlash, PhaseRole,
     SATURATION_MAX_REDUCED_TEMPERATURE, StabilityAssessment, StabilityOptions, assess_stability,
     gerg_flash::QUALIFIED_DRY_COMPONENTS, pure_saturation_pressure,
-    saturation::single_active_component,
+    saturation::single_active_component, vlle_stability, vlle_tp_flash,
 };
 use thermo_models::{
     CUBIC_PRESSURE_RANGE_PA, CUBIC_TEMPERATURE_RANGE_K, CubicModel, GergModel, HomogeneousState,
@@ -88,7 +97,39 @@ pub struct SaturationPoint {
     pub iterations: usize,
     /// Finite-trial TPD evidence for liquid and vapor, in that order.
     pub phase_stability: [StabilityAssessment; 2],
+    /// Multiphase (VLLE) TPD evidence for an extended (non-dry) component set:
+    /// liquid then vapor for a two-phase point, the vapor for a three-phase
+    /// bubble point. Empty for the dry A13 set and for GERG-2008.
+    pub multiphase_stability: Vec<MultiphaseStability>,
+    /// The second liquid of a three-phase (heterogeneous) bubble point. The
+    /// specified liquid has then split: `liquid` and `liquid_composition` are the
+    /// lighter liquid (lower mass density), and this is the heavier one. `None`
+    /// for an ordinary two-phase boundary.
+    pub second_liquid: Option<SecondLiquid>,
 }
+
+/// Heavier liquid of a three-phase bubble point, in equilibrium with the lighter
+/// liquid and the incipient vapor.
+#[derive(Debug, Clone)]
+pub struct SecondLiquid {
+    pub composition: Vec<f64>,
+    pub state: HomogeneousState,
+    /// Moles of this liquid per mole of the specified (overall) liquid.
+    pub material_fraction: f64,
+}
+
+/// Temperatures of the solid–liquid–vapor triple points of components that
+/// freeze inside the cubic temperature interval, K. Solids are not modelled: a
+/// boundary below one of these with a liquid that is at least
+/// [`FREEZING_LIQUID_FRACTION`] of that component is outside the domain.
+pub const TRIPLE_POINT_TEMPERATURES_K: [(&str, f64); 2] =
+    [("water", 273.16), ("carbon-dioxide", 216.592)];
+/// Liquid mole fraction of a freezing component at or above which a boundary
+/// below its triple-point temperature is rejected.
+pub const FREEZING_LIQUID_FRACTION: f64 = 0.9;
+/// Minimum max_i |x_i^L1 − x_i^L2| of a three-phase bubble point; closer liquids
+/// are treated as a plait (liquid–liquid critical) point.
+pub const PLAIT_LIQUID_SEPARATION: f64 = 0.03;
 
 /// Composition is the specified liquid for bubble, specified vapor for dew.
 pub fn saturation_pressure(
@@ -177,11 +218,56 @@ trait SaturationModel: EquilibriumModel {
         max_iterations: usize,
     ) -> Result<(f64, usize), Rejection>;
     fn assess_stability(&self, t: Temperature, p: Pressure) -> Result<StabilityAssessment, Error>;
+    /// True when an active component lies outside the dry A13 set, so that the
+    /// extended (multiphase-aware) treatment applies. GERG-2008 is never extended.
+    fn extended(&self) -> bool {
+        false
+    }
+    /// Multiphase TPD evidence of this composition; only for extended models.
+    fn multiphase_stability(
+        &self,
+        _t: Temperature,
+        _p: Pressure,
+    ) -> Result<MultiphaseStability, Error> {
+        Err(Error::UnsupportedCapability(
+            "multiphase stability unavailable for this saturation model".into(),
+        ))
+    }
+    /// Multiphase TP flash of this composition; only for extended models.
+    fn multiphase_flash(
+        &self,
+        _t: Temperature,
+        _p: Pressure,
+    ) -> Result<MultiphaseTpFlash<HomogeneousState>, Error> {
+        Err(Error::UnsupportedCapability(
+            "multiphase flash unavailable for this saturation model".into(),
+        ))
+    }
 }
 
 impl SaturationModel for CubicModel {
     fn component_ids(&self) -> Vec<&str> {
         self.component_ids()
+    }
+    fn extended(&self) -> bool {
+        self.component_ids()
+            .iter()
+            .zip(self.fractions())
+            .any(|(id, x)| *x > 0.0 && !QUALIFIED_DRY_COMPONENTS.contains(id))
+    }
+    fn multiphase_stability(
+        &self,
+        t: Temperature,
+        p: Pressure,
+    ) -> Result<MultiphaseStability, Error> {
+        vlle_stability(self, t, p, MultiphaseOptions::default())
+    }
+    fn multiphase_flash(
+        &self,
+        t: Temperature,
+        p: Pressure,
+    ) -> Result<MultiphaseTpFlash<HomogeneousState>, Error> {
+        vlle_tp_flash(self, t, p, MultiphaseOptions::default())
     }
     fn critical_temperature(&self, index: usize) -> f64 {
         self.components()[index].critical_temperature()
@@ -282,6 +368,8 @@ enum RejectionKind {
     MetastablePhase,
     /// Boundary phases unstable in finite TPD trials (third phase or LLE).
     UnstableBoundaryPhases,
+    /// Below a triple point with an essentially pure freezing liquid.
+    SolidPhase,
 }
 
 #[derive(Debug, Clone)]
@@ -328,17 +416,6 @@ fn solve<M: SaturationModel>(
     o: SaturationOptions,
 ) -> Result<SaturationPoint, Rejection> {
     o.validate()?;
-    if model
-        .component_ids()
-        .iter()
-        .zip(model.fractions())
-        .any(|(id, x)| *x > 0.0 && !QUALIFIED_DRY_COMPONENTS.contains(id))
-    {
-        return Err(Error::UnsupportedCapability(
-            "A13 qualified dry hydrocarbon/N2/CO2 cubic domain only".into(),
-        )
-        .into());
-    }
     let (lo, hi) = if pressure_unknown {
         (o.minimum_pressure_pa.ln(), o.maximum_pressure_pa.ln())
     } else {
@@ -374,9 +451,14 @@ fn solve<M: SaturationModel>(
             (fixed, p, iterations)
         } else {
             let a = o.minimum_temperature_k;
-            let b = o
+            let mut b = o
                 .maximum_temperature_k
                 .min(SATURATION_MAX_REDUCED_TEMPERATURE * tc);
+            // 0.95 Tc can round to a temperature whose T/Tc exceeds 0.95, which the
+            // pure-pressure solver rejects; step down to the largest admitted value.
+            while b / tc > SATURATION_MAX_REDUCED_TEMPERATURE {
+                b = b.next_down();
+            }
             if b <= a {
                 return Err(Rejection::near_critical(
                     "A13 near-critical diagnostic: no supported pure-temperature interval",
@@ -408,6 +490,7 @@ fn solve<M: SaturationModel>(
         .enumerate()
         .filter_map(|(i, x)| (*x > 0.0).then_some(i))
         .collect();
+    let extended = model.extended();
     let mut solutions: Vec<SaturationPoint> = Vec::new();
     let mut rejection: Option<Rejection> = None;
     for seed in 0..=12 {
@@ -418,90 +501,584 @@ fn solve<M: SaturationModel>(
             (u.exp(), fixed)
         };
         let k = model.wilson_values(temperature(t)?, pressure(p)?);
-        let mut q = vec![u];
-        q.extend(active.iter().map(|i| k[*i].ln()));
-        for iteration in 1..=o.max_iterations {
-            let Ok((r, x, y)) = residual(model, fixed, pressure_unknown, kind, &active, &q) else {
-                break;
-            };
-            let norm = r.iter().fold(0.0_f64, |a, v| a.max(v.abs()));
-            if norm < 2e-11 {
-                let (t, p) = if pressure_unknown {
-                    (fixed, q[0].exp())
-                } else {
-                    (q[0].exp(), fixed)
-                };
-                match point(model, t, p, kind, x, y, iteration) {
-                    Ok(s) => {
-                        if !solutions.iter().any(|old| {
-                            (old.temperature_k - t).abs() < 1e-5
-                                && (old.pressure_pa / p - 1.0).abs() < 1e-7
-                        }) {
-                            solutions.push(s);
-                        }
-                    }
-                    Err(r) => keep_most_specific(&mut rejection, r),
-                }
-                break;
-            }
-            let n = q.len();
-            let mut jac = vec![vec![0.0; n]; n];
-            let mut valid = true;
-            for j in 0..n {
-                let mut shifted = q.clone();
-                shifted[j] += 1e-5;
-                if let Ok((v, _, _)) =
-                    residual(model, fixed, pressure_unknown, kind, &active, &shifted)
-                {
-                    for i in 0..n {
-                        jac[i][j] = (v[i] - r[i]) / 1e-5;
-                    }
-                } else {
-                    valid = false;
-                    break;
-                }
-            }
-            if !valid {
-                break;
-            }
-            let Some(step) = linear(jac, r.iter().map(|v| -v).collect()) else {
-                keep_most_specific(
-                    &mut rejection,
-                    Rejection::near_critical(
-                        "A13 near-critical diagnostic: singular boundary equations; no verified point returned",
-                    ),
-                );
-                break;
-            };
-            let mut accepted = false;
-            let mut scale = 1.0;
-            for _ in 0..20 {
-                let next: Vec<_> = q.iter().zip(&step).map(|(a, b)| a + scale * b).collect();
-                if next[0] >= lo
-                    && next[0] <= hi
-                    && next.iter().all(|v| v.is_finite() && v.abs() < 100.0)
-                    && let Ok((v, _, _)) =
-                        residual(model, fixed, pressure_unknown, kind, &active, &next)
-                    && v.iter().fold(0.0_f64, |a, v| a.max(v.abs())) < norm
-                {
-                    q = next;
-                    accepted = true;
-                    break;
-                }
-                scale *= 0.5;
-            }
-            if !accepted {
-                break;
-            }
+        let mut starts = vec![active.iter().map(|i| k[*i].ln()).collect::<Vec<_>>()];
+        if extended && kind == CubicSaturationKind::Dew {
+            starts.extend(incipient_liquid_seeds(model, &active));
+        }
+        for ln_k in starts {
+            let mut q = vec![u];
+            q.extend(ln_k);
+            newton_from_seed(
+                model,
+                fixed,
+                pressure_unknown,
+                kind,
+                &active,
+                q,
+                (lo, hi),
+                o.max_iterations,
+                &mut solutions,
+                &mut rejection,
+            );
         }
     }
     match solutions.len() {
         1 => Ok(solutions.remove(0)),
+        0 if extended && kind == CubicSaturationKind::Bubble => {
+            // A liquid that splits into two liquids has no two-phase bubble point;
+            // try the three-phase (heterogeneous) bubble point instead.
+            match three_phase_bubble(model, fixed, pressure_unknown, &active, (lo, hi), o) {
+                Ok(point) => Ok(point),
+                Err(ThreePhase::NotBracketed) => Err(no_boundary(rejection)),
+                // A specific three-phase rejection (plait point, fugacity re-check,
+                // metastable or unstable phases) is reported; a generic flash or
+                // iteration failure does not mask a two-phase rejection.
+                Err(ThreePhase::Rejected(r)) => match rejection {
+                    Some(two_phase) if r.kind == RejectionKind::Other => Err(two_phase),
+                    _ => Err(r),
+                },
+            }
+        }
         // Report the most specific reason a converged root was rejected.
-        0 => Err(rejection.unwrap_or_else(|| {
-            Error::NonConvergence("A13 no verified boundary inside requested bounds; iteration limit, absent bracket or unsupported branch".into()).into()
-        })),
+        0 => Err(no_boundary(rejection)),
         _ => Err(Error::UnsupportedCapability("A13 multiple saturation branches in requested interval; narrow bounds; retrograde branch selection unsupported".into()).into()),
+    }
+}
+
+/// Outcome of the three-phase bubble attempt that did not return a point.
+enum ThreePhase {
+    /// The VLLE scan found no two-liquid state next to a vapor-bearing one: there
+    /// is no heterogeneous bubble point to report, and the two-phase rejection stands.
+    NotBracketed,
+    Rejected(Rejection),
+}
+
+impl From<Error> for ThreePhase {
+    fn from(error: Error) -> Self {
+        Self::Rejected(error.into())
+    }
+}
+
+/// Phase set of the specified liquid at one coordinate of the VLLE scan.
+enum ScanState {
+    TwoLiquids(MultiphaseTpFlash<HomogeneousState>),
+    Vapor(MultiphaseTpFlash<HomogeneousState>),
+    Other,
+}
+
+/// Number of scan intervals of the three-phase bracket search.
+const THREE_PHASE_SCAN_INTERVALS: usize = 24;
+/// Bisection stops once the bracket is this narrow in ln T or ln p.
+const THREE_PHASE_BRACKET_WIDTH: f64 = 1e-6;
+
+fn coordinates(fixed: f64, pressure_unknown: bool, u: f64) -> (f64, f64) {
+    if pressure_unknown {
+        (fixed, u.exp())
+    } else {
+        (u.exp(), fixed)
+    }
+}
+
+fn scan_state<M: SaturationModel>(
+    model: &M,
+    fixed: f64,
+    pressure_unknown: bool,
+    u: f64,
+) -> Result<ScanState, Error> {
+    let (t, p) = coordinates(fixed, pressure_unknown, u);
+    let flash = model.multiphase_flash(temperature(t)?, pressure(p)?)?;
+    let vapor = flash.phases.iter().any(|ph| ph.role == PhaseRole::Vapor);
+    Ok(if vapor {
+        ScanState::Vapor(flash)
+    } else if flash.phases.len() == 2 {
+        ScanState::TwoLiquids(flash)
+    } else {
+        ScanState::Other
+    })
+}
+
+/// Three-phase (heterogeneous) bubble point of a specified liquid that splits
+/// into two liquids. The VLLE flash scans from the liquid side (high pressure or
+/// low temperature) for the first vapor-bearing state after a two-liquid one,
+/// bisects that bracket, and Newton's method then solves
+/// ln K2_i + ln φ_i^L2 − ln φ_i^L1 = 0, ln Kv_i + ln φ_i^V − ln φ_i^L1 = 0,
+/// Σ (x1_i − x2_i) = 0 and ln Σ y_i = 0 for ln T or ln p, ln K2, the heavy-liquid
+/// amount β and ln Kv, with x1 = z/(1 + β(K2 − 1)), x2 = K2 x1, y = Kv x1.
+fn three_phase_bubble<M: SaturationModel>(
+    model: &M,
+    fixed: f64,
+    pressure_unknown: bool,
+    active: &[usize],
+    (lo, hi): (f64, f64),
+    o: SaturationOptions,
+) -> Result<SaturationPoint, ThreePhase> {
+    // exp(ln bound) can round just outside the bound (and the EOS envelope).
+    let (lo, hi) = (lo + 1e-12, hi - 1e-12);
+    let at = |k: usize| {
+        let s = k as f64 / THREE_PHASE_SCAN_INTERVALS as f64;
+        if pressure_unknown {
+            hi - (hi - lo) * s
+        } else {
+            lo + (hi - lo) * s
+        }
+    };
+    let mut previous: Option<(f64, MultiphaseTpFlash<HomogeneousState>)> = None;
+    let mut bracket = None;
+    for k in 0..=THREE_PHASE_SCAN_INTERVALS {
+        let u = at(k);
+        match scan_state(model, fixed, pressure_unknown, u)? {
+            ScanState::TwoLiquids(flash) => previous = Some((u, flash)),
+            ScanState::Vapor(flash) => {
+                if let Some((ua, liquids)) = previous.take() {
+                    bracket = Some((ua, liquids, u, flash));
+                }
+                break;
+            }
+            ScanState::Other => previous = None,
+        }
+    }
+    let Some((mut ua, mut liquids, mut ub, mut vapor)) = bracket else {
+        return Err(ThreePhase::NotBracketed);
+    };
+    let mut bisections = 0;
+    while (ub - ua).abs() > THREE_PHASE_BRACKET_WIDTH {
+        if bisections == o.max_iterations {
+            return Err(ThreePhase::Rejected(
+                Error::NonConvergence("A13 three-phase bubble bracket iteration limit".into())
+                    .into(),
+            ));
+        }
+        bisections += 1;
+        let mid = 0.5 * (ua + ub);
+        match scan_state(model, fixed, pressure_unknown, mid)? {
+            ScanState::TwoLiquids(flash) => (ua, liquids) = (mid, flash),
+            ScanState::Vapor(flash) => (ub, vapor) = (mid, flash),
+            ScanState::Other => {
+                return Err(ThreePhase::Rejected(
+                    Error::NonConvergence(
+                        "A13 three-phase bubble: the liquid-liquid split vanishes inside the bracket; no verified point returned".into(),
+                    )
+                    .into(),
+                ));
+            }
+        }
+    }
+    let z = model.fractions();
+    let (light, heavy) = (&liquids.phases[0], &liquids.phases[1]);
+    let Some(incipient) = vapor.phases.iter().find(|ph| ph.role == PhaseRole::Vapor) else {
+        return Err(ThreePhase::NotBracketed);
+    };
+    let m = active.len();
+    let mut q = vec![0.5 * (ua + ub)];
+    q.extend(
+        active
+            .iter()
+            .map(|i| (heavy.composition[*i] / light.composition[*i]).ln()),
+    );
+    q.push(heavy.phase_fraction);
+    q.extend(
+        active
+            .iter()
+            .map(|i| (incipient.composition[*i] / light.composition[*i]).ln()),
+    );
+    if q.iter().any(|v| !v.is_finite()) || z.len() != light.composition.len() {
+        return Err(ThreePhase::Rejected(
+            Error::NumericalFailure("A13 three-phase bubble: invalid initial phases".into()).into(),
+        ));
+    }
+    let mut rejection: Option<Rejection> = None;
+    for iteration in 1..=o.max_iterations {
+        let Ok((r, phases)) = residual3(model, fixed, pressure_unknown, active, &q) else {
+            break;
+        };
+        let norm = r.iter().fold(0.0_f64, |a, v| a.max(v.abs()));
+        if norm < 2e-11 {
+            let (t, p) = coordinates(fixed, pressure_unknown, q[0]);
+            let [x1, x2, y] = phases;
+            return three_phase_point(model, t, p, x1, x2, y, q[1 + m], iteration)
+                .map_err(ThreePhase::Rejected);
+        }
+        let n = q.len();
+        let mut jac = vec![vec![0.0; n]; n];
+        for j in 0..n {
+            let mut shifted = q.clone();
+            let step = 1e-7_f64.max(1e-7 * q[j].abs());
+            // Difference inward at the coordinate bound and the β = 1 limit.
+            let inward = (j == 0 && q[0] + step > hi) || (j == 1 + m && q[j] + step >= 1.0);
+            shifted[j] += if inward { -step } else { step };
+            let h = shifted[j] - q[j];
+            let Ok((v, _)) = residual3(model, fixed, pressure_unknown, active, &shifted) else {
+                return Err(ThreePhase::Rejected(
+                    Error::NonConvergence(
+                        "A13 three-phase bubble: Jacobian evaluation failed".into(),
+                    )
+                    .into(),
+                ));
+            };
+            for i in 0..n {
+                jac[i][j] = (v[i] - r[i]) / h;
+            }
+        }
+        let Some(step) = linear(jac, r.iter().map(|v| -v).collect()) else {
+            rejection = Some(Rejection::near_critical(
+                "A13 near-critical diagnostic: singular three-phase bubble equations (plait or critical point); no verified point returned",
+            ));
+            break;
+        };
+        let mut accepted = false;
+        let mut scale = 1.0;
+        for _ in 0..30 {
+            let next: Vec<_> = q.iter().zip(&step).map(|(a, b)| a + scale * b).collect();
+            let beta = next[1 + m];
+            if next[0] >= lo
+                && next[0] <= hi
+                && beta > 0.0
+                && beta < 1.0
+                && next.iter().all(|v| v.is_finite() && v.abs() < 100.0)
+                && let Ok((v, _)) = residual3(model, fixed, pressure_unknown, active, &next)
+                && v.iter().fold(0.0_f64, |a, v| a.max(v.abs())) < norm
+            {
+                q = next;
+                accepted = true;
+                break;
+            }
+            scale *= 0.5;
+        }
+        if !accepted {
+            break;
+        }
+    }
+    Err(ThreePhase::Rejected(rejection.unwrap_or_else(|| {
+        Error::NonConvergence(
+            "A13 three-phase bubble point did not converge inside the requested bounds".into(),
+        )
+        .into()
+    })))
+}
+
+type ThreePhaseResidual = (Vec<f64>, [Vec<f64>; 3]);
+
+fn residual3<M: SaturationModel>(
+    model: &M,
+    fixed: f64,
+    pressure_unknown: bool,
+    active: &[usize],
+    q: &[f64],
+) -> Result<ThreePhaseResidual, Error> {
+    let m = active.len();
+    let (t, p) = coordinates(fixed, pressure_unknown, q[0]);
+    let beta = q[1 + m];
+    let z = model.fractions();
+    let mut x1 = vec![0.0; z.len()];
+    let mut x2 = x1.clone();
+    let mut y = x1.clone();
+    for (j, &i) in active.iter().enumerate() {
+        let k2 = q[1 + j].exp();
+        let kv = q[2 + m + j].exp();
+        let denominator = 1.0 + beta * (k2 - 1.0);
+        if denominator.is_nan() || denominator <= 0.0 {
+            return Err(Error::NumericalFailure(
+                "A13 three-phase bubble: nonpositive liquid amount".into(),
+            ));
+        }
+        x1[i] = z[i] / denominator;
+        x2[i] = k2 * x1[i];
+        y[i] = kv * x1[i];
+    }
+    let sums = [&x1, &x2, &y].map(|x| x.iter().sum::<f64>());
+    if sums.iter().any(|s| !s.is_finite() || *s <= 0.0) {
+        return Err(Error::NumericalFailure(
+            "A13 three-phase bubble: invalid phase composition".into(),
+        ));
+    }
+    let normalized = [&x1, &x2, &y]
+        .iter()
+        .zip(sums)
+        .map(|(x, s)| x.iter().map(|v| v / s).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    let t = Temperature::new(t)?;
+    let p = Pressure::new(p)?;
+    let l1 =
+        model
+            .with_fractions(&normalized[0])?
+            .ln_fugacity(t, p, RootSelection::SmallestVolume)?;
+    let l2 =
+        model
+            .with_fractions(&normalized[1])?
+            .ln_fugacity(t, p, RootSelection::SmallestVolume)?;
+    let v =
+        model
+            .with_fractions(&normalized[2])?
+            .ln_fugacity(t, p, RootSelection::LargestVolume)?;
+    let mut r = vec![sums[2].ln(), sums[0] - sums[1]];
+    r.extend(active.iter().enumerate().map(|(j, i)| {
+        q[1 + j] + l2.ln_fugacity_coefficients[*i] - l1.ln_fugacity_coefficients[*i]
+    }));
+    r.extend(active.iter().enumerate().map(|(j, i)| {
+        q[2 + m + j] + v.ln_fugacity_coefficients[*i] - l1.ln_fugacity_coefficients[*i]
+    }));
+    let [a, b, c]: [Vec<f64>; 3] = normalized
+        .try_into()
+        .map_err(|_| Error::NumericalFailure("A13 three-phase bubble phases".into()))?;
+    Ok((r, [a, b, c]))
+}
+
+/// Verifies a converged three-phase bubble point with the checks of [`point`]
+/// applied to all three phases, plus a plait-point guard on the two liquids.
+#[allow(clippy::too_many_arguments)]
+fn three_phase_point<M: SaturationModel>(
+    model: &M,
+    t: f64,
+    p: f64,
+    x1: Vec<f64>,
+    x2: Vec<f64>,
+    y: Vec<f64>,
+    beta: f64,
+    iterations: usize,
+) -> Result<SaturationPoint, Rejection> {
+    check_freezing(model, t, &[&x1, &x2])?;
+    let tm = temperature(t)?;
+    let pr = pressure(p)?;
+    let models = [
+        model.with_fractions(&x1)?,
+        model.with_fractions(&x2)?,
+        model.with_fractions(&y)?,
+    ];
+    let roots = [
+        RootSelection::SmallestVolume,
+        RootSelection::SmallestVolume,
+        RootSelection::LargestVolume,
+    ];
+    let mut states = Vec::new();
+    for (phase, root) in models.iter().zip(roots) {
+        states.push(phase.evaluate(tm, pr, root)?);
+    }
+    let separation = x1
+        .iter()
+        .zip(&x2)
+        .map(|(a, b)| (a - b).abs())
+        .fold(0.0, f64::max);
+    if separation < PLAIT_LIQUID_SEPARATION {
+        return Err(Rejection::near_critical(&format!(
+            "A13 near-critical diagnostic: the two liquids of the three-phase bubble point differ by less than {PLAIT_LIQUID_SEPARATION} in mole fraction (plait point)"
+        )));
+    }
+    if states[2].molar_volume / states[0].molar_volume < 1.5
+        || states[2].molar_volume / states[1].molar_volume < 1.5
+    {
+        return Err(Rejection::near_critical(
+            "A13 near-critical diagnostic: vapor/liquid volume ratio <1.5 at the three-phase bubble point",
+        ));
+    }
+    if beta.is_nan() || beta <= 1e-9 || beta >= 1.0 - 1e-9 {
+        return Err(Error::NonConvergence(
+            "A13 three-phase bubble: a liquid amount vanishes; no verified point returned".into(),
+        )
+        .into());
+    }
+    let compositions = [&x1, &x2, &y];
+    let mut residual: f64 = 0.0;
+    for i in 0..x1.len() {
+        if x1[i] > 0.0 && x2[i] > 0.0 && y[i] > 0.0 {
+            let reference = x1[i].ln() + states[0].ln_fugacity_coefficients[i];
+            for k in 1..3 {
+                let value = compositions[k][i].ln() + states[k].ln_fugacity_coefficients[i];
+                residual = residual.max((value - reference).abs());
+            }
+        }
+    }
+    if residual > 1e-9 {
+        return Err(Rejection::new(
+            RejectionKind::FugacityRecheck,
+            Error::NonConvergence("A13 three-phase fugacity equality failed".into()),
+        ));
+    }
+    for ((phase, composition), selected) in models.iter().zip(compositions).zip(&states) {
+        let stable = phase.ln_fugacity(tm, pr, RootSelection::MinimumGibbs)?;
+        let excess: f64 = composition
+            .iter()
+            .zip(&selected.ln_fugacity_coefficients)
+            .zip(&stable.ln_fugacity_coefficients)
+            .map(|((w, a), b)| w * (a - b))
+            .sum();
+        if excess > 1e-8 {
+            return Err(Rejection::new(
+                RejectionKind::MetastablePhase,
+                Error::UnsupportedCapability(
+                    "A13 selected three-phase root is metastable relative to another root".into(),
+                ),
+            ));
+        }
+    }
+    let phase_stability = [
+        models[0].assess_stability(tm, pr)?,
+        models[2].assess_stability(tm, pr)?,
+    ];
+    let multiphase = models[2].multiphase_stability(tm, pr)?;
+    if phase_stability.iter().any(|s| !s.stable_in_trials) || !multiphase.stable_in_trials {
+        return Err(Rejection::new(
+            RejectionKind::UnstableBoundaryPhases,
+            Error::UnsupportedCapability(
+                "A13 three-phase bubble phases unstable in TPD trials (a fourth phase or a lower tangent plane)".into(),
+            ),
+        ));
+    }
+    let [l1, l2, v]: [HomogeneousState; 3] = states
+        .try_into()
+        .map_err(|_| Error::NumericalFailure("A13 three-phase states".into()))?;
+    // The lighter liquid is reported as `liquid`, the heavier as the second liquid.
+    let (light, light_x, heavy, heavy_x, heavy_fraction) = if l1.mass_density <= l2.mass_density {
+        (l1, x1, l2, x2, beta)
+    } else {
+        (l2, x2, l1, x1, 1.0 - beta)
+    };
+    Ok(SaturationPoint {
+        kind: CubicSaturationKind::Bubble,
+        temperature_k: t,
+        pressure_pa: p,
+        liquid_composition: light_x,
+        vapor_composition: y,
+        liquid: light,
+        vapor: v,
+        max_ln_fugacity_residual: residual,
+        iterations,
+        phase_stability,
+        multiphase_stability: vec![multiphase],
+        second_liquid: Some(SecondLiquid {
+            composition: heavy_x,
+            state: heavy,
+            material_fraction: heavy_fraction,
+        }),
+    })
+}
+
+fn no_boundary(rejection: Option<Rejection>) -> Rejection {
+    rejection.unwrap_or_else(|| {
+        Error::NonConvergence("A13 no verified boundary inside requested bounds; iteration limit, absent bracket or unsupported branch".into()).into()
+    })
+}
+
+/// Incipient-liquid starts for a dew point of a water-bearing vapor, in ln K of
+/// the active components: an aqueous liquid (0.999 water) and a hydrocarbon
+/// liquid (the water-free vapor with 0.001 water). These mirror the aqueous and
+/// hydrocarbon trials of the multiphase stability test.
+fn incipient_liquid_seeds<M: SaturationModel>(model: &M, active: &[usize]) -> Vec<Vec<f64>> {
+    let ids = model.component_ids();
+    let y = model.fractions();
+    let Some(water) = active.iter().copied().find(|i| ids[*i] == "water") else {
+        return Vec::new();
+    };
+    let dry: f64 = active.iter().filter(|i| **i != water).map(|i| y[*i]).sum();
+    if dry <= 0.0 {
+        return Vec::new();
+    }
+    [0.999, 0.001]
+        .iter()
+        .map(|water_fraction| {
+            active
+                .iter()
+                .map(|i| {
+                    let x = if *i == water {
+                        *water_fraction
+                    } else {
+                        (1.0 - water_fraction) * y[*i] / dry
+                    };
+                    (y[*i] / x).ln()
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// Bounded finite-difference Newton from one seed; a converged root is verified
+/// by [`point`] and either added to `solutions` (deduplicated) or recorded as a
+/// rejection.
+#[allow(clippy::too_many_arguments)]
+fn newton_from_seed<M: SaturationModel>(
+    model: &M,
+    fixed: f64,
+    pressure_unknown: bool,
+    kind: CubicSaturationKind,
+    active: &[usize],
+    mut q: Vec<f64>,
+    (lo, hi): (f64, f64),
+    max_iterations: usize,
+    solutions: &mut Vec<SaturationPoint>,
+    rejection: &mut Option<Rejection>,
+) {
+    let active = active.to_vec();
+    for iteration in 1..=max_iterations {
+        let Ok((r, x, y)) = residual(model, fixed, pressure_unknown, kind, &active, &q) else {
+            break;
+        };
+        let norm = r.iter().fold(0.0_f64, |a, v| a.max(v.abs()));
+        if norm < 2e-11 {
+            let (t, p) = if pressure_unknown {
+                (fixed, q[0].exp())
+            } else {
+                (q[0].exp(), fixed)
+            };
+            match point(model, t, p, kind, x, y, iteration) {
+                Ok(s) => {
+                    if !solutions.iter().any(|old| {
+                        (old.temperature_k - t).abs() < 1e-5
+                            && (old.pressure_pa / p - 1.0).abs() < 1e-7
+                    }) {
+                        solutions.push(s);
+                    }
+                }
+                Err(r) => keep_most_specific(rejection, r),
+            }
+            break;
+        }
+        let n = q.len();
+        let mut jac = vec![vec![0.0; n]; n];
+        let mut valid = true;
+        for j in 0..n {
+            let mut shifted = q.clone();
+            shifted[j] += 1e-5;
+            if let Ok((v, _, _)) = residual(model, fixed, pressure_unknown, kind, &active, &shifted)
+            {
+                for i in 0..n {
+                    jac[i][j] = (v[i] - r[i]) / 1e-5;
+                }
+            } else {
+                valid = false;
+                break;
+            }
+        }
+        if !valid {
+            break;
+        }
+        let Some(step) = linear(jac, r.iter().map(|v| -v).collect()) else {
+            keep_most_specific(
+                rejection,
+                Rejection::near_critical(
+                    "A13 near-critical diagnostic: singular boundary equations; no verified point returned",
+                ),
+            );
+            break;
+        };
+        let mut accepted = false;
+        let mut scale = 1.0;
+        for _ in 0..20 {
+            let next: Vec<_> = q.iter().zip(&step).map(|(a, b)| a + scale * b).collect();
+            if next[0] >= lo
+                && next[0] <= hi
+                && next.iter().all(|v| v.is_finite() && v.abs() < 100.0)
+                && let Ok((v, _, _)) =
+                    residual(model, fixed, pressure_unknown, kind, &active, &next)
+                && v.iter().fold(0.0_f64, |a, v| a.max(v.abs())) < norm
+            {
+                q = next;
+                accepted = true;
+                break;
+            }
+            scale *= 0.5;
+        }
+        if !accepted {
+            break;
+        }
     }
 }
 
@@ -578,6 +1155,7 @@ fn point<M: SaturationModel>(
     let pr = pressure(p)?;
     let lm = model.with_fractions(&x)?;
     let vm = model.with_fractions(&y)?;
+    check_freezing(model, t, &[&x])?;
     let l = lm.evaluate(tm, pr, RootSelection::SmallestVolume)?;
     let v = vm.evaluate(tm, pr, RootSelection::LargestVolume)?;
     // K → 1 test on the active components (a pure fluid has K = 1 by definition).
@@ -639,6 +1217,23 @@ fn point<M: SaturationModel>(
             ));
         }
     }
+    // Extended sets: the multiphase trials (aqueous, hydrocarbon, every near-pure
+    // component) must not find a third phase below either phase's tangent plane.
+    let mut multiphase_stability = Vec::new();
+    if model.extended() && single_active_component(model.fractions()).is_none() {
+        for phase in [&lm, &vm] {
+            let evidence = phase.multiphase_stability(tm, pr)?;
+            if !evidence.stable_in_trials {
+                return Err(Rejection::new(
+                    RejectionKind::UnstableBoundaryPhases,
+                    Error::UnsupportedCapability(
+                        "A13 boundary phases unstable in multiphase TPD trials (a third phase, or a liquid-liquid split)".into(),
+                    ),
+                ));
+            }
+            multiphase_stability.push(evidence);
+        }
+    }
     Ok(SaturationPoint {
         kind,
         temperature_k: t,
@@ -650,7 +1245,33 @@ fn point<M: SaturationModel>(
         max_ln_fugacity_residual: residual,
         iterations,
         phase_stability,
+        multiphase_stability,
+        second_liquid: None,
     })
+}
+
+/// Rejects a boundary below a component's triple-point temperature whose liquid
+/// is essentially that component: the solid (ice, dry ice) is not modelled.
+fn check_freezing<M: SaturationModel>(
+    model: &M,
+    t: f64,
+    liquids: &[&[f64]],
+) -> Result<(), Rejection> {
+    let ids = model.component_ids();
+    for (id, triple) in TRIPLE_POINT_TEMPERATURES_K {
+        let Some(i) = ids.iter().position(|c| *c == id) else {
+            continue;
+        };
+        if t < triple && liquids.iter().any(|x| x[i] >= FREEZING_LIQUID_FRACTION) {
+            return Err(Rejection::new(
+                RejectionKind::SolidPhase,
+                Error::OutsideValidityDomain(format!(
+                    "A13 boundary at {t} K is below the {id} triple point ({triple} K) with a liquid of at least {FREEZING_LIQUID_FRACTION} {id}; solid phases are not modelled"
+                )),
+            ));
+        }
+    }
+    Ok(())
 }
 fn linear(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
     let n = b.len();

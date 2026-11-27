@@ -2,7 +2,8 @@
 # the committed fixtures' provenance, generates temporary candidates and tests
 # the current Rust engine against them. Never replaces committed expected values.
 # Covers PR/PR-BM (clapeyron-v1.json), the A7 NRTL/gamma-phi path (nrtl-v1.json),
-# A13 saturation (a13-v1.json) and #224 VLLE/LLE (vlle-v1.json).
+# A13 saturation (a13-v1.json), #227 extended saturation (a13-extended-v1.json)
+# and #224 VLLE/LLE (vlle-v1.json).
 using Pkg, SHA
 
 VERSION == v"1.11.7" || error("Clapeyron standard check pins Julia 1.11.7; found $VERSION")
@@ -102,14 +103,16 @@ function main()
     verify_provenance("a13-v1.json", "generate_a13.jl")
     verify_provenance("package-operations-v1.json", "generate_packages.jl")
     verify_provenance("vlle-v1.json", "generate_vlle.jl")
+    verify_provenance("a13-extended-v1.json", "generate_a13_extended.jl")
     mktempdir() do dir
         live("generate.jl", "clapeyron-v1.json", joinpath(dir,"clapeyron-current.json"), "clapeyron", "THERMO_CLAPEYRON_REFERENCE"; minimal_compilation=true)
         live("generate_nrtl.jl", "nrtl-v1.json", joinpath(dir,"nrtl-current.json"), "nrtl_clapeyron", "THERMO_NRTL_REFERENCE"; minimal_compilation=false)
         live("generate_a13.jl", "a13-v1.json", joinpath(dir,"a13-current.json"), "a13_clapeyron", "THERMO_A13_REFERENCE"; minimal_compilation=false)
         live("generate_packages.jl", "package-operations-v1.json", joinpath(dir,"packages-current.json"), "package_references", "THERMO_PACKAGE_REFERENCE"; minimal_compilation=false, crate="flowsheet-core")
         live("generate_vlle.jl", "vlle-v1.json", joinpath(dir,"vlle-current.json"), "vlle_clapeyron", "THERMO_VLLE_REFERENCE"; minimal_compilation=false)
+        live("generate_a13_extended.jl", "a13-extended-v1.json", joinpath(dir,"a13-extended-current.json"), "a13_extended_clapeyron", "THERMO_A13_EXTENDED_REFERENCE"; minimal_compilation=false, crate="property-packages")
     end
-    println("Live Clapeyron standard check passed (PR/PR-BM, NRTL, A13 saturation, #226 package operations and #224 VLLE/LLE); fresh references reproduce the committed fixtures, which were not modified.")
+    println("Live Clapeyron standard check passed (PR/PR-BM, NRTL, A13 saturation, #226 package operations, #224 VLLE/LLE and #227 extended saturation); fresh references reproduce the committed fixtures, which were not modified.")
 end
 
 main()
