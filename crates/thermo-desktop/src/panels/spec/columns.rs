@@ -6,12 +6,14 @@ use flowsheet_core::units::columns::packing::{
     PackedSectionBasis, PackedSectionSpec, StageRounding,
 };
 use flowsheet_core::units::columns::{
-    ColumnInternals, DistillationColumnSpec, MAX_COLUMN_PORTS, MAX_COLUMN_STAGES,
+    BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget,
+    DistillationColumnSpec, DistillationCondenser, MAX_COLUMN_PORTS, MAX_COLUMN_STAGES,
     MAX_DISTILLATION_INTERNAL_STAGES, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux,
+    TopSpecification,
 };
 use flowsheet_core::units::{ColumnSpec, GroupSpec};
 
-use super::{choice, count_field, drawn_only_note, note_row, opt_field};
+use super::{choice, count_field, drawn_only_note, note_row, opt_field, value_field};
 use crate::units::{DisplayUnits, Quantity};
 
 /// Form of a [`ColumnSpec`]. Feeds and side draws are numbered ports; a
@@ -20,7 +22,7 @@ pub(super) fn form(ui: &mut Ui, spec: &mut ColumnSpec, u: DisplayUnits, componen
     let kind = spec.kind();
     match spec {
         ColumnSpec::Shortcut(s) => shortcut_form(ui, s, u, components),
-        ColumnSpec::Distillation(s) => distillation_form(ui, s, u),
+        ColumnSpec::Distillation(s) => distillation_form(ui, s, u, components),
         ColumnSpec::PetroleumFractionator(s) => {
             count_field(ui, "Side draws", &mut s.side_draws, 0..=MAX_COLUMN_PORTS);
         }
@@ -42,7 +44,12 @@ pub(super) fn form(ui: &mut Ui, spec: &mut ColumnSpec, u: DisplayUnits, componen
     drawn_only_note(ui, kind);
 }
 
-fn distillation_form(ui: &mut Ui, s: &mut DistillationColumnSpec, units: DisplayUnits) {
+fn distillation_form(
+    ui: &mut Ui,
+    s: &mut DistillationColumnSpec,
+    units: DisplayUnits,
+    components: &[String],
+) {
     count_field(ui, "Feeds", &mut s.feeds, 1..=MAX_COLUMN_PORTS);
     count_field(
         ui,
@@ -53,31 +60,23 @@ fn distillation_form(ui: &mut Ui, s: &mut DistillationColumnSpec, units: Display
     s.feed_stages.truncate(usize::from(s.feeds));
     s.liquid_draws.truncate(usize::from(s.side_draws));
 
+    count_field(
+        ui,
+        "Vapor side draws",
+        &mut s.vapor_side_draws,
+        0..=MAX_COLUMN_PORTS,
+    );
+    s.vapor_draws.truncate(usize::from(s.vapor_side_draws));
+
     internals_form(ui, &mut s.internals, units);
-    opt_field(
-        ui,
-        "Column pressure",
-        &mut s.pressure_pa,
-        Quantity::Pressure,
-        units,
-    );
-    opt_field(
-        ui,
-        "Reflux ratio L/D",
-        &mut s.reflux_ratio,
-        Quantity::Factor,
-        units,
-    );
-    opt_field(
-        ui,
-        "Feed to distillate",
-        &mut s.distillate_fraction,
-        Quantity::Fraction,
-        units,
-    );
+    condenser_form(ui, s, units);
+    pressure_form(ui, s, units);
+    top_form(ui, &mut s.top, units, components);
+    bottom_form(ui, &mut s.bottom, units, components);
     note_row(
         ui,
-        "Stage 1 is the total condenser. The last stage is the partial reboiler.",
+        "Stage 1 is the condenser. The last stage is the partial reboiler. \
+         Specifications other than flows and the reflux ratio are met by iteration.",
     );
     let stage_range = 2..=MAX_DISTILLATION_INTERNAL_STAGES + 2;
     for i in 0..usize::from(s.feeds.min(MAX_COLUMN_PORTS)) {
@@ -115,6 +114,205 @@ fn distillation_form(ui: &mut Ui, s: &mut DistillationColumnSpec, units: Display
                 .resize(s.liquid_draws.len().max(i + 1), Default::default());
             s.liquid_draws[i] = draw;
         }
+    }
+    for i in 0..usize::from(s.vapor_side_draws.min(MAX_COLUMN_PORTS)) {
+        let original = s.vapor_draws.get(i).copied().unwrap_or_default();
+        let mut draw = original;
+        count_field(
+            ui,
+            &format!("Vapor draw {} stage", i + 1),
+            &mut draw.stage,
+            stage_range.clone(),
+        );
+        ui.push_id(("vapor side draw", i), |ui| {
+            opt_field(
+                ui,
+                &format!("Vapor draw {} molar flow", i + 1),
+                &mut draw.molar_flow_mol_s,
+                Quantity::MolarFlow,
+                units,
+            );
+        });
+        if draw != original {
+            s.vapor_draws
+                .resize(s.vapor_draws.len().max(i + 1), Default::default());
+            s.vapor_draws[i] = draw;
+        }
+    }
+}
+
+fn condenser_form(ui: &mut Ui, s: &mut DistillationColumnSpec, units: DisplayUnits) {
+    let current = match s.condenser {
+        DistillationCondenser::Total => 0,
+        DistillationCondenser::PartialVapor => 1,
+        DistillationCondenser::PartialVaporLiquid { .. } => 2,
+    };
+    match choice(
+        ui,
+        "Condenser",
+        current,
+        &["Total", "Partial (vapor)", "Partial (vapor and liquid)"],
+    ) {
+        Some(0) => s.condenser = DistillationCondenser::Total,
+        Some(1) => s.condenser = DistillationCondenser::PartialVapor,
+        Some(_) if current != 2 => {
+            s.condenser = DistillationCondenser::PartialVaporLiquid {
+                liquid_distillate_mol_s: None,
+            }
+        }
+        _ => {}
+    }
+    if let DistillationCondenser::PartialVaporLiquid {
+        liquid_distillate_mol_s,
+    } = &mut s.condenser
+    {
+        opt_field(
+            ui,
+            "Liquid distillate",
+            liquid_distillate_mol_s,
+            Quantity::MolarFlow,
+            units,
+        );
+    }
+}
+
+fn pressure_form(ui: &mut Ui, s: &mut DistillationColumnSpec, units: DisplayUnits) {
+    opt_field(
+        ui,
+        "Condenser pressure",
+        &mut s.pressure_pa,
+        Quantity::Pressure,
+        units,
+    );
+    value_field(
+        ui,
+        "Condenser pressure drop",
+        &mut s.condenser_pressure_drop_pa,
+        Quantity::PressureDrop,
+        units,
+    );
+    let current = matches!(s.pressure_drop, ColumnPressureDrop::Column(_)) as usize;
+    match choice(
+        ui,
+        "Stage pressure drop",
+        current,
+        &["Per stage", "Whole column"],
+    ) {
+        Some(0) if current != 0 => s.pressure_drop = ColumnPressureDrop::PerStage(0.0),
+        Some(1) if current != 1 => s.pressure_drop = ColumnPressureDrop::Column(0.0),
+        _ => {}
+    }
+    let (label, drop) = match &mut s.pressure_drop {
+        ColumnPressureDrop::PerStage(drop) => ("Drop per stage", drop),
+        ColumnPressureDrop::Column(drop) => ("Drop first tray to reboiler", drop),
+    };
+    value_field(ui, label, drop, Quantity::PressureDrop, units);
+}
+
+fn target_form(
+    ui: &mut Ui,
+    label: &str,
+    target: &mut ComponentTarget,
+    units: DisplayUnits,
+    components: &[String],
+) {
+    key_field(
+        ui,
+        &format!("{label} component"),
+        &mut target.component,
+        components,
+    );
+    opt_field(ui, label, &mut target.value, Quantity::Fraction, units);
+}
+
+fn top_form(ui: &mut Ui, top: &mut TopSpecification, u: DisplayUnits, components: &[String]) {
+    use TopSpecification as T;
+    let current = match top {
+        T::RefluxRatio(_) => 0,
+        T::RefluxRate(_) => 1,
+        T::DistillateRate(_) => 2,
+        T::CondenserDuty(_) => 3,
+        T::DistillatePurity(_) => 4,
+        T::DistillateRecovery(_) => 5,
+    };
+    if let Some(picked) = choice(
+        ui,
+        "Top specification",
+        current,
+        &[
+            "Reflux ratio",
+            "Reflux rate",
+            "Distillate rate",
+            "Condenser duty",
+            "Distillate purity",
+            "Distillate recovery",
+        ],
+    ) && picked != current
+    {
+        *top = match picked {
+            0 => T::RefluxRatio(None),
+            1 => T::RefluxRate(None),
+            2 => T::DistillateRate(None),
+            3 => T::CondenserDuty(None),
+            4 => T::DistillatePurity(Default::default()),
+            _ => T::DistillateRecovery(Default::default()),
+        };
+    }
+    match top {
+        T::RefluxRatio(v) => opt_field(ui, "Reflux ratio L/D", v, Quantity::Factor, u),
+        T::RefluxRate(v) => opt_field(ui, "Reflux molar flow", v, Quantity::MolarFlow, u),
+        T::DistillateRate(v) => opt_field(ui, "Distillate molar flow", v, Quantity::MolarFlow, u),
+        T::CondenserDuty(v) => opt_field(ui, "Condenser duty (removed)", v, Quantity::Duty, u),
+        T::DistillatePurity(t) => target_form(ui, "Distillate mole fraction", t, u, components),
+        T::DistillateRecovery(t) => target_form(ui, "Recovery to distillate", t, u, components),
+    }
+}
+
+fn bottom_form(
+    ui: &mut Ui,
+    bottom: &mut BottomSpecification,
+    u: DisplayUnits,
+    components: &[String],
+) {
+    use BottomSpecification as B;
+    let current = match bottom {
+        B::DistillateFraction(_) => 0,
+        B::BottomsRate(_) => 1,
+        B::ReboilerDuty(_) => 2,
+        B::BoilupRatio(_) => 3,
+        B::BottomsPurity(_) => 4,
+        B::BottomsRecovery(_) => 5,
+    };
+    if let Some(picked) = choice(
+        ui,
+        "Bottom specification",
+        current,
+        &[
+            "Distillate to feed",
+            "Bottoms rate",
+            "Reboiler duty",
+            "Boilup ratio",
+            "Bottoms purity",
+            "Bottoms recovery",
+        ],
+    ) && picked != current
+    {
+        *bottom = match picked {
+            0 => B::DistillateFraction(None),
+            1 => B::BottomsRate(None),
+            2 => B::ReboilerDuty(None),
+            3 => B::BoilupRatio(None),
+            4 => B::BottomsPurity(Default::default()),
+            _ => B::BottomsRecovery(Default::default()),
+        };
+    }
+    match bottom {
+        B::DistillateFraction(v) => opt_field(ui, "Feed to distillate", v, Quantity::Fraction, u),
+        B::BottomsRate(v) => opt_field(ui, "Bottoms molar flow", v, Quantity::MolarFlow, u),
+        B::ReboilerDuty(v) => opt_field(ui, "Reboiler duty (supplied)", v, Quantity::Duty, u),
+        B::BoilupRatio(v) => opt_field(ui, "Boilup ratio V/B", v, Quantity::Factor, u),
+        B::BottomsPurity(t) => target_form(ui, "Bottoms mole fraction", t, u, components),
+        B::BottomsRecovery(t) => target_form(ui, "Recovery to bottoms", t, u, components),
     }
 }
 

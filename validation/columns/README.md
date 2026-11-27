@@ -152,3 +152,31 @@ Rust comparison. Generation takes a few minutes.
 ```sh
 python validation/columns/generate-extended-column-references.py --output /tmp/extended-candidate.json
 ```
+
+## Column specification set references (#186)
+
+`specs-v1.json` covers the rigorous column features added after the first
+references: a PR partial-vapor condenser; a PR-BM partial vapor-and-liquid
+condenser (20 mol/s liquid distillate) with a vapor side draw; PR
+methanol/water (kij = −0.075) at 101.325 kPa with a 5 kPa condenser drop and
+0.7 kPa per stage; and the specification pairs reflux ratio + reboiler duty,
+distillate mole fraction + boilup ratio (PR-BM) and condenser duty + bottoms
+recovery. Each case records stage temperatures and pressures, both duties,
+the distillate, reflux, bottoms and boilup flows, and the flow, phase and
+composition of every product in port order.
+
+`generate-column-spec-references.py` imports the stage-property, feed,
+tie-line-check and Newton/Levenberg–Marquardt pieces of
+`generate-extended-column-references.py` (and through it the reviewed teqp,
+Cantera and TPD adapters). It solves temperatures, log mole fractions with
+explicit summations, log vapor flows and, for specifications that do not
+fix them, the log distillate and reflux, with one residual per such
+specification. Starting distillate and reflux for those cases are stated by
+hand in the case list. Every fitted stage passes the TPD and root checks of
+the extended references at its own pressure. No Rust code or output is used.
+The tolerances are the budgets of `extended-v1.json`, fixed before any Rust
+comparison. Generation takes about two minutes.
+
+```sh
+python validation/columns/generate-column-spec-references.py --output /tmp/specs-candidate.json
+```

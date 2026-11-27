@@ -17,7 +17,10 @@ mod mesh;
 mod shortcut;
 
 pub use absorber::{AbsorberResult, AbsorberSpec};
-pub use distillation::{DistillationColumnResult, DistillationColumnSpec, LiquidSideDraw};
+pub use distillation::{
+    BottomSpecification, ColumnPressureDrop, ComponentTarget, DistillationColumnResult,
+    DistillationColumnSpec, DistillationCondenser, LiquidSideDraw, TopSpecification, VaporSideDraw,
+};
 pub use shortcut::{ShortcutColumnResult, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux};
 
 // Packed sections resolved to theoretical stages (#186, #187, #190).
@@ -215,6 +218,14 @@ impl GroupSpec for ColumnSpec {
         match self {
             ColumnSpec::Distillation(s) => numbered(PortSpec::inlet("feed"), s.feeds)
                 .chain(side_draws(s.side_draws))
+                .chain(numbered(PortSpec::outlet("vapor draw"), s.vapor_side_draws))
+                .chain(
+                    matches!(
+                        s.condenser,
+                        DistillationCondenser::PartialVaporLiquid { .. }
+                    )
+                    .then_some(PortSpec::outlet("liquid distillate")),
+                )
                 .collect(),
             ColumnSpec::PetroleumFractionator(s) => side_draws(s.side_draws).collect(),
             _ => Vec::new(),

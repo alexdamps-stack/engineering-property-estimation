@@ -409,6 +409,33 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         ui.label(value_text(format_quantity(u, Quantity::Duty, q), stale));
                         ui.end_row();
                     }
+                    for (label, q) in [
+                        ("Distillate", c.distillate_mol_s),
+                        ("Reflux", c.reflux_mol_s),
+                        ("Bottoms", c.bottoms_mol_s),
+                        ("Boilup", c.boilup_mol_s),
+                    ] {
+                        if let Some(q) = q {
+                            ui.label(label);
+                            ui.label(value_text(format_quantity(u, Quantity::MolarFlow, q), stale));
+                            ui.end_row();
+                        }
+                    }
+                    if let (Some(top), Some(bottom)) =
+                        (c.stage_pressures_pa.first(), c.stage_pressures_pa.last())
+                        && top != bottom
+                    {
+                        ui.label("Condenser / reboiler pressure");
+                        ui.label(value_text(
+                            format!(
+                                "{} / {}",
+                                format_quantity(u, Quantity::Pressure, *top),
+                                format_quantity(u, Quantity::Pressure, *bottom)
+                            ),
+                            stale,
+                        ));
+                        ui.end_row();
+                    }
                     stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
                 }
                 if let Some(c) = &r.absorber {

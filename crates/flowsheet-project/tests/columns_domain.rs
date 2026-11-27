@@ -5,7 +5,9 @@
 use std::ops::ControlFlow;
 
 use flowsheet_core::units::ColumnSpec;
-use flowsheet_core::units::columns::{AbsorberSpec, ColumnInternals, DistillationColumnSpec};
+use flowsheet_core::units::columns::{
+    AbsorberSpec, BottomSpecification, ColumnInternals, DistillationColumnSpec, TopSpecification,
+};
 use flowsheet_core::{EnergySourceDuty, PortRef, StreamId, UnitId, UnitKind, UnitSpec};
 use flowsheet_project::{
     PackageChoice, PackageSelection, Project, ResultSet, SolveFailure, solve_project,
@@ -183,8 +185,8 @@ fn distillation_spec(
         feed_stages: vec![feed_stage],
         internals: ColumnInternals::Trays(stages),
         pressure_pa: Some(pressure),
-        reflux_ratio: Some(reflux),
-        distillate_fraction: Some(d),
+        top: TopSpecification::RefluxRatio(Some(reflux)),
+        bottom: BottomSpecification::DistillateFraction(Some(d)),
         ..Default::default()
     }
 }

@@ -369,6 +369,22 @@ pub struct DistillationColumnEstimate {
     pub reboiler_duty_w: f64,
     pub packed_height_m: Option<f64>,
     pub iterations: usize,
+    /// Stage pressures (#186 pressure profile, added behind format version 4;
+    /// empty in results saved before it).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stage_pressures_pa: Vec<f64>,
+    /// Total distillate, mol/s (added behind format version 4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub distillate_mol_s: Option<f64>,
+    /// Reflux `L_1`, mol/s (added behind format version 4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reflux_mol_s: Option<f64>,
+    /// Bottoms, mol/s (added behind format version 4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bottoms_mol_s: Option<f64>,
+    /// Boilup `V_N`, mol/s (added behind format version 4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boilup_mol_s: Option<f64>,
 }
 
 impl From<&flowsheet_core::units::columns::DistillationColumnResult>
@@ -381,6 +397,11 @@ impl From<&flowsheet_core::units::columns::DistillationColumnResult>
             reboiler_duty_w: r.reboiler_duty_w,
             packed_height_m: r.packed_height_m,
             iterations: r.iterations,
+            stage_pressures_pa: r.stage_pressures_pa.clone(),
+            distillate_mol_s: Some(r.distillate_mol_s),
+            reflux_mol_s: Some(r.reflux_mol_s),
+            bottoms_mol_s: Some(r.bottoms_mol_s),
+            boilup_mol_s: Some(r.boilup_mol_s),
         }
     }
 }
@@ -832,6 +853,15 @@ impl ResultSet {
                         || bad(r.reboiler_duty_w)
                         || opt(r.packed_height_m)
                         || r.stage_temperatures_k.iter().copied().any(bad)
+                        || r.stage_pressures_pa.iter().copied().any(bad)
+                        || [
+                            r.distillate_mol_s,
+                            r.reflux_mol_s,
+                            r.bottoms_mol_s,
+                            r.boilup_mol_s,
+                        ]
+                        .into_iter()
+                        .any(opt)
                 })
                 || u.absorber.as_ref().is_some_and(|r| {
                     opt(r.packed_height_m) || r.stage_temperatures_k.iter().copied().any(bad)
