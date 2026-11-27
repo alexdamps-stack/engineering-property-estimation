@@ -1,9 +1,9 @@
 //! Shared thermodynamic validation and Newton iteration for equilibrium cascades.
 
 use property_packages::EquilibriumPhase;
-use property_packages::{Convergence, EquilibriumState};
+use property_packages::{Convergence, EquilibriumState, PhaseRole};
 use thermo_models::RootSelection;
-use thermo_types::Phase;
+use thermo_types::{CalculationError, Phase};
 
 use super::stages::{ColumnEnds, Condenser, Stage, StageCascade, StageProperties};
 use crate::MaterialStream;
@@ -159,16 +159,68 @@ pub(super) fn residuals(
     Ok(out)
 }
 
+fn tie_line_midpoint(stage: &Stage) -> Vec<f64> {
+    stage
+        .x
+        .iter()
+        .zip(&stage.y)
+        .map(|(x, y)| 0.5 * (x + y))
+        .collect()
+}
+
+/// Warning published when the package cannot test stage liquids for a
+/// second liquid phase.
+pub(super) const LIQUID_LIQUID_UNCHECKED: &str = "stage liquids were not tested for a second liquid phase: the selected property package does not support three-phase (VLLE/LLE) flash";
+
+/// Stage-level liquid–liquid check of a converged cascade.
+///
+/// The MESH equations carry one liquid per stage, so a converged stage liquid
+/// can be unstable against a split into two liquids. The midpoint of every
+/// solved tie line is flashed with the package's three-phase (VLLE/LLE)
+/// operation; any second liquid fails the column explicitly. A package without
+/// the operation (the `FlowsheetPackage::vlle_tp` default
+/// `UnsupportedCapability`) skips the check and returns the warning to
+/// publish; every other VLLE failure, including a fourth phase, fails the
+/// column.
+pub(super) fn check_liquid_liquid(
+    ctx: &CalcContext<'_>,
+    cascade: &StageCascade,
+) -> Result<Vec<String>, String> {
+    for (j, stage) in cascade.stages.iter().enumerate() {
+        let midpoint = tie_line_midpoint(stage);
+        let flashed = match ctx
+            .package()
+            .vlle_tp(&midpoint, stage.temperature_k, stage.pressure_pa)
+        {
+            Ok(flashed) => flashed,
+            // The package lacks the operation altogether. Other unsupported
+            // results (a fourth phase) are failures of the check below.
+            Err(CalculationError::UnsupportedCapability(message))
+                if message.contains("not supported by the selected property package") =>
+            {
+                return Ok(vec![LIQUID_LIQUID_UNCHECKED.into()]);
+            }
+            Err(e) => return Err(format!("stage {} liquid–liquid check: {e}", j + 1)),
+        };
+        if flashed
+            .roles
+            .iter()
+            .any(|role| matches!(role, PhaseRole::LightLiquid | PhaseRole::HeavyLiquid))
+        {
+            return Err(format!(
+                "stage {} liquid splits into two liquids; use the three-phase column",
+                j + 1
+            ));
+        }
+    }
+    Ok(Vec::new())
+}
+
 pub(super) fn verify_phases(ctx: &CalcContext<'_>, cascade: &StageCascade) -> Result<(), String> {
     for (j, stage) in cascade.stages.iter().enumerate() {
         // The midpoint of each tie line must independently flash to both
         // solved phases. Forced phase roots alone do not certify VLE.
-        let midpoint: Vec<_> = stage
-            .x
-            .iter()
-            .zip(&stage.y)
-            .map(|(x, y)| 0.5 * (x + y))
-            .collect();
+        let midpoint = tie_line_midpoint(stage);
         let flashed = ctx
             .tp(&midpoint, stage.temperature_k, stage.pressure_pa)
             .map_err(|e| format!("stage {} phase check: {e}", j + 1))?;

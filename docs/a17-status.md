@@ -238,6 +238,11 @@ feeds and liquid side draws. The [absorber or stripper](a17-columns-stages.md#ab
 (#187) solves countercurrent adiabatic contact with ideal trays or one HETP
 bed, yielding the outlet phase flows and the stage temperature profile.
 
+| Kind | Issue | Status | Specification | Validation / reference | Notes |
+|---|---|---|---|---|---|
+| Rigorous distillation column | #186 | calculated (partial) | Column pressure, reflux ratio, distillate fraction; 1–24 ideal trays or one HETP bed; numbered feeds and liquid side draws. | `distillation-v1.json` (PR/PR-BM ethane/propane) and `extended-v1.json` (PR methanol/water at 1 atm, PR propane/methanol to 430 K) from independent teqp/Cantera/SciPy generators, `flowsheet-project/tests/{distillation_column,columns_domain}.rs`. NRTL-IG methanol/water and GERG-2008 behaviour tests; liquid–liquid split and unsupported-package failures. | Any package component; package bubble/dew domain. Stage liquid–liquid check with the package VLLE flash. Total condenser only; uniform pressure. |
+| Absorber / stripper | #187 | calculated (partial) | Column pressure; 1–24 ideal trays or one HETP bed. | `absorber-v1.json` (PR/PR-BM ethane/propane) and the methane/CO2/methanol-solvent case of `extended-v1.json`; `flowsheet-project/tests/{absorber,columns_domain}.rs`, NRTL-IG behaviour test. | Any package component; stage temperatures in the package bubble/dew interval, pressure bounded by the package's TP/PH operations. Same liquid–liquid check. |
+
 ### Shortcut column
 
 The column takes one feed and produces a distillate and a bottoms product.
@@ -343,10 +348,14 @@ results saved before it was added. Unknown fields and choices are refused.
 $D$ can guide specifications for the [equilibrium-stage distillation
 column](a17-columns-stages.md). That column and the absorber both support
 ideal trays and HETP beds. Rate-based packing, three-phase columns,
-extraction and petroleum fractionation are later batches. Other mixtures
-need stage-level liquid–liquid checks before they are validated; the absorber
-still restricts its active components to the dry hydrocarbon/N2/CO2 set.
-A detailed condenser or reboiler heat-transfer model should expose a fixed
+extraction and petroleum fractionation are later batches. Both rigorous
+columns take their domain from the package: any package component and the
+package's bubble/dew temperature interval, with stage properties from the
+package's homogeneous-phase operation (PR/PR-BM/SRK, NRTL-IG and GERG-2008;
+EOS-CG-2021 fails explicitly). After convergence every stage is tested for a
+second liquid with the package's VLLE flash; a split fails the column, and a
+package without VLLE (GERG-2008) publishes a warning that the check was
+skipped. A detailed condenser or reboiler heat-transfer model should expose a fixed
 temperature approach to a defined utility reference.
 
 ## Multiphase
