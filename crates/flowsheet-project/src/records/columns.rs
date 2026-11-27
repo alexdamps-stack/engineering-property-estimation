@@ -8,7 +8,7 @@ use flowsheet_core::units::columns::packing::{
 };
 use flowsheet_core::units::columns::{
     AbsorberSpec, ColumnInternals, DistillationColumnSpec, LiquidSideDraw, MAX_COLUMN_PORTS,
-    PetroleumFractionatorSpec, ShortcutColumnSpec, ShortcutReflux,
+    PetroleumFractionatorSpec, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux,
 };
 use serde::{Deserialize, Serialize};
 
@@ -22,12 +22,68 @@ fn unset_reflux() -> ShortcutRefluxRecord {
     ShortcutRefluxRecord::MinimumMultiple(None)
 }
 
-/// Shortcut column reflux choice (#185).
+/// Shortcut column reflux or stage-count choice (#185).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum ShortcutRefluxRecord {
     Ratio(Option<f64>),
     MinimumMultiple(Option<f64>),
+    /// Added behind format version 4.
+    TheoreticalStages(Option<f64>),
+}
+
+impl From<ShortcutReflux> for ShortcutRefluxRecord {
+    fn from(r: ShortcutReflux) -> Self {
+        match r {
+            ShortcutReflux::Ratio(v) => Self::Ratio(v),
+            ShortcutReflux::MinimumMultiple(v) => Self::MinimumMultiple(v),
+            ShortcutReflux::TheoreticalStages(v) => Self::TheoreticalStages(v),
+        }
+    }
+}
+
+impl From<ShortcutRefluxRecord> for ShortcutReflux {
+    fn from(r: ShortcutRefluxRecord) -> Self {
+        match r {
+            ShortcutRefluxRecord::Ratio(v) => Self::Ratio(v),
+            ShortcutRefluxRecord::MinimumMultiple(v) => Self::MinimumMultiple(v),
+            ShortcutRefluxRecord::TheoreticalStages(v) => Self::TheoreticalStages(v),
+        }
+    }
+}
+
+/// Shortcut column condenser (#185), added behind format version 4. Records
+/// without it load as a total condenser, and a total condenser is not written.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ShortcutCondenserRecord {
+    #[default]
+    Total,
+    Partial,
+}
+
+impl ShortcutCondenserRecord {
+    fn is_total(&self) -> bool {
+        *self == Self::Total
+    }
+}
+
+impl From<ShortcutCondenser> for ShortcutCondenserRecord {
+    fn from(c: ShortcutCondenser) -> Self {
+        match c {
+            ShortcutCondenser::Total => Self::Total,
+            ShortcutCondenser::Partial => Self::Partial,
+        }
+    }
+}
+
+impl From<ShortcutCondenserRecord> for ShortcutCondenser {
+    fn from(c: ShortcutCondenserRecord) -> Self {
+        match c {
+            ShortcutCondenserRecord::Total => Self::Total,
+            ShortcutCondenserRecord::Partial => Self::Partial,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -152,6 +208,8 @@ pub(crate) enum ColumnRecord {
         pressure_pa: Option<f64>,
         #[serde(default = "unset_reflux")]
         reflux: ShortcutRefluxRecord,
+        #[serde(default, skip_serializing_if = "ShortcutCondenserRecord::is_total")]
+        condenser: ShortcutCondenserRecord,
     },
     DistillationColumn {
         #[serde(default = "one")]
@@ -195,7 +253,9 @@ impl ColumnRecord {
                 ..
             } => {
                 let reflux = match reflux {
-                    ShortcutRefluxRecord::Ratio(v) | ShortcutRefluxRecord::MinimumMultiple(v) => *v,
+                    ShortcutRefluxRecord::Ratio(v)
+                    | ShortcutRefluxRecord::MinimumMultiple(v)
+                    | ShortcutRefluxRecord::TheoreticalStages(v) => *v,
                 };
                 [
                     *light_key_recovery,
@@ -245,10 +305,8 @@ impl From<&ColumnSpec> for ColumnRecord {
                 light_key_recovery: x.light_key_recovery,
                 heavy_key_recovery: x.heavy_key_recovery,
                 pressure_pa: x.pressure_pa,
-                reflux: match x.reflux {
-                    ShortcutReflux::Ratio(v) => ShortcutRefluxRecord::Ratio(v),
-                    ShortcutReflux::MinimumMultiple(v) => ShortcutRefluxRecord::MinimumMultiple(v),
-                },
+                reflux: x.reflux.into(),
+                condenser: x.condenser.into(),
             },
             ColumnSpec::Distillation(x) => Self::DistillationColumn {
                 feeds: x.feeds,
@@ -292,16 +350,15 @@ impl TryFrom<ColumnRecord> for ColumnSpec {
                 heavy_key_recovery,
                 pressure_pa,
                 reflux,
+                condenser,
             } => Self::Shortcut(ShortcutColumnSpec {
                 light_key,
                 heavy_key,
                 light_key_recovery,
                 heavy_key_recovery,
                 pressure_pa,
-                reflux: match reflux {
-                    ShortcutRefluxRecord::Ratio(v) => ShortcutReflux::Ratio(v),
-                    ShortcutRefluxRecord::MinimumMultiple(v) => ShortcutReflux::MinimumMultiple(v),
-                },
+                reflux: reflux.into(),
+                condenser: condenser.into(),
             }),
             ColumnRecord::DistillationColumn {
                 feeds,

@@ -361,7 +361,7 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         ("Minimum stages (Fenske)", number(c.minimum_stages, 2)),
                         ("Minimum reflux ratio (Underwood)", number(c.minimum_reflux_ratio, 4)),
                         ("Reflux ratio L/D", number(c.reflux_ratio, 4)),
-                        ("Theoretical stages incl. reboiler", number(c.theoretical_stages, 2)),
+                        ("Theoretical stages (Gilliland)", number(c.theoretical_stages, 2)),
                         ("Feed stage from top (Kirkbride)", number(c.rectifying_stages + 1.0, 2)),
                         ("Key relative volatility", number(c.relative_volatility, 4)),
                         ("Feed condition q", number(c.feed_condition_q, 4)),
@@ -385,6 +385,19 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         ui.label(label);
                         ui.label(text);
                         ui.end_row();
+                    }
+                    // Key and non-key distribution (Fenske, total reflux).
+                    if let Some(package) = &ed.package {
+                        for (name, recovery) in package.components.iter().zip(&c.distillate_recoveries) {
+                            if let Some(recovery) = recovery {
+                                ui.label(format!("{name} to distillate"));
+                                ui.label(value_text(
+                                    format_quantity(u, Quantity::Fraction, *recovery),
+                                    stale,
+                                ));
+                                ui.end_row();
+                            }
+                        }
                     }
                 }
                 if let Some(c) = &r.distillation_column {

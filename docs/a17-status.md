@@ -227,7 +227,7 @@ formation-basis balances, kinetic rate bases and supported limits.
 
 | Kind | Issue | Status | Specification | Validation / reference | Notes |
 |---|---|---|---|---|---|
-| Shortcut column | #185 | calculated (partial) | Light and heavy key, light-key recovery to distillate and heavy-key recovery to bottoms (each strictly 0–1, sum above 1), column pressure, and either reflux ratio or multiple of minimum reflux. | Four PR/PR-BM cases from the independent teqp/Cantera/SciPy generator `validation/columns/` (binary, ternary with distributing methane, high-pressure let-down feed), checked within the fixture's declared tolerances by `flowsheet-core/tests/shortcut_column.rs`. Project round trip, legacy reload and a headless desktop test. | Fenske–Underwood–Gilliland (Molokanov fit) with Kirkbride feed location. One feed, total condenser, partial reboiler. Retains ISO asset `s1-x8100-column-general`. |
+| Shortcut column | #185 | calculated | Light and heavy key, light-key recovery to distillate and heavy-key recovery to bottoms (each strictly 0–1, sum above 1), column pressure, total or partial condenser, and one of reflux ratio, multiple of minimum reflux or theoretical stages. | Seven PR/PR-BM cases from the independent teqp/Cantera/SciPy generator `validation/columns/` (binary, ternary with distributing methane, high-pressure let-down feed, partial condenser, specified stage count, both together), checked within the fixture's declared tolerances by `flowsheet-core/tests/shortcut_column.rs`. Project round trip, legacy reload and a headless desktop test. | Fenske–Underwood–Gilliland (Molokanov fit) with Kirkbride feed location. One feed, total or partial condenser, partial reboiler. Reports $N_{min}$, $R_{min}$, $R$, $N$, feed stage and the distillate recovery of every component. Retains ISO asset `s1-x8100-column-general`. |
 
 The [rigorous distillation column](a17-columns-stages.md) (#186) solves
 an equilibrium-stage cascade with a total condenser and partial reboiler
@@ -240,11 +240,15 @@ bed, yielding the outlet phase flows and the stage temperature profile.
 ### Shortcut column
 
 The column takes one feed and produces a distillate and a bottoms product.
-It has one uniform pressure with no pressure drop. The total condenser and
-partial reboiler both operate at that pressure, and both products leave as
-saturated liquid at their bubble points. The column pressure may not exceed
-the feed pressure: the feed is let down isenthalpically and keeps its own
-enthalpy. The four inputs are independent. The keys must be two different
+It has one uniform pressure with no pressure drop. The condenser and
+partial reboiler both operate at that pressure. The bottoms leave as
+saturated liquid at their bubble point. A total condenser (the default)
+returns the distillate as saturated liquid at its bubble point. A partial
+condenser returns it as saturated vapour at its dew point. The column
+pressure may not exceed the feed pressure: the feed is let down
+isenthalpically and keeps its own enthalpy. The inputs are independent. The
+operating specification is one of reflux ratio, multiple of minimum reflux
+or number of theoretical stages. The keys must be two different
 package components, and both must be present in the feed. The light key must
 be more volatile than the heavy key at column conditions.
 
@@ -265,13 +269,30 @@ be more volatile than the heavy key at column conditions.
 - **Stages and feed location.** Gilliland (1940) gives the stage count in the
   Molokanov et al. (1972) form
   $Y=1-\exp[(1+54.4X)/(11+117.2X)\cdot(X-1)/\sqrt X]$, with
-  $N=(N_{min}+Y)/(1-Y)$. Stage counts include the reboiler and exclude the
-  total condenser. Kirkbride (1944) gives the number of rectifying stages.
-- **Duties.** The condenser duty is $Q_C=(R+1)D(h_{V,top}-h_D)$, where the
-  overhead vapour is at the dew point of the distillate. The reboiler duty
-  $Q_R$ closes the overall enthalpy balance. Both must be positive. The
-  condenser-duty port reports $Q_C$ and the reboiler-duty port reports $Q_R$
-  to a calculated source or a sink. The net external duty is $Q_R-Q_C$.
+  $N=(N_{min}+Y)/(1-Y)$, where $X=(R-R_{min})/(R+1)$. When the stage count
+  is specified instead, $Y=(N-N_{min})/(N+1)$, the fit is inverted for $X$
+  by bisection and $R=(X+R_{min})/(1-X)$. Stage counts include the reboiler
+  and a partial condenser, and exclude a total condenser. Kirkbride (1944)
+  gives the number of rectifying stages. The feed stage, counted from the
+  top, is that number plus one; a partial condenser is stage 1.
+- **Duties.** With a total condenser, $Q_C=(R+1)D(h_{V,top}-h_D)$, where the
+  overhead vapour is at the dew point of the distillate. With a partial
+  condenser, the condenser equilibrium is the dew point of the distillate
+  composition $x_D$. The reflux is the incipient liquid $x_R$ of that dew
+  point, so it sits at its own bubble point in equilibrium with the vapour
+  distillate. The vapour entering the condenser has the composition
+  $y_1=(x_D+Rx_R)/(R+1)$ from the constant-molar-overflow top balance, at
+  its dew point. Then $Q_C=D[(R+1)h_V(y_1)-h_D-Rh_R]$. The relative
+  volatilities, split and $R_{min}$ are the same for both condensers. The
+  reboiler duty $Q_R$ closes the overall enthalpy balance. Both duties must
+  be positive. The condenser-duty port reports $Q_C$ and the reboiler-duty
+  port reports $Q_R$ to a calculated source or a sink. The net external duty
+  is $Q_R-Q_C$.
+- **Reported estimates.** $N_{min}$, the Underwood root, $R_{min}$, $R$,
+  Gilliland $X$, $N$, the rectifying stages and feed stage, $q$, the key
+  relative volatility, both duties, the temperature of the vapour entering
+  the condenser, and the fraction of each feed component recovered in the
+  distillate (the key and non-key distribution).
 
 The solver fails explicitly when:
 
@@ -282,6 +303,7 @@ The solver fails explicitly when:
 - the keys are inverted or not adjacent;
 - the volatilities do not converge;
 - $R_{min}\le 0$, $R\le R_{min}$ or the multiple of minimum reflux is at most 1;
+- a specified stage count is missing, not positive, or at most $N_{min}$;
 - either duty is not positive or the bottoms are not hotter than the overhead;
 - any result is not finite.
 
@@ -298,7 +320,8 @@ systems remain outside the validated scope. The results are design estimates.
 Several things are not modelled:
 
 - tray hydraulics, column diameter and efficiencies;
-- partial condensers, side draws and multiple feeds;
+- side draws and multiple feeds;
+- a mixed (vapour and liquid) distillate, or a subcooled reflux;
 - non-adjacent keys, or more than one Underwood root;
 - liquid–liquid phases;
 - temperature approaches at the condenser and reboiler utilities.
@@ -306,11 +329,14 @@ Several things are not modelled:
 Constant relative volatility and constant molar overflow are inherent
 assumptions of the method.
 
-**Persistence.** Version 4 records store the keys, recoveries, pressure and
-reflux choice. These fields were added behind format version 4 without a
-version bump. An earlier empty `shortcut_column` record loads with every
-input unset. Unit results carry the optional `shortcut_column` estimate.
-Unknown fields are refused.
+**Persistence.** Version 4 records store the keys, recoveries, pressure,
+operating choice (`ratio`, `minimum_multiple` or `theoretical_stages`) and
+condenser. These fields were added behind format version 4 without a
+version bump. A record without `condenser` loads as a total condenser, and a
+total condenser is not written. An earlier empty `shortcut_column` record
+loads with every input unset. Unit results carry the optional
+`shortcut_column` estimate. Its `distillate_recoveries` list is empty for
+results saved before it was added. Unknown fields and choices are refused.
 
 **Rigorous columns.** The shortcut estimates for $N$, feed stage, $R$ and
 $D$ can guide specifications for the [equilibrium-stage distillation

@@ -5,8 +5,8 @@ Fenske–Underwood–Gilliland(Molokanov)–Kirkbride shortcut distillation colu
 (A17 #185 method contract: alpha by successive substitution on the geometric
 mean of the top dew-point and bottom bubble-point relative volatilities,
 Hengstebeck–Geddes Fenske distribution, Underwood root between the key
-volatilities, Molokanov fit of Gilliland, Kirkbride feed location, total
-condenser, partial reboiler counted in N, reboiler duty by overall enthalpy
+volatilities, Molokanov fit of Gilliland, Kirkbride feed location, total or
+partial condenser, partial reboiler counted in N, reboiler duty by overall enthalpy
 balance). The generator, `generate-shortcut-references.py`, cites the five
 correlation sources in its docstring.
 
@@ -19,12 +19,25 @@ temperatures 200–350 K):
 | `c2c3-binary-PR` | PR | same | 2.0 MPa | same | 1.3 R_min |
 | `c1c2c3-ternary-PR-BM` | PR-BM | 260 K, 2.5 MPa (two-phase) | 2.5 MPa | C2 0.95 / C3 0.95 | R = 1.1 (≈1.54 R_min) |
 | `c1c2c3-letdown-PR-BM` | PR-BM | 270 K, 4.0 MPa (liquid) | 2.5 MPa | C2 0.97 / C3 0.96 | 1.4 R_min |
+| `c2c3-partial-PR-BM` | PR-BM | as `c2c3-binary-PR-BM` | 2.0 MPa | C2 0.98 / C3 0.97 | 1.3 R_min, partial condenser |
+| `c1c2c3-stages-PR-BM` | PR-BM | as `c1c2c3-letdown-PR-BM` | 2.5 MPa | C2 0.97 / C3 0.96 | N = 25 given |
+| `c1c2c3-partial-stages-PR` | PR | 260 K, 2.5 MPa (two-phase) | 2.5 MPa | C2 0.95 / C3 0.95 | N = 18 given, partial condenser |
+
+The last three cases were added for the partial condenser and the stage-count
+specification; the first four were regenerated unchanged (identical values).
+With `"condenser": "partial"`, the distillate is vapour at the dew point of
+x_D (T_D = T_condenser), the reflux is that dew point's incipient liquid x_R
+(h_R), and the vapour entering the condenser has y_1 = (x_D + R x_R)/(R + 1)
+at its dew point (T_top, h_V,top); Q_C = D[(R + 1) h_V,top − h_D − R h_R].
+With reflux kind `stages`, X solves the Molokanov fit for
+Y = (N − N_min)/(N + 1) by SciPy brentq and R = (X + R_min)/(1 − X).
 
 Each case records its inputs, the feed's own equilibrium state, q, initial and
 converged alpha (and the top/bottom alphas), iteration count, N_min, theta,
 R_min, R, X, Y, N, Kirkbride ratio, N_R/N_S and feed stage, D, B, component
-product flows, x_D, x_B, T_top (dew of x_D), T_D (bubble of x_D), T_bot
-(bubble of x_B), h_F, h_D, h_B, h_V,top, Q_C, Q_R and the net duty. Budgets
+product flows, x_D, x_B, T_top (dew of the vapour entering the condenser),
+T_D (distillate temperature), T_bot (bubble of x_B), h_F, h_D, h_B, h_V,top,
+Q_C, Q_R and the net duty. Budgets
 (`tolerances`, `[absolute, relative]`) were fixed with their propagation
 argument in the generator before any Rust comparison; do not widen them to
 resolve a failure.

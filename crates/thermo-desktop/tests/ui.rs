@@ -1571,7 +1571,7 @@ fn snapshot_solved_kinetic_reactors() {
 #[test]
 fn shortcut_column_form_solves_and_reports_design_estimates() {
     use flowsheet_core::units::ColumnSpec;
-    use flowsheet_core::units::columns::{ShortcutColumnSpec, ShortcutReflux};
+    use flowsheet_core::units::columns::{ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux};
     use flowsheet_project::{CubicVariantChoice, PackageSelection};
 
     let mut app = FlowsheetApp::default();
@@ -1611,6 +1611,7 @@ fn shortcut_column_form_solves_and_reports_design_estimates() {
         heavy_key_recovery: Some(0.97),
         pressure_pa: Some(2.0e6),
         reflux: ShortcutReflux::Ratio(Some(1.75)),
+        condenser: ShortcutCondenser::Total,
     };
     ed.fs.set_spec(
         column,
@@ -1622,6 +1623,22 @@ fn shortcut_column_form_solves_and_reports_design_estimates() {
     h.get_by_label("Light key");
     h.get_by_label("Heavy key");
     h.get_by_label("Reflux ratio L/D");
+    // The stage-count specification and the partial condenser are choices.
+    h.get_by_label("Theoretical stages").click();
+    h.run();
+    h.get_by_label("Theoretical stages (> N_min)");
+    h.get_by_label("Partial (vapour distillate)").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(column).unwrap().spec,
+        UnitSpec::Columns(ColumnSpec::Shortcut(ShortcutColumnSpec {
+            reflux: ShortcutReflux::TheoreticalStages(None),
+            condenser: ShortcutCondenser::Partial,
+            ..spec.clone()
+        })),
+    );
+    h.get_by_label("Total (liquid distillate)").click();
+    h.run();
     // Switching the reflux choice clears the value until it is entered.
     h.get_by_label("Multiple of minimum").click();
     h.run();
@@ -1641,7 +1658,9 @@ fn shortcut_column_form_solves_and_reports_design_estimates() {
     key(&mut h, Key::F5);
     finish_solve(&mut h);
     h.get_by_label("Minimum stages (Fenske)");
-    h.get_by_label("Theoretical stages incl. reboiler");
+    h.get_by_label("Theoretical stages (Gilliland)");
+    h.get_by_label("ethane to distillate");
+    h.get_by_label("propane to distillate");
     h.get_by_label("Feed stage from top (Kirkbride)");
     h.get_by_label("Condenser duty (+ removed)");
     h.get_by_label("Reboiler duty (+ supplied)");

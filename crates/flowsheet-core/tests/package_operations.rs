@@ -254,6 +254,7 @@ fn shortcut(
                     heavy_key_recovery: Some(0.95),
                     pressure_pa: Some(p),
                     reflux: units::columns::ShortcutReflux::Ratio(Some(1.1)),
+                    condenser: Default::default(),
                 },
             )),
         )

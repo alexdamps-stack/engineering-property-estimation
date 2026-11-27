@@ -308,10 +308,15 @@ pub struct ShortcutColumnEstimate {
     pub reboiler_duty_w: f64,
     pub top_vapor_temperature_k: f64,
     pub volatility_iterations: usize,
+    /// Fraction of each package component's feed in the distillate (`null`
+    /// when absent from the feed). Added behind format version 4; empty for
+    /// results saved before it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub distillate_recoveries: Vec<Option<f64>>,
 }
 
 impl ShortcutColumnEstimate {
-    fn numbers(&self) -> [f64; 12] {
+    fn numbers(&self) -> impl Iterator<Item = f64> + '_ {
         [
             self.relative_volatility,
             self.feed_condition_q,
@@ -326,6 +331,8 @@ impl ShortcutColumnEstimate {
             self.reboiler_duty_w,
             self.top_vapor_temperature_k,
         ]
+        .into_iter()
+        .chain(self.distillate_recoveries.iter().flatten().copied())
     }
 }
 
@@ -345,6 +352,7 @@ impl From<&flowsheet_core::units::columns::ShortcutColumnResult> for ShortcutCol
             reboiler_duty_w: r.reboiler_duty_w,
             top_vapor_temperature_k: r.top_vapor_temperature_k,
             volatility_iterations: r.volatility_iterations,
+            distillate_recoveries: r.distillate_recoveries.clone(),
         }
     }
 }
@@ -766,7 +774,7 @@ impl ResultSet {
                 })
                 || u.shortcut_column
                     .as_ref()
-                    .is_some_and(|r| r.numbers().into_iter().any(bad))
+                    .is_some_and(|r| r.numbers().any(bad))
                 || u.distillation_column.as_ref().is_some_and(|r| {
                     bad(r.condenser_duty_w)
                         || bad(r.reboiler_duty_w)

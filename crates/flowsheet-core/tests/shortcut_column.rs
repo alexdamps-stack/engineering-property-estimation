@@ -3,7 +3,7 @@
 //! (teqp/Cantera/SciPy, no Rust calls; see `validation/columns/README.md`).
 
 use flowsheet_core::units::ColumnSpec;
-use flowsheet_core::units::columns::{ShortcutColumnSpec, ShortcutReflux};
+use flowsheet_core::units::columns::{ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux};
 use flowsheet_core::{
     Calculation, EnergySourceDuty, FeedCompositions, Flowsheet, PortRef, SolveError, StreamId,
     UnitId, UnitKind, UnitSpec,
@@ -134,7 +134,13 @@ fn case_column(case: &Value) -> Column {
     let reflux = match case["reflux"]["kind"].as_str().unwrap() {
         "ratio" => ShortcutReflux::Ratio(Some(value)),
         "multiple_of_minimum" => ShortcutReflux::MinimumMultiple(Some(value)),
+        "stages" => ShortcutReflux::TheoreticalStages(Some(value)),
         other => panic!("unknown reflux {other}"),
+    };
+    let condenser = match case["condenser"].as_str() {
+        None | Some("total") => ShortcutCondenser::Total,
+        Some("partial") => ShortcutCondenser::Partial,
+        Some(other) => panic!("unknown condenser {other}"),
     };
     let spec = ShortcutColumnSpec {
         light_key: Some(case["light_key"].as_str().unwrap().into()),
@@ -143,6 +149,7 @@ fn case_column(case: &Value) -> Column {
         heavy_key_recovery: Some(number(&case["r_HK"])),
         pressure_pa: Some(number(&case["p"])),
         reflux,
+        condenser,
     };
     Column::new(
         &ids,
@@ -161,7 +168,20 @@ fn case_column(case: &Value) -> Column {
 fn shortcut_column_matches_the_independent_reference() {
     let fixture: Value = serde_json::from_str(FIXTURE).unwrap();
     let cases = fixture["cases"].as_array().unwrap();
-    assert!(cases.len() >= 4);
+    assert!(cases.len() >= 7);
+    // The fixture covers both condensers and every operating specification.
+    for (key, value) in [
+        ("condenser", "partial"),
+        ("reflux", "stages"),
+        ("reflux", "ratio"),
+        ("reflux", "multiple_of_minimum"),
+    ] {
+        assert!(
+            cases
+                .iter()
+                .any(|c| c[key] == value || c[key]["kind"] == value)
+        );
+    }
     for case in cases {
         let name = case["id"].as_str().unwrap();
         let column = case_column(case);
@@ -199,6 +219,29 @@ fn shortcut_column_matches_the_independent_reference() {
         c("T_top", "temperature_K", r.top_vapor_temperature_k, "T_top");
         c("Q_C", "duty_W", r.condenser_duty_w, "Q_C");
         c("Q_R", "duty_W", r.reboiler_duty_w, "Q_R");
+        c(
+            "feed stage",
+            "stages",
+            r.feed_stage(),
+            "feed_stage_from_top",
+        );
+        // Key and non-key distribution: d_i / f_i.
+        let (d, f) = (numbers(&case["d"]), number(&case["F_mol_s"]));
+        for (i, (recovery, zi)) in r
+            .distillate_recoveries
+            .iter()
+            .zip(numbers(&case["z"]))
+            .enumerate()
+        {
+            check(
+                &fixture,
+                name,
+                &format!("d[{i}]/f[{i}]"),
+                "molar_flow_mol_s",
+                recovery.unwrap() * f * zi,
+                d[i],
+            );
+        }
         let iterations = numbers(&fixture["tolerances"]["alpha_iterations"])[0];
         assert!(
             (r.volatility_iterations as f64 - number(&case["alpha_iterations"])).abs()
@@ -288,7 +331,7 @@ fn condenser_and_reboiler_ports_report_the_duties() {
         .unwrap();
     assert!(fs.diagnostics().is_empty(), "{:?}", fs.diagnostics());
     let calc = column.solve().unwrap();
-    let r = calc.units[&column.column].shortcut_column.unwrap();
+    let r = calc.units[&column.column].shortcut_column.clone().unwrap();
     assert_eq!(calc.energy_streams[&condenser].duty_w, r.condenser_duty_w);
     assert_eq!(calc.energy_streams[&reboiler].duty_w, r.reboiler_duty_w);
     check(
@@ -334,6 +377,18 @@ fn shortcut_failures_are_explicit() {
             &(|s: &mut ShortcutColumnSpec| s.reflux = ShortcutReflux::Ratio(Some(1.0)))
                 as &dyn Fn(&mut ShortcutColumnSpec),
             "must exceed the minimum reflux",
+        ),
+        (
+            // N_min is 7.69 in this case.
+            &|s: &mut ShortcutColumnSpec| s.reflux = ShortcutReflux::TheoreticalStages(Some(7.5)),
+            "must exceed the Fenske minimum",
+        ),
+        (
+            &|s: &mut ShortcutColumnSpec| {
+                s.condenser = ShortcutCondenser::Partial;
+                s.reflux = ShortcutReflux::TheoreticalStages(None);
+            },
+            "theoretical stages",
         ),
         (
             &|s: &mut ShortcutColumnSpec| std::mem::swap(&mut s.light_key, &mut s.heavy_key),

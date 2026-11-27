@@ -18,7 +18,7 @@ mod shortcut;
 
 pub use absorber::{AbsorberResult, AbsorberSpec};
 pub use distillation::{DistillationColumnResult, DistillationColumnSpec, LiquidSideDraw};
-pub use shortcut::{ShortcutColumnResult, ShortcutColumnSpec, ShortcutReflux};
+pub use shortcut::{ShortcutColumnResult, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux};
 
 // Packed sections resolved to theoretical stages (#186, #187, #190).
 pub mod packing;

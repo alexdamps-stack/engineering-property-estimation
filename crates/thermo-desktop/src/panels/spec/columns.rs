@@ -7,7 +7,7 @@ use flowsheet_core::units::columns::packing::{
 };
 use flowsheet_core::units::columns::{
     ColumnInternals, DistillationColumnSpec, MAX_COLUMN_PORTS, MAX_COLUMN_STAGES,
-    MAX_DISTILLATION_INTERNAL_STAGES, ShortcutColumnSpec, ShortcutReflux,
+    MAX_DISTILLATION_INTERNAL_STAGES, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux,
 };
 use flowsheet_core::units::{ColumnSpec, GroupSpec};
 
@@ -217,15 +217,34 @@ fn shortcut_form(ui: &mut Ui, s: &mut ShortcutColumnSpec, u: DisplayUnits, compo
         Quantity::Pressure,
         u,
     );
-    let current = matches!(s.reflux, ShortcutReflux::Ratio(_)) as usize;
+    let current = match s.condenser {
+        ShortcutCondenser::Total => 0,
+        ShortcutCondenser::Partial => 1,
+    };
     match choice(
         ui,
-        "Reflux",
+        "Condenser",
         current,
-        &["Multiple of minimum", "Reflux ratio"],
+        &["Total (liquid distillate)", "Partial (vapour distillate)"],
+    ) {
+        Some(0) => s.condenser = ShortcutCondenser::Total,
+        Some(_) => s.condenser = ShortcutCondenser::Partial,
+        None => {}
+    }
+    let current = match s.reflux {
+        ShortcutReflux::MinimumMultiple(_) => 0,
+        ShortcutReflux::Ratio(_) => 1,
+        ShortcutReflux::TheoreticalStages(_) => 2,
+    };
+    match choice(
+        ui,
+        "Specify",
+        current,
+        &["Multiple of minimum", "Reflux ratio", "Theoretical stages"],
     ) {
         Some(0) => s.reflux = ShortcutReflux::MinimumMultiple(None),
-        Some(_) => s.reflux = ShortcutReflux::Ratio(None),
+        Some(1) => s.reflux = ShortcutReflux::Ratio(None),
+        Some(_) => s.reflux = ShortcutReflux::TheoreticalStages(None),
         None => {}
     }
     match &mut s.reflux {
@@ -233,7 +252,21 @@ fn shortcut_form(ui: &mut Ui, s: &mut ShortcutColumnSpec, u: DisplayUnits, compo
             opt_field(ui, "R / R_min (> 1)", m, Quantity::Factor, u)
         }
         ShortcutReflux::Ratio(r) => opt_field(ui, "Reflux ratio L/D", r, Quantity::Factor, u),
+        ShortcutReflux::TheoreticalStages(n) => {
+            opt_field(ui, "Theoretical stages (> N_min)", n, Quantity::Factor, u)
+        }
     }
+    note_row(
+        ui,
+        match s.condenser {
+            ShortcutCondenser::Total => {
+                "Stages include the reboiler; the total condenser is not a stage."
+            }
+            ShortcutCondenser::Partial => {
+                "Stages include the reboiler and the partial condenser (stage 1)."
+            }
+        },
+    );
     note_row(
         ui,
         "Fenske–Underwood–Gilliland estimate. Recoveries lie strictly between 0 and 1 and sum to more than 1.",
@@ -244,7 +277,7 @@ fn shortcut_form(ui: &mut Ui, s: &mut ShortcutColumnSpec, u: DisplayUnits, compo
     );
     note_row(
         ui,
-        "Total condenser and reboiler at column pressure. Both products leave as saturated liquid.",
+        "Condenser and reboiler at column pressure. Bottoms leave as saturated liquid; the distillate as saturated liquid (total) or vapour (partial).",
     );
     note_row(
         ui,
