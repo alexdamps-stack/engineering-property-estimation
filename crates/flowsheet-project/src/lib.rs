@@ -50,9 +50,10 @@ pub use project::{
 };
 pub use results::{
     AbsorberProfile, Currency, DistillationColumnEstimate, EnergyStreamResult,
-    EngineeringDensityResult, MaterialExchangeResult, PhaseResult, PumpHydraulicsResult,
-    ReactionResult, RecycleResult, ResultSet, RotatingPerformance, RotatingStageResult,
-    ShortcutColumnEstimate, StateResult, StreamResult, TransportResult, UnitResult,
+    EngineeringDensityResult, LiquidExtractorProfile, MaterialExchangeResult, PhaseResult,
+    PumpHydraulicsResult, ReactionResult, RecycleResult, ResultSet, RotatingPerformance,
+    RotatingStageResult, ShortcutColumnEstimate, StateResult, StreamResult, TransportResult,
+    UnitResult,
 };
 pub use time::format_utc;
 

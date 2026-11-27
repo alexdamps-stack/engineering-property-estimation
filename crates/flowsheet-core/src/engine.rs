@@ -126,6 +126,8 @@ pub struct UnitCalculation {
     pub distillation_column: Option<units::columns::DistillationColumnResult>,
     /// Solved temperature profile of an adiabatic absorber or stripper.
     pub absorber: Option<units::columns::AbsorberResult>,
+    /// Stage profile of a liquid–liquid extractor (#189).
+    pub liquid_extractor: Option<units::multiphase::LiquidExtractorResult>,
     /// Stages, isentropic states and shaft power of a rotating machine.
     pub rotating: Option<units::rotating::RotatingResult>,
     /// Additional flowsheet boundary contribution from material and its enthalpy.
@@ -411,6 +413,7 @@ impl Flowsheet {
                 shortcut_column,
                 distillation_column,
                 absorber,
+                liquid_extractor,
                 rotating,
                 material_exchange,
                 warnings,
@@ -485,6 +488,7 @@ impl Flowsheet {
                     shortcut_column,
                     distillation_column,
                     absorber,
+                    liquid_extractor,
                     rotating,
                     material_exchange,
                     balance,
@@ -989,6 +993,7 @@ fn calculate_unit(
                 shortcut_column: None,
                 distillation_column: None,
                 absorber: None,
+                liquid_extractor: None,
                 rotating: None,
                 material_exchange: None,
                 energy: Vec::new(),
@@ -1081,6 +1086,7 @@ fn calculate_unit(
                 shortcut_column: None,
                 distillation_column: None,
                 absorber: None,
+                liquid_extractor: None,
                 rotating: None,
                 material_exchange: None,
                 energy: Vec::new(),

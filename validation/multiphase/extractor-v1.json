@@ -1,0 +1,298 @@
+{
+  "schema": "a17-liquid-extractor-reference-v1",
+  "issue": 189,
+  "components": [
+    "water",
+    "methanol",
+    "1-butanol"
+  ],
+  "method": "Newton on stage compositions and phase flows with NRTL activity coefficients (pure-liquid standard states cancel); Rachford-Rice LLE start; composition-grid TPD acceptance per stage. Python standard library, no Rust calls or Rust outputs.",
+  "scope": "Implementation agreement for the gamma-phi NRTL-IG package on the ChemSep/DECHEMA water/methanol/1-butanol pairs. Not experimental accuracy: the pairs are 1 atm VLE regressions.",
+  "generator": {
+    "python": "3.14.4",
+    "sha256": "377cc9b714b48dec957132509785a85bb42c2426ff46a06e0c708754377c607a"
+  },
+  "inputs": {
+    "liquid-nrtl.provisional.json": "b2f56e9dd1a05d547df8d5a6ddfb10aea7daf12493d01c888b23a96d7fa14a2c",
+    "liquid-chemsep-nrtl.provisional.json": "c6a671cc70847e5ff9c3b9fe8b367c70d99e12283a03e70e3aabb89e4012b4af"
+  },
+  "tolerances": {
+    "composition": [
+      1e-08,
+      0.0
+    ],
+    "molar_flow_mol_s": [
+      1e-10,
+      1e-08
+    ]
+  },
+  "cases": [
+    {
+      "id": "methanol-from-water-3-stage-298K",
+      "stages": 3,
+      "temperature_K": 298.15,
+      "pressure_Pa": 101325.0,
+      "feed": {
+        "molar_flow_mol_s": 1.0,
+        "z": [
+          0.92,
+          0.08,
+          0.0
+        ]
+      },
+      "solvent": {
+        "molar_flow_mol_s": 0.15,
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "newton_iterations": 5,
+      "profile": [
+        {
+          "stage": 1,
+          "extract_mol_s": 0.570270017761536,
+          "raffinate_mol_s": 0.9847747153000713,
+          "x_extract": [
+            0.6339453777468206,
+            0.11243799127190605,
+            0.25361663098127346
+          ],
+          "x_raffinate": [
+            0.917222309215165,
+            0.06534979290022994,
+            0.017427897884605085
+          ],
+          "grid_tpd_minimum": 7.197572397935249e-07
+        },
+        {
+          "stage": 2,
+          "extract_mol_s": 0.5550447330616073,
+          "raffinate_mol_s": 0.8978979102764622,
+          "x_extract": [
+            0.6211704385518283,
+            0.08733501300076901,
+            0.29149454844740275
+          ],
+          "x_raffinate": [
+            0.9403654987901119,
+            0.04673627700268661,
+            0.01289822420720153
+          ],
+          "grid_tpd_minimum": 7.968642704435261e-07
+        },
+        {
+          "stage": 3,
+          "extract_mol_s": 0.468167928037998,
+          "raffinate_mol_s": 0.5797299822384641,
+          "x_extract": [
+            0.6106190556138331,
+            0.05571594971024663,
+            0.3336649946759203
+          ],
+          "x_raffinate": [
+            0.9633449627981358,
+            0.02739203630452686,
+            0.009263000897337352
+          ],
+          "grid_tpd_minimum": 5.802244655340796e-06
+        }
+      ]
+    },
+    {
+      "id": "wet-solvent-8-stage-310K",
+      "stages": 8,
+      "temperature_K": 310.0,
+      "pressure_Pa": 200000.0,
+      "feed": {
+        "molar_flow_mol_s": 1.0,
+        "z": [
+          0.95,
+          0.05,
+          0.0
+        ]
+      },
+      "solvent": {
+        "molar_flow_mol_s": 0.2,
+        "z": [
+          0.3,
+          0.0,
+          0.7
+        ]
+      },
+      "newton_iterations": 5,
+      "profile": [
+        {
+          "stage": 1,
+          "extract_mol_s": 0.46090179194869135,
+          "raffinate_mol_s": 1.046467699744192,
+          "x_extract": [
+            0.6213346012087824,
+            0.08886719522669623,
+            0.2897982035645214
+          ],
+          "x_raffinate": [
+            0.9343204788135017,
+            0.04953995342357952,
+            0.016139567762918847
+          ],
+          "grid_tpd_minimum": 7.714485723397892e-06
+        },
+        {
+          "stage": 2,
+          "extract_mol_s": 0.5073694916928833,
+          "raffinate_mol_s": 1.029692863416528,
+          "x_extract": [
+            0.6190960208045877,
+            0.08435866036650486,
+            0.2965453188289074
+          ],
+          "x_raffinate": [
+            0.9382563911684141,
+            0.046385604975034876,
+            0.015358003856550947
+          ],
+          "grid_tpd_minimum": 3.141703728467578e-06
+        },
+        {
+          "stage": 3,
+          "extract_mol_s": 0.4905946553652195,
+          "raffinate_mol_s": 1.011277525336055,
+          "x_extract": [
+            0.6165785497861351,
+            0.07892865425666698,
+            0.30449279595719786
+          ],
+          "x_raffinate": [
+            0.9427969864139054,
+            0.042714147031512724,
+            0.014488866554581882
+          ],
+          "grid_tpd_minimum": 5.953069294247046e-06
+        },
+        {
+          "stage": 4,
+          "extract_mol_s": 0.4721793172847463,
+          "raffinate_mol_s": 0.9911427335649345,
+          "x_extract": [
+            0.6137575785366993,
+            0.07233460929359188,
+            0.31390781216970876
+          ],
+          "x_raffinate": [
+            0.9480476336323294,
+            0.038426190810483936,
+            0.013526175557186592
+          ],
+          "grid_tpd_minimum": 9.42686326267715e-07
+        },
+        {
+          "stage": 5,
+          "extract_mol_s": 0.4520445255136257,
+          "raffinate_mol_s": 0.9692328328270297,
+          "x_extract": [
+            0.6106140848212699,
+            0.06425227535457419,
+            0.32513363982415605
+          ],
+          "x_raffinate": [
+            0.9541345529623734,
+            0.033400012443982816,
+            0.012465434593643807
+          ],
+          "grid_tpd_minimum": 4.556558164441982e-06
+        },
+        {
+          "stage": 6,
+          "extract_mol_s": 0.43013462477572073,
+          "raffinate_mol_s": 0.9455282144976729,
+          "x_extract": [
+            0.6071419312009468,
+            0.054242176423586905,
+            0.3386158923754663
+          ],
+          "x_raffinate": [
+            0.9612086971391076,
+            0.027486473820855954,
+            0.011304829040036456
+          ],
+          "grid_tpd_minimum": 6.175819899826825e-06
+        },
+        {
+          "stage": 7,
+          "extract_mol_s": 0.4064300064463639,
+          "raffinate_mol_s": 0.9200641584815145,
+          "x_extract": [
+            0.6033613915629767,
+            0.04170038080676531,
+            0.3549382276302579
+          ],
+          "x_raffinate": [
+            0.9694493465153651,
+            0.020503628558210196,
+            0.010047024926424718
+          ],
+          "grid_tpd_minimum": 5.8621425885241915e-06
+        },
+        {
+          "stage": 8,
+          "extract_mol_s": 0.3809659504302054,
+          "raffinate_mol_s": 0.739098208051309,
+          "x_extract": [
+            0.5993444506815508,
+            0.02578630260676131,
+            0.3748692467116878
+          ],
+          "x_raffinate": [
+            0.9790657872260898,
+            0.01223240751509693,
+            0.00870180525881337
+          ],
+          "grid_tpd_minimum": 1.2348672077622204e-05
+        }
+      ]
+    },
+    {
+      "id": "single-stage-298K",
+      "stages": 1,
+      "temperature_K": 298.15,
+      "pressure_Pa": 101325.0,
+      "feed": {
+        "molar_flow_mol_s": 1.0,
+        "z": [
+          0.9,
+          0.1,
+          0.0
+        ]
+      },
+      "solvent": {
+        "molar_flow_mol_s": 0.15,
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "newton_iterations": 1,
+      "profile": [
+        {
+          "stage": 1,
+          "extract_mol_s": 0.5473987056822984,
+          "raffinate_mol_s": 0.6026012943177016,
+          "x_extract": [
+            0.63339504227929,
+            0.11154636163994608,
+            0.255058596080764
+          ],
+          "x_raffinate": [
+            0.9181533111328388,
+            0.0646192870508411,
+            0.017227401816320122
+          ],
+          "grid_tpd_minimum": 1.028254395786769e-06
+        }
+      ]
+    }
+  ]
+}

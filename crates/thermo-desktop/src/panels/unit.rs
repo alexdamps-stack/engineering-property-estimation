@@ -414,6 +414,33 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                 if let Some(c) = &r.absorber {
                     stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
                 }
+                if let Some(c) = &r.liquid_extractor {
+                    ui.label("Feed enters");
+                    ui.label(value_text(
+                        if c.feed_is_heavy { "top (heavy feed)" } else { "bottom (light feed)" }
+                            .to_owned(),
+                        stale,
+                    ));
+                    ui.end_row();
+                    stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
+                    for (j, (e, f)) in c
+                        .extract_flows_mol_s
+                        .iter()
+                        .zip(&c.raffinate_flows_mol_s)
+                        .enumerate()
+                    {
+                        ui.label(format!("Stage {} extract / raffinate", j + 1));
+                        ui.label(value_text(
+                            format!(
+                                "{} / {}",
+                                format_quantity(u, Quantity::MolarFlow, *e),
+                                format_quantity(u, Quantity::MolarFlow, *f)
+                            ),
+                            stale,
+                        ));
+                        ui.end_row();
+                    }
+                }
                 if let Some(x) = &r.material_exchange {
                     ui.label("External material (+ into unit)");
                     ui.label(value_text(
