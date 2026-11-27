@@ -179,13 +179,19 @@ fn water_and_methanol_pumps_use_the_chemsep_liquid_density() {
     // domain it is reported as unavailable, not substituted.
     assert!(hydraulics.npsh_available_m.is_some() != hydraulics.npsh_note.is_some());
 
-    // Methanol/water liquid: ideal mixing, computed but unassessed.
-    let line = pump_line(&["methanol", "water"], vec![0.4, 0.6], 300.0, 2e5, 5e5);
+    // Pure methanol: ChemSep DIPPR 105, qualified (about 785 kg/m³ at 300 K).
+    // (A methanol/water liquid is not used here: PR with zero interactions
+    // splits it into two phases; the mixture rule is tested in thermo-models.)
+    let line = pump_line(&["methanol"], vec![1.0], 300.0, 2e5, 5e5);
     let results = solve(&line.project);
     let phase = &results.streams[&line.inlet].state.as_ref().unwrap().phases[0];
     let engineering = phase.engineering_liquid_density.as_ref().unwrap();
-    assert!(engineering.density_kg_m3.is_some());
-    assert_eq!(engineering.validity.as_deref(), Some("unassessed"));
+    let rho = engineering.density_kg_m3.unwrap();
+    assert!((rho / 785.0 - 1.0).abs() < 0.02, "{rho}");
+    assert_eq!(
+        engineering.validity.as_deref(),
+        Some("within declared domain")
+    );
 }
 
 #[test]

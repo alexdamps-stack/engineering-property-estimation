@@ -120,7 +120,7 @@ beside the EOS density and differs from it.
   the default.
 
 Flowsheet evidence: `crates/flowsheet-project/tests/liquid_density.rs` runs
-pumps (propane/ethane, water, methanol/water) and a CSTR through the project
+pumps (propane/ethane, water, methanol) and a CSTR through the project
 solver, with closed balances and a save/reload round trip.
 
 ## Gaps
