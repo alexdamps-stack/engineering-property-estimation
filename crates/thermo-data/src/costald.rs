@@ -147,7 +147,12 @@ mod tests {
     fn committed_extract_covers_every_database_component() {
         let db = CostaldDatabase::embedded().unwrap();
         let components = ComponentDatabase::embedded().unwrap();
-        for c in components.components() {
+        // The #224 ChemSep extension (1-butanol) has no COSTALD parameters.
+        for c in components
+            .components()
+            .iter()
+            .filter(|c| c.id() != "1-butanol")
+        {
             let p = db.get(c.id()).unwrap();
             assert!(p.characteristic_volume > 0.0);
         }

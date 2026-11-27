@@ -31,5 +31,31 @@
   "nrtl_ph_round_trip": ["nrtl-lle-300K-1bar", "nrtl-vl-300K-15kPa"],
   "nrtl_ph_invariant": [
     {"id": "nrtl-three-phase-1bar", "z": [0.5, 0.5], "p": 100000.0, "vapor_fraction": 0.3, "T_guess": 340.0}
-  ]
+  ],
+  "physical_nrtl": {
+    "ids": ["water", "1-butanol"],
+    "note": "Physical partially miscible pair: ChemSep/DECHEMA NRTL water/n-butanol (1 atm VLE regression, row 1921;1105) and ChemSep v8.3 1-butanol pure data via DWSIM, from data/source-extracts/liquid-chemsep-nrtl.provisional.json and components-chemsep.provisional.json; water as in the A7 extract."
+  },
+  "physical_nrtl_tp": [
+    {"id": "wb-lle-298K-1bar", "z": [0.7, 0.3], "T": 298.15, "p": 100000.0},
+    {"id": "wb-lle-330K-1bar", "z": [0.6, 0.4], "T": 330.0, "p": 100000.0},
+    {"id": "wb-vl-365K-80kPa", "z": [0.7, 0.3], "T": 365.0, "p": 80000.0},
+    {"id": "wb-aqueous-298K-1bar", "z": [0.99, 0.01], "T": 298.15, "p": 100000.0}
+  ],
+  "physical_nrtl_ph_round_trip": ["wb-lle-298K-1bar"],
+  "physical_nrtl_ph_invariant": [
+    {"id": "wb-three-phase-1atm", "z": [0.7, 0.3], "p": 101325.0, "vapor_fraction": 0.3, "T_guess": 366.0}
+  ],
+  "experimental_lle": {
+    "purpose": "Model-to-experiment sanity check, reported separately from implementation agreement. Budgets were declared before the model values were compared.",
+    "source": "G. T. Hefter, critical evaluation of 1-butanol + water, in A. F. M. Barton (ed.), IUPAC Solubility Data Series, Vol. 15: Alcohols with Water, Pergamon, Oxford, 1984, pp. 33-35 (https://srdata.nist.gov/solubility/IUPAC/SDS-15/SDS-15.pdf)",
+    "T": 298.15,
+    "aqueous_mass_percent_1_butanol": [7.4, 0.1],
+    "organic_mass_percent_water": [20.3, 0.3],
+    "mass_percent_note": "Recommended (R) best values with spread at 298 K; the organic-phase value is the simple average 20.3 of the six reported values 20.07-20.7 listed for 298 K.",
+    "aqueous_x_1_butanol": 0.019052962985524252,
+    "organic_x_water": 0.5117073601216334,
+    "budget": {"organic_x_water_abs": 0.06, "aqueous_x_1_butanol_ln_ratio": 0.6931471805599453},
+    "budget_basis": "The NRTL parameters were regressed by DECHEMA from isobaric VLE data at 1 atm, not from LLE data; a predicted mutual solubility within 0.06 in mole fraction (organic phase) and within a factor of 2 (aqueous trace) is the accepted qualitative agreement."
+  }
 }

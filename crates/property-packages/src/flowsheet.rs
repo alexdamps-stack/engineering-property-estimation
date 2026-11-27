@@ -241,7 +241,10 @@ impl NrtlPackage {
         })
     }
 
-    pub(crate) fn phase(&self, p: ActivityFlashPhase) -> Result<EquilibriumPhase, CalculationError> {
+    pub(crate) fn phase(
+        &self,
+        p: ActivityFlashPhase,
+    ) -> Result<EquilibriumPhase, CalculationError> {
         let s = p.state;
         let (cv, speed_of_sound) = if p.phase == Phase::Vapor {
             // Ideal-gas acoustic derivative at fixed composition.

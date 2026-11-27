@@ -87,7 +87,8 @@ Clapeyron standard check (`validation/clapeyron-checks.md`).
 |---|---|
 | PR/PR-BM methane/propane/water and propane/water, explicit water–hydrocarbon kij = 0.5 (approximation) | VLLE at 14, 20 (PR) and 25 bar (PR-BM), LLE at 50 bar, vapor + aqueous liquid at 320 K, dry vapor at 400 K |
 | Synthetic NRTL pair (τ12 = 350 K/T, τ21 = 520 K/T, α = 0.2) on the methanol/water pure data | LLE at 300 and 370 K, vapor + liquid at 15 kPa, single liquid, single vapor |
-| PH | round trips of three cubic and two NRTL TP states; binary three-phase (invariant) temperature for propane/water at 20 bar and the NRTL pair at 1 bar |
+| Physical ChemSep/DECHEMA water/1-butanol NRTL pair (1 atm VLE regression) with ChemSep 1-butanol pure data | LLE at 298.15 and 330 K, a dilute 1 % butanol feed (two liquids: the model solubility is 0.55 %), single vapor at 365 K and 80 kPa |
+| PH | round trips of three cubic, two synthetic-NRTL and one water/1-butanol TP state; binary three-phase (invariant) temperature for propane/water at 20 bar, the synthetic pair at 1 bar and water/1-butanol at 1 atm (heteroazeotrope) |
 
 Tolerances (declared before comparison, `atol + rtol·|ref|`): temperature 2e-6 K;
 phase fraction 2e-8; composition 1e-8 + 1e-7 rel; molar volume 1e-12 m³/mol +
@@ -101,12 +102,35 @@ each candidate to 256 bits and accepts it only if a composition-grid TPD scan
 finds no negative TPD; missing phases are added by splitting a phase with
 Clapeyron's two-phase Michelsen flash.
 
+## Model-to-experiment sanity check (water/1-butanol)
+
+Reported separately from implementation agreement. Reference: G. T. Hefter's critical
+evaluation in the IUPAC Solubility Data Series, Vol. 15 (Alcohols with Water, 1984),
+pp. 33–35: recommended 7.4 ± 0.1 mass % 1-butanol in the aqueous phase and 20.3 ± 0.3
+mass % water in the organic phase at 298 K (x = 0.0191 and 0.512). Budgets declared in
+`validation/vlle-inputs.json` before comparison: organic x_water within 0.06, aqueous
+x_butanol within a factor of 2.
+
+| Quantity at 298.15 K | Model | Experiment | Result |
+|---|---|---|---|
+| Water in the organic phase, x | 0.601 | 0.512 | +0.089, outside the 0.06 budget |
+| 1-butanol in the aqueous phase, x | 0.0055 | 0.0191 | ratio 0.29, outside the factor-2 budget |
+
+The check fails and the budget was not widened. The DECHEMA parameters were regressed
+from 1 atm VLE data (373–391 K, an interval inferred from the pure boiling points and
+flagged on results) and do not describe the 298 K mutual solubilities: the predicted
+liquid–liquid split is qualitatively right (two liquids, organic phase water-rich) but
+the aqueous solubility of 1-butanol is under-predicted about 3.4-fold. Units that need
+quantitative LLE at ambient temperature need an LLE-regressed parameter set. The
+comparison is the ignored test `water_butanol_mutual_solubility_is_close_to_experiment`
+(`cargo test -p thermo-solvers --test vlle_clapeyron -- --ignored`).
+
 ## Limits
 
 - The interaction parameters of the references are approximations (cubic) or
   synthetic (NRTL): the agreement is implementation verification, not
-  experimental accuracy. The embedded NRTL dataset contains only the miscible
-  methanol/water pair, so no physical NRTL LLE pair is qualified yet.
+  experimental accuracy. The physical water/1-butanol pair is VLE-regressed and
+  misses the ambient mutual solubilities (see the sanity check above).
 - At most three phases. Solid phases and hydrate formation are out of scope.
 - The two-phase `tp`/`ph` operations still report a liquid–liquid split as
   unsupported (NRTL) or label it by volume (cubic); units must use `vlle_tp`.

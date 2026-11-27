@@ -12,7 +12,9 @@
 # NRTL: Clapeyron's NRTL supplies activity coefficients and PolExpSat/PolExpLiquid
 # the CoolProp ancillaries (as in generate_nrtl.jl); the gamma-phi equations
 # (ideal-gas vapor) are solved by the same 256-bit Newton method from grid
-# tangent-plane minima. The NRTL pair is synthetic (see vlle-inputs.json).
+# tangent-plane minima. One NRTL pair is synthetic; the physical water/1-butanol
+# pair uses the ChemSep extension extracts, with the ChemSep equation 101/105
+# formulas evaluated here and ReidIdeal for the RPP ideal-gas polynomial.
 #
 # Invariant PH cases: the binary three-phase temperature at fixed p is solved by
 # Newton in 256 bits; phase amounts follow from the stated vapor fraction and the
@@ -210,32 +212,86 @@ function pr_record(case, model, ids, z, T, p, beta, x, phases)
 end
 
 # ---------------------------------------------------------------------------
-# NRTL gamma-phi (synthetic pair).
-syn_lngamma(T, x) = log.(activity_coefficient(NRTL_SYN, 1e5, T, x))
-function g_lnf(T, p, x, kind)
+# NRTL gamma-phi systems: the synthetic pair and the physical water/1-butanol pair.
+# A system bundles the Clapeyron activity model with the pure-component functions.
+struct GammaPhi
+    ids::Vector{String}
+    act::Any
+    lnpsat::Function     # (i, T) -> ln(psat/Pa)
+    h_ig::Function       # (i, T) -> pure ideal-gas enthalpy, J/mol (h = 0 at 298.15 K)
+    rho::Function        # (i, T) -> saturated-liquid molar density, mol/m3
+    mw::Vector{Float64}  # kg/mol
+end
+
+const SYNTHETIC = GammaPhi(IDS, NRTL_SYN, (i, T) -> lnpsat(IDS[i], T), (i, T) -> h_ig(IDS[i], T),
+    (i, T) -> 1 / volume(RHO[IDS[i]], P0, T, [1.0]), [mw(id) for id in IDS])
+
+# Physical pair: ChemSep 1-butanol (extension extracts) with the A7 water data.
+const GAS2 = joinpath(ROOT, "data/source-extracts/components-chemsep.provisional.json")
+const LIQ2 = joinpath(ROOT, "data/source-extracts/liquid-chemsep-nrtl.provisional.json")
+const BUOH = only(JSON3.read(read(GAS2, String)).components)
+const LIQ2DOC = JSON3.read(read(LIQ2, String))
+const BUOH_LIQ = only(LIQ2DOC.pure_liquid)
+@assert String(BUOH.id) == "1-butanol" && String(BUOH_LIQ.id) == "1-butanol"
+@assert String(BUOH_LIQ.vapor_pressure.form) == "chemsep-101" && String(BUOH_LIQ.saturated_liquid_density.form) == "chemsep-105"
+const BUOH_VP = Float64.(BUOH_LIQ.vapor_pressure.coefficients)
+const BUOH_RHO = Float64.(BUOH_LIQ.saturated_liquid_density.coefficients)
+const BUOH_IDEAL = let a = Float64.(BUOH.ideal_gas.coefficients[1][1:5]) .* R
+    m = ReidIdeal(["1-butanol"]; userlocations=(; a=[a[1]], b=[a[2]], c=[a[3]], d=[a[4]], e=[a[5]],
+        Mw=[Float64(BUOH.constants.molar_mass_kg_per_mol) * 1000]),
+        reference_state=ReferenceState(:ideal_gas; T0=T0, P0=P0, H0=0.0, S0=0.0))
+    @assert abs(enthalpy(m, P0, T0)) < 1e-8 && abs(entropy(m, P0, T0)) < 1e-8
+    m
+end
+# ChemSep equation 101 (Pa) and 105 (kmol/m3), evaluated here from the transcribed coefficients.
+buoh_lnpsat(T) = BUOH_VP[1] + BUOH_VP[2] / T + BUOH_VP[3] * log(T) + BUOH_VP[4] * T^BUOH_VP[5]
+buoh_rho(T) = 1000 * BUOH_RHO[1] / BUOH_RHO[2]^(1 + (1 - T / BUOH_RHO[3])^BUOH_RHO[4])
+const WB = let
+    ids = String.(VIN.physical_nrtl.ids)
+    @assert ids == ["water", "1-butanol"]
+    pair = only(b for b in LIQ2DOC.nrtl_binary if String(b.i) == "water" && String(b.j) == "1-butanol")
+    @assert pair.tau_ij.t0 == 0 && pair.tau_ij.t2 == 0 && pair.tau_ij.t3_per_K == 0 && pair.alpha_ij.a1_per_K == 0
+    alpha = Float64(pair.alpha_ij.a0)
+    mws = [mw("water"), Float64(BUOH.constants.molar_mass_kg_per_mol)]
+    act = NRTL(ids; puremodel=BasicIdeal, userlocations=(a=[0.0 0.0; 0.0 0.0],
+        b=[0.0 Float64(pair.tau_ij.t1_K); Float64(pair.tau_ji.t1_K) 0.0],
+        c=[0.0 alpha; alpha 0.0], Mw=mws .* 1000))
+    GammaPhi(ids, act,
+        (i, T) -> i == 1 ? lnpsat("water", T) : buoh_lnpsat(T),
+        (i, T) -> i == 1 ? h_ig("water", T) : enthalpy(BUOH_IDEAL, P0, T),
+        (i, T) -> i == 1 ? 1 / volume(RHO["water"], P0, T, [1.0]) : buoh_rho(T),
+        mws)
+end
+
+# Clausius-Clapeyron pure liquid consistent with ideal-gas vapor, zero liquid volume.
+sys_hl(sys, i, T) = sys.h_ig(i, T) - R * T^2 * FD.derivative(t -> sys.lnpsat(i, t), T)
+sys_lngamma(sys, T, x) = log.(activity_coefficient(sys.act, 1e5, T, x))
+function g_lnf(sys, T, p, x, kind)
     kind == :vapour && return log.(x) .+ log(p)
-    log.(x) .+ syn_lngamma(T, x) .+ [lnpsat(id, T) for id in IDS]
+    log.(x) .+ sys_lngamma(sys, T, x) .+ [sys.lnpsat(i, T) for i in eachindex(x)]
 end
-function syn_liquid_state(T, p, x)
-    ex = excess_record(NRTL_SYN, T, x)
-    h = sum(x[i] * h_l(IDS[i], T) for i in 1:2) + ex["h_excess"]
-    v = sum(x[i] / (1 / volume(RHO[IDS[i]], P0, T, [1.0])) for i in 1:2)
-    Dict("h" => h, "molar_volume" => v, "mass_density" => sum(x[i] * mw(IDS[i]) for i in 1:2) / v,
-         "ln_phi" => ex["ln_gamma"] .+ [lnpsat(id, T) for id in IDS] .- log(p))
+function sys_liquid_state(sys, T, p, x)
+    ex = excess_record(sys.act, T, x)
+    n = length(x)
+    h = sum(x[i] * sys_hl(sys, i, T) for i in 1:n) + ex["h_excess"]
+    v = sum(x[i] / sys.rho(i, T) for i in 1:n)
+    Dict("h" => h, "molar_volume" => v, "mass_density" => sum(x[i] * sys.mw[i] for i in 1:n) / v,
+         "ln_phi" => ex["ln_gamma"] .+ [sys.lnpsat(i, T) for i in 1:n] .- log(p))
 end
-function syn_vapor_state(T, p, y)
-    s = vapor_props(T, p, y)
-    Dict("h" => s["h"], "molar_volume" => s["molar_volume"],
-         "mass_density" => sum(y[i] * mw(IDS[i]) for i in 1:2) / s["molar_volume"], "ln_phi" => [0.0, 0.0])
+function sys_vapor_state(sys, T, p, y)
+    n = length(y)
+    v = R * T / p
+    Dict("h" => sum(y[i] * sys.h_ig(i, T) for i in 1:n), "molar_volume" => v,
+         "mass_density" => sum(y[i] * sys.mw[i] for i in 1:n) / v, "ln_phi" => zeros(n))
 end
-syn_state(T, p, x, kind) = kind == :vapour ? syn_vapor_state(T, p, x) : syn_liquid_state(T, p, x)
+sys_state(sys, T, p, x, kind) = kind == :vapour ? sys_vapor_state(sys, T, p, x) : sys_liquid_state(sys, T, p, x)
 
 # Negative local minima of the TPD along the binary composition grid, per kind.
-function g_grid(T, p, d)
+function g_grid(sys, T, p, d)
     out = Any[]
     for kind in (:liquid, :vapour)
         ws = [w for w in simplex_grid(2) if w[1] > 0 && w[2] > 0]
-        tms = [tm_value(w, g_lnf(T, p, w, kind), d) for w in ws]
+        tms = [tm_value(w, g_lnf(sys, T, p, w, kind), d) for w in ws]
         for i in eachindex(ws)
             left = i == 1 ? Inf : tms[i-1]
             right = i == length(ws) ? Inf : tms[i+1]
@@ -245,23 +301,22 @@ function g_grid(T, p, d)
     out
 end
 
-function g_min_kind(T, p, x)
-    gl = sum(x .* g_lnf(T, p, x, :liquid)); gv = sum(x .* g_lnf(T, p, x, :vapour))
+function g_min_kind(sys, T, p, x)
+    gl = sum(x .* g_lnf(sys, T, p, x, :liquid)); gv = sum(x .* g_lnf(sys, T, p, x, :vapour))
     gl <= gv ? :liquid : :vapour
 end
 
-function nrtl_case(case)
+function nrtl_case(sys, case)
     z, T, p = Float64.(case.z), Float64.(case.T), Float64.(case.p)
-    kinds = [g_min_kind(T, p, z)]
+    kinds = [g_min_kind(sys, T, p, z)]
     x = [z]; beta = [1.0]
     for round in 1:4
         ref = argmax(beta)
-        d = g_lnf(T, p, x[ref], kinds[ref])
-        minima = negative_minima(g_grid(T, p, d))
-        isempty(minima) && return nrtl_record(case, z, T, p, beta, x, kinds)
+        d = g_lnf(sys, T, p, x[ref], kinds[ref])
+        minima = negative_minima(g_grid(sys, T, p, d))
+        isempty(minima) && return nrtl_record(sys, case, z, T, p, beta, x, kinds)
         println("  ", case.id, " round ", round, ": TPD minima ", [(m[3], m[2][1], m[1]) for m in minima])
         round == 4 && break
-        # Re-initialise from the current phases and the grid minima.
         # Two or more minima bracket the feed on their own; one minimum joins the current phases.
         allx = vcat(length(minima) >= 2 ? [] : x, [m[2] for m in minima])
         allk = vcat(length(minima) >= 2 ? Symbol[] : kinds, [m[3] for m in minima])
@@ -282,7 +337,7 @@ function nrtl_case(case)
             continue
         end
         Tb, pb = BigFloat(T), BigFloat(p)
-        n = polish((k, xx) -> g_lnf(Tb, pb, xx, allk[k]), z, n0)
+        n = polish((k, xx) -> g_lnf(sys, Tb, pb, xx, allk[k]), z, n0)
         beta = [Float64(sum(n[k, :])) for k in eachindex(allk)]
         x = [Float64.(n[k, :] ./ sum(n[k, :])) for k in eachindex(allk)]
         kinds = allk
@@ -290,12 +345,12 @@ function nrtl_case(case)
     error("NRTL case $(case.id) did not settle")
 end
 
-function nrtl_record(case, z, T, p, beta, x, kinds)
+function nrtl_record(sys, case, z, T, p, beta, x, kinds)
     out = [Dict("fraction" => beta[k], "composition" => x[k], "kind" => String(kinds[k]),
-                "state" => syn_state(T, p, x[k], kinds[k])) for k in eachindex(x)]
+                "state" => sys_state(sys, T, p, x[k], kinds[k])) for k in eachindex(x)]
     sort!(out; by=ph -> (ph["kind"] == "liquid", ph["state"]["mass_density"]))
     h = sum(ph["fraction"] * ph["state"]["h"] for ph in out)
-    println("NRTL ", case.id, ": ", [(ph["kind"], ph["fraction"]) for ph in out])
+    println("NRTL ", case.id, ": ", [(ph["kind"], ph["fraction"], ph["composition"][1]) for ph in out])
     Dict("id" => String(case.id), "z" => z, "T" => T, "p" => p, "h" => h, "phases" => out)
 end
 
@@ -363,16 +418,16 @@ function pr_invariant(case)
          "p" => p, "vapor_fraction" => Float64(case.vapor_fraction), "T" => T, "target_h" => h, "phases" => out)
 end
 
-function nrtl_invariant(case)
+function nrtl_invariant(sys, case, x0)
     z, p = Float64.(case.z), Float64.(case.p)
     kinds = [:liquid, :liquid, :vapour]
-    lnf_all(k, T, x) = g_lnf(T, BigFloat(p), x, kinds[k])
-    u = three_phase(lnf_all, p, Float64(case.T_guess), [0.85, 0.12, 0.6])
+    lnf_all(k, T, x) = g_lnf(sys, T, BigFloat(p), x, kinds[k])
+    u = three_phase(lnf_all, p, Float64(case.T_guess), x0)
     T = Float64(u[4]); x1 = Float64.(u[1:3])
     beta = invariant_amounts(x1, z, 3, Float64(case.vapor_fraction))
     xs = [[x1[k], 1 - x1[k]] for k in 1:3]
     out = [Dict("fraction" => beta[k], "composition" => xs[k], "kind" => String(kinds[k]),
-                "state" => syn_state(T, p, xs[k], kinds[k])) for k in 1:3]
+                "state" => sys_state(sys, T, p, xs[k], kinds[k])) for k in 1:3]
     sort!(out; by=ph -> (ph["kind"] == "liquid", ph["state"]["mass_density"]))
     h = sum(ph["fraction"] * ph["state"]["h"] for ph in out)
     println("NRTL invariant ", case.id, ": T=", T)
@@ -385,17 +440,20 @@ function vlle_main()
     pkgversion(Clapeyron) == v"0.6.30" || error("VLLE references pin Clapeyron 0.6.30")
     length(ARGS) == 2 && ARGS[1] == "--output" || error("usage: generate_vlle.jl --output candidate.json")
     cubic = [pr_case(c) for c in VIN.cubic_tp]
-    nrtl = [nrtl_case(c) for c in VIN.nrtl_tp]
+    nrtl = [nrtl_case(SYNTHETIC, c) for c in VIN.nrtl_tp]
+    physical = [nrtl_case(WB, c) for c in VIN.physical_nrtl_tp]
     cubic_inv = [pr_invariant(c) for c in VIN.cubic_ph_invariant]
-    nrtl_inv = [nrtl_invariant(c) for c in VIN.nrtl_ph_invariant]
-    paths = [SOURCE, LIQ, INPUT, joinpath(@__DIR__, "generate.jl"), joinpath(@__DIR__, "generate_nrtl.jl")]
+    nrtl_inv = [nrtl_invariant(SYNTHETIC, c, [0.85, 0.12, 0.6]) for c in VIN.nrtl_ph_invariant]
+    # Water fraction of the organic liquid, the aqueous liquid and the vapor.
+    physical_inv = [nrtl_invariant(WB, c, [0.6, 0.98, 0.75]) for c in VIN.physical_nrtl_ph_invariant]
+    paths = [SOURCE, LIQ, GAS2, LIQ2, INPUT, joinpath(@__DIR__, "generate.jl"), joinpath(@__DIR__, "generate_nrtl.jl")]
     output = Dict("schema" => "vlle-clapeyron-v1", "julia_version" => string(VERSION),
         "clapeyron_version" => string(pkgversion(Clapeyron)),
         "input_sha256" => Dict(replace(relpath(p, ROOT), '\\' => '/') => bytes2hex(sha256(read(p))) for p in paths),
         "generator_sha256" => bytes2hex(sha256(read(@__FILE__))),
         "manifest_sha256" => bytes2hex(sha256(read(joinpath(@__DIR__, "Manifest.toml")))),
         "method" => "PR/PR-BM: Clapeyron MultiPhaseTPFlash/MichelsenTPFlash initial phase sets, 256-bit Newton on Clapeyron ln fugacities and balances, composition-grid TPD acceptance (minimum-Gibbs root). NRTL: Clapeyron NRTL activity coefficients and PolExpSat ancillaries, ideal-gas vapor, 256-bit Newton from grid TPD minima with grid acceptance. Invariant PH: 256-bit Newton for the binary three-phase temperature; amounts from the stated vapor fraction. No Rust calls or Rust outputs.",
-        "scope" => "Implementation agreement for matched formulations: explicit water-hydrocarbon kij = 0.5 (approximation) and a synthetic NRTL pair on methanol/water pure data. Not experimental accuracy; the grid test is evidence of stability at its resolution, not a proof.",
+        "scope" => "Implementation agreement for matched formulations: explicit water-hydrocarbon kij = 0.5 (approximation), a synthetic NRTL pair on methanol/water pure data, and the physical ChemSep/DECHEMA water/1-butanol NRTL pair with ChemSep 1-butanol pure data. Not experimental accuracy; the grid test is evidence of stability at its resolution, not a proof.",
         # Chosen before comparison; acceptance requires compositions and fugacity residuals <= 1e-7.
         "tolerances" => Dict("temperature" => [2e-6, 0.0], "fraction" => [2e-8, 0.0], "composition" => [1e-8, 1e-7],
             "molar_volume" => [1e-12, 2e-9], "mass_density" => [1e-7, 2e-9], "h" => [2e-5, 2e-9],
@@ -403,13 +461,14 @@ function vlle_main()
             # Remaining PR phase properties (live-reproduction budgets of clapeyron-v1.json).
             "Z" => [2e-10, 2e-9], "s" => [2e-7, 2e-9], "h_res" => [2e-5, 2e-9], "s_res" => [2e-7, 2e-9],
             "cp" => [2e-5, 2e-8], "cv" => [2e-5, 2e-8], "sound" => [2e-4, 2e-8]),
-        "cubic_tp" => cubic, "nrtl_tp" => nrtl, "cubic_ph_invariant" => cubic_inv, "nrtl_ph_invariant" => nrtl_inv)
+        "cubic_tp" => cubic, "nrtl_tp" => nrtl, "cubic_ph_invariant" => cubic_inv, "nrtl_ph_invariant" => nrtl_inv,
+        "physical_nrtl_tp" => physical, "physical_nrtl_ph_invariant" => physical_inv)
     @assert finite_tree(output)
     open(ARGS[2], "w") do io
         JSON3.pretty(io, output)
         println(io)
     end
-    println("Wrote $(length(cubic)) cubic, $(length(nrtl)) NRTL TP and $(length(cubic_inv) + length(nrtl_inv)) invariant PH references to ", ARGS[2])
+    println("Wrote $(length(cubic)) cubic, $(length(nrtl)) synthetic and $(length(physical)) water/1-butanol NRTL TP and $(length(cubic_inv) + length(nrtl_inv) + length(physical_inv)) invariant PH references to ", ARGS[2])
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

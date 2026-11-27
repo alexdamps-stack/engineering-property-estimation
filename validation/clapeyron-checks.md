@@ -279,7 +279,9 @@ hashes), regenerates it live with `generate_vlle.jl` from
 `THERMO_VLLE_REFERENCE`. The PR/PR-BM cases reuse the `generate.jl` model
 adapter with an explicit water–hydrocarbon kij of 0.5. The NRTL cases use
 Clapeyron's `NRTL` with a synthetic partially miscible pair on the transcribed
-methanol/water ancillaries of `generate_nrtl.jl`, with an ideal-gas vapor.
+methanol/water ancillaries of `generate_nrtl.jl`, and the physical ChemSep/DECHEMA
+water/1-butanol pair with the ChemSep 1-butanol extension extracts, both with an
+ideal-gas vapor.
 Clapeyron's native multiphase flash only supplies initial phase sets: each
 candidate is solved to 256 bits by Newton's method on Clapeyron ln fugacities and
 component balances, and accepted only when a composition-grid TPD scan finds no

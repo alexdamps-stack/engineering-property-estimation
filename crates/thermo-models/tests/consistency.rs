@@ -288,9 +288,12 @@ fn invalid_missing_and_singular_requests_fail_explicitly() {
         let lo = c
             .ideal_gas(Temperature::new(1000. - 1e-6).unwrap())
             .unwrap();
-        let hi = c
-            .ideal_gas(Temperature::new(1000. + 1e-6).unwrap())
-            .unwrap();
+        let hi = match c.ideal_gas(Temperature::new(1000. + 1e-6).unwrap()) {
+            Ok(hi) => hi,
+            // The #224 ChemSep RPP polynomial ends at 1000 K: no upper interval.
+            Err(CalculationError::OutsideValidityDomain(_)) if c.id() == "1-butanol" => continue,
+            Err(e) => panic!("{}: {e}", c.id()),
+        };
         close(lo.enthalpy, hi.enthalpy, 1e-3, 0.);
         close(lo.entropy, hi.entropy, 1e-6, 0.);
     }

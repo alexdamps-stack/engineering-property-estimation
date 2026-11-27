@@ -32,6 +32,8 @@ fn fixture() -> Value {
         ("nrtl_tp", 5),
         ("cubic_ph_invariant", 1),
         ("nrtl_ph_invariant", 1),
+        ("physical_nrtl_tp", 4),
+        ("physical_nrtl_ph_invariant", 1),
     ] {
         assert_eq!(f[key].as_array().unwrap().len(), count, "{key} count");
     }
@@ -280,13 +282,8 @@ fn nrtl_partially_miscible_tp_matches_clapeyron() {
     for case in f["nrtl_tp"].as_array().unwrap() {
         let id = case["id"].as_str().unwrap();
         let (t, p) = tp(number(&case["T"]), number(&case["p"]));
-        let r = activity_vlle_tp_flash(
-            &nrtl(&numbers(&case["z"])),
-            t,
-            p,
-            MultiphaseOptions::default(),
-        )
-        .unwrap_or_else(|e| panic!("{id}: {e}"));
+        let r = activity_vlle_tp_flash(&nrtl(&numbers(&case["z"])), t, p, activity_options())
+            .unwrap_or_else(|e| panic!("{id}: {e}"));
         assert!(r.max_ln_fugacity_residual <= residual_bound(&f), "{id}");
         compare_phases(&f, &activity_views(&r.phases), &case["phases"], id);
     }
@@ -298,6 +295,9 @@ fn activity_options() -> MultiphaseOptions {
     MultiphaseOptions {
         minimum_temperature_k: lo,
         maximum_temperature_k: hi,
+        // PH temperature resolved well below the ln-phi budget: gamma-phi ln phi of a
+        // dilute component changes by about 0.04 per K.
+        energy_tolerance: 1e-13,
         ..Default::default()
     }
 }
@@ -379,4 +379,103 @@ fn ph_at_binary_three_phase_temperature_matches_clapeyron() {
         compare_phases(&f, &activity_views(&r.phases), &case["phases"], id);
     }
     report("ph_at_binary_three_phase_temperature_matches_clapeyron");
+}
+
+/// The physical ChemSep/DECHEMA water/1-butanol pair from the embedded databases.
+fn water_butanol(z: &[f64]) -> ActivityModel {
+    let ids = vec!["water".to_string(), "1-butanol".to_string()];
+    ActivityModel::from_databases(
+        &ComponentDatabase::embedded().unwrap(),
+        &LiquidDatabase::embedded().unwrap(),
+        &composition(&ids, z),
+        VaporModel::IdealGas,
+    )
+    .unwrap()
+}
+
+#[test]
+fn physical_water_butanol_matches_clapeyron() {
+    let f = fixture();
+    let i = inputs();
+    for case in f["physical_nrtl_tp"].as_array().unwrap() {
+        let id = case["id"].as_str().unwrap();
+        let (t, p) = tp(number(&case["T"]), number(&case["p"]));
+        let r = activity_vlle_tp_flash(
+            &water_butanol(&numbers(&case["z"])),
+            t,
+            p,
+            activity_options(),
+        )
+        .unwrap_or_else(|e| panic!("{id}: {e}"));
+        assert!(r.max_ln_fugacity_residual <= residual_bound(&f), "{id}");
+        compare_phases(&f, &activity_views(&r.phases), &case["phases"], id);
+    }
+    for id in strings(&i["physical_nrtl_ph_round_trip"]) {
+        let case = f["physical_nrtl_tp"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == id.as_str())
+            .unwrap();
+        let p = Pressure::new(number(&case["p"])).unwrap();
+        let r = activity_vlle_ph_flash(
+            &water_butanol(&numbers(&case["z"])),
+            p,
+            number(&case["h"]),
+            activity_options(),
+        )
+        .unwrap_or_else(|e| panic!("{id}: {e}"));
+        close(&f, "temperature", r.temperature_k, number(&case["T"]), &id);
+        compare_phases(&f, &activity_views(&r.phases), &case["phases"], &id);
+    }
+    for case in f["physical_nrtl_ph_invariant"].as_array().unwrap() {
+        let id = case["id"].as_str().unwrap();
+        let p = Pressure::new(number(&case["p"])).unwrap();
+        let r = activity_vlle_ph_flash(
+            &water_butanol(&numbers(&case["z"])),
+            p,
+            number(&case["target_h"]),
+            activity_options(),
+        )
+        .unwrap_or_else(|e| panic!("{id}: {e}"));
+        assert!(r.invariant_temperature, "{id}");
+        assert!(r.max_ln_fugacity_residual <= residual_bound(&f), "{id}");
+        close(&f, "temperature", r.temperature_k, number(&case["T"]), id);
+        compare_phases(&f, &activity_views(&r.phases), &case["phases"], id);
+    }
+    report("physical_water_butanol_matches_clapeyron");
+}
+
+/// Model-to-experiment sanity check, reported separately from implementation
+/// agreement: predicted mutual solubilities against the IUPAC Solubility Data
+/// Series recommended values, with the budgets declared in `vlle-inputs.json`
+/// before the comparison.
+///
+/// Result (2026-11-27): the declared budget is NOT met and is not widened. The
+/// model gives organic x_water 0.601 (experiment 0.512) and aqueous x_butanol
+/// 0.0055 (experiment 0.0191). The DECHEMA parameters were regressed from 1 atm
+/// VLE data (373–391 K) and are extrapolated here; they do not describe the
+/// 298 K mutual solubilities. Run with `--ignored` to repeat the comparison.
+#[test]
+#[ignore = "documented model-to-experiment shortfall of the VLE-regressed DECHEMA pair at 298 K; see docs/vlle-status.md"]
+fn water_butanol_mutual_solubility_is_close_to_experiment() {
+    let i = inputs();
+    let e = &i["experimental_lle"];
+    let (t, p) = tp(number(&e["T"]), 1e5);
+    let r = activity_vlle_tp_flash(&water_butanol(&[0.7, 0.3]), t, p, activity_options()).unwrap();
+    assert_eq!(r.phases.len(), 2, "two liquids");
+    // Phase order: light (organic, butanol-rich) liquid, then heavy (aqueous).
+    let organic_water = r.phases[0].composition[0];
+    let aqueous_butanol = r.phases[1].composition[1];
+    let budget = &e["budget"];
+    let d_org = organic_water - number(&e["organic_x_water"]);
+    let d_aq = (aqueous_butanol / number(&e["aqueous_x_1_butanol"])).ln();
+    println!(
+        "water/1-butanol at {} K: organic x_water {organic_water:.4} (exp {:.4}, diff {d_org:+.4}); aqueous x_butanol {aqueous_butanol:.5} (exp {:.5}, ln ratio {d_aq:+.3})",
+        number(&e["T"]),
+        number(&e["organic_x_water"]),
+        number(&e["aqueous_x_1_butanol"])
+    );
+    assert!(d_org.abs() <= number(&budget["organic_x_water_abs"]));
+    assert!(d_aq.abs() <= number(&budget["aqueous_x_1_butanol_ln_ratio"]));
 }

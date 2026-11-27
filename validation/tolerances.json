@@ -614,7 +614,7 @@
           0.0
         ]
       },
-      "domain": "placeholder",
+      "domain": "6 PR/PR-BM methane/propane/water and propane/water TP states (300..400 K, 5..50 bar; explicit water-hydrocarbon kij 0.5), 5 TP states of a synthetic NRTL pair, 4 TP states of the ChemSep/DECHEMA water/1-butanol NRTL pair (298..365 K), PH round trips and 3 binary three-phase (invariant) PH states; docs/vlle-status.md",
       "rationale": "Independent Clapeyron.jl fugacities and NRTL activity coefficients solved to 256 bits with grid-TPD phase-count acceptance; composition and fugacity budgets meet the #224 acceptance (<= 1e-7), the remaining budgets reuse the clapeyron-v1 regular-state budgets."
     }
   ],

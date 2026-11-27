@@ -1,7 +1,242 @@
 {
     "method": "PR/PR-BM: Clapeyron MultiPhaseTPFlash/MichelsenTPFlash initial phase sets, 256-bit Newton on Clapeyron ln fugacities and balances, composition-grid TPD acceptance (minimum-Gibbs root). NRTL: Clapeyron NRTL activity coefficients and PolExpSat ancillaries, ideal-gas vapor, 256-bit Newton from grid TPD minima with grid acceptance. Invariant PH: 256-bit Newton for the binary three-phase temperature; amounts from the stated vapor fraction. No Rust calls or Rust outputs.",
-    "generator_sha256": "d0788f3e5ab9452d6439275352ade9d3b0d6ec37268b722d7ccc3a41eb7b2576",
+    "generator_sha256": "65ddf68b9820de99f9bca0fb6408cbcbe600ea14cce11c85f06db1348651a723",
     "julia_version": "1.11.7",
+    "physical_nrtl_ph_invariant": [
+        {
+            "target_h": -26227.716397745906,
+            "phases": [
+                {
+                    "composition": [
+                        0.7670380896707527,
+                        0.2329619103292473
+                    ],
+                    "kind": "vapour",
+                    "fraction": 0.3,
+                    "state": {
+                        "ln_phi": [
+                            0,
+                            0
+                        ],
+                        "molar_volume": 0.030049938221231424,
+                        "mass_density": 1.0344748816263325,
+                        "h": 3636.6521094637937
+                    }
+                },
+                {
+                    "composition": [
+                        0.5880751776033992,
+                        0.4119248223966008
+                    ],
+                    "kind": "liquid",
+                    "fraction": 0.5521884199508096,
+                    "state": {
+                        "ln_phi": [
+                            0.265681667928769,
+                            -0.5699658975682631
+                        ],
+                        "molar_volume": 5.190255695451702e-5,
+                        "mass_density": 792.3859874661819,
+                        "h": -39017.73416094169
+                    }
+                },
+                {
+                    "composition": [
+                        0.9820629068260649,
+                        0.017937093173935104
+                    ],
+                    "kind": "liquid",
+                    "fraction": 0.14781158004919032,
+                    "state": {
+                        "ln_phi": [
+                            -0.24711890548516635,
+                            2.564004152156542
+                        ],
+                        "molar_volume": 2.015833220158722e-5,
+                        "mass_density": 943.6124136913478,
+                        "h": -39060.343257764616
+                    }
+                }
+            ],
+            "T": 366.20646818694456,
+            "id": "wb-three-phase-1atm",
+            "z": [
+                0.7,
+                0.3
+            ],
+            "p": 101325,
+            "vapor_fraction": 0.3
+        }
+    ],
+    "physical_nrtl_tp": [
+        {
+            "phases": [
+                {
+                    "composition": [
+                        0.6008510668277829,
+                        0.39914893317221706
+                    ],
+                    "kind": "liquid",
+                    "fraction": 0.7481107977136636,
+                    "state": {
+                        "ln_phi": [
+                            -2.9466790807493464,
+                            -4.267699087880019
+                        ],
+                        "molar_volume": 4.7559974695434833e-5,
+                        "mass_density": 849.6650980322133,
+                        "h": -47403.03301182084
+                    }
+                },
+                {
+                    "composition": [
+                        0.994472279139651,
+                        0.005527720860349017
+                    ],
+                    "kind": "liquid",
+                    "fraction": 0.2518892022863363,
+                    "state": {
+                        "ln_phi": [
+                            -3.450544209599906,
+                            0.01185993586407541
+                        ],
+                        "molar_volume": 1.8479067707018212e-5,
+                        "mass_density": 991.6846689638036,
+                        "h": -44048.64455524519
+                    }
+                }
+            ],
+            "T": 298.15,
+            "id": "wb-lle-298K-1bar",
+            "z": [
+                0.7,
+                0.3
+            ],
+            "h": -46558.0987793355,
+            "p": 100000
+        },
+        {
+            "phases": [
+                {
+                    "composition": [
+                        0.5878002034566496,
+                        0.4121997965433503
+                    ],
+                    "kind": "liquid",
+                    "fraction": 0.9696663769362907,
+                    "state": {
+                        "ln_phi": [
+                            -1.2359401720267957,
+                            -2.3046612557173116
+                        ],
+                        "molar_volume": 4.995236082157212e-5,
+                        "mass_density": 823.6304742863365,
+                        "h": -43561.41060407266
+                    }
+                },
+                {
+                    "composition": [
+                        0.9899874567803696,
+                        0.010012543219630401
+                    ],
+                    "kind": "liquid",
+                    "fraction": 0.030333623063709347,
+                    "state": {
+                        "ln_phi": [
+                            -1.7572453450391503,
+                            1.413008290199219
+                        ],
+                        "molar_volume": 1.9057732810901174e-5,
+                        "mass_density": 974.7767616627892,
+                        "h": -41690.54041680144
+                    }
+                }
+            ],
+            "T": 330,
+            "id": "wb-lle-330K-1bar",
+            "z": [
+                0.6,
+                0.4
+            ],
+            "h": -43504.66033301085,
+            "p": 100000
+        },
+        {
+            "phases": [
+                {
+                    "composition": [
+                        0.7,
+                        0.3
+                    ],
+                    "kind": "vapour",
+                    "fraction": 1,
+                    "state": {
+                        "ln_phi": [
+                            0,
+                            0
+                        ],
+                        "molar_volume": 0.03793473569532416,
+                        "mass_density": 0.9186084194675243,
+                        "h": 3946.6488594625616
+                    }
+                }
+            ],
+            "T": 365,
+            "id": "wb-vl-365K-80kPa",
+            "z": [
+                0.7,
+                0.3
+            ],
+            "h": 3946.6488594625616,
+            "p": 80000
+        },
+        {
+            "phases": [
+                {
+                    "composition": [
+                        0.6008510668277829,
+                        0.39914893317221706
+                    ],
+                    "kind": "liquid",
+                    "fraction": 0.011361885487277993,
+                    "state": {
+                        "ln_phi": [
+                            -2.9466790807493464,
+                            -4.267699087880019
+                        ],
+                        "molar_volume": 4.7559974695434833e-5,
+                        "mass_density": 849.6650980322133,
+                        "h": -47403.03301182084
+                    }
+                },
+                {
+                    "composition": [
+                        0.994472279139651,
+                        0.005527720860349017
+                    ],
+                    "kind": "liquid",
+                    "fraction": 0.988638114512722,
+                    "state": {
+                        "ln_phi": [
+                            -3.450544209599906,
+                            0.01185993586407541
+                        ],
+                        "molar_volume": 1.8479067707018212e-5,
+                        "mass_density": 991.6846689638036,
+                        "h": -44048.64455524519
+                    }
+                }
+            ],
+            "T": 298.15,
+            "id": "wb-aqueous-298K-1bar",
+            "z": [
+                0.99,
+                0.01
+            ],
+            "h": -44086.75673276865,
+            "p": 100000
+        }
+    ],
     "cubic_tp": [
         {
             "phases": [
@@ -571,7 +806,7 @@
             ]
         }
     ],
-    "scope": "Implementation agreement for matched formulations: explicit water-hydrocarbon kij = 0.5 (approximation) and a synthetic NRTL pair on methanol/water pure data. Not experimental accuracy; the grid test is evidence of stability at its resolution, not a proof.",
+    "scope": "Implementation agreement for matched formulations: explicit water-hydrocarbon kij = 0.5 (approximation), a synthetic NRTL pair on methanol/water pure data, and the physical ChemSep/DECHEMA water/1-butanol NRTL pair with ChemSep 1-butanol pure data. Not experimental accuracy; the grid test is evidence of stability at its resolution, not a proof.",
     "cubic_ph_invariant": [
         {
             "vapor_fraction": 0.3,
@@ -736,9 +971,11 @@
     "input_sha256": {
         "validation/julia/generate_nrtl.jl": "1aac4206704467e6d166327874f462090adb202b7b1d4627d42afa245e2c96aa",
         "data/source-extracts/components.provisional.json": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147",
+        "data/source-extracts/components-chemsep.provisional.json": "7e46a4b6f4838a3ab9c215c679cea53ea0d51bdacb37cb41c24318e842d56052",
         "data/source-extracts/liquid-nrtl.provisional.json": "b2f56e9dd1a05d547df8d5a6ddfb10aea7daf12493d01c888b23a96d7fa14a2c",
         "validation/julia/generate.jl": "ac1f892ef781773cb008d345651ddbe01986c53d6b0b3f27051dbfa2926241f3",
-        "validation/vlle-inputs.json": "efb47443d034f6ade54dc60fed41a7c768c086d71fccbe60a4cf119f18564a06"
+        "validation/vlle-inputs.json": "ab6d04c70881bd2bfee9f3bae942dd951a408b321df144e33c0ebdf5c47452f7",
+        "data/source-extracts/liquid-chemsep-nrtl.provisional.json": "c6a671cc70847e5ff9c3b9fe8b367c70d99e12283a03e70e3aabb89e4012b4af"
     },
     "schema": "vlle-clapeyron-v1",
     "manifest_sha256": "74244a901d7585cf0b6f243c906d546c40dcca3018503062a8716bd1deed16b0",
