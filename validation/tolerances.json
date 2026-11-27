@@ -616,6 +616,21 @@
       },
       "domain": "6 PR/PR-BM methane/propane/water and propane/water TP states (300..400 K, 5..50 bar; explicit water-hydrocarbon kij 0.5), 5 TP states of a synthetic NRTL pair, 4 TP states of the ChemSep/DECHEMA water/1-butanol NRTL pair (298..365 K), PH round trips and 3 binary three-phase (invariant) PH states; docs/vlle-status.md",
       "rationale": "Independent Clapeyron.jl fugacities and NRTL activity coefficients solved to 256 bits with grid-TPD phase-count acceptance; composition and fugacity budgets meet the #224 acceptance (<= 1e-7), the remaining budgets reuse the clapeyron-v1 regular-state budgets."
+    },
+    {
+      "fixture": "validation/fixtures/a13-extended-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "composition": [2e-08, 1e-07],
+        "volume": [1e-12, 2e-08],
+        "pressure": [0.02, 2e-08],
+        "vl2": [1e-12, 2e-08],
+        "x2": [2e-08, 1e-07],
+        "temperature": [2e-06, 0.0],
+        "beta": [2e-08, 0.0]
+      },
+      "domain": "70 PR/PR-BM bubble/dew points beyond the dry A13 set (#227): pure water, methanol, 1-butanol, ethane and CO2 up to 0.95 Tc; methanol/water with a sampled bubble envelope; water-bearing natural, flue and syngas dew points with aqueous or hydrocarbon incipient liquids; kerosene pseudo-components; 6 three-phase bubble points of propane/water and methane/propane/water; 200-600 K, 1 kPa-20 MPa; docs/a13-status.md",
+      "rationale": "Unchanged A13 budgets declared in the generator before any comparison, extended with the same composition, volume and phase-fraction budgets to the second liquid of a three-phase bubble point; references refined to 256 bits, so the budgets are implementation agreement, not physical accuracy."
     }
   ],
   "deferred": [
