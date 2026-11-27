@@ -321,9 +321,16 @@ pub(super) fn calculate(
         .map_err(|e| format!("column feed bubble-point initialization: {e}"))?;
     // The condenser liquid starts at the composition of the vapor leaving
     // the first tray. Its own bubble point can be much colder than the tray.
-    let condenser_seed = ctx
-        .saturation_temperature(&seed.vapor_composition, pressure, SaturationKind::Bubble)
-        .map_err(|e| format!("column condenser bubble-point initialization: {e}"))?;
+    // When that liquid has no single-liquid bubble point (it splits into two
+    // liquids), the condenser starts at the feed bubble point instead; the
+    // converged column is then rejected by the stage liquid–liquid check.
+    let condenser_seed =
+        match ctx.saturation_temperature(&seed.vapor_composition, pressure, SaturationKind::Bubble)
+        {
+            Ok(state) => state,
+            Err(e) if is_liquid_split(&e) => seed.clone(),
+            Err(e) => return Err(format!("column condenser bubble-point initialization: {e}")),
+        };
     let column = Column {
         ctx,
         pressure,
@@ -352,6 +359,7 @@ pub(super) fn calculate(
     let (solved, iterations) = mesh::solve(initial, |values| column.residual(values))?;
     let mut cascade = column.decode(&solved);
     let properties = mesh::properties(ctx, &cascade, ColumnEnds::DISTILLATION, temperature_range)?;
+    let warnings = mesh::check_liquid_liquid(ctx, &cascade)?;
     mesh::verify_phases(ctx, &cascade)?;
     let residuals = cascade.residuals(&properties)?;
     cascade.stages[0].duty_w = -residuals[0].energy_w;
@@ -379,7 +387,7 @@ pub(super) fn calculate(
             Phase::Liquid,
         )?);
     }
-    let mut output = UnitOutput::new(outlets, reboiler - condenser, Vec::new());
+    let mut output = UnitOutput::new(outlets, reboiler - condenser, warnings);
     output.energy = energy;
     Ok((
         output,
@@ -391,4 +399,11 @@ pub(super) fn calculate(
             iterations,
         },
     ))
+}
+
+/// Saturation failures caused by a liquid that splits into two liquids: a
+/// three-phase bubble point (cubic) or a saturation liquid that fails the
+/// NRTL tangent-plane trials.
+fn is_liquid_split(message: &str) -> bool {
+    message.contains("splits into two liquids") || message.contains("liquid-liquid split")
 }

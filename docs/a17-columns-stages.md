@@ -10,7 +10,7 @@ supports rigorous distillation (#186) and adiabatic absorption and stripping
 |---|---|
 | `Stage` | T, p, `L_j`, `V_j`, side draws `U_j`/`W_j`, `x_j`, `y_j`, duty `Q_j`, Murphree vapor efficiency |
 | `StageFeed` (`from_stream`) | A feed entering one stage as a whole, built from a flowsheet `MaterialStream` |
-| `StageProperties`, `CalcContext::stage_properties` | `K_ij` and liquid/vapor molar enthalpies from the cubic package at the stage state |
+| `StageProperties`, `CalcContext::stage_properties` | `K_ij` and liquid/vapor molar enthalpies from the package's homogeneous liquid and vapor at the stage state |
 | `StageCascade::residuals` | MESH residuals per stage (M, E with Murphree, S, H) |
 | `StageCascade::total_flow_residuals`, `balance` | Stage total-flow residuals and overall component/energy balance |
 | `StageCascade::solve_liquid_fractions` | Thomas-algorithm component balance at fixed flows and K (Wang–Henke inner step) |
@@ -75,11 +75,13 @@ duties, and a single stage built from a cubic TP flash (ethane/propane, PR).
   A damped Newton solve closes the remaining component, log-fugacity and
   internal energy equations. The column then TP-flashes the midpoint of every
   solved tie line to verify its two phases before publishing results.
-- The solve uses PR or PR-BM and the bounded A13 bubble-point domain
-  (active methane, ethane, propane, nitrogen and carbon dioxide,
-  200–350 K and 10 kPa–10 MPa). It also honors the selected package
-  temperature limits. It reports an explicit failure for infeasible duties,
-  loss of two-phase behavior or nonconvergence.
+- The column takes its domain from the selected package (see
+  [Package domain](#package-domain-and-liquidliquid-check)): any package
+  component, stage temperatures inside the package's bubble/dew interval,
+  and the pressure range of its bubble-point solver (cubic packages
+  1 kPa–10 MPa since #227). It reports an explicit failure for infeasible
+  duties, loss of two-phase behavior, a stage liquid that splits into two
+  liquids, or nonconvergence.
 - Existing version-4 projects keep their numbered feed, draw and energy
   connections. Legacy columns open with five ideal internal trays, feeds at
   stage 2, and unset pressure, reflux, distillate split and draw flows.
@@ -87,7 +89,11 @@ duties, and a single stage built from a cubic TP flash (ethane/propane, PR).
 
 The independent [distillation references](../validation/columns/README.md)
 cover a single-feed PR tray column and a two-feed PR-BM packed column with a
-liquid side draw. Both run through full project solving and save/reload.
+liquid side draw, plus (outside the original dry-gas domain) PR
+methanol/water at 1 atm and PR propane/methanol at 2 MPa with a 430 K
+reboiler. All run through full project solving and save/reload. NRTL-IG
+methanol/water and GERG-2008 ethane/propane columns are behaviour tests
+without an independent column reference.
 
 ## Absorber and stripper
 
@@ -102,10 +108,13 @@ liquid side draw. Both run through full project solving and save/reload.
   equilibrium and energy equations and calculates both outlet flows. It
   starts from a two-phase PH flash of the combined feed. The solver checks
   each stage against a separate TP flash of its tie-line midpoint.
-- The column uses the same PR and PR-BM pressure, temperature and active
-  component limits as rigorous distillation. It requires two positive
-  internal phase flows at each contact and reports initialization or
-  convergence failures in the flowsheet.
+- The column accepts any package component. Stage temperatures stay in the
+  package's bubble/dew interval; the absorber calls no bubble/dew solver, so
+  its pressure is bounded by the package's PH, homogeneous-phase, TP and
+  VLLE operations. It requires two positive internal phase flows at each
+  contact and reports initialization or convergence failures in the
+  flowsheet. A feed blend that the two-phase PH flash finds three-phase
+  fails at initialization.
 - Existing version-4 projects keep their four material connections. A legacy
   absorber opens with five ideal trays and unset column pressure. The
   desktop reports stage temperatures, bed height when applicable, and
@@ -113,7 +122,43 @@ liquid side draw. Both run through full project solving and save/reload.
 
 Independent [absorber references](../validation/columns/README.md) cover
 propane uptake in a PR tray column, ethane stripping in a PR-BM packed
-column, and one ideal contact.
+column, one ideal contact, and CO2/methane absorption into methanol.
+
+## Package domain and liquid–liquid check
+
+Both rigorous columns use only `FlowsheetPackage` operations through
+`CalcContext` (#186, #187):
+
+| Step | Operation | PR / PR-BM / SRK | NRTL-IG | GERG-2008 | EOS-CG-2021 |
+|---|---|---|---|---|---|
+| Stage temperature interval | `saturation_temperature_interval` ∩ `temperature_interval` | ✔ | ✔ | ✔ | — (explicit failure) |
+| Distillation seed | `saturation_temperature` (bubble) | ✔ | ✔ (modified Raoult) | ✔ (dry set) | — |
+| Absorber seed | `ph` | ✔ | ✔ | ✔ | — |
+| Stage K-values and enthalpies | `homogeneous` on the liquid (smallest-volume) and vapor (largest-volume) branch | ✔ | ✔ (NRTL liquid, ideal-gas vapor) | ✔ (exterior roots) | — (gas branch only) |
+| Tie-line verification | `tp` of each tie-line midpoint | ✔ | ✔ | ✔ | — |
+| Stage liquid–liquid check | `vlle_tp` of each tie-line midpoint | ✔ | ✔ | skipped with a warning | — |
+
+The existing `homogeneous` operation already carries the column contract
+(composition-specified liquid and vapor at T and p, no stability claim), so
+the package interface was not extended. For the gamma–phi package the
+smallest-volume branch is the NRTL liquid and the largest-volume branch the
+ideal gas; K = γ p^sat / p follows from their ln φ.
+
+**Liquid–liquid check.** The stage equations carry one liquid per stage, so a
+converged stage liquid may be unstable against a second liquid (for example
+the water/1-butanol heterogeneous azeotrope, or methanol/water under PR with
+kij = 0). After convergence, and before the two-phase tie-line verification,
+the midpoint of every stage tie line is flashed with the package's
+three-phase `vlle_tp`. A phase with the light- or heavy-liquid role fails the
+column with "stage N liquid splits into two liquids; use the three-phase
+column". Any other VLLE failure (for example non-convergence near a plait
+point) also fails the column. A package that returns `UnsupportedCapability`
+for `vlle_tp` (GERG-2008) is not failed: the check is skipped and the unit
+publishes the warning "stage liquids were not tested for a second liquid
+phase …", so the result never claims a check that did not run. When the
+condenser liquid itself has a three-phase bubble point, the condenser is
+seeded at the feed bubble point instead; the converged column is then judged
+by the same check.
 
 ## Further column models
 

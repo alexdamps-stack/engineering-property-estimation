@@ -102,3 +102,40 @@ and adapter hashes.
 ```sh
 python validation/columns/generate-absorber-references.py --output /tmp/absorber-candidate.json
 ```
+
+## Extended-domain column references (#186, #187)
+
+`extended-v1.json` covers columns outside the original dry ethane/propane,
+200–350 K domain, which the columns accept since they take their domain from
+the property package:
+
+| id | kind | package | conditions |
+|---|---|---|---|
+| `methanol-water-trays-PR` | distillation, 6 trays | PR, methanol/water kij = −0.075 | 101.325 kPa, 338–368 K |
+| `propane-methanol-trays-PR` | distillation, 4 trays | PR, kij = 0 | 2 MPa, reboiler ≈ 430 K |
+| `methanol-solvent-absorber-PR` | absorber, 5 trays | PR, kij = 0 | 3 MPa, methane/CO2 gas, methanol solvent at 250 K |
+
+The methanol/water kij is an explicit approximation recorded in each case
+(`kij_note`): with kij = 0 PR splits the bottom liquid into two liquids, which
+the column rejects (tested in `flowsheet-project/tests/columns_domain.rs`).
+The agreement is implementation verification, not experimental accuracy.
+
+The generator solves the full multicomponent component, energy, logarithmic
+equilibrium and explicit summation equations with a damped finite-difference
+Newton iteration (SciPy Levenberg–Marquardt as a fallback) in temperature,
+log mole-fraction and log vapor-flow coordinates, using the same teqp and
+Cantera reference adapters as the other column references (the adapter's
+bubble/dew scan is widened from 200–350 K to the cubic package interval
+200–600 K and, for the initial profile, starts above the condenser bubble
+point). The Rust engine uses different variables (normalized log ratios,
+eliminated summations) and its own solver. The independent TPD flash adapter
+classifies every inlet as single-phase. At every fitted stage both phases
+must pass the adapter's finite-start TPD search, which excludes a second
+liquid at the reference solution, and the fitted liquid and vapor must be the
+distinct minimum-Gibbs roots of their compositions. The budgets equal those
+of `distillation-v1.json` and `absorber-v1.json` and were fixed before any
+Rust comparison. Generation takes a few minutes.
+
+```sh
+python validation/columns/generate-extended-column-references.py --output /tmp/extended-candidate.json
+```

@@ -1,6 +1,5 @@
 //! Adiabatic countercurrent equilibrium absorber or stripper (#187).
 
-use thermo_solvers::SaturationOptions;
 use thermo_types::Phase;
 
 use super::ColumnInternals;
@@ -201,13 +200,11 @@ pub(super) fn calculate(
     }
     let (stage_count, bed) = spec.internals.resolve()?;
     let pressure = spec.pressure_pa.expect("checked absorber pressure");
-    let options = SaturationOptions::default();
-    if !(options.minimum_pressure_pa..=options.maximum_pressure_pa).contains(&pressure) {
-        return Err(format!(
-            "absorber pressure must be in {}..={} Pa",
-            options.minimum_pressure_pa, options.maximum_pressure_pa
-        ));
-    }
+    // The column's thermodynamic domain is the package's: stage temperatures
+    // stay inside its bubble/dew interval, and the stage equations and checks
+    // use only its PH, homogeneous-phase, TP and VLLE operations, which reject
+    // states outside their own domains.
+    let temperature_range = mesh::temperature_range(ctx)?;
     let c = ctx.component_count();
     let gas = inlet(
         &inputs[0],
@@ -220,15 +217,6 @@ pub(super) fn calculate(
     let liquid = inlet(&inputs[1], 1, c, pressure, Phase::Liquid, "liquid inlet")?;
     let active: Vec<f64> = gas.z.iter().zip(&liquid.z).map(|(y, x)| y + x).collect();
     let active = mesh::active_components(&active)?;
-    let ids = ctx.component_ids();
-    let allowed = ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide"];
-    if let Some(id) = active
-        .iter()
-        .map(|&i| ids[i])
-        .find(|id| !allowed.contains(id))
-    {
-        return Err(format!("absorber does not support active component '{id}'"));
-    }
     let total_flow = gas.molar_flow_mol_s + liquid.molar_flow_mol_s;
     if !total_flow.is_finite() {
         return Err("absorber total feed flow is not finite".into());
@@ -236,7 +224,7 @@ pub(super) fn calculate(
     let column = Absorber {
         ctx,
         pressure,
-        temperature_range: mesh::temperature_range(ctx)?,
+        temperature_range,
         stage_count,
         gas,
         liquid,
@@ -245,6 +233,7 @@ pub(super) fn calculate(
     };
     let (solved, iterations) = mesh::solve(column.initial()?, |v| column.residual(v))?;
     let cascade = column.decode(&solved);
+    let warnings = mesh::check_liquid_liquid(ctx, &cascade)?;
     mesh::verify_phases(ctx, &cascade)?;
     ColumnEnds::NONE.check(&cascade)?;
     if let Some(packed) = bed {
@@ -261,7 +250,7 @@ pub(super) fn calculate(
         mesh::product(ctx, bottom, bottom.liquid_mol_s, Phase::Liquid)?,
     ];
     Ok((
-        UnitOutput::new(outlets, 0.0, Vec::new()),
+        UnitOutput::new(outlets, 0.0, warnings),
         AbsorberResult {
             stage_temperatures_k: cascade
                 .stages
