@@ -167,7 +167,7 @@ pub struct StageProperties {
 }
 
 impl CalcContext<'_> {
-    /// [`StageProperties`] of `stage` from the cubic package: K-values from
+    /// [`StageProperties`] of `stage` from the property package: K-values from
     /// the fugacity coefficients of `x` (liquid root) and `y` (vapor root)
     /// and the homogeneous phase enthalpies on the same roots. No stability
     /// check; the column solver owns phase existence.

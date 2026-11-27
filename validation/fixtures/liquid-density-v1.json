@@ -9,7 +9,8 @@
  "inputs_sha256": {
   "data/source-extracts/components.provisional.json": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147",
   "data/source-extracts/components-reacting.provisional.json": "aa400979fe47789c99e68643a9dc501c07a1feef92f38b53b2f3a9e7c9e2f6b7",
-  "data/source-extracts/liquid-density-costald.provisional.json": "60534f593d99a52b43cc0df49598587698cbf5dd9f9744a0909de25a4b07cfc2"
+  "data/source-extracts/liquid-density-costald.provisional.json": "60534f593d99a52b43cc0df49598587698cbf5dd9f9744a0909de25a4b07cfc2",
+  "data/source-extracts/liquid-density-chemsep.provisional.json": "a7e2a6fbabe0ac6c61c4cde8d3bd4586816a5b7590b535b8c500e09ee392f7dd"
  },
  "gas_constant_J_per_mol_K": 8.31446261815324,
  "declared_domain": {
@@ -18,11 +19,15 @@
    0.95
   ],
   "maximum_pressure_Pa": 69000000.0,
+  "ideal_mixing_maximum_pressure_Pa": 10000000.0,
+  "mixing_rule": "Hankinson-Thomson COSTALD mixing; when water and methanol exceed the trace fraction, ideal (Amagat) mixing of pure saturated volumes (ChemSep DIPPR 105/106 for water and methanol, pure COSTALD for the others; components without a pure liquid volume at T may total at most the trace fraction and are left out); COSTALD-Tait with the Hankinson-Thomson mixture parameters in both cases",
   "pressure_rule": "Tait correction only above the generalized Riedel pseudo saturation pressure; otherwise the saturated value is reported with pressure_corrected=false"
  },
  "qualification_policy": {
   "qualified_components": [
    "methane",
+   "water",
+   "methanol",
    "ethane",
    "propane",
    "nitrogen",
@@ -1692,13 +1697,7 @@
    ],
    "temperature_K": 194.1288,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.2999999999999999,
-   "saturated_molar_volume_m3_per_mol": 1.2753092255576235e-05,
-   "pseudo_saturation_pressure_Pa": 0.029708147731753804,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.2753001994884379e-05,
-   "mass_density_kg_per_m3": 1412.6295916229355
+   "engine_scope": "refused"
   },
   {
    "id": "pure-water-Tr0.3-p5e+06",
@@ -1710,13 +1709,7 @@
    ],
    "temperature_K": 194.1288,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.2999999999999999,
-   "saturated_molar_volume_m3_per_mol": 1.2753092255576235e-05,
-   "pseudo_saturation_pressure_Pa": 0.029708147731753804,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.2748587072624638e-05,
-   "mass_density_kg_per_m3": 1413.1187948415584
+   "engine_scope": "refused"
   },
   {
    "id": "pure-water-Tr0.3-p3e+07",
@@ -1728,13 +1721,7 @@
    ],
    "temperature_K": 194.1288,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.2999999999999999,
-   "saturated_molar_volume_m3_per_mol": 1.2753092255576235e-05,
-   "pseudo_saturation_pressure_Pa": 0.029708147731753804,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.2726298197588846e-05,
-   "mass_density_kg_per_m3": 1415.5937351376235
+   "engine_scope": "refused"
   },
   {
    "id": "pure-water-Tr0.5-p100000",
@@ -1746,13 +1733,13 @@
    ],
    "temperature_K": 323.548,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.4999999999999997,
-   "saturated_molar_volume_m3_per_mol": 1.4322380242063736e-05,
+   "saturated_molar_volume_m3_per_mol": 1.8248419097733736e-05,
    "pseudo_saturation_pressure_Pa": 11189.975565566228,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.432223022323447e-05,
-   "mass_density_kg_per_m3": 1257.8535409083454
+   "molar_volume_m3_per_mol": 1.8248227955868854e-05,
+   "mass_density_kg_per_m3": 987.2338313379119
   },
   {
    "id": "pure-water-Tr0.5-p5e+06",
@@ -1764,13 +1751,13 @@
    ],
    "temperature_K": 323.548,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.4999999999999997,
-   "saturated_molar_volume_m3_per_mol": 1.4322380242063736e-05,
+   "saturated_molar_volume_m3_per_mol": 1.8248419097733736e-05,
    "pseudo_saturation_pressure_Pa": 11189.975565566228,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.4313977489635712e-05,
-   "mass_density_kg_per_m3": 1258.5787572353158
+   "molar_volume_m3_per_mol": 1.8237712989859937e-05,
+   "mass_density_kg_per_m3": 987.8030216845931
   },
   {
    "id": "pure-water-Tr0.5-p3e+07",
@@ -1782,13 +1769,7 @@
    ],
    "temperature_K": 323.548,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.4999999999999997,
-   "saturated_molar_volume_m3_per_mol": 1.4322380242063736e-05,
-   "pseudo_saturation_pressure_Pa": 11189.975565566228,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.4272600536915974e-05,
-   "mass_density_kg_per_m3": 1262.22743734778
+   "engine_scope": "refused"
   },
   {
    "id": "pure-water-Tr0.7-p100000",
@@ -1800,13 +1781,13 @@
    ],
    "temperature_K": 452.9672,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.6999999999999996,
-   "saturated_molar_volume_m3_per_mol": 1.6658474647382967e-05,
+   "saturated_molar_volume_m3_per_mol": 2.029563597448545e-05,
    "pseudo_saturation_pressure_Pa": 1331042.9302167373,
    "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 1.6658474647382967e-05,
-   "mass_density_kg_per_m3": 1081.4476343925153
+   "molar_volume_m3_per_mol": 2.029563597448545e-05,
+   "mass_density_kg_per_m3": 887.642447994623
   },
   {
    "id": "pure-water-Tr0.7-p5e+06",
@@ -1818,13 +1799,13 @@
    ],
    "temperature_K": 452.9672,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.6999999999999996,
-   "saturated_molar_volume_m3_per_mol": 1.6658474647382967e-05,
+   "saturated_molar_volume_m3_per_mol": 2.029563597448545e-05,
    "pseudo_saturation_pressure_Pa": 1331042.9302167373,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.6642951883161805e-05,
-   "mass_density_kg_per_m3": 1082.4562929985161
+   "molar_volume_m3_per_mol": 2.0276724016540972e-05,
+   "mass_density_kg_per_m3": 888.4703458657245
   },
   {
    "id": "pure-water-Tr0.7-p3e+07",
@@ -1836,13 +1817,7 @@
    ],
    "temperature_K": 452.9672,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.6999999999999996,
-   "saturated_molar_volume_m3_per_mol": 1.6658474647382967e-05,
-   "pseudo_saturation_pressure_Pa": 1331042.9302167373,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.6540885759565213e-05,
-   "mass_density_kg_per_m3": 1089.1356280350456
+   "engine_scope": "refused"
   },
   {
    "id": "pure-water-Tr0.85-p100000",
@@ -1854,13 +1829,13 @@
    ],
    "temperature_K": 550.0316,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.8499999999999995,
-   "saturated_molar_volume_m3_per_mol": 1.9725890466043507e-05,
+   "saturated_molar_volume_m3_per_mol": 2.3815055311508813e-05,
    "pseudo_saturation_pressure_Pa": 8778321.056077454,
    "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 1.9725890466043507e-05,
-   "mass_density_kg_per_m3": 913.280342452058
+   "molar_volume_m3_per_mol": 2.3815055311508813e-05,
+   "mass_density_kg_per_m3": 756.465511599882
   },
   {
    "id": "pure-water-Tr0.85-p5e+06",
@@ -1872,13 +1847,13 @@
    ],
    "temperature_K": 550.0316,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.8499999999999995,
-   "saturated_molar_volume_m3_per_mol": 1.9725890466043507e-05,
+   "saturated_molar_volume_m3_per_mol": 2.3815055311508813e-05,
    "pseudo_saturation_pressure_Pa": 8778321.056077454,
    "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 1.9725890466043507e-05,
-   "mass_density_kg_per_m3": 913.280342452058
+   "molar_volume_m3_per_mol": 2.3815055311508813e-05,
+   "mass_density_kg_per_m3": 756.465511599882
   },
   {
    "id": "pure-water-Tr0.85-p3e+07",
@@ -1890,13 +1865,7 @@
    ],
    "temperature_K": 550.0316,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.8499999999999995,
-   "saturated_molar_volume_m3_per_mol": 1.9725890466043507e-05,
-   "pseudo_saturation_pressure_Pa": 8778321.056077454,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.9451586674611683e-05,
-   "mass_density_kg_per_m3": 926.1593052207729
+   "engine_scope": "refused"
   },
   {
    "id": "pure-water-Tr0.93-p100000",
@@ -1908,13 +1877,13 @@
    ],
    "temperature_K": 601.79928,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.9299999999999994,
-   "saturated_molar_volume_m3_per_mol": 2.29272757181924e-05,
+   "saturated_molar_volume_m3_per_mol": 2.8048411495489135e-05,
    "pseudo_saturation_pressure_Pa": 18318973.993518967,
    "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 2.29272757181924e-05,
-   "mass_density_kg_per_m3": 785.7570267585344
+   "molar_volume_m3_per_mol": 2.8048411495489135e-05,
+   "mass_density_kg_per_m3": 642.2919174191841
   },
   {
    "id": "pure-water-Tr0.93-p5e+06",
@@ -1926,13 +1895,13 @@
    ],
    "temperature_K": 601.79928,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.9299999999999994,
-   "saturated_molar_volume_m3_per_mol": 2.29272757181924e-05,
+   "saturated_molar_volume_m3_per_mol": 2.8048411495489135e-05,
    "pseudo_saturation_pressure_Pa": 18318973.993518967,
    "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 2.29272757181924e-05,
-   "mass_density_kg_per_m3": 785.7570267585344
+   "molar_volume_m3_per_mol": 2.8048411495489135e-05,
+   "mass_density_kg_per_m3": 642.2919174191841
   },
   {
    "id": "pure-water-Tr0.93-p3e+07",
@@ -1944,13 +1913,7 @@
    ],
    "temperature_K": 601.79928,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.9299999999999994,
-   "saturated_molar_volume_m3_per_mol": 2.29272757181924e-05,
-   "pseudo_saturation_pressure_Pa": 18318973.993518967,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.2443047946238056e-05,
-   "mass_density_kg_per_m3": 802.7104002609303
+   "engine_scope": "refused"
   },
   {
    "id": "pure-methanol-Tr0.3-p100000",
@@ -1962,13 +1925,7 @@
    ],
    "temperature_K": 153.75,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.29999999999999993,
-   "saturated_molar_volume_m3_per_mol": 3.33263863952668e-05,
-   "pseudo_saturation_pressure_Pa": 0.0002698446930971113,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 3.332580039359414e-05,
-   "mass_density_kg_per_m3": 961.4820835978818
+   "engine_scope": "refused"
   },
   {
    "id": "pure-methanol-Tr0.3-p5e+06",
@@ -1980,13 +1937,7 @@
    ],
    "temperature_K": 153.75,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.29999999999999993,
-   "saturated_molar_volume_m3_per_mol": 3.33263863952668e-05,
-   "pseudo_saturation_pressure_Pa": 0.0002698446930971113,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 3.329720561775664e-05,
-   "mass_density_kg_per_m3": 962.307779452599
+   "engine_scope": "refused"
   },
   {
    "id": "pure-methanol-Tr0.3-p3e+07",
@@ -1998,13 +1949,7 @@
    ],
    "temperature_K": 153.75,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.29999999999999993,
-   "saturated_molar_volume_m3_per_mol": 3.33263863952668e-05,
-   "pseudo_saturation_pressure_Pa": 0.0002698446930971113,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 3.315483676949073e-05,
-   "mass_density_kg_per_m3": 966.4399865025239
+   "engine_scope": "refused"
   },
   {
    "id": "pure-methanol-Tr0.5-p100000",
@@ -2016,13 +1961,13 @@
    ],
    "temperature_K": 256.25,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.4999999999999999,
-   "saturated_molar_volume_m3_per_mol": 3.7637459827584835e-05,
+   "saturated_molar_volume_m3_per_mol": 3.881070227855768e-05,
    "pseudo_saturation_pressure_Pa": 996.988792859247,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 3.763639252696791e-05,
-   "mass_density_kg_per_m3": 851.3610856045932
+   "molar_volume_m3_per_mol": 3.8809601707831734e-05,
+   "mass_density_kg_per_m3": 825.6245513989371
   },
   {
    "id": "pure-methanol-Tr0.5-p5e+06",
@@ -2034,13 +1979,13 @@
    ],
    "temperature_K": 256.25,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.4999999999999999,
-   "saturated_molar_volume_m3_per_mol": 3.7637459827584835e-05,
+   "saturated_molar_volume_m3_per_mol": 3.881070227855768e-05,
    "pseudo_saturation_pressure_Pa": 996.988792859247,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 3.75839243738702e-05,
-   "mass_density_kg_per_m3": 852.549608211668
+   "molar_volume_m3_per_mol": 3.8755498006936156e-05,
+   "mass_density_kg_per_m3": 826.7771451231343
   },
   {
    "id": "pure-methanol-Tr0.5-p3e+07",
@@ -2052,13 +1997,7 @@
    ],
    "temperature_K": 256.25,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.4999999999999999,
-   "saturated_molar_volume_m3_per_mol": 3.7637459827584835e-05,
-   "pseudo_saturation_pressure_Pa": 996.988792859247,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 3.7326543286110227e-05,
-   "mass_density_kg_per_m3": 858.4282705846854
+   "engine_scope": "refused"
   },
   {
    "id": "pure-methanol-Tr0.7-p100000",
@@ -2070,13 +2009,13 @@
    ],
    "temperature_K": 358.75,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.6999999999999998,
-   "saturated_molar_volume_m3_per_mol": 4.405077492314885e-05,
+   "saturated_molar_volume_m3_per_mol": 4.402486068860107e-05,
    "pseudo_saturation_pressure_Pa": 247272.54027982004,
    "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 4.405077492314885e-05,
-   "mass_density_kg_per_m3": 727.391517082296
+   "molar_volume_m3_per_mol": 4.402486068860107e-05,
+   "mass_density_kg_per_m3": 727.8196795815498
   },
   {
    "id": "pure-methanol-Tr0.7-p5e+06",
@@ -2088,13 +2027,13 @@
    ],
    "temperature_K": 358.75,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.6999999999999998,
-   "saturated_molar_volume_m3_per_mol": 4.405077492314885e-05,
+   "saturated_molar_volume_m3_per_mol": 4.402486068860107e-05,
    "pseudo_saturation_pressure_Pa": 247272.54027982004,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 4.392704253420579e-05,
-   "mass_density_kg_per_m3": 729.4404119068321
+   "molar_volume_m3_per_mol": 4.390120108907326e-05,
+   "mass_density_kg_per_m3": 729.8697804414991
   },
   {
    "id": "pure-methanol-Tr0.7-p3e+07",
@@ -2106,13 +2045,7 @@
    ],
    "temperature_K": 358.75,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.6999999999999998,
-   "saturated_molar_volume_m3_per_mol": 4.405077492314885e-05,
-   "pseudo_saturation_pressure_Pa": 247272.54027982004,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 4.3325573355240695e-05,
-   "mass_density_kg_per_m3": 739.5669005295265
+   "engine_scope": "refused"
   },
   {
    "id": "pure-methanol-Tr0.85-p100000",
@@ -2124,13 +2057,13 @@
    ],
    "temperature_K": 435.625,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.8499999999999999,
-   "saturated_molar_volume_m3_per_mol": 5.242726267718122e-05,
+   "saturated_molar_volume_m3_per_mol": 5.118325427639292e-05,
    "pseudo_saturation_pressure_Pa": 2076944.5172988344,
    "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 5.242726267718122e-05,
-   "mass_density_kg_per_m3": 611.1736215811671
+   "molar_volume_m3_per_mol": 5.118325427639292e-05,
+   "mass_density_kg_per_m3": 626.028189356039
   },
   {
    "id": "pure-methanol-Tr0.85-p5e+06",
@@ -2142,13 +2075,13 @@
    ],
    "temperature_K": 435.625,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.8499999999999999,
-   "saturated_molar_volume_m3_per_mol": 5.242726267718122e-05,
+   "saturated_molar_volume_m3_per_mol": 5.118325427639292e-05,
    "pseudo_saturation_pressure_Pa": 2076944.5172988344,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 5.2187560785793914e-05,
-   "mass_density_kg_per_m3": 613.9807938431617
+   "molar_volume_m3_per_mol": 5.094924009692006e-05,
+   "mass_density_kg_per_m3": 628.9035899072612
   },
   {
    "id": "pure-methanol-Tr0.85-p3e+07",
@@ -2160,13 +2093,7 @@
    ],
    "temperature_K": 435.625,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.8499999999999999,
-   "saturated_molar_volume_m3_per_mol": 5.242726267718122e-05,
-   "pseudo_saturation_pressure_Pa": 2076944.5172988344,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 5.047645484920081e-05,
-   "mass_density_kg_per_m3": 634.7941846495846
+   "engine_scope": "refused"
   },
   {
    "id": "pure-methanol-Tr0.93-p100000",
@@ -2178,13 +2105,13 @@
    ],
    "temperature_K": 476.625,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.9299999999999998,
-   "saturated_molar_volume_m3_per_mol": 6.110859079320307e-05,
+   "saturated_molar_volume_m3_per_mol": 5.8990804837790505e-05,
    "pseudo_saturation_pressure_Pa": 4709968.665607785,
    "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 6.110859079320307e-05,
-   "mass_density_kg_per_m3": 524.3478794730112
+   "molar_volume_m3_per_mol": 5.8990804837790505e-05,
+   "mass_density_kg_per_m3": 543.1721111130399
   },
   {
    "id": "pure-methanol-Tr0.93-p5e+06",
@@ -2196,13 +2123,13 @@
    ],
    "temperature_K": 476.625,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.9299999999999998,
-   "saturated_molar_volume_m3_per_mol": 6.110859079320307e-05,
+   "saturated_molar_volume_m3_per_mol": 5.8990804837790505e-05,
    "pseudo_saturation_pressure_Pa": 4709968.665607785,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 6.1028540002838736e-05,
-   "mass_density_kg_per_m3": 525.0356636175396
+   "molar_volume_m3_per_mol": 5.8913528296305956e-05,
+   "mass_density_kg_per_m3": 543.8845868956237
   },
   {
    "id": "pure-methanol-Tr0.93-p3e+07",
@@ -2214,13 +2141,7 @@
    ],
    "temperature_K": 476.625,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.9299999999999998,
-   "saturated_molar_volume_m3_per_mol": 6.110859079320307e-05,
-   "pseudo_saturation_pressure_Pa": 4709968.665607785,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 5.636141399449707e-05,
-   "mass_density_kg_per_m3": 568.51235143122
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.3-p100000",
@@ -2232,13 +2153,7 @@
    ],
    "temperature_K": 9.9435,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.29999999999999977,
-   "saturated_molar_volume_m3_per_mol": 2.2220688568252815e-05,
-   "pseudo_saturation_pressure_Pa": 323.7829778674613,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.2214521733278855e-05,
-   "mass_density_kg_per_m3": 90.7460455014017
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.3-p5e+06",
@@ -2250,13 +2165,7 @@
    ],
    "temperature_K": 9.9435,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.29999999999999977,
-   "saturated_molar_volume_m3_per_mol": 2.2220688568252815e-05,
-   "pseudo_saturation_pressure_Pa": 323.7829778674613,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.1935561014296792e-05,
-   "mass_density_kg_per_m3": 91.9000885678795
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.3-p3e+07",
@@ -2268,13 +2177,7 @@
    ],
    "temperature_K": 9.9435,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.29999999999999977,
-   "saturated_molar_volume_m3_per_mol": 2.2220688568252815e-05,
-   "pseudo_saturation_pressure_Pa": 323.7829778674613,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.0956702672845715e-05,
-   "mass_density_kg_per_m3": 96.192613478839
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.5-p100000",
@@ -2286,13 +2189,7 @@
    ],
    "temperature_K": 16.5725,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.49999999999999967,
-   "saturated_molar_volume_m3_per_mol": 2.4541647753819744e-05,
-   "pseudo_saturation_pressure_Pa": 28149.589144833968,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.4532882471260198e-05,
-   "mass_density_kg_per_m3": 82.170531830557
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.5-p5e+06",
@@ -2304,13 +2201,7 @@
    ],
    "temperature_K": 16.5725,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.49999999999999967,
-   "saturated_molar_volume_m3_per_mol": 2.4541647753819744e-05,
-   "pseudo_saturation_pressure_Pa": 28149.589144833968,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.4013586582061385e-05,
-   "mass_density_kg_per_m3": 83.94747669662563
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.5-p3e+07",
@@ -2322,13 +2213,7 @@
    ],
    "temperature_K": 16.5725,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.49999999999999967,
-   "saturated_molar_volume_m3_per_mol": 2.4541647753819744e-05,
-   "pseudo_saturation_pressure_Pa": 28149.589144833968,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.249256263083302e-05,
-   "mass_density_kg_per_m3": 89.62429195313709
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.7-p100000",
@@ -2340,13 +2225,7 @@
    ],
    "temperature_K": 23.2015,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.6999999999999995,
-   "saturated_molar_volume_m3_per_mol": 2.8005145267179993e-05,
-   "pseudo_saturation_pressure_Pa": 226186.03520618795,
-   "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 2.8005145267179993e-05,
-   "mass_density_kg_per_m3": 71.98248681689452
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.7-p5e+06",
@@ -2358,13 +2237,7 @@
    ],
    "temperature_K": 23.2015,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.6999999999999995,
-   "saturated_molar_volume_m3_per_mol": 2.8005145267179993e-05,
-   "pseudo_saturation_pressure_Pa": 226186.03520618795,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.6809524780158334e-05,
-   "mass_density_kg_per_m3": 75.19267933805182
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.7-p3e+07",
@@ -2376,13 +2249,7 @@
    ],
    "temperature_K": 23.2015,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.6999999999999995,
-   "saturated_molar_volume_m3_per_mol": 2.8005145267179993e-05,
-   "pseudo_saturation_pressure_Pa": 226186.03520618795,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.426106893273076e-05,
-   "mass_density_kg_per_m3": 83.09114514242872
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.85-p100000",
@@ -2394,13 +2261,7 @@
    ],
    "temperature_K": 28.17325,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.8499999999999993,
-   "saturated_molar_volume_m3_per_mol": 3.264046964015682e-05,
-   "pseudo_saturation_pressure_Pa": 614459.7887818929,
-   "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 3.264046964015682e-05,
-   "mass_density_kg_per_m3": 61.76014077689339
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.85-p5e+06",
@@ -2412,13 +2273,7 @@
    ],
    "temperature_K": 28.17325,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.8499999999999993,
-   "saturated_molar_volume_m3_per_mol": 3.264046964015682e-05,
-   "pseudo_saturation_pressure_Pa": 614459.7887818929,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.9875588086720893e-05,
-   "mass_density_kg_per_m3": 67.4758265560643
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.85-p3e+07",
@@ -2430,13 +2285,7 @@
    ],
    "temperature_K": 28.17325,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.8499999999999993,
-   "saturated_molar_volume_m3_per_mol": 3.264046964015682e-05,
-   "pseudo_saturation_pressure_Pa": 614459.7887818929,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.588934523197998e-05,
-   "mass_density_kg_per_m3": 77.8652369125918
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.93-p100000",
@@ -2448,13 +2297,7 @@
    ],
    "temperature_K": 30.82485,
    "pressure_Pa": 100000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.9299999999999994,
-   "saturated_molar_volume_m3_per_mol": 3.7598190861879444e-05,
-   "pseudo_saturation_pressure_Pa": 945312.2754089428,
-   "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 3.7598190861879444e-05,
-   "mass_density_kg_per_m3": 53.61640956091553
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.93-p5e+06",
@@ -2466,13 +2309,7 @@
    ],
    "temperature_K": 30.82485,
    "pressure_Pa": 5000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.9299999999999994,
-   "saturated_molar_volume_m3_per_mol": 3.7598190861879444e-05,
-   "pseudo_saturation_pressure_Pa": 945312.2754089428,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 3.2400021431332825e-05,
-   "mass_density_kg_per_m3": 62.21847736342912
+   "engine_scope": "refused"
   },
   {
    "id": "pure-hydrogen-Tr0.93-p3e+07",
@@ -2484,13 +2321,7 @@
    ],
    "temperature_K": 30.82485,
    "pressure_Pa": 30000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.9299999999999994,
-   "saturated_molar_volume_m3_per_mol": 3.7598190861879444e-05,
-   "pseudo_saturation_pressure_Pa": 945312.2754089428,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.7080127468888392e-05,
-   "mass_density_kg_per_m3": 74.44130395309212
+   "engine_scope": "refused"
   },
   {
    "id": "pure-carbon-monoxide-Tr0.3-p100000",
@@ -3518,13 +3349,7 @@
    ],
    "temperature_K": 224.927167,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.40000000033224054,
-   "saturated_molar_volume_m3_per_mol": 2.1555371565162027e-05,
-   "pseudo_saturation_pressure_Pa": 26.983531156855168,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.1554739410045633e-05,
-   "mass_density_kg_per_m3": 1096.0941976867064
+   "engine_scope": "refused"
   },
   {
    "id": "mix-methanol+water-[0.4, 0.6]-Tr0.4-p1e+07",
@@ -3538,13 +3363,7 @@
    ],
    "temperature_K": 224.927167,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.40000000033224054,
-   "saturated_molar_volume_m3_per_mol": 2.1555371565162027e-05,
-   "pseudo_saturation_pressure_Pa": 26.983531156855168,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.1523980811838608e-05,
-   "mass_density_kg_per_m3": 1097.660558543391
+   "engine_scope": "refused"
   },
   {
    "id": "mix-methanol+water-[0.4, 0.6]-Tr0.4-p6e+07",
@@ -3558,13 +3377,7 @@
    ],
    "temperature_K": 224.927167,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.40000000033224054,
-   "saturated_molar_volume_m3_per_mol": 2.1555371565162027e-05,
-   "pseudo_saturation_pressure_Pa": 26.983531156855168,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.1373432405620465e-05,
-   "mass_density_kg_per_m3": 1105.3921687275265
+   "engine_scope": "refused"
   },
   {
    "id": "mix-methanol+water-[0.4, 0.6]-Tr0.6-p200000",
@@ -3578,13 +3391,13 @@
    ],
    "temperature_K": 337.39075,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
+   "engine_scope": "unassessed",
    "reduced_temperature": 0.5999999996091842,
-   "saturated_molar_volume_m3_per_mol": 2.4612462885213125e-05,
+   "saturated_molar_volume_m3_per_mol": 2.809959779120097e-05,
    "pseudo_saturation_pressure_Pa": 78811.71619933963,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.461166395830267e-05,
-   "mass_density_kg_per_m3": 959.9523559247132
+   "molar_volume_m3_per_mol": 2.8098685670989636e-05,
+   "mass_density_kg_per_m3": 840.8231287626589
   },
   {
    "id": "mix-methanol+water-[0.4, 0.6]-Tr0.6-p1e+07",
@@ -3598,13 +3411,13 @@
    ],
    "temperature_K": 337.39075,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "unassessed",
    "reduced_temperature": 0.5999999996091842,
-   "saturated_molar_volume_m3_per_mol": 2.4612462885213125e-05,
+   "saturated_molar_volume_m3_per_mol": 2.809959779120097e-05,
    "pseudo_saturation_pressure_Pa": 78811.71619933963,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.4547887433339905e-05,
-   "mass_density_kg_per_m3": 962.4463556856681
+   "molar_volume_m3_per_mol": 2.8025873181303735e-05,
+   "mass_density_kg_per_m3": 843.0076253881393
   },
   {
    "id": "mix-methanol+water-[0.4, 0.6]-Tr0.6-p6e+07",
@@ -3618,13 +3431,7 @@
    ],
    "temperature_K": 337.39075,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.5999999996091842,
-   "saturated_molar_volume_m3_per_mol": 2.4612462885213125e-05,
-   "pseudo_saturation_pressure_Pa": 78811.71619933963,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.4245607776109987e-05,
-   "mass_density_kg_per_m3": 974.4455580643153
+   "engine_scope": "refused"
   },
   {
    "id": "mix-methanol+water-[0.4, 0.6]-Tr0.8-p200000",
@@ -3638,13 +3445,13 @@
    ],
    "temperature_K": 449.854334,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
+   "engine_scope": "unassessed",
    "reduced_temperature": 0.8000000006644811,
-   "saturated_molar_volume_m3_per_mol": 2.968776237261552e-05,
+   "saturated_molar_volume_m3_per_mol": 3.345052369730714e-05,
    "pseudo_saturation_pressure_Pa": 2462307.5170037076,
    "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 2.968776237261552e-05,
-   "mass_density_kg_per_m3": 795.8169599805552
+   "molar_volume_m3_per_mol": 3.345052369730714e-05,
+   "mass_density_kg_per_m3": 706.2976057950914
   },
   {
    "id": "mix-methanol+water-[0.4, 0.6]-Tr0.8-p1e+07",
@@ -3658,13 +3465,13 @@
    ],
    "temperature_K": 449.854334,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "unassessed",
    "reduced_temperature": 0.8000000006644811,
-   "saturated_molar_volume_m3_per_mol": 2.968776237261552e-05,
+   "saturated_molar_volume_m3_per_mol": 3.345052369730714e-05,
    "pseudo_saturation_pressure_Pa": 2462307.5170037076,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.9526689474773652e-05,
-   "mass_density_kg_per_m3": 800.1582710511814
+   "molar_volume_m3_per_mol": 3.3269035691622234e-05,
+   "mass_density_kg_per_m3": 710.1505742154551
   },
   {
    "id": "mix-methanol+water-[0.4, 0.6]-Tr0.8-p6e+07",
@@ -3678,13 +3485,7 @@
    ],
    "temperature_K": 449.854334,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.8000000006644811,
-   "saturated_molar_volume_m3_per_mol": 2.968776237261552e-05,
-   "pseudo_saturation_pressure_Pa": 2462307.5170037076,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.8632634632880417e-05,
-   "mass_density_kg_per_m3": 825.1432361333925
+   "engine_scope": "refused"
   },
   {
    "id": "mix-methanol+water-[0.4, 0.6]-Tr0.92-p200000",
@@ -3698,13 +3499,7 @@
    ],
    "temperature_K": 517.332484,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.9200000005863179,
-   "saturated_molar_volume_m3_per_mol": 3.6038395501427076e-05,
-   "pseudo_saturation_pressure_Pa": 8537221.275500257,
-   "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 3.6038395501427076e-05,
-   "mass_density_kg_per_m3": 655.5792640397777
+   "engine_scope": "refused"
   },
   {
    "id": "mix-methanol+water-[0.4, 0.6]-Tr0.92-p1e+07",
@@ -3718,13 +3513,7 @@
    ],
    "temperature_K": 517.332484,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.9200000005863179,
-   "saturated_molar_volume_m3_per_mol": 3.6038395501427076e-05,
-   "pseudo_saturation_pressure_Pa": 8537221.275500257,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 3.590130753548302e-05,
-   "mass_density_kg_per_m3": 658.0825719689802
+   "engine_scope": "refused"
   },
   {
    "id": "mix-methanol+water-[0.4, 0.6]-Tr0.92-p6e+07",
@@ -3738,13 +3527,7 @@
    ],
    "temperature_K": 517.332484,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.9200000005863179,
-   "saturated_molar_volume_m3_per_mol": 3.6038395501427076e-05,
-   "pseudo_saturation_pressure_Pa": 8537221.275500257,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 3.2920825199445475e-05,
-   "mass_density_kg_per_m3": 717.6619862006971
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.4-p200000",
@@ -3760,13 +3543,7 @@
    ],
    "temperature_K": 249.014694,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.4000000005996105,
-   "saturated_molar_volume_m3_per_mol": 1.3842434462774184e-05,
-   "pseudo_saturation_pressure_Pa": 115.87608500985945,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.3842166173360603e-05,
-   "mass_density_kg_per_m3": 1327.477544328517
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.4-p1e+07",
@@ -3782,13 +3559,7 @@
    ],
    "temperature_K": 249.014694,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.4000000005996105,
-   "saturated_molar_volume_m3_per_mol": 1.3842434462774184e-05,
-   "pseudo_saturation_pressure_Pa": 115.87608500985945,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.3829076307156394e-05,
-   "mass_density_kg_per_m3": 1328.7340637849438
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.4-p6e+07",
@@ -3804,13 +3575,7 @@
    ],
    "temperature_K": 249.014694,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.4000000005996105,
-   "saturated_molar_volume_m3_per_mol": 1.3842434462774184e-05,
-   "pseudo_saturation_pressure_Pa": 115.87608500985945,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.376416892037618e-05,
-   "mass_density_kg_per_m3": 1334.9999456049832
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.6-p200000",
@@ -3826,13 +3591,7 @@
    ],
    "temperature_K": 373.52204,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.5999999992930849,
-   "saturated_molar_volume_m3_per_mol": 1.5764350864969142e-05,
-   "pseudo_saturation_pressure_Pa": 192192.6335735144,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.5764328752236785e-05,
-   "mass_density_kg_per_m3": 1165.6166937899443
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.6-p1e+07",
@@ -3848,13 +3607,7 @@
    ],
    "temperature_K": 373.52204,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.5999999992930849,
-   "saturated_molar_volume_m3_per_mol": 1.5764350864969142e-05,
-   "pseudo_saturation_pressure_Pa": 192192.6335735144,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.5736816178493436e-05,
-   "mass_density_kg_per_m3": 1167.654533901987
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.6-p6e+07",
@@ -3870,13 +3623,7 @@
    ],
    "temperature_K": 373.52204,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.5999999992930849,
-   "saturated_molar_volume_m3_per_mol": 1.5764350864969142e-05,
-   "pseudo_saturation_pressure_Pa": 192192.6335735144,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.560352580396635e-05,
-   "mass_density_kg_per_m3": 1177.6290173679279
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.8-p200000",
@@ -3892,13 +3639,7 @@
    ],
    "temperature_K": 498.029387,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.7999999995928901,
-   "saturated_molar_volume_m3_per_mol": 1.896006116821644e-05,
-   "pseudo_saturation_pressure_Pa": 4882376.620552273,
-   "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 1.896006116821644e-05,
-   "mass_density_kg_per_m3": 969.1511328456617
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.8-p1e+07",
@@ -3914,13 +3655,7 @@
    ],
    "temperature_K": 498.029387,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.7999999995928901,
-   "saturated_molar_volume_m3_per_mol": 1.896006116821644e-05,
-   "pseudo_saturation_pressure_Pa": 4882376.620552273,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.8911552616217027e-05,
-   "mass_density_kg_per_m3": 971.6370270013122
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.8-p6e+07",
@@ -3936,13 +3671,7 @@
    ],
    "temperature_K": 498.029387,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.7999999995928901,
-   "saturated_molar_volume_m3_per_mol": 1.896006116821644e-05,
-   "pseudo_saturation_pressure_Pa": 4882376.620552273,
-   "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 1.8493769387360565e-05,
-   "mass_density_kg_per_m3": 993.5867791537606
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.92-p200000",
@@ -3958,13 +3687,7 @@
    ],
    "temperature_K": 572.733795,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.9199999994515071,
-   "saturated_molar_volume_m3_per_mol": 2.2973008521221707e-05,
-   "pseudo_saturation_pressure_Pa": 15895465.331438871,
-   "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 2.2973008521221707e-05,
-   "mass_density_kg_per_m3": 799.858875385243
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.92-p1e+07",
@@ -3980,13 +3703,7 @@
    ],
    "temperature_K": 572.733795,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.9199999994515071,
-   "saturated_molar_volume_m3_per_mol": 2.2973008521221707e-05,
-   "pseudo_saturation_pressure_Pa": 15895465.331438871,
-   "pressure_corrected": false,
-   "molar_volume_m3_per_mol": 2.2973008521221707e-05,
-   "mass_density_kg_per_m3": 799.858875385243
+   "engine_scope": "refused"
   },
   {
    "id": "mix-water+carbon-dioxide+hydrogen-[0.97, 0.02, 0.01]-Tr0.92-p6e+07",
@@ -4002,13 +3719,451 @@
    ],
    "temperature_K": 572.733795,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
-   "reduced_temperature": 0.9199999994515071,
-   "saturated_molar_volume_m3_per_mol": 2.2973008521221707e-05,
-   "pseudo_saturation_pressure_Pa": 15895465.331438871,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.4-p200000",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 258.539404,
+   "pressure_Pa": 200000.0,
+   "engine_scope": "qualified",
+   "reduced_temperature": 0.40000000075638814,
+   "saturated_molar_volume_m3_per_mol": 1.801683234820599e-05,
+   "pseudo_saturation_pressure_Pa": 111.16825390771382,
    "pressure_corrected": true,
-   "molar_volume_m3_per_mol": 2.1616392882035686e-05,
-   "mass_density_kg_per_m3": 850.0569387444234
+   "molar_volume_m3_per_mol": 1.801650951556982e-05,
+   "mass_density_kg_per_m3": 1000.1530008921983
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.4-p1e+07",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 258.539404,
+   "pressure_Pa": 10000000.0,
+   "engine_scope": "qualified",
+   "reduced_temperature": 0.40000000075638814,
+   "saturated_molar_volume_m3_per_mol": 1.801683234820599e-05,
+   "pseudo_saturation_pressure_Pa": 111.16825390771382,
+   "pressure_corrected": true,
+   "molar_volume_m3_per_mol": 1.8000752859431786e-05,
+   "mass_density_kg_per_m3": 1001.0284679931325
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.4-p6e+07",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 258.539404,
+   "pressure_Pa": 60000000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.6-p200000",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 387.809105,
+   "pressure_Pa": 200000.0,
+   "engine_scope": "qualified",
+   "reduced_temperature": 0.5999999995874292,
+   "saturated_molar_volume_m3_per_mol": 1.9017520928244877e-05,
+   "pseudo_saturation_pressure_Pa": 196826.88096805813,
+   "pressure_corrected": true,
+   "molar_volume_m3_per_mol": 1.9017510923062282e-05,
+   "mass_density_kg_per_m3": 947.5091735453285
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.6-p1e+07",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 387.809105,
+   "pressure_Pa": 10000000.0,
+   "engine_scope": "qualified",
+   "reduced_temperature": 0.5999999995874292,
+   "saturated_molar_volume_m3_per_mol": 1.9017520928244877e-05,
+   "pseudo_saturation_pressure_Pa": 196826.88096805813,
+   "pressure_corrected": true,
+   "molar_volume_m3_per_mol": 1.8986860377387544e-05,
+   "mass_density_kg_per_m3": 949.0387404470566
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.6-p6e+07",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 387.809105,
+   "pressure_Pa": 60000000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.8-p200000",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 517.078807,
+   "pressure_Pa": 200000.0,
+   "engine_scope": "qualified",
+   "reduced_temperature": 0.7999999999656233,
+   "saturated_molar_volume_m3_per_mol": 2.2270127212482622e-05,
+   "pseudo_saturation_pressure_Pa": 5120930.7562826,
+   "pressure_corrected": false,
+   "molar_volume_m3_per_mol": 2.2270127212482622e-05,
+   "mass_density_kg_per_m3": 809.1227268562717
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.8-p1e+07",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 517.078807,
+   "pressure_Pa": 10000000.0,
+   "engine_scope": "qualified",
+   "reduced_temperature": 0.7999999999656233,
+   "saturated_molar_volume_m3_per_mol": 2.2270127212482622e-05,
+   "pseudo_saturation_pressure_Pa": 5120930.7562826,
+   "pressure_corrected": true,
+   "molar_volume_m3_per_mol": 2.222005013883268e-05,
+   "mass_density_kg_per_m3": 810.9462375203549
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.8-p6e+07",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 517.078807,
+   "pressure_Pa": 60000000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.92-p200000",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 594.640628,
+   "pressure_Pa": 200000.0,
+   "engine_scope": "qualified",
+   "reduced_temperature": 0.9199999998831092,
+   "saturated_molar_volume_m3_per_mol": 2.7230544864832853e-05,
+   "pseudo_saturation_pressure_Pa": 16793652.305452824,
+   "pressure_corrected": false,
+   "molar_volume_m3_per_mol": 2.7230544864832853e-05,
+   "mass_density_kg_per_m3": 661.7299120177046
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.92-p1e+07",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 594.640628,
+   "pressure_Pa": 10000000.0,
+   "engine_scope": "qualified",
+   "reduced_temperature": 0.9199999998831092,
+   "saturated_molar_volume_m3_per_mol": 2.7230544864832853e-05,
+   "pseudo_saturation_pressure_Pa": 16793652.305452824,
+   "pressure_corrected": false,
+   "molar_volume_m3_per_mol": 2.7230544864832853e-05,
+   "mass_density_kg_per_m3": 661.7299120177046
+  },
+  {
+   "id": "mix-water+carbon-dioxide+hydrogen-[0.9992, 0.0004, 0.0004]-Tr0.92-p6e+07",
+   "components": [
+    "water",
+    "carbon-dioxide",
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    0.9992,
+    0.0004,
+    0.0004
+   ],
+   "temperature_K": 594.640628,
+   "pressure_Pa": 60000000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.4-p200000",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 197.503608,
+   "pressure_Pa": 200000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.4-p1e+07",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 197.503608,
+   "pressure_Pa": 10000000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.4-p6e+07",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 197.503608,
+   "pressure_Pa": 60000000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.6-p200000",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 296.255412,
+   "pressure_Pa": 200000.0,
+   "engine_scope": "unassessed",
+   "reduced_temperature": 0.6000000003568049,
+   "saturated_molar_volume_m3_per_mol": 3.899806524757734e-05,
+   "pseudo_saturation_pressure_Pa": 70205.96913381493,
+   "pressure_corrected": true,
+   "molar_volume_m3_per_mol": 3.899577884719338e-05,
+   "mass_density_kg_per_m3": 703.6506722310248
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.6-p1e+07",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 296.255412,
+   "pressure_Pa": 10000000.0,
+   "engine_scope": "unassessed",
+   "reduced_temperature": 0.6000000003568049,
+   "saturated_molar_volume_m3_per_mol": 3.899806524757734e-05,
+   "pseudo_saturation_pressure_Pa": 70205.96913381493,
+   "pressure_corrected": true,
+   "molar_volume_m3_per_mol": 3.882692233089794e-05,
+   "mass_density_kg_per_m3": 706.7108169468299
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.6-p6e+07",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 296.255412,
+   "pressure_Pa": 60000000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.8-p200000",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 395.007216,
+   "pressure_Pa": 200000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.8-p1e+07",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 395.007216,
+   "pressure_Pa": 10000000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.8-p6e+07",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 395.007216,
+   "pressure_Pa": 60000000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.92-p200000",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 454.258298,
+   "pressure_Pa": 200000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.92-p1e+07",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 454.258298,
+   "pressure_Pa": 10000000.0,
+   "engine_scope": "refused"
+  },
+  {
+   "id": "mix-water+methanol+propane-[0.5, 0.3, 0.2]-Tr0.92-p6e+07",
+   "components": [
+    "water",
+    "methanol",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.3,
+    0.2
+   ],
+   "temperature_K": 454.258298,
+   "pressure_Pa": 60000000.0,
+   "engine_scope": "refused"
   },
   {
    "id": "mix-propane+methane+carbon-monoxide+oxygen-[0.85, 0.05, 0.05, 0.05]-Tr0.4-p200000",
@@ -4576,7 +4731,7 @@
    ],
    "temperature_K": 147.859947,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.39999999964106264,
    "saturated_molar_volume_m3_per_mol": 6.57783000445928e-05,
    "pseudo_saturation_pressure_Pa": 206.03853230591923,
@@ -4598,7 +4753,7 @@
    ],
    "temperature_K": 147.859947,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.39999999964106264,
    "saturated_molar_volume_m3_per_mol": 6.57783000445928e-05,
    "pseudo_saturation_pressure_Pa": 206.03853230591923,
@@ -4620,7 +4775,7 @@
    ],
    "temperature_K": 147.859947,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.39999999964106264,
    "saturated_molar_volume_m3_per_mol": 6.57783000445928e-05,
    "pseudo_saturation_pressure_Pa": 206.03853230591923,
@@ -4642,7 +4797,7 @@
    ],
    "temperature_K": 221.789921,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.6000000008142253,
    "saturated_molar_volume_m3_per_mol": 7.438403278845594e-05,
    "pseudo_saturation_pressure_Pa": 65645.60896211019,
@@ -4664,7 +4819,7 @@
    ],
    "temperature_K": 221.789921,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.6000000008142253,
    "saturated_molar_volume_m3_per_mol": 7.438403278845594e-05,
    "pseudo_saturation_pressure_Pa": 65645.60896211019,
@@ -4686,7 +4841,7 @@
    ],
    "temperature_K": 221.789921,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.6000000008142253,
    "saturated_molar_volume_m3_per_mol": 7.438403278845594e-05,
    "pseudo_saturation_pressure_Pa": 65645.60896211019,
@@ -4708,7 +4863,7 @@
    ],
    "temperature_K": 295.719894,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.7999999992821253,
    "saturated_molar_volume_m3_per_mol": 8.875857662912186e-05,
    "pseudo_saturation_pressure_Pa": 912264.2379062386,
@@ -4730,7 +4885,7 @@
    ],
    "temperature_K": 295.719894,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.7999999992821253,
    "saturated_molar_volume_m3_per_mol": 8.875857662912186e-05,
    "pseudo_saturation_pressure_Pa": 912264.2379062386,
@@ -4752,7 +4907,7 @@
    ],
    "temperature_K": 295.719894,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.7999999992821253,
    "saturated_molar_volume_m3_per_mol": 8.875857662912186e-05,
    "pseudo_saturation_pressure_Pa": 912264.2379062386,
@@ -4774,7 +4929,7 @@
    ],
    "temperature_K": 340.077878,
    "pressure_Pa": 200000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.9199999989039178,
    "saturated_molar_volume_m3_per_mol": 0.00010699414415772456,
    "pseudo_saturation_pressure_Pa": 2472150.339768478,
@@ -4796,7 +4951,7 @@
    ],
    "temperature_K": 340.077878,
    "pressure_Pa": 10000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.9199999989039178,
    "saturated_molar_volume_m3_per_mol": 0.00010699414415772456,
    "pseudo_saturation_pressure_Pa": 2472150.339768478,
@@ -4818,7 +4973,7 @@
    ],
    "temperature_K": 340.077878,
    "pressure_Pa": 60000000.0,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "reduced_temperature": 0.9199999989039178,
    "saturated_molar_volume_m3_per_mol": 0.00010699414415772456,
    "pseudo_saturation_pressure_Pa": 2472150.339768478,
@@ -5059,6 +5214,21 @@
    "budget": 0.05
   },
   {
+   "id": "methane-compressed-Tr0.5-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "methane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 95.282,
+   "pressure_Pa": 1020474.2829905022,
+   "reference_molar_density_mol_per_m3": 27802.324552745777,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "methane-compressed-Tr0.5-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -5104,6 +5274,21 @@
    "budget": 0.02
   },
   {
+   "id": "methane-compressed-Tr0.7-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "methane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 133.3948,
+   "pressure_Pa": 1447985.527780314,
+   "reference_molar_density_mol_per_m3": 24302.02849938579,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "methane-compressed-Tr0.7-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -5145,6 +5330,21 @@
    "temperature_K": 133.3948,
    "pressure_Pa": 50447985.52778032,
    "reference_molar_density_mol_per_m3": 27101.029357972402,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
+   "id": "methane-compressed-Tr0.85-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "methane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 161.9794,
+   "pressure_Pa": 2722156.024688606,
+   "reference_molar_density_mol_per_m3": 20908.05549959718,
    "engine_scope": "qualified",
    "budget": 0.02
   },
@@ -5374,6 +5574,21 @@
    "budget": 0.05
   },
   {
+   "id": "ethane-compressed-Tr0.5-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "ethane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 152.661,
+   "pressure_Pa": 1012055.5731902034,
+   "reference_molar_density_mol_per_m3": 19380.9600091516,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "ethane-compressed-Tr0.5-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -5419,6 +5634,21 @@
    "budget": 0.02
   },
   {
+   "id": "ethane-compressed-Tr0.7-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "ethane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 213.7254,
+   "pressure_Pa": 1387448.8178887032,
+   "reference_molar_density_mol_per_m3": 16852.430162918146,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "ethane-compressed-Tr0.7-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -5460,6 +5690,21 @@
    "temperature_K": 213.7254,
    "pressure_Pa": 50387448.81788871,
    "reference_molar_density_mol_per_m3": 18431.757085099067,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
+   "id": "ethane-compressed-Tr0.85-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "ethane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 259.5237,
+   "pressure_Pa": 2690367.902980664,
+   "reference_molar_density_mol_per_m3": 14431.276655009848,
    "engine_scope": "qualified",
    "budget": 0.02
   },
@@ -5689,6 +5934,21 @@
    "budget": 0.05
   },
   {
+   "id": "propane-compressed-Tr0.5-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "propane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 184.945,
+   "pressure_Pa": 1007364.6991109232,
+   "reference_molar_density_mol_per_m3": 14335.770881171939,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "propane-compressed-Tr0.5-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -5734,6 +5994,21 @@
    "budget": 0.02
   },
   {
+   "id": "propane-compressed-Tr0.7-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "propane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 258.923,
+   "pressure_Pa": 1299477.0863503017,
+   "reference_molar_density_mol_per_m3": 12446.250854831545,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "propane-compressed-Tr0.7-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -5775,6 +6050,21 @@
    "temperature_K": 258.923,
    "pressure_Pa": 50299477.0863503,
    "reference_molar_density_mol_per_m3": 13604.774095480656,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
+   "id": "propane-compressed-Tr0.85-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "propane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 314.4065,
+   "pressure_Pa": 2409573.237239637,
+   "reference_molar_density_mol_per_m3": 10648.777045347359,
    "engine_scope": "qualified",
    "budget": 0.02
   },
@@ -6004,6 +6294,21 @@
    "budget": 0.05
   },
   {
+   "id": "nitrogen-compressed-Tr0.7-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "nitrogen"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 88.3344,
+   "pressure_Pa": 1311682.5876831154,
+   "reference_molar_density_mol_per_m3": 27032.419042361158,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "nitrogen-compressed-Tr0.7-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -6045,6 +6350,21 @@
    "temperature_K": 88.3344,
    "pressure_Pa": 50311682.58768312,
    "reference_molar_density_mol_per_m3": 30703.411336240282,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
+   "id": "nitrogen-compressed-Tr0.85-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "nitrogen"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 107.2632,
+   "pressure_Pa": 2246206.2336372845,
+   "reference_molar_density_mol_per_m3": 23246.144309718024,
    "engine_scope": "qualified",
    "budget": 0.02
   },
@@ -6274,6 +6594,21 @@
    "budget": 0.05
   },
   {
+   "id": "carbon-dioxide-compressed-Tr0.85-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "carbon-dioxide"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 258.509,
+   "pressure_Pa": 3315231.507990309,
+   "reference_molar_density_mol_per_m3": 22983.74356359583,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "carbon-dioxide-compressed-Tr0.85-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -6499,6 +6834,21 @@
    "budget": 0.05
   },
   {
+   "id": "oxygen-compressed-Tr0.5-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "oxygen"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 77.2905,
+   "pressure_Pa": 1020566.8920624306,
+   "reference_molar_density_mol_per_m3": 37653.92892917734,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "oxygen-compressed-Tr0.5-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -6544,6 +6894,21 @@
    "budget": 0.02
   },
   {
+   "id": "oxygen-compressed-Tr0.7-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "oxygen"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 108.2067,
+   "pressure_Pa": 1479193.9000227428,
+   "reference_molar_density_mol_per_m3": 32794.6968123643,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "oxygen-compressed-Tr0.7-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -6585,6 +6950,21 @@
    "temperature_K": 108.2067,
    "pressure_Pa": 50479193.900022745,
    "reference_molar_density_mol_per_m3": 36321.18461508829,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
+   "id": "oxygen-compressed-Tr0.85-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "oxygen"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 131.3939,
+   "pressure_Pa": 2873574.5120939957,
+   "reference_molar_density_mol_per_m3": 28144.080176607888,
    "engine_scope": "qualified",
    "budget": 0.02
   },
@@ -6645,7 +7025,7 @@
    "temperature_K": 273.66,
    "pressure_Pa": 634.2391166652412,
    "reference_molar_density_mol_per_m3": 55498.71605759554,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6660,7 +7040,7 @@
    "temperature_K": 304.6673,
    "pressure_Pa": 4631.179390319007,
    "reference_molar_density_mol_per_m3": 55238.60275076617,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6675,7 +7055,7 @@
    "temperature_K": 335.6746,
    "pressure_Pa": 22396.029818557457,
    "reference_molar_density_mol_per_m3": 54500.64635910272,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6690,7 +7070,7 @@
    "temperature_K": 366.6819,
    "pressure_Pa": 80137.91750564863,
    "reference_molar_density_mol_per_m3": 53448.83395618842,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6705,7 +7085,7 @@
    "temperature_K": 397.6892,
    "pressure_Pa": 228963.94245746773,
    "reference_molar_density_mol_per_m3": 52144.91328243891,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6720,7 +7100,7 @@
    "temperature_K": 428.6965,
    "pressure_Pa": 551298.308862765,
    "reference_molar_density_mol_per_m3": 50610.40586887574,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6735,7 +7115,7 @@
    "temperature_K": 459.7037,
    "pressure_Pa": 1163188.3984519057,
    "reference_molar_density_mol_per_m3": 48841.61004738,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6750,7 +7130,7 @@
    "temperature_K": 490.711,
    "pressure_Pa": 2213324.2150763934,
    "reference_molar_density_mol_per_m3": 46811.46396090854,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6765,7 +7145,7 @@
    "temperature_K": 521.7183,
    "pressure_Pa": 3880936.4940651357,
    "reference_molar_density_mol_per_m3": 44463.00471247332,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6780,7 +7160,7 @@
    "temperature_K": 552.7256,
    "pressure_Pa": 6375605.795506057,
    "reference_molar_density_mol_per_m3": 41688.37731716877,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6795,7 +7175,7 @@
    "temperature_K": 583.7329,
    "pressure_Pa": 9943765.761500487,
    "reference_molar_density_mol_per_m3": 38265.32509646436,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.05
   },
   {
@@ -6814,6 +7194,21 @@
    "budget": 0.05
   },
   {
+   "id": "water-compressed-Tr0.5-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "water"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 323.548,
+   "pressure_Pa": 1012597.9667410409,
+   "reference_molar_density_mol_per_m3": 54856.347720510435,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "water-compressed-Tr0.5-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -6825,7 +7220,7 @@
    "temperature_K": 323.548,
    "pressure_Pa": 5012597.966741041,
    "reference_molar_density_mol_per_m3": 54952.61867809507,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6859,6 +7254,21 @@
    "budget": 0.02
   },
   {
+   "id": "water-compressed-Tr0.7-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "water"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 452.9672,
+   "pressure_Pa": 1998601.3860797617,
+   "reference_molar_density_mol_per_m3": 49283.83780867152,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "water-compressed-Tr0.7-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -6870,7 +7280,7 @@
    "temperature_K": 452.9672,
    "pressure_Pa": 5998601.386079762,
    "reference_molar_density_mol_per_m3": 49430.048941222136,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6901,6 +7311,21 @@
    "pressure_Pa": 50998601.38607976,
    "reference_molar_density_mol_per_m3": 50898.59035110934,
    "engine_scope": "refused",
+   "budget": 0.02
+  },
+  {
+   "id": "water-compressed-Tr0.85-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "water"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 550.0316,
+   "pressure_Pa": 7120133.095134289,
+   "reference_molar_density_mol_per_m3": 42038.86947983386,
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6960,7 +7385,7 @@
    "temperature_K": 176.11,
    "pressure_Pa": 0.20225327172955668,
    "reference_molar_density_mol_per_m3": 28215.295297637702,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6975,7 +7400,7 @@
    "temperature_K": 204.3613,
    "pressure_Pa": 10.356203985594881,
    "reference_molar_density_mol_per_m3": 27337.021823477346,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -6990,7 +7415,7 @@
    "temperature_K": 232.6125,
    "pressure_Pa": 191.52408023210438,
    "reference_molar_density_mol_per_m3": 26472.016370920443,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7005,7 +7430,7 @@
    "temperature_K": 260.8638,
    "pressure_Pa": 1794.3076910149816,
    "reference_molar_density_mol_per_m3": 25629.04011256795,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7020,7 +7445,7 @@
    "temperature_K": 289.1151,
    "pressure_Pa": 10447.044808858755,
    "reference_molar_density_mol_per_m3": 24801.76653377681,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7035,7 +7460,7 @@
    "temperature_K": 317.3664,
    "pressure_Pa": 43099.01618528151,
    "reference_molar_density_mol_per_m3": 23970.938227457304,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7050,7 +7475,7 @@
    "temperature_K": 345.6176,
    "pressure_Pa": 137618.61829843957,
    "reference_molar_density_mol_per_m3": 23104.855350981205,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7065,7 +7490,7 @@
    "temperature_K": 373.8689,
    "pressure_Pa": 361812.98782444367,
    "reference_molar_density_mol_per_m3": 22162.630804612967,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7080,7 +7505,7 @@
    "temperature_K": 402.1202,
    "pressure_Pa": 819063.672244121,
    "reference_molar_density_mol_per_m3": 21091.835806359664,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7095,7 +7520,7 @@
    "temperature_K": 430.3715,
    "pressure_Pa": 1650985.6605799107,
    "reference_molar_density_mol_per_m3": 19815.614561606726,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7110,7 +7535,7 @@
    "temperature_K": 458.6227,
    "pressure_Pa": 3036549.0588847212,
    "reference_molar_density_mol_per_m3": 18197.398331072938,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7125,8 +7550,23 @@
    "temperature_K": 486.874,
    "pressure_Pa": 5176003.471615675,
    "reference_molar_density_mol_per_m3": 15874.739094802553,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.05
+  },
+  {
+   "id": "methanol-compressed-Tr0.5-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "methanol"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 256.25,
+   "pressure_Pa": 1001291.7965965637,
+   "reference_molar_density_mol_per_m3": 25789.92771300352,
+   "engine_scope": "qualified",
+   "budget": 0.02
   },
   {
    "id": "methanol-compressed-Tr0.5-dp5e+06",
@@ -7140,7 +7580,7 @@
    "temperature_K": 256.25,
    "pressure_Pa": 5001291.796596563,
    "reference_molar_density_mol_per_m3": 25886.12388035421,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7174,6 +7614,21 @@
    "budget": 0.02
   },
   {
+   "id": "methanol-compressed-Tr0.7-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "methanol"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 358.75,
+   "pressure_Pa": 1220293.3064408284,
+   "reference_molar_density_mol_per_m3": 22724.36630009155,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "methanol-compressed-Tr0.7-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -7185,7 +7640,7 @@
    "temperature_K": 358.75,
    "pressure_Pa": 5220293.306440828,
    "reference_molar_density_mol_per_m3": 22896.876004211997,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7219,6 +7674,21 @@
    "budget": 0.02
   },
   {
+   "id": "methanol-compressed-Tr0.85-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "methanol"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 435.625,
+   "pressure_Pa": 2860918.612018413,
+   "reference_molar_density_mol_per_m3": 19649.999374580508,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "methanol-compressed-Tr0.85-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -7230,7 +7700,7 @@
    "temperature_K": 435.625,
    "pressure_Pa": 6860918.612018413,
    "reference_molar_density_mol_per_m3": 20017.326482753706,
-   "engine_scope": "refused",
+   "engine_scope": "qualified",
    "budget": 0.02
   },
   {
@@ -7444,6 +7914,21 @@
    "budget": 0.05
   },
   {
+   "id": "hydrogen-compressed-Tr0.5-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 16.5725,
+   "pressure_Pa": 1026626.1082550748,
+   "reference_molar_density_mol_per_m3": 37554.14754972163,
+   "engine_scope": "refused",
+   "budget": 0.02
+  },
+  {
    "id": "hydrogen-compressed-Tr0.5-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -7489,6 +7974,21 @@
    "budget": 0.02
   },
   {
+   "id": "hydrogen-compressed-Tr0.7-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 23.2015,
+   "pressure_Pa": 1214499.139957489,
+   "reference_molar_density_mol_per_m3": 34236.24124043607,
+   "engine_scope": "refused",
+   "budget": 0.02
+  },
+  {
    "id": "hydrogen-compressed-Tr0.7-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -7530,6 +8030,21 @@
    "temperature_K": 23.2015,
    "pressure_Pa": 50214499.13995749,
    "reference_molar_density_mol_per_m3": 46687.20966294057,
+   "engine_scope": "refused",
+   "budget": 0.02
+  },
+  {
+   "id": "hydrogen-compressed-Tr0.85-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "hydrogen"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 28.1733,
+   "pressure_Pa": 1591444.8735220619,
+   "reference_molar_density_mol_per_m3": 30938.69690087092,
    "engine_scope": "refused",
    "budget": 0.02
   },
@@ -7759,6 +8274,21 @@
    "budget": 0.05
   },
   {
+   "id": "carbon-monoxide-compressed-Tr0.7-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "carbon-monoxide"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 93.002,
+   "pressure_Pa": 1311590.983160905,
+   "reference_molar_density_mol_per_m3": 26581.678730820575,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
    "id": "carbon-monoxide-compressed-Tr0.7-dp5e+06",
    "kind": "compressed",
    "components": [
@@ -7800,6 +8330,21 @@
    "temperature_K": 93.002,
    "pressure_Pa": 50311590.983160906,
    "reference_molar_density_mol_per_m3": 30115.121978286323,
+   "engine_scope": "qualified",
+   "budget": 0.02
+  },
+  {
+   "id": "carbon-monoxide-compressed-Tr0.85-dp1e+06",
+   "kind": "compressed",
+   "components": [
+    "carbon-monoxide"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 112.931,
+   "pressure_Pa": 2270733.570381063,
+   "reference_molar_density_mol_per_m3": 22746.211006511738,
    "engine_scope": "qualified",
    "budget": 0.02
   },

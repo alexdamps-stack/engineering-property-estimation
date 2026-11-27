@@ -1,0 +1,115 @@
+{
+  "schema": "pseudo-component-worked-examples-v1",
+  "purpose": "implementation verification of the petroleum characterisation correlations against published worked examples (#229)",
+  "source": {
+    "citation": "M. A. Fahim, T. A. Al-Sahhaf, A. S. Elkilani, Fundamentals of Petroleum Refining, Elsevier, Amsterdam, 2010, chapter 3 'Thermophysical Properties of Petroleum Fractions and Crude Oils', pp. 33-58",
+    "isbn": "978-0-444-52785-1",
+    "transcription": "Hand transcription of the printed inputs and results of Examples E3.1, E3.2, E3.6, E3.7, E3.9 and E3.11. Values are copied with their printed digits; nothing is recomputed here. Equation and table numbers refer to the book.",
+    "original_correlations": [
+      "M. R. Riazi, T. E. Daubert, Simplify property predictions, Hydrocarbon Processing 59(3) 115-116 (1980): D86 to TBP (API method)",
+      "M. R. Riazi, T. E. Daubert, Characterization parameters for petroleum fractions, Ind. Eng. Chem. Res. 26 755-759 (1987): molar mass",
+      "M. G. Kesler, B. I. Lee, Improve prediction of enthalpy of fractions, Hydrocarbon Processing 55(3) 153-158 (1976): Tc, Pc, omega for Tbr > 0.8, ideal-gas cp",
+      "B. I. Lee, M. G. Kesler, A generalized thermodynamic correlation based on three-parameter corresponding states, AIChE J. 21 510-527 (1975): omega for Tbr < 0.8"
+    ]
+  },
+  "comparison": "abs(actual-expected) <= atol + rtol*abs(expected); atol is half a unit of the last printed digit unless a rationale says otherwise",
+  "unit_conversions": "K = degC + 273.15; degF = K*1.8 - 459.67; SG = 141.5/(API + 131.5)",
+  "examples": [
+    {
+      "id": "E3.1",
+      "page": 37,
+      "description": "ASTM D86 to TBP with the API method of Riazi and Daubert, Eq. (3.3) and Table 3.2",
+      "inputs": {
+        "d86_volume_percent": [0, 10, 30, 50, 70, 90, 95],
+        "d86_temperature_degC": [36.5, 54, 77, 101.5, 131, 171, 186.5]
+      },
+      "expected": [
+        {"quantity": "tbp_temperature_degC", "values": [14.1, 33.4, 69.0, 101.6, 135.2, 180.5, 194.1], "atol": 0.05, "rtol": 0}
+      ],
+      "excluded": [
+        {"quantity": "TBP by Daubert's (1994) method, Eq. (3.4)", "reason": "method not implemented"}
+      ]
+    },
+    {
+      "id": "E3.2",
+      "page": 40,
+      "description": "VABP, MeABP and Watson K of the E3.1 cut with API gravity 62, Eqs. (3.5)-(3.7)",
+      "inputs": {
+        "d86_volume_percent": [0, 10, 30, 50, 70, 90, 95],
+        "d86_temperature_degC": [36.5, 54, 77, 101.5, 131, 171, 186.5],
+        "api_gravity": 62
+      },
+      "expected": [
+        {"quantity": "vabp_degF", "value": 224.4, "atol": 0.05, "rtol": 0},
+        {"quantity": "meabp_correction_D_degF", "value": 18.279, "atol": 0.0005, "rtol": 0},
+        {"quantity": "meabp_degF", "value": 206.1, "atol": 0.05, "rtol": 0},
+        {"quantity": "specific_gravity", "value": 0.7313, "atol": 0.00005, "rtol": 0},
+        {"quantity": "watson_k", "value": 11.94, "atol": 0.005, "rtol": 0}
+      ]
+    },
+    {
+      "id": "E3.6",
+      "page": 49,
+      "description": "Specific gravity at constant Watson K (Eq. 3.5) and molar mass (Eq. 3.11) of a cut with NBP 216.4 degC and K = 11.94",
+      "inputs": {"normal_boiling_point_degC": 216.4, "watson_k": 11.94},
+      "expected": [
+        {"quantity": "specific_gravity", "value": 0.8029, "atol": 0.00005, "rtol": 0},
+        {"quantity": "molar_mass_g_per_mol", "value": 170.8, "atol": 0.05, "rtol": 0}
+      ]
+    },
+    {
+      "id": "E3.7",
+      "page": 50,
+      "description": "SG, Watson K and molar mass (Eq. 3.11) of an oil with MeABP 320 degC and API gravity 34",
+      "inputs": {"normal_boiling_point_degC": 320, "api_gravity": 34},
+      "expected": [
+        {"quantity": "specific_gravity", "value": 0.855, "atol": 0.0005, "rtol": 0},
+        {"quantity": "watson_k", "value": 11.95, "atol": 0.005, "rtol": 0},
+        {"quantity": "molar_mass_g_per_mol", "value": 257.1, "atol": 0.05, "rtol": 0}
+      ],
+      "excluded": [
+        {"quantity": "kinematic viscosities and refractive index", "reason": "not part of the characterisation used by the cubic packages"}
+      ]
+    },
+    {
+      "id": "E3.9",
+      "page": 53,
+      "description": "Kesler-Lee Tc and Pc (Eqs. 3.25-3.26) and acentric factor (Eqs. 3.27-3.28) of the E3.7 oil",
+      "inputs": {"normal_boiling_point_degC": 320, "api_gravity": 34},
+      "expected": [
+        {"quantity": "critical_pressure_bar", "value": 15.26, "atol": 0.005, "rtol": 0},
+        {"quantity": "acentric_factor", "value": 0.777, "atol": 0.0005, "rtol": 0}
+      ],
+      "excluded": [
+        {
+          "quantity": "critical_temperature_K",
+          "printed": 764.17,
+          "reason": "Not reproducible and inconsistent with the book's own Example E3.11, which prints Tc = 765.5 K for the same oil and equations. Eq. (3.25) prints the Tb coefficient as 0.422; the exact SI conversion of the original Kesler-Lee degR coefficients (341.7, 811, 0.4244, 0.1174, 0.4669e5, 3.2623e5) gives 189.8, 450.6, 0.4244, 0.1174, 14410 and 100688, of which only 0.4244 differs from the print. With 0.4244 the engine gives 765.49 K (E3.11); with 0.422 one gets 764.06 K, which still does not reproduce 764.17. E3.11 is used instead."
+        }
+      ]
+    },
+    {
+      "id": "E3.11",
+      "page": 57,
+      "description": "Critical constants, molar mass and Kesler-Lee ideal-gas heat capacity constants (Eqs. 3.36-3.41) of the E3.7 oil",
+      "inputs": {"normal_boiling_point_degC": 320, "api_gravity": 34},
+      "expected": [
+        {"quantity": "critical_temperature_K", "value": 765.5, "atol": 0.05, "rtol": 0},
+        {"quantity": "critical_pressure_bar", "value": 15.26, "atol": 0.005, "rtol": 0},
+        {"quantity": "acentric_factor", "value": 0.777, "atol": 0.0005, "rtol": 0},
+        {"quantity": "molar_mass_g_per_mol", "value": 257.12, "atol": 0.005, "rtol": 0},
+        {"quantity": "cp_A_kJ_per_kmol_K", "value": 8.74721, "atol": 0, "rtol": 0.001, "rationale": "The book does not state the rounding of K, omega and M used for its intermediate values and prints the correlation with a 4.1843 conversion factor; 1e-3 relative covers both."},
+        {"quantity": "cp_B_kJ_per_kmol_K2", "value": 1.44929, "atol": 0, "rtol": 0.001, "rationale": "as for A"},
+        {"quantity": "cp_C_kJ_per_kmol_K3", "value": -0.000581, "atol": 0.0000005, "rtol": 0, "rationale": "printed as 0.000581 with three digits; the sign is negative in Eq. (3.40) (the leading -1.6658e-7 term dominates) and in the extracted print the minus glyph is not legible, so the transcription records the sign required by the equation"}
+      ],
+      "excluded": [
+        {
+          "quantity": "ideal-gas enthalpy change 298 to 723.15 K",
+          "printed_kJ_per_kmol": 312088.8,
+          "reason": "Not reproducible from the book's own printed A, B, C: Eq. (3.37) with A = 8.74721, B = 1.44929, C = -0.000581 between 298 and 723.15 K gives about 250200 kJ/kmol (250235 with the engine's unrounded coefficients). The printed total therefore contains an arithmetic slip; the engine's integral is checked exactly against Eq. (3.37) instead."
+        },
+        {"quantity": "Z, residual enthalpy and molar volume", "reason": "from Lee-Kesler tables, not part of the characterisation"}
+      ]
+    }
+  ]
+}

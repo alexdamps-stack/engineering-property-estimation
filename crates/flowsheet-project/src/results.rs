@@ -50,6 +50,13 @@ pub struct PhaseResult {
     pub dynamic_viscosity_pa_s: Option<f64>,
     #[serde(default)]
     pub thermal_conductivity_w_m_k: Option<f64>,
+    /// Surface tension of a liquid phase in N/m, when available (#225).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface_tension_n_m: Option<f64>,
+    /// Transport method, data, validity and the reason for each unavailable
+    /// transport property (#225). Absent in results from older versions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<TransportResult>,
     /// Computational validity of the phase state.
     pub validity: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -105,6 +112,64 @@ impl EngineeringDensityResult {
                 validity: None,
                 pressure_corrected: None,
             },
+        }
+    }
+}
+
+/// Identity and availability of a phase's transport properties (#225).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TransportResult {
+    /// `gas`, `dense fluid` or `liquid`; `None` when the phase could not be
+    /// evaluated at all (for example a component without transport data).
+    pub regime: Option<String>,
+    /// Method identifier and implementation version.
+    pub method: Option<String>,
+    /// Transport dataset identifier and version.
+    pub data: Option<String>,
+    /// `within declared domain` (one component) or `unassessed` (mixing rules).
+    pub validity: Option<String>,
+    /// Why each unavailable property is unavailable, `property: reason`.
+    pub unavailable: Vec<String>,
+}
+
+impl TransportResult {
+    fn from_state(
+        transport: &Result<property_packages::TransportProperties, thermo_types::CalculationError>,
+        liquid: bool,
+    ) -> Self {
+        let t = match transport {
+            Ok(t) => t,
+            Err(e) => {
+                return Self {
+                    regime: None,
+                    method: None,
+                    data: None,
+                    validity: None,
+                    unavailable: vec![format!("transport: {e}")],
+                };
+            }
+        };
+        let mut unavailable = Vec::new();
+        let mut note = |name: &str, r: &Result<f64, thermo_types::CalculationError>| {
+            if let Err(e) = r {
+                unavailable.push(format!("{name}: {e}"));
+            }
+        };
+        note("viscosity", &t.viscosity);
+        note("thermal conductivity", &t.thermal_conductivity);
+        if liquid {
+            note("surface tension", &t.surface_tension);
+        }
+        Self {
+            regime: Some(t.regime.label().into()),
+            method: Some(format!(
+                "{} {}",
+                t.model.identifier, t.model.implementation_version
+            )),
+            data: Some(format!("{} {}", t.data.identifier, t.data.version)),
+            validity: Some(validity_label(t.validity).into()),
+            unavailable,
         }
     }
 }
@@ -369,6 +434,12 @@ pub struct PumpHydraulicsResult {
     /// Hydraulic power V̇ Δp, W.
     #[serde(default)]
     pub hydraulic_power_w: Option<f64>,
+    /// NPSH available (p_in − p_bubble)/(ρ g), m, on the package bubble pressure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub npsh_available_m: Option<f64>,
+    /// Why the NPSH available is missing, when it is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub npsh_note: Option<String>,
     /// Inlet engineering density and its basis, or why it is unavailable.
     pub inlet_density: EngineeringDensityResult,
 }
@@ -397,6 +468,7 @@ impl RotatingPerformance {
                     h.inlet_volumetric_flow_m3_s,
                     h.differential_head_m,
                     h.hydraulic_power_w,
+                    h.npsh_available_m,
                     h.inlet_density.density_kg_m3,
                 ]
                 .into_iter()
@@ -429,6 +501,12 @@ impl From<&flowsheet_core::units::rotating::RotatingResult> for RotatingPerforma
                         inlet_volumetric_flow_m3_s: Some(v.inlet_volumetric_flow_m3_s),
                         differential_head_m: Some(v.differential_head_m),
                         hydraulic_power_w: Some(v.hydraulic_power_w),
+                        npsh_available_m: v.npsh_available_m.as_ref().ok().copied(),
+                        npsh_note: v
+                            .npsh_available_m
+                            .as_ref()
+                            .err()
+                            .map(|e| format!("unavailable: {e}")),
                         inlet_density: EngineeringDensityResult {
                             density_kg_m3: Some(v.inlet_density_kg_m3),
                             basis: v.density_basis.clone(),
@@ -440,6 +518,8 @@ impl From<&flowsheet_core::units::rotating::RotatingResult> for RotatingPerforma
                         inlet_volumetric_flow_m3_s: None,
                         differential_head_m: None,
                         hydraulic_power_w: None,
+                        npsh_available_m: None,
+                        npsh_note: None,
                         inlet_density: EngineeringDensityResult {
                             density_kg_m3: None,
                             basis: format!("unavailable: {reason}"),
@@ -747,6 +827,7 @@ impl ResultSet {
                             || p.engineering_liquid_density
                                 .as_ref()
                                 .is_some_and(|d| opt(d.density_kg_m3))
+                            || opt(p.surface_tension_n_m)
                             || p.mole_fractions.iter().any(|v| bad(*v))
                     })
             });
@@ -851,6 +932,17 @@ fn stream_result(s: &MaterialStream, fingerprint: Fingerprint) -> StreamResult {
                     speed_of_sound_m_s: p.state.speed_of_sound,
                     dynamic_viscosity_pa_s: p.state.dynamic_viscosity,
                     thermal_conductivity_w_m_k: p.state.thermal_conductivity,
+                    surface_tension_n_m: p
+                        .state
+                        .transport
+                        .as_ref()
+                        .and_then(|t| t.as_ref().ok())
+                        .and_then(|t| t.surface_tension.clone().ok()),
+                    transport: p
+                        .state
+                        .transport
+                        .as_ref()
+                        .map(|t| TransportResult::from_state(t, p.phase == Phase::Liquid)),
                     validity: validity.into(),
                     nrtl_regression_interval_inferred: p
                         .state

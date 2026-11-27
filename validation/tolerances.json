@@ -326,6 +326,22 @@
       "rationale": "Existing A13 pre-comparison budgets, copied unchanged from its independently generated fixture; bounded dry cubic VLE and explicit near-critical/ambiguous-branch stops, not experimental accuracy or global stability proof."
     },
     {
+      "fixture": "validation/fixtures/package-operations-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "temperature": [2e-06, 0.0],
+        "pressure": [0.02, 2e-08],
+        "composition": [2e-08, 1e-07],
+        "volume": [1e-12, 2e-08],
+        "h": [2e-05, 2e-09],
+        "s": [2e-07, 2e-09],
+        "power": [2e-05, 2e-08],
+        "fraction": [2e-08, 0.0]
+      },
+      "domain": "#226: 13 native Clapeyron GERG-2008 bubble/dew points (230-350 K, 0.1-10 MPa) and isentropic-efficiency machines under GERG-2008 (2), NRTL-IG (3) and EOS-CG-2021 gas branch (2); flowsheet-core/tests/package_references.rs",
+      "rationale": "Pre-comparison budgets copied unchanged from the A13 (saturation), A14 (PS, power) and A6 (caloric) reference sets; matched formulations, implementation agreement only."
+    },
+    {
       "fixture": "validation/fixtures/nrtl-v1.json",
       "budget_key": "tolerances",
       "budgets": {
@@ -442,6 +458,72 @@
       "rationale": "Cantera equilibrate is converged to rtol 1e-14 and SciPy brentq/DOP853 to 1e-13; the engine converges equilibria to 1e-13 scaled constraint residuals and integrates at rtol 1e-9, so the flow budget leaves margin for the integrator; duties are sums of NASA7 enthalpies of those flows."
     },
     {
+      "fixture": "validation/fixtures/transport-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "implementation_viscosity": [
+          1e-15,
+          1e-10
+        ],
+        "implementation_thermal_conductivity": [
+          1e-13,
+          1e-10
+        ],
+        "implementation_surface_tension": [
+          1e-15,
+          1e-10
+        ],
+        "coolprop_dilute_gas_viscosity_nonpolar": [
+          0.0,
+          0.06
+        ],
+        "coolprop_dense_fluid_viscosity_nonpolar": [
+          0.0,
+          0.12
+        ],
+        "coolprop_gas_viscosity_polar": [
+          0.0,
+          0.15
+        ],
+        "coolprop_gas_thermal_conductivity_nonpolar": [
+          0.0,
+          0.12
+        ],
+        "coolprop_liquid_viscosity": [
+          0.0,
+          0.15
+        ],
+        "coolprop_liquid_thermal_conductivity": [
+          0.0,
+          0.1
+        ],
+        "coolprop_surface_tension": [
+          0.0,
+          0.08
+        ]
+      },
+      "domain": "24 implementation cases (13 gas incl. 4 mixtures, 11 liquid incl. 2 mixtures; 7 expected out-of-domain) and 130 pure-component CoolProp states of 8 components (gas 200..600 K, reduced density <= 1.3 nonpolar / 0.08 polar, away from saturation; liquid 0.5..0.74 Tc, p <= 5 MPa); docs/transport-properties.md",
+      "rationale": "Implementation budgets: double-precision evaluation of the same formulation by an independent Python implementation (pure Chung conductivity also cross-checked against chemicals 1.5.2). CoolProp budgets are declared method accuracies (model comparison against REFPROP-quality fluid-specific correlations, including the PR gas-density difference), not implementation tolerances or experimental uncertainty."
+    },
+    {
+      "fixture": "validation/fixtures/pseudo-components-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "correlation_relative": 1e-12,
+        "kesler_lee_cp0_vs_coolprop_relative": 0.05,
+        "critical_temperature_vs_surrogate_relative": 0.02,
+        "critical_pressure_vs_surrogate_relative": 0.08,
+        "acentric_factor_vs_surrogate_relative": 0.1,
+        "molar_mass_vs_surrogate_relative": 0.05,
+        "bubble_dew_temperature_vs_surrogate_K": 5.0,
+        "liquid_mass_density_vs_surrogate_relative": 0.06,
+        "specific_enthalpy_change_vs_surrogate_relative": 0.05,
+        "recorded_exceedance_reproduction_absolute": 0.001
+      },
+      "domain": "Kerosene surrogate case of docs/pseudo-components-status.md: m-xylene/n-decane/n-dodecane (0.2/0.4/0.4 mol) as defined compounds (CoolProp 7.2.0 HEOS constants) versus pseudo-components characterised from Tb and SG; PR, 1 atm, 300..560 K; ideal-gas cp at 300..600 K",
+      "rationale": "correlation_relative is implementation agreement with an independent plain-Python evaluation of the same correlations; the other budgets are model-comparison limits declared before the first comparison, with the two m-xylene exceedances it found recorded in the fixture instead of widening a budget. Not experimental accuracy."
+    },
+    {
       "fixture": "validation/fixtures/liquid-density-v1.json",
       "budget_key": "tolerances",
       "budgets": {
@@ -464,8 +546,8 @@
           }
         ]
       },
-      "domain": "COSTALD engineering liquid density (#228): 0.25 <= T/Tcm <= 0.95, p <= 69 MPa; implementation cases for 10 pure fluids and 8 mixtures; experimental points for 10 pure fluids (saturated and compressed) and 10 bubble-point mixtures, budgets applied to the qualified scope only",
-      "rationale": "Implementation: same closed-form expressions as chemicals 1.5.2 in double precision. Experimental: Hankinson-Thomson / Thomson-Brobst-Hankinson reported accuracy against CoolProp 7.2.0 reference EOS; components failing the budget (water, methanol, hydrogen; CO2 in hydrocarbon mixtures) were excluded from the qualified scope instead of widening it."
+      "domain": "COSTALD engineering liquid density (#228): 0.25 <= T/Tcm <= 0.95, p <= 69 MPa (10 MPa with water or methanol above trace); implementation cases for 10 pure fluids and 10 mixtures; experimental points for 10 pure fluids (saturated and compressed) and 10 bubble-point mixtures, budgets applied to the qualified scope only",
+      "rationale": "Implementation: same closed-form expressions as chemicals 1.5.2 (COSTALD, COSTALD-Tait, DIPPR 105/106) in double precision. Experimental: Hankinson-Thomson / Thomson-Brobst-Hankinson reported accuracy against CoolProp 7.2.0 reference EOS; sets failing the budget (COSTALD for water and methanol, hydrogen, CO2 in hydrocarbon mixtures, water/methanol compression above 10 MPa) were excluded from the qualified scope or replaced by ChemSep correlations instead of widening it."
     }
   ],
   "deferred": [

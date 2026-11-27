@@ -17,7 +17,7 @@ feasible in steady state* (with the reason).
 
 | Kind | Issue | Status | Specification | Validation / reference | Notes |
 |---|---|---|---|---|---|
-| Cubic pressure–entropy flash | A14 | calculated | Overall mole fractions, absolute pressure, molar entropy on the cubic caloric reference | 28 matched PR/PR-BM states in `validation/rotating/ps-v1.json`, consumed by `thermo-solvers/tests/ps.rs` | Available through `CubicPackage::ps`. |
+| Pressure–entropy flash | A14, #226 | calculated | Overall mole fractions, absolute pressure, molar entropy on the package caloric reference | Cubic: 28 matched PR/PR-BM states in `validation/rotating/ps-v1.json` (`thermo-solvers/tests/ps.rs`). NRTL-IG and GERG-2008: TP→PS round trips and pure entropy lever rule against `nrtl-v1.json` and `gerg-equilibrium-v1.json` (`property-packages/tests/operations.rs`). EOS-CG-2021: gas-branch TP→PS round trips. | Available through `FlowsheetPackage::ps` for every package. |
 | Pump, compressor | A14 | calculated | Outlet pressure or pressure increase; isentropic efficiency (0, 1] | `ng-compressor` and `water-pump` references in `ps-v1.json` (PR and PR-BM), consumed by `flowsheet-core/tests/rotating.rs` | Shaft power on the optional `power` inlet. |
 | Expander | A14 | calculated | Outlet pressure or pressure drop; isentropic efficiency (0, 1] | `ng-expander` and `propane-two-phase-expander` references (lever-rule outlet) | Recovered power on the optional `power` outlet. Two-phase outlets are allowed and warned. |
 | Multistage compressor | #182 | calculated | Stages 1–8, discharge pressure, stage isentropic efficiency, intercooler outlet temperature (two or more stages) | `ng-two-stage-intercooled` reference: stage outlets, stage powers, intercooler duty | Total power on `power`, heat removed on `intercooler duty`. |
@@ -51,7 +51,7 @@ Rules and failures:
 Not modelled: polytropic efficiency, performance curves, speed, mechanical
 and driver efficiency, pressure ratio as a specification, intercooler
 pressure drop, power taken from an energy stream (for example an expander
-driving a compressor). The PS flash is implemented for the PR/PR-BM package only, so the four machines fail with an explicit error under the NRTL, GERG-2008 and EOS-CG flowsheet packages.
+driving a compressor). The machines call the package PS flash (`FlowsheetPackage::ps`, #226), available for PR/PR-BM/SRK, NRTL-IG, GERG-2008 and the EOS-CG-2021 gas branch. Under NRTL-IG the liquid enthalpy and entropy do not depend on pressure (no Poynting term), so a pump does no work in that model; the unit reports this as a warning. An engineering liquid density is #228.
 
 ## Heat transport
 

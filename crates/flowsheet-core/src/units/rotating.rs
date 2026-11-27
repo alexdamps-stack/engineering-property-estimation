@@ -24,6 +24,9 @@ use crate::unit::{
 use property_packages::EquilibriumState;
 use thermo_types::Phase;
 
+/// Relative precision of the isentropic enthalpy change, scaled by
+/// max(|h_in|, T_in |s_in|, 1 J/mol): a hundred times the PS entropy tolerance.
+const ISENTROPIC_RESOLUTION: f64 = 1e-8;
 const SINGLE: [PortSpec; 2] = [PortSpec::inlet("in"), PortSpec::outlet("out")];
 const POWER_IN: [PortSpec; 1] = [PortSpec::energy_inlet("power")];
 const POWER_OUT: [PortSpec; 1] = [PortSpec::energy_outlet("power")];
@@ -155,20 +158,6 @@ impl GroupSpec for RotatingSpec {
     }
 }
 
-impl CalcContext<'_> {
-    /// PS equilibrium at the specified absolute pressure and molar entropy.
-    pub fn ps(
-        &self,
-        z: &[f64],
-        p_pa: f64,
-        s_j_mol_k: f64,
-    ) -> Result<property_packages::EquilibriumState, String> {
-        self.cubic_package()?
-            .ps(z, p_pa, s_j_mol_k)
-            .map_err(|e| e.to_string())
-    }
-}
-
 /// One compression or expansion step of a solved machine.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RotatingStage {
@@ -228,6 +217,11 @@ pub struct PumpHydraulicValues {
     pub density_basis: String,
     /// Whether the density lies in its qualified domain or is unassessed.
     pub density_validity: thermo_types::ValidityStatus,
+    /// Net positive suction head available, (p_in − p_bubble)/(ρ g), m, at
+    /// the inlet without static or velocity head: the bubble pressure is the
+    /// package's own at the inlet temperature and composition. `Err` holds
+    /// why it is unavailable.
+    pub npsh_available_m: Result<f64, String>,
 }
 
 /// Standard acceleration of gravity, m/s² (CGPM 1901).
@@ -265,6 +259,15 @@ fn pump_hydraulics(inlet: &EquilibriumState, n: f64, dp: f64, ctx: &CalcContext)
     }
     let density = mass / volume;
     let flow = n * volume;
+    let npsh_available_m = ctx
+        .package()
+        .saturation_pressure(
+            &inlet.mole_fractions,
+            inlet.temperature_k,
+            property_packages::SaturationKind::Bubble,
+        )
+        .map(|s| (inlet.pressure_pa - s.pressure_pa) / (density * STANDARD_GRAVITY_M_S2))
+        .map_err(|e| format!("inlet bubble pressure: {e}"));
     PumpHydraulics::Calculated(PumpHydraulicValues {
         inlet_density_kg_m3: density,
         inlet_volumetric_flow_m3_s: flow,
@@ -272,6 +275,7 @@ fn pump_hydraulics(inlet: &EquilibriumState, n: f64, dp: f64, ctx: &CalcContext)
         hydraulic_power_w: flow * dp,
         density_basis: basis,
         density_validity: validity,
+        npsh_available_m,
     })
 }
 
@@ -366,6 +370,7 @@ fn stage(
     }
     let z = &inlet.mole_fractions;
     let h_in = inlet.enthalpy();
+    let mut warnings = Vec::new();
     let (ideal, out) = if p_out == p_in {
         // No pressure change: keep the inlet equilibrium phases unchanged.
         (inlet.clone(), inlet.clone())
@@ -374,9 +379,22 @@ fn stage(
             .ps(z, p_out, inlet.entropy())
             .map_err(|e| format!("{name} isentropic outlet: {e}"))?;
         let dh_s = ideal.enthalpy() - h_in;
-        if !dh_s.is_finite() || (compress && dh_s < 0.0) || (!compress && dh_s > 0.0) {
+        // The PS solve meets its entropy target to a relative 1e-10; T Δs of
+        // that size is the attainable precision of Δh_s.
+        let resolution = ISENTROPIC_RESOLUTION
+            * h_in
+                .abs()
+                .max(inlet.temperature_k * inlet.entropy().abs())
+                .max(1.0);
+        if !dh_s.is_finite() || (compress && dh_s < -resolution) || (!compress && dh_s > resolution)
+        {
             return Err(format!(
                 "{name} isentropic enthalpy change {dh_s} J/mol has the wrong sign"
+            ));
+        }
+        if dh_s.abs() <= resolution {
+            warnings.push(format!(
+                "{name} isentropic enthalpy change is zero within solver precision: the selected package's enthalpy and entropy of this state do not depend on pressure (for example the NRTL-IG liquid, which has no Poynting term), so the machine does no work in this model."
             ));
         }
         let out = if efficiency == 1.0 {
@@ -392,7 +410,6 @@ fn stage(
         };
         (ideal, out)
     };
-    let mut warnings = Vec::new();
     match machine {
         Machine::Pump if phase_fraction(&out, Phase::Vapor) > 0.0 => warnings
             .push("Pump outlet contains vapor; check the specification and inlet state.".into()),

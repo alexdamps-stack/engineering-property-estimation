@@ -9,6 +9,7 @@ use flowsheet_core::{
     UnitId, UnitKind, UnitSpec,
 };
 use flowsheet_project::{CubicVariantChoice, PackageSelection, Project, ResultSet, solve_project};
+use property_packages::SaturationKind;
 use thermo_models::CostaldLiquidDensity;
 
 fn selection(components: &[&str]) -> PackageSelection {
@@ -125,6 +126,18 @@ fn liquid_pump_reports_engineering_density_volume_flow_and_hydraulic_power() {
     assert!(rotating.power_w() > 0.0 && power > 0.0);
     assert!((unit.duty_w - rotating.power_w()).abs() <= 1e-9 * unit.duty_w.abs());
     assert!(unit.scaled_energy_residual.unwrap().abs() <= 2e-9);
+    // NPSH available on the package's own bubble pressure at the inlet.
+    let bubble = line
+        .project
+        .package
+        .prepare()
+        .unwrap()
+        .package()
+        .saturation_pressure(&state.mole_fractions, t, SaturationKind::Bubble)
+        .unwrap();
+    let npsh = hydraulics.npsh_available_m.unwrap();
+    assert!((npsh / ((p_in - bubble.pressure_pa) / (rho * 9.80665)) - 1.0).abs() < 1e-12);
+    assert!(npsh > 0.0 && hydraulics.npsh_note.is_none());
 
     // Saved and reloaded unchanged.
     line.project.results = Some(results);
@@ -133,14 +146,59 @@ fn liquid_pump_reports_engineering_density_volume_flow_and_hydraulic_power() {
 }
 
 #[test]
-fn water_pump_reports_hydraulics_as_unavailable_without_substitution() {
+fn water_and_methanol_pumps_use_the_chemsep_liquid_density() {
+    // Pure water: ChemSep DIPPR 106, qualified (about 996.5 kg/m³ at 300 K).
     let line = pump_line(&["water"], vec![1.0], 300.0, 2e5, 5e5);
+    let results = solve(&line.project);
+    let phase = &results.streams[&line.inlet].state.as_ref().unwrap().phases[0];
+    let engineering = phase.engineering_liquid_density.as_ref().unwrap();
+    let rho = engineering.density_kg_m3.unwrap();
+    assert!((rho / 996.5 - 1.0).abs() < 0.005, "{rho}");
+    assert_eq!(
+        engineering.validity.as_deref(),
+        Some("within declared domain")
+    );
+    assert!(
+        engineering.basis.contains("chemsep-8.3"),
+        "{}",
+        engineering.basis
+    );
+    let hydraulics = results.units[&line.pump]
+        .rotating
+        .as_ref()
+        .unwrap()
+        .pump_hydraulics
+        .as_ref()
+        .unwrap();
+    let power = hydraulics.hydraulic_power_w.unwrap();
+    let flow = results.streams[&line.inlet]
+        .engineering_liquid_volume_flow_m3_s
+        .unwrap();
+    assert!((power / (flow * 3e5) - 1.0).abs() < 1e-14);
+    // The NPSH needs the package bubble pressure; outside the cubic A13
+    // domain it is reported as unavailable, not substituted.
+    assert!(hydraulics.npsh_available_m.is_some() != hydraulics.npsh_note.is_some());
+
+    // Methanol/water liquid: ideal mixing, computed but unassessed.
+    let line = pump_line(&["methanol", "water"], vec![0.4, 0.6], 300.0, 2e5, 5e5);
+    let results = solve(&line.project);
+    let phase = &results.streams[&line.inlet].state.as_ref().unwrap().phases[0];
+    let engineering = phase.engineering_liquid_density.as_ref().unwrap();
+    assert!(engineering.density_kg_m3.is_some());
+    assert_eq!(engineering.validity.as_deref(), Some("unassessed"));
+}
+
+#[test]
+fn pump_hydraulics_are_unavailable_outside_the_density_domain() {
+    // Water above 10 MPa: outside the qualified pressure range of the
+    // ChemSep/Tait route.
+    let line = pump_line(&["water"], vec![1.0], 300.0, 1.2e7, 1.5e7);
     let results = solve(&line.project);
     let phase = &results.streams[&line.inlet].state.as_ref().unwrap().phases[0];
     let engineering = phase.engineering_liquid_density.as_ref().unwrap();
     assert_eq!(engineering.density_kg_m3, None);
     assert!(
-        engineering.basis.contains("not qualified for water"),
+        engineering.basis.contains("qualified up to"),
         "{}",
         engineering.basis
     );

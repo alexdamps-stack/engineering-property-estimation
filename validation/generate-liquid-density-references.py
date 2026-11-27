@@ -34,7 +34,8 @@ import platform
 
 import chemicals
 import CoolProp
-from chemicals.volume import COSTALD, COSTALD_mixture_compressed, COSTALD_mixture_parameters
+from chemicals.dippr import EQ105, EQ106
+from chemicals.volume import COSTALD, COSTALD_compressed, COSTALD_mixture_parameters
 from CoolProp.CoolProp import AbstractState, PropsSI
 import CoolProp.CoolProp as CP
 
@@ -43,11 +44,15 @@ EXTRACTS = [
     ROOT / "data/source-extracts/components.provisional.json",
     ROOT / "data/source-extracts/components-reacting.provisional.json",
     ROOT / "data/source-extracts/liquid-density-costald.provisional.json",
+    ROOT / "data/source-extracts/liquid-density-chemsep.provisional.json",
 ]
 
 # Declared engine domain (must match thermo-models/src/liquid_density.rs).
 REDUCED_TEMPERATURE_RANGE = (0.25, 0.95)
 MAXIMUM_PRESSURE_PA = 69e6
+# Water/methanol route (restricted after the comparison: the generalized Tait
+# correction under-predicts their compression by more than 2 % above ~10 MPa).
+IDEAL_MIXING_MAXIMUM_PRESSURE_PA = 10e6
 
 # Budgets, declared before any comparison.
 IMPLEMENTATION_BUDGET = {
@@ -89,19 +94,40 @@ R = 8.31446261815324
 # methanol (2-4 %) and hydrogen (7-11 %) exceed the declared budgets as pure
 # fluids, and CO2 + hydrocarbon bubble-point liquids exceed them (3-9 %).
 # Budgets were not widened; the qualified scope was restricted instead.
-QUALIFIED = ["methane", "ethane", "propane", "nitrogen", "carbon-dioxide", "oxygen", "carbon-monoxide"]
+# Second revision (#228 follow-up): water and methanol use their ChemSep v8.3
+# saturated-liquid correlations (DIPPR 106 / 105) instead of COSTALD, with
+# ideal (Amagat) mixing of pure saturated volumes whenever they exceed the
+# trace fraction. The same 2 % / 5 % budgets apply; they were declared before
+# this comparison. Water/methanol mixtures are not validated (unassessed).
+QUALIFIED = ["methane", "water", "methanol", "ethane", "propane", "nitrogen", "carbon-dioxide", "oxygen", "carbon-monoxide"]
 MIXTURE_QUALIFIED = ["methane", "ethane", "propane", "nitrogen", "oxygen", "carbon-monoxide"]
 TRACE = 1e-3
 
 
 def scope(ids, x):
-    """'refused', 'qualified' or 'unassessed' under the engine policy."""
-    if sum(xi for i, xi in zip(ids, x) if i not in QUALIFIED) > TRACE:
-        return "refused"
+    """'qualified' or 'unassessed' for a state the engine evaluates."""
     major = [i for i, xi in zip(ids, x) if xi > TRACE]
     if len(major) == 1 or all(i in MIXTURE_QUALIFIED for i in major):
         return "qualified"
     return "unassessed"
+
+
+def classify(comps, ids, x, t, p):
+    """Engine outcome at (T, p): 'refused', 'qualified' or 'unassessed'."""
+    if expected_volume(comps, ids, x, t, p) is None:
+        return "refused"
+    return scope(ids, x)
+
+
+def chemsep_density(record, t):
+    """mol/m3 from the transcribed ChemSep record via chemicals.dippr, or None out of range."""
+    lo, hi = record["temperature_range_K"]
+    if not lo <= t <= hi:
+        return None
+    a, b, c, d, e = record["coefficients"]
+    if record["equation"] == 105:
+        return 1000.0 * EQ105(t, a, b, c, d)
+    return 1000.0 * EQ106(t, record["chemsep_critical_temperature_K"], a, b, c, d, e)
 
 
 def load():
@@ -116,6 +142,8 @@ def load():
     for c in costald["components"]:
         comps[c["id"]]["vstar"] = c["characteristic_volume_m3_per_mol"]
         comps[c["id"]]["omega"] = c["omega_srk"]
+    for c in json.loads(EXTRACTS[3].read_text(encoding="utf-8"))["components"]:
+        comps[c["id"]]["chemsep"] = c
     return comps
 
 
@@ -131,17 +159,48 @@ def riedel_psat(t, tcm, vm, omega):
 
 
 def expected_volume(comps, ids, x, t, p):
-    """chemicals evaluation; returns (saturated, reported, psat, corrected)."""
+    """chemicals evaluation; returns (saturated, reported, psat, corrected, Tr)
+    or None where the engine must return OutsideValidityDomain."""
+    if sum(xi for i, xi in zip(ids, x) if i not in QUALIFIED) > TRACE:
+        return None
     tcs = [comps[i]["tc"] for i in ids]
     vs = [comps[i]["vstar"] for i in ids]
     ws = [comps[i]["omega"] for i in ids]
     tcm, vm, omega = COSTALD_mixture_parameters(x, tcs, vs, ws)
+    trm = t / tcm
+    if not REDUCED_TEMPERATURE_RANGE[0] <= trm <= REDUCED_TEMPERATURE_RANGE[1] or p > MAXIMUM_PRESSURE_PA:
+        return None
     v_sat = COSTALD(t, tcm, vm, omega)
+    if sum(xi for i, xi in zip(ids, x) if "chemsep" in comps[i]) > TRACE:
+        if p > IDEAL_MIXING_MAXIMUM_PRESSURE_PA:
+            return None
+        # Ideal mixing of pure saturated volumes.
+        volume = included = excluded = 0.0
+        for i, xi in zip(ids, x):
+            if xi == 0.0:
+                continue
+            c = comps[i]
+            if "chemsep" in c:
+                rho = chemsep_density(c["chemsep"], t)
+                if rho is None:
+                    return None
+                vi = 1.0 / rho
+            elif REDUCED_TEMPERATURE_RANGE[0] <= t / c["tc"] <= REDUCED_TEMPERATURE_RANGE[1]:
+                vi = COSTALD(t, c["tc"], c["vstar"], c["omega"])
+            else:
+                excluded += xi
+                continue
+            volume += xi * vi
+            included += xi
+        if excluded > TRACE:
+            return None
+        v_sat = volume / included
     psat = riedel_psat(t, tcm, vm, omega)
     if p > psat:
-        v = COSTALD_mixture_compressed(x, t, tcs, vs, ws, p, psat)
-        return v_sat, v, psat, True, t / tcm
-    return v_sat, v_sat, psat, False, t / tcm
+        pcm = (0.291 - 0.080 * omega) * R * tcm / vm
+        v = COSTALD_compressed(t, p, psat, tcm, pcm, omega, v_sat)
+        return v_sat, v, psat, True, trm
+    return v_sat, v_sat, psat, False, trm
 
 
 def implementation_cases(comps):
@@ -159,6 +218,8 @@ def implementation_cases(comps):
         (["propane", "carbon-dioxide"], [0.7, 0.3]),
         (["methanol", "water"], [0.4, 0.6]),
         (["water", "carbon-dioxide", "hydrogen"], [0.97, 0.02, 0.01]),
+        (["water", "carbon-dioxide", "hydrogen"], [0.9992, 0.0004, 0.0004]),
+        (["water", "methanol", "propane"], [0.5, 0.3, 0.2]),
         (["propane", "methane", "carbon-monoxide", "oxygen"], [0.85, 0.05, 0.05, 0.05]),
         (["propane", "water", "hydrogen"], [0.9992, 0.0004, 0.0004]),
         (["propane", "water", "hydrogen"], [0.998, 0.001, 0.001]),
@@ -174,15 +235,16 @@ def implementation_cases(comps):
                 cases.append((f"mix-{'+'.join(ids)}-{x}-Tr{tr}-p{p:g}", ids, x, t, p))
     out = []
     for case_id, ids, x, t, p in cases:
-        v_sat, v, psat, corrected, trm = expected_volume(comps, ids, x, t, p)
+        expected = expected_volume(comps, ids, x, t, p)
+        base = {"id": case_id, "components": ids, "mole_fractions": x, "temperature_K": t, "pressure_Pa": p}
+        if expected is None:
+            out.append(base | {"engine_scope": "refused"})
+            continue
+        v_sat, v, psat, corrected, trm = expected
         mw = sum(xi * comps[i]["mw"] for xi, i in zip(x, ids))
         out.append(
-            {
-                "id": case_id,
-                "components": ids,
-                "mole_fractions": x,
-                "temperature_K": t,
-                "pressure_Pa": p,
+            base
+            | {
                 "engine_scope": scope(ids, x),
                 "reduced_temperature": trm,
                 "saturated_molar_volume_m3_per_mol": v_sat,
@@ -230,13 +292,13 @@ def experimental_pure(comps):
             points.append({"id": f"{cid}-sat-{k}", "kind": "saturated", "components": [cid],
                            "mole_fractions": [1.0], "temperature_K": t, "pressure_Pa": psat_ref,
                            "reference_molar_density_mol_per_m3": rho_ref,
-                           "engine_scope": scope([cid], [1.0]), "budget": band(t / tc_db)})
+                           "engine_scope": classify(comps, [cid], [1.0], t, psat_ref), "budget": band(t / tc_db)})
         for tr in [0.5, 0.7, 0.85]:
             t = round(tr * tc_db, 4)
             if not (t_lo <= t <= t_hi):
                 continue
             psat_ref = PropsSI("P", "T", t, "Q", 0, fluid)
-            for dp in [5e6, 2e7, 5e7]:
+            for dp in [1e6, 5e6, 2e7, 5e7]:
                 p = psat_ref + dp
                 if p > MAXIMUM_PRESSURE_PA:
                     continue
@@ -247,7 +309,7 @@ def experimental_pure(comps):
                 points.append({"id": f"{cid}-compressed-Tr{tr}-dp{dp:g}", "kind": "compressed",
                                "components": [cid], "mole_fractions": [1.0], "temperature_K": t,
                                "pressure_Pa": p, "reference_molar_density_mol_per_m3": rho_ref,
-                               "engine_scope": scope([cid], [1.0]), "budget": band(tr)})
+                               "engine_scope": classify(comps, [cid], [1.0], t, p), "budget": band(tr)})
     return points
 
 
@@ -282,7 +344,7 @@ def experimental_mixtures(comps):
                            "components": ids, "mole_fractions": x, "temperature_K": t,
                            "pressure_Pa": state.p(),
                            "reference_molar_density_mol_per_m3": state.rhomolar(),
-                           "engine_scope": scope(ids, x), "budget": band(t / tcm)})
+                           "engine_scope": classify(comps, ids, x, t, state.p()), "budget": band(t / tcm)})
     return points
 
 
@@ -312,6 +374,8 @@ def main():
         "declared_domain": {
             "reduced_temperature": list(REDUCED_TEMPERATURE_RANGE),
             "maximum_pressure_Pa": MAXIMUM_PRESSURE_PA,
+            "ideal_mixing_maximum_pressure_Pa": IDEAL_MIXING_MAXIMUM_PRESSURE_PA,
+            "mixing_rule": "Hankinson-Thomson COSTALD mixing; when water and methanol exceed the trace fraction, ideal (Amagat) mixing of pure saturated volumes (ChemSep DIPPR 105/106 for water and methanol, pure COSTALD for the others; components without a pure liquid volume at T may total at most the trace fraction and are left out); COSTALD-Tait with the Hankinson-Thomson mixture parameters in both cases",
             "pressure_rule": "Tait correction only above the generalized Riedel pseudo saturation pressure; otherwise the saturated value is reported with pressure_corrected=false",
         },
         "qualification_policy": {
@@ -329,8 +393,11 @@ def main():
     # Review summary (not part of the fixture): COSTALD deviation per data set.
     summary = {}
     for p in experimental:
-        _, v, _, _, _ = expected_volume(comps, p["components"], p["mole_fractions"],
-                                        p["temperature_K"], p["pressure_Pa"])
+        expected = expected_volume(comps, p["components"], p["mole_fractions"],
+                                   p["temperature_K"], p["pressure_Pa"])
+        if expected is None:
+            continue
+        v = expected[1]
         dev = 1.0 / v / p["reference_molar_density_mol_per_m3"] - 1.0
         key = ("+".join(p["components"]), p["kind"], p["engine_scope"])
         s = summary.setdefault(key, [0, 0.0, 0.0, 0])

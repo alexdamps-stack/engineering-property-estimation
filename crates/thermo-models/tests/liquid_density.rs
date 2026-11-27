@@ -11,7 +11,7 @@ use thermo_data::{COSTALD_DATA_VERSION, CostaldDatabase};
 use thermo_models::{
     COSTALD_MAXIMUM_PRESSURE_PA, COSTALD_MIXTURE_QUALIFIED_COMPONENTS,
     COSTALD_QUALIFIED_COMPONENTS, COSTALD_REDUCED_TEMPERATURE_RANGE, COSTALD_TRACE_MOLE_FRACTION,
-    CostaldLiquidDensity,
+    CostaldLiquidDensity, IDEAL_MIXING_MAXIMUM_PRESSURE_PA,
 };
 use thermo_types::{CalculationError, MOLAR_GAS_CONSTANT, ValidityStatus};
 
@@ -58,6 +58,10 @@ fn fixture_matches_engine_inputs_and_policy() {
     assert_eq!(
         domain["maximum_pressure_Pa"].as_f64(),
         Some(COSTALD_MAXIMUM_PRESSURE_PA)
+    );
+    assert_eq!(
+        domain["ideal_mixing_maximum_pressure_Pa"].as_f64(),
+        Some(IDEAL_MIXING_MAXIMUM_PRESSURE_PA)
     );
     let policy = &f["qualification_policy"];
     assert_eq!(

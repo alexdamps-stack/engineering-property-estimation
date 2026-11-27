@@ -12,13 +12,24 @@
 //! - mixture reduced temperature 0.25 ≤ T/T_cm ≤ 0.95 and p ≤ 69 MPa,
 //!   otherwise `OutsideValidityDomain`; nothing is extrapolated;
 //! - the components in [`COSTALD_QUALIFIED_COMPONENTS`] were compared with
-//!   reference equations of state; water, methanol and hydrogen exceed the
-//!   declared budgets and are refused above a total trace mole fraction of
-//!   [`COSTALD_TRACE_MOLE_FRACTION`];
+//!   reference equations of state. COSTALD itself fails the budgets for
+//!   water and methanol, so these use their ChemSep v8.3 saturated-liquid
+//!   correlations (DIPPR 106 and 105) instead. Hydrogen has no correlation in
+//!   any package temperature range and is refused above a total trace mole
+//!   fraction of [`COSTALD_TRACE_MOLE_FRACTION`];
+//! - liquids with water or methanol above trace use ideal (Amagat) mixing of
+//!   pure saturated volumes (ChemSep for water/methanol, pure COSTALD for the
+//!   others). Components without a pure liquid volume at T (supercritical)
+//!   may total at most the trace fraction and are left out of the sum. The
+//!   COSTALD-Tait correction then uses the Hankinson-Thomson mixture
+//!   parameters;
 //! - mixtures are `WithinDeclaredDomain` when every component above trace is
 //!   in [`COSTALD_MIXTURE_QUALIFIED_COMPONENTS`], otherwise `Unassessed`
 //!   (CO₂ + hydrocarbon liquids deviated by 3–9 %).
-use thermo_data::{ComponentDatabase, CostaldDatabase};
+use thermo_data::{
+    ChemsepLiquidDensityDatabase, ComponentDatabase, CostaldDatabase,
+    SaturatedLiquidDensityCorrelation,
+};
 use thermo_types::{
     CalculationError, DataMetadata, InputError, MOLAR_GAS_CONSTANT as R, ModelMetadata,
     ValidityStatus,
@@ -27,15 +38,22 @@ use thermo_types::{
 /// Model identifier recorded with every engineering density.
 pub const LIQUID_DENSITY_MODEL_ID: &str = "COSTALD-HT1979+Tait-TBH1982";
 /// Implementation version; bump when the formulation or the policy changes.
-pub const LIQUID_DENSITY_IMPLEMENTATION_VERSION: &str = "1";
+pub const LIQUID_DENSITY_IMPLEMENTATION_VERSION: &str = "2";
 /// Declared mixture reduced-temperature interval (inclusive).
 pub const COSTALD_REDUCED_TEMPERATURE_RANGE: [f64; 2] = [0.25, 0.95];
 /// Declared upper pressure, Pa.
 pub const COSTALD_MAXIMUM_PRESSURE_PA: f64 = 69e6;
+/// Declared upper pressure of liquids with water or methanol above trace
+/// (ChemSep saturated volumes with the generalized Tait correction), Pa. The
+/// generalized correction under-predicts their compression beyond about
+/// 2 % above 10 MPa (`validation/fixtures/liquid-density-v1.json`).
+pub const IDEAL_MIXING_MAXIMUM_PRESSURE_PA: f64 = 10e6;
 /// Components whose pure-fluid densities agree with reference equations of
 /// state within the declared budgets (`validation/fixtures/liquid-density-v1.json`).
-pub const COSTALD_QUALIFIED_COMPONENTS: [&str; 7] = [
+pub const COSTALD_QUALIFIED_COMPONENTS: [&str; 9] = [
     "methane",
+    "water",
+    "methanol",
     "ethane",
     "propane",
     "nitrogen",
@@ -65,6 +83,8 @@ struct Pure {
     characteristic_volume: f64,
     omega_srk: f64,
     molar_mass: f64,
+    /// Component-specific saturated-liquid correlation (water, methanol).
+    specific: Option<SaturatedLiquidDensityCorrelation>,
 }
 
 /// COSTALD engineering liquid density for a fixed, ordered component list.
@@ -105,6 +125,7 @@ impl CostaldLiquidDensity {
     pub fn from_databases(
         components: &ComponentDatabase,
         costald: &CostaldDatabase,
+        chemsep: &ChemsepLiquidDensityDatabase,
         ids: &[&str],
     ) -> Result<Self, CalculationError> {
         if ids.is_empty() {
@@ -121,12 +142,20 @@ impl CostaldLiquidDensity {
                     characteristic_volume: p.characteristic_volume,
                     omega_srk: p.omega_srk,
                     molar_mass: c.molar_mass().value(),
+                    specific: chemsep.get(id),
                 })
             })
             .collect::<Result<Vec<_>, CalculationError>>()?;
         Ok(Self {
             components,
-            data: costald.metadata(),
+            data: {
+                let (a, b) = (costald.metadata(), chemsep.metadata());
+                DataMetadata {
+                    identifier: format!("{} + {}", a.identifier, b.identifier),
+                    version: format!("{} + {}", a.version, b.version),
+                    source: format!("{}; {}", a.source, b.source),
+                }
+            },
         })
     }
 
@@ -135,6 +164,7 @@ impl CostaldLiquidDensity {
         Self::from_databases(
             &ComponentDatabase::embedded()?,
             &CostaldDatabase::embedded()?,
+            &ChemsepLiquidDensityDatabase::embedded()?,
             ids,
         )
     }
@@ -147,12 +177,53 @@ impl CostaldLiquidDensity {
         ModelMetadata {
             identifier: LIQUID_DENSITY_MODEL_ID.into(),
             implementation_version: LIQUID_DENSITY_IMPLEMENTATION_VERSION.into(),
-            formulation: "COSTALD saturated volume with Hankinson-Thomson mixing rules; COSTALD-Tait compressed-liquid correction above the generalized Riedel pseudo saturation pressure (API TDB 6A3.4); engineering property only, no EOS coupling".into(),
+            formulation: "COSTALD saturated volume with Hankinson-Thomson mixing rules; COSTALD-Tait compressed-liquid correction above the generalized Riedel pseudo saturation pressure (API TDB 6A3.4); ChemSep v8.3 saturated volumes with ideal mixing for liquids with water or methanol above trace; engineering property only, no EOS coupling".into(),
         }
     }
 
     pub fn data(&self) -> &DataMetadata {
         &self.data
+    }
+
+    /// Ideal (Amagat) mixing of pure saturated-liquid volumes at T: ChemSep
+    /// for water and methanol, pure COSTALD for the other components.
+    /// Components without a pure liquid volume at T may total at most the
+    /// trace fraction; they are left out and the sum is renormalized.
+    fn ideal_saturated_volume(&self, x: &[f64], t: f64) -> Result<f64, CalculationError> {
+        let [lo, hi] = COSTALD_REDUCED_TEMPERATURE_RANGE;
+        let (mut volume, mut included) = (0.0, 0.0);
+        let mut excluded: Vec<(&str, f64)> = Vec::new();
+        for (c, &xi) in self.components.iter().zip(x) {
+            if xi == 0.0 {
+                continue;
+            }
+            let pure = match &c.specific {
+                Some(s) => Some(1.0 / s.molar_density(&c.id, t)?),
+                None => {
+                    let tr = t / c.critical_temperature;
+                    (lo..=hi)
+                        .contains(&tr)
+                        .then(|| c.characteristic_volume * costald_reduced_volume(tr, c.omega_srk))
+                }
+            };
+            match pure {
+                Some(v) => {
+                    volume += xi * v;
+                    included += xi;
+                }
+                None => excluded.push((c.id.as_str(), xi)),
+            }
+        }
+        let excluded_total: f64 = excluded.iter().map(|(_, xi)| xi).sum();
+        if excluded_total > COSTALD_TRACE_MOLE_FRACTION {
+            let names: Vec<&str> = excluded.iter().map(|(id, _)| *id).collect();
+            return Err(CalculationError::OutsideValidityDomain(format!(
+                "ideal liquid mixing with water or methanol needs pure liquid volumes; {} \
+                 (mole fraction {excluded_total:.3e}) have none at {t} K",
+                names.join(", ")
+            )));
+        }
+        Ok(volume / included)
     }
 
     /// Engineering liquid density at T (K), p (Pa) and liquid mole fractions
@@ -236,10 +307,20 @@ impl CostaldLiquidDensity {
 
         let tau = 1.0 - tr;
         let t13 = tau.cbrt();
-        let v0 = 1.0 + t13 * (-1.52816 + t13 * (1.43907 + t13 * (-0.81446 + 0.190454 * t13)));
-        let vdelta =
-            (-0.296123 + tr * (0.386914 + tr * (-0.0427258 - 0.0480645 * tr))) / (tr - 1.00001);
-        let saturated = vm * v0 * (1.0 - omega * vdelta);
+        let mut saturated = vm * costald_reduced_volume(tr, omega);
+        let specific: f64 = pairs()
+            .filter(|(c, _)| c.specific.is_some())
+            .map(|(_, xi)| xi)
+            .sum();
+        if specific > COSTALD_TRACE_MOLE_FRACTION {
+            if pressure_pa > IDEAL_MIXING_MAXIMUM_PRESSURE_PA {
+                return Err(CalculationError::OutsideValidityDomain(format!(
+                    "engineering density of liquids with water or methanol is qualified up to \
+                     {IDEAL_MIXING_MAXIMUM_PRESSURE_PA} Pa, not {pressure_pa} Pa"
+                )));
+            }
+            saturated = self.ideal_saturated_volume(&x, temperature_k)?;
+        }
 
         // Generalized Riedel pseudo saturation pressure (log10 form).
         let pcm = (0.291 - 0.080 * omega) * R * tcm / vm;
@@ -301,6 +382,15 @@ impl CostaldLiquidDensity {
     }
 }
 
+/// COSTALD V/V* = V_R⁽⁰⁾ (1 − ω V_R⁽δ⁾) at reduced temperature `tr`.
+fn costald_reduced_volume(tr: f64, omega: f64) -> f64 {
+    let t13 = (1.0 - tr).cbrt();
+    let v0 = 1.0 + t13 * (-1.52816 + t13 * (1.43907 + t13 * (-0.81446 + 0.190454 * t13)));
+    let vdelta =
+        (-0.296123 + tr * (0.386914 + tr * (-0.0427258 - 0.0480645 * tr))) / (tr - 1.00001);
+    v0 * (1.0 - omega * vdelta)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -346,9 +436,26 @@ mod tests {
         // Trace water is tolerated; the propane-rich liquid stays qualified.
         let r = m.evaluate(&[0.9995, 0.0005, 0.0], 300.0, 2e6).unwrap();
         assert_eq!(r.validity, ValidityStatus::WithinDeclaredDomain);
-        // Water above the trace limit is refused, not extrapolated.
+        // Water above trace: ideal mixing with the ChemSep water volume,
+        // computed but not validated for mixtures.
+        let r = m.evaluate(&[0.99, 0.01, 0.0], 300.0, 2e6).unwrap();
+        assert_eq!(r.validity, ValidityStatus::Unassessed);
+        // Pure water is qualified; CO2 at 320 K (supercritical) above trace
+        // has no pure liquid volume for the ideal mixing rule.
+        let r = m.evaluate(&[0.0, 1.0, 0.0], 300.0, 2e6).unwrap();
+        assert_eq!(r.validity, ValidityStatus::WithinDeclaredDomain);
+        assert!(
+            (r.mass_density / 996.5 - 1.0).abs() < 0.01,
+            "{}",
+            r.mass_density
+        );
         assert!(matches!(
-            m.evaluate(&[0.99, 0.01, 0.0], 300.0, 2e6),
+            m.evaluate(&[0.0, 0.98, 0.02], 320.0, 2e6),
+            Err(CalculationError::OutsideValidityDomain(_))
+        ));
+        let h = CostaldLiquidDensity::embedded(&["propane", "hydrogen"]).unwrap();
+        assert!(matches!(
+            h.evaluate(&[0.99, 0.01], 300.0, 2e6),
             Err(CalculationError::OutsideValidityDomain(_))
         ));
         // CO2 + propane is computed but unassessed.

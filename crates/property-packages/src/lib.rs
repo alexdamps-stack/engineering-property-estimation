@@ -8,6 +8,19 @@ pub use flowsheet::{FlowsheetPackage, GergPackage, NrtlPackage};
 mod liquid_density;
 // The engineering liquid density (#228), re-exported for unit and project code.
 pub use thermo_models::{CostaldLiquidDensity, EngineeringLiquidDensity};
+mod operations;
+pub use operations::{SaturationKind, SaturationState};
+// Root selection of the homogeneous package operations.
+pub use thermo_models::RootSelection;
+mod transport;
+pub use transport::{
+    TransportModel, TransportProperties, TransportRegime, annotate_transport, phase_transport,
+};
+mod pseudo;
+pub use pseudo::{
+    PSEUDO_CUBIC_TEMPERATURE_RANGE_K, cubic_model_with_pseudo_components,
+    cubic_package_with_pseudo_components, pseudo_component_database,
+};
 
 use thermo_models::{CubicModel, HomogeneousState};
 // The cubic homogeneous envelope, re-exported for interfaces that build packages
@@ -40,6 +53,12 @@ pub struct PhaseProperties {
     pub dynamic_viscosity: Option<f64>,
     /// Thermal conductivity in W/(m K), when supplied by the model.
     pub thermal_conductivity: Option<f64>,
+    /// Transport method, data, regime, surface tension and the reason for
+    /// each unavailable transport property (#225). `None` until
+    /// [`annotate_transport`] has evaluated the phase. When set,
+    /// `dynamic_viscosity` and `thermal_conductivity` hold its available values.
+    /// `Some(Err)` records why the phase could not be evaluated at all.
+    pub transport: Option<Result<TransportProperties, CalculationError>>,
     pub model: ModelMetadata,
     pub data: DataMetadata,
     pub caloric_reference: CaloricReference,
@@ -64,6 +83,7 @@ impl From<HomogeneousState> for PhaseProperties {
             speed_of_sound: Some(s.speed_of_sound),
             dynamic_viscosity: None,
             thermal_conductivity: None,
+            transport: None,
             model: s.model,
             data: s.data,
             caloric_reference: s.caloric_reference,
@@ -156,6 +176,33 @@ impl EquilibriumState {
                     .map(|tp| tp.max_component_balance_residual),
                 scaled_energy_residual: Some(r.scaled_energy_residual),
                 scaled_entropy_residual: None,
+            },
+            diagnostics: r.diagnostics,
+        }
+    }
+
+    fn from_ps(r: thermo_solvers::PsFlash, fractions: &[f64]) -> Self {
+        Self {
+            temperature_k: r.temperature_k,
+            pressure_pa: r.pressure_pa,
+            mole_fractions: fractions.to_vec(),
+            phases: r.phases.into_iter().map(Into::into).collect(),
+            iterations: r.iterations,
+            convergence: Convergence {
+                max_ln_fugacity_residual: r.tp.as_ref().map_or_else(
+                    || {
+                        r.pure_saturation
+                            .as_ref()
+                            .map_or(0.0, |s| s.fugacity_residual)
+                    },
+                    |tp| tp.max_ln_fugacity_residual,
+                ),
+                max_component_balance_residual: r
+                    .tp
+                    .as_ref()
+                    .map(|tp| tp.max_component_balance_residual),
+                scaled_energy_residual: None,
+                scaled_entropy_residual: Some(r.scaled_entropy_residual),
             },
             diagnostics: r.diagnostics,
         }
@@ -325,30 +372,43 @@ impl CubicPackage {
             entropy,
             self.options,
         )?;
-        Ok(EquilibriumState {
-            temperature_k: r.temperature_k,
-            pressure_pa: r.pressure_pa,
-            mole_fractions: fractions.to_vec(),
-            phases: r.phases.into_iter().map(Into::into).collect(),
-            iterations: r.iterations,
-            convergence: Convergence {
-                max_ln_fugacity_residual: r.tp.as_ref().map_or_else(
-                    || {
-                        r.pure_saturation
-                            .as_ref()
-                            .map_or(0.0, |s| s.fugacity_residual)
-                    },
-                    |tp| tp.max_ln_fugacity_residual,
-                ),
-                max_component_balance_residual: r
-                    .tp
-                    .as_ref()
-                    .map(|tp| tp.max_component_balance_residual),
-                scaled_energy_residual: None,
-                scaled_entropy_residual: Some(r.scaled_entropy_residual),
-            },
-            diagnostics: r.diagnostics,
-        })
+        Ok(EquilibriumState::from_ps(r, fractions))
+    }
+
+    /// Homogeneous phase of composition `fractions` on the selected root, in the
+    /// cubic model's declared domain. No phase-stability claim.
+    pub fn homogeneous(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+        root: RootSelection,
+    ) -> Result<HomogeneousState, CalculationError> {
+        self.validate_options()?;
+        self.model.with_fractions(fractions)?.evaluate(
+            Temperature::new(temperature_k)?,
+            Pressure::new(pressure_pa)?,
+            root,
+        )
+    }
+
+    /// The A13 saturation bounds inside the package temperature interval.
+    fn default_saturation_bounds(
+        &self,
+    ) -> Result<thermo_solvers::SaturationOptions, CalculationError> {
+        let mut bounds = thermo_solvers::SaturationOptions::default();
+        bounds.minimum_temperature_k = bounds
+            .minimum_temperature_k
+            .max(self.options.minimum_temperature_k);
+        bounds.maximum_temperature_k = bounds
+            .maximum_temperature_k
+            .min(self.options.maximum_temperature_k);
+        if bounds.minimum_temperature_k >= bounds.maximum_temperature_k {
+            return Err(CalculationError::OutsideValidityDomain(
+                "package temperature interval does not overlap the A13 bubble/dew interval".into(),
+            ));
+        }
+        Ok(bounds)
     }
 }
 

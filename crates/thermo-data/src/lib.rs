@@ -4,10 +4,19 @@ mod liquid;
 pub use liquid::*;
 mod costald;
 pub use costald::*;
+mod chemsep_density;
+pub use chemsep_density::*;
+mod transport;
+pub use transport::*;
+mod assay;
+pub use assay::*;
+mod pseudo;
+pub use pseudo::*;
 
 use serde::Deserialize;
 use thermo_types::{
-    CalculationError, ComponentId, DataMetadata, MOLAR_GAS_CONSTANT as R, MolarMass, Temperature,
+    CalculationError, ComponentId, DataMetadata, InputError, MOLAR_GAS_CONSTANT as R, MolarMass,
+    Temperature,
 };
 
 pub const DATA_VERSION: &str = "2026-11-07.1";
@@ -47,6 +56,10 @@ struct Record {
     /// From the reacting-component extension rather than the base extract.
     #[serde(skip)]
     extension: bool,
+    /// Characterisation of a petroleum pseudo-component (#229); `None` for
+    /// embedded database records.
+    #[serde(skip)]
+    pseudo: Option<std::sync::Arc<PseudoCharacterisation>>,
 }
 
 /// Immutable component from the checked embedded dataset.
@@ -75,22 +88,43 @@ impl Component {
     }
     /// Atoms per molecule by element symbol, in first-appearance order of the
     /// formula. The embedded formulas are checked to parse when loading.
+    /// Pseudo-components have no formula and return an empty list; reactors
+    /// reject them before using element balances.
     pub fn elements(&self) -> Vec<(String, u32)> {
+        if self.is_pseudo() {
+            return Vec::new();
+        }
         parse_formula(&self.0.formula).expect("validated embedded formula")
+    }
+    /// True for a characterised petroleum pseudo-component (#229).
+    pub fn is_pseudo(&self) -> bool {
+        self.0.pseudo.is_some()
+    }
+    /// Inputs, derived constants and methods of a pseudo-component.
+    pub fn pseudo_characterisation(&self) -> Option<&PseudoCharacterisation> {
+        self.0.pseudo.as_deref()
     }
     /// Ideal-gas standard enthalpy of formation at 298.15 K, J/mol, from the
     /// retained NASA7 integration constant a6 of the lower interval:
     /// `R (a1 T + a2 T^2/2 + ... + a5 T^5/5 + a6)` at T = 298.15 K. The
     /// engine caloric scale ([`Self::ideal_gas`]) is zero at that state; this
     /// value restores the source formation basis for reacting balances.
+    /// Pseudo-components have no formation basis and return NaN.
     pub fn standard_formation_enthalpy(&self) -> f64 {
+        if self.is_pseudo() {
+            return f64::NAN;
+        }
         let low = &self.0.ideal_gas.coefficients[0];
         R * (primitive(low, REFERENCE_TEMPERATURE, false) + low[5])
     }
     /// Ideal-gas absolute (third-law) entropy at 298.15 K and 1 bar,
     /// J/(mol K), from the retained NASA7 integration constant a7 of the
     /// lower interval: `R (a1 ln T + a2 T + ... + a5 T^4/4 + a7)`.
+    /// Pseudo-components have no third-law basis and return NaN.
     pub fn standard_entropy(&self) -> f64 {
+        if self.is_pseudo() {
+            return f64::NAN;
+        }
         let low = &self.0.ideal_gas.coefficients[0];
         R * (primitive(low, REFERENCE_TEMPERATURE, true) + low[6])
     }
@@ -100,6 +134,12 @@ impl Component {
     /// of [`Self::ideal_gas`]. Differences over a balanced reaction give
     /// `-R T ln K`.
     pub fn standard_gibbs_energy(&self, temperature: Temperature) -> Result<f64, CalculationError> {
+        if self.is_pseudo() {
+            return Err(CalculationError::MissingParameter(format!(
+                "pseudo-component {} has no formation properties",
+                self.id()
+            )));
+        }
         let ig = self.ideal_gas(temperature)?;
         let t = temperature.value();
         Ok(self.standard_formation_enthalpy() + ig.enthalpy
@@ -126,8 +166,13 @@ impl Component {
         let [lo, join, hi] = self.0.ideal_gas.breaks;
         if !(lo..=hi).contains(&t) {
             return Err(CalculationError::OutsideValidityDomain(format!(
-                "{} NASA7: {lo}..={hi} K",
-                self.id()
+                "{} {}: {lo}..={hi} K",
+                self.id(),
+                if self.is_pseudo() {
+                    "Kesler-Lee ideal-gas cp"
+                } else {
+                    "NASA7"
+                }
             )));
         }
         // Upper interval owns the join. Integrating cp across it avoids a jump
@@ -272,6 +317,12 @@ impl ComponentDatabase {
         }
         for (i, c) in extract.components.iter().enumerate() {
             ComponentId::new(&c.id)?;
+            if c.id.starts_with(PSEUDO_COMPONENT_PREFIX) {
+                return Err(CalculationError::MissingParameter(format!(
+                    "embedded record {} uses the reserved pseudo-component prefix",
+                    c.id
+                )));
+            }
             if extract.components[..i].iter().any(|other| other.id == c.id)
                 || !c.constants.tc.is_finite()
                 || c.constants.tc <= 0.0
@@ -329,18 +380,47 @@ impl ComponentDatabase {
     /// which case version and source name both extracts. Selections of base
     /// components keep their provenance unchanged.
     pub fn metadata_for<'a>(&self, ids: impl IntoIterator<Item = &'a str>) -> DataMetadata {
-        let base = self.metadata();
-        let extended = ids
-            .into_iter()
-            .any(|id| self.get(id).is_ok_and(|c| c.0.extension));
-        if !extended {
-            return base;
+        let selected: Vec<&Component> =
+            ids.into_iter().filter_map(|id| self.get(id).ok()).collect();
+        let extended = selected.iter().any(|c| c.0.extension);
+        let pseudo = selected.iter().any(|c| c.is_pseudo());
+        let mut data = if extended {
+            DataMetadata {
+                identifier: COMPONENT_DATASET_ID.into(),
+                version: format!("{DATA_VERSION}+reacting-{REACTING_DATA_VERSION}"),
+                source: "data/source-extracts/components.provisional.json and components-reacting.provisional.json; upstream URLs, hashes and notices retained".into(),
+            }
+        } else {
+            self.metadata()
+        };
+        if pseudo {
+            // The characterisation inputs themselves are stored with the
+            // selection (and its fingerprint); the version names the method set.
+            data.version = format!("{}+pseudo-{PSEUDO_CHARACTERISATION_VERSION}", data.version);
+            data.source = format!(
+                "{}; pseudo-components characterised by {PSEUDO_CHARACTERISATION_ID} (Fahim et al. 2010, ch. 3 transcription)",
+                data.source
+            );
         }
-        DataMetadata {
-            identifier: base.identifier,
-            version: format!("{DATA_VERSION}+reacting-{REACTING_DATA_VERSION}"),
-            source: "data/source-extracts/components.provisional.json and components-reacting.provisional.json; upstream URLs, hashes and notices retained".into(),
+        data
+    }
+
+    /// The database extended by characterised pseudo-components, appended in
+    /// input order. Identifiers must carry [`PSEUDO_COMPONENT_PREFIX`] and be
+    /// unique; each input is characterised and domain-checked here.
+    pub fn with_pseudo_components(
+        &self,
+        inputs: &[PseudoComponentInput],
+    ) -> Result<Self, CalculationError> {
+        let mut components = self.components.clone();
+        for input in inputs {
+            let component = input.component()?;
+            if components.iter().any(|c| c.id() == component.id()) {
+                return Err(InputError::DuplicateComponent.into());
+            }
+            components.push(component);
         }
+        Ok(Self { components })
     }
 }
 

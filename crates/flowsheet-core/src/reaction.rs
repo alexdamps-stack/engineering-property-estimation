@@ -10,10 +10,13 @@
 //!
 //! where `g_i` is the net generation of component `i` (mol/s) and `dHf_i` is
 //! `thermo_data::Component::standard_formation_enthalpy`. Non-reacting units
-//! have `g = 0` and keep their usual balance.
+//! have `g = 0` and keep their usual balance. Packages on another caloric
+//! reference (GERG-2008, EOS-CG-2021) supply no formation components, so their
+//! reactors fail explicitly ([`FlowsheetPackage::formation_components`]).
 
 use crate::{Reaction, ReactionExtent};
-use property_packages::CubicPackage;
+use property_packages::FlowsheetPackage;
+use thermo_types::CalculationError;
 
 /// Relative tolerance on the element balance of one reaction,
 /// `|sum_i nu_i a_ik| <= tol * max(1, sum_i |nu_i a_ik|)`.
@@ -37,8 +40,10 @@ pub(crate) struct Chemistry {
 }
 
 impl Chemistry {
-    pub(crate) fn of(package: &CubicPackage) -> Self {
-        let components = package.model().components();
+    /// Chemistry of the package components. Packages without the
+    /// formation-compatible caloric reference fail explicitly.
+    pub(crate) fn of(package: &dyn FlowsheetPackage) -> Result<Self, CalculationError> {
+        let components = package.formation_components()?;
         let mut elements: Vec<String> = Vec::new();
         let parsed: Vec<_> = components.iter().map(|c| c.elements()).collect();
         for (symbol, _) in parsed.iter().flatten() {
@@ -60,7 +65,7 @@ impl Chemistry {
                     .collect()
             })
             .collect();
-        Self {
+        Ok(Self {
             ids: components.iter().map(|c| c.id().to_owned()).collect(),
             formation_j_mol: components
                 .iter()
@@ -69,7 +74,7 @@ impl Chemistry {
             molar_mass_kg_mol: components.iter().map(|c| c.molar_mass().value()).collect(),
             elements,
             atoms,
-        }
+        })
     }
 
     pub(crate) fn molar_masses(&self) -> &[f64] {

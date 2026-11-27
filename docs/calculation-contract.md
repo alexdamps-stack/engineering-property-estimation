@@ -193,9 +193,12 @@ identity tests verify bit for bit. The engineering density is evaluated on
 request for liquid phases only (`FlowsheetPackage::engineering_liquid_density`),
 carries its own model, data and validity metadata, and is stored beside the
 EOS density. It is outside the domain (`OutsideValidityDomain`) above
-T/T_cm = 0.95, below 0.25, above 69 MPa, and for liquids with more than
-0.1 mol % water, methanol or hydrogen, for which the correlation failed its
-experimental budget. Consumers state their basis: pump hydraulics and
+T/T_cm = 0.95, below 0.25, above 69 MPa (10 MPa with water or methanol), and
+for liquids with more than 0.1 mol % hydrogen. Water and methanol use ChemSep
+v8.3 saturated-liquid correlations, mixed ideally with the other components
+(mixtures `Unassessed`), because COSTALD failed its experimental budget for
+them.
+Consumers state their basis: pump hydraulics and
 volumetric liquid flows use the engineering density or are *Unavailable*;
 kinetic reactors use the EOS volume unless `LiquidVolumeBasis::EngineeringDensity`
 is selected. See [liquid-density-status.md](liquid-density-status.md).
