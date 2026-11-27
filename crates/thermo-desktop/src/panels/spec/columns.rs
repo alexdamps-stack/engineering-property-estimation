@@ -7,9 +7,9 @@ use flowsheet_core::units::columns::packing::{
 };
 use flowsheet_core::units::columns::{
     BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget,
-    DistillationColumnSpec, DistillationCondenser, MAX_COLUMN_PORTS, MAX_COLUMN_STAGES,
-    MAX_DISTILLATION_INTERNAL_STAGES, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux,
-    TopSpecification,
+    DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom, MAX_COLUMN_PORTS,
+    MAX_COLUMN_STAGES, MAX_DISTILLATION_INTERNAL_STAGES, PetroleumFractionatorSpec,
+    ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux, TopSpecification,
 };
 use flowsheet_core::units::{ColumnSpec, GroupSpec};
 
@@ -23,9 +23,7 @@ pub(super) fn form(ui: &mut Ui, spec: &mut ColumnSpec, u: DisplayUnits, componen
     match spec {
         ColumnSpec::Shortcut(s) => shortcut_form(ui, s, u, components),
         ColumnSpec::Distillation(s) => distillation_form(ui, s, u, components),
-        ColumnSpec::PetroleumFractionator(s) => {
-            count_field(ui, "Side draws", &mut s.side_draws, 0..=MAX_COLUMN_PORTS);
-        }
+        ColumnSpec::PetroleumFractionator(s) => petroleum_form(ui, s, u, components),
         ColumnSpec::Absorber(s) => {
             internals_form(ui, &mut s.internals, u);
             opt_field(
@@ -69,8 +67,14 @@ fn distillation_form(
     s.vapor_draws.truncate(usize::from(s.vapor_side_draws));
 
     internals_form(ui, &mut s.internals, units);
-    condenser_form(ui, s, units);
-    pressure_form(ui, s, units);
+    condenser_form(ui, &mut s.condenser, units);
+    pressure_form(
+        ui,
+        &mut s.pressure_pa,
+        &mut s.condenser_pressure_drop_pa,
+        &mut s.pressure_drop,
+        units,
+    );
     top_form(ui, &mut s.top, units, components);
     bottom_form(ui, &mut s.bottom, units, components);
     note_row(
@@ -141,8 +145,114 @@ fn distillation_form(
     }
 }
 
-fn condenser_form(ui: &mut Ui, s: &mut DistillationColumnSpec, units: DisplayUnits) {
-    let current = match s.condenser {
+/// Petroleum fractionator (#190): the rigorous column with pseudo-component
+/// feeds, side products by molar or standard liquid volume flow, and a
+/// reboiler or stripping steam.
+fn petroleum_form(
+    ui: &mut Ui,
+    s: &mut PetroleumFractionatorSpec,
+    units: DisplayUnits,
+    components: &[String],
+) {
+    count_field(ui, "Feeds", &mut s.feeds, 1..=MAX_COLUMN_PORTS);
+    count_field(ui, "Side products", &mut s.side_draws, 0..=MAX_COLUMN_PORTS);
+    s.feed_stages.truncate(usize::from(s.feeds));
+    s.products.truncate(usize::from(s.side_draws));
+    internals_form(ui, &mut s.internals, units);
+    condenser_form(ui, &mut s.condenser, units);
+    pressure_form(
+        ui,
+        &mut s.pressure_pa,
+        &mut s.condenser_pressure_drop_pa,
+        &mut s.pressure_drop,
+        units,
+    );
+    top_form(ui, &mut s.top, units, components);
+    let steam = s.steam() as usize;
+    match choice(
+        ui,
+        "Bottom",
+        steam,
+        &["Reboiler", "Stripping steam (no reboiler)"],
+    ) {
+        Some(0) if steam != 0 => s.bottom = FractionatorBottom::default(),
+        Some(1) if steam != 1 => s.bottom = FractionatorBottom::StrippingSteam,
+        _ => {}
+    }
+    match &mut s.bottom {
+        FractionatorBottom::Reboiler(bottom) => bottom_form(ui, bottom, units, components),
+        FractionatorBottom::StrippingSteam => note_row(
+            ui,
+            "Steam enters the adiabatic bottom stage; the top specification is the only one.",
+        ),
+    }
+    note_row(
+        ui,
+        "Stage 1 is the condenser and the last stage the reboiler or steam-stripped bottom tray. \
+         Feeds must carry characterised pseudo-components. Side strippers and pump-arounds \
+         are not modelled.",
+    );
+    let stage_range = 2..=MAX_DISTILLATION_INTERNAL_STAGES + 2;
+    for i in 0..usize::from(s.feeds.min(MAX_COLUMN_PORTS)) {
+        let mut stage = s.feed_stages.get(i).copied().unwrap_or(2);
+        if count_field(
+            ui,
+            &format!("Feed {} stage", i + 1),
+            &mut stage,
+            stage_range.clone(),
+        ) {
+            s.feed_stages.resize(s.feed_stages.len().max(i + 1), 2);
+            s.feed_stages[i] = stage;
+        }
+    }
+    for i in 0..usize::from(s.side_draws.min(MAX_COLUMN_PORTS)) {
+        let original = s.products.get(i).copied().unwrap_or_default();
+        let mut product = original;
+        count_field(
+            ui,
+            &format!("Product {} stage", i + 1),
+            &mut product.stage,
+            stage_range.clone(),
+        );
+        ui.push_id(("side product", i), |ui| {
+            let volume = matches!(product.rate, DrawRate::StandardLiquidVolume(_)) as usize;
+            match choice(
+                ui,
+                &format!("Product {} basis", i + 1),
+                volume,
+                &["Molar flow", "Standard liquid volume (60 °F)"],
+            ) {
+                Some(0) if volume != 0 => product.rate = DrawRate::Molar(None),
+                Some(1) if volume != 1 => product.rate = DrawRate::StandardLiquidVolume(None),
+                _ => {}
+            }
+            match &mut product.rate {
+                DrawRate::Molar(v) => opt_field(
+                    ui,
+                    &format!("Product {} molar flow", i + 1),
+                    v,
+                    Quantity::MolarFlow,
+                    units,
+                ),
+                DrawRate::StandardLiquidVolume(v) => opt_field(
+                    ui,
+                    &format!("Product {} volume flow", i + 1),
+                    v,
+                    Quantity::VolumeFlow,
+                    units,
+                ),
+            }
+        });
+        if product != original {
+            s.products
+                .resize(s.products.len().max(i + 1), Default::default());
+            s.products[i] = product;
+        }
+    }
+}
+
+fn condenser_form(ui: &mut Ui, condenser: &mut DistillationCondenser, units: DisplayUnits) {
+    let current = match *condenser {
         DistillationCondenser::Total => 0,
         DistillationCondenser::PartialVapor => 1,
         DistillationCondenser::PartialVaporLiquid { .. } => 2,
@@ -153,10 +263,10 @@ fn condenser_form(ui: &mut Ui, s: &mut DistillationColumnSpec, units: DisplayUni
         current,
         &["Total", "Partial (vapor)", "Partial (vapor and liquid)"],
     ) {
-        Some(0) => s.condenser = DistillationCondenser::Total,
-        Some(1) => s.condenser = DistillationCondenser::PartialVapor,
+        Some(0) => *condenser = DistillationCondenser::Total,
+        Some(1) => *condenser = DistillationCondenser::PartialVapor,
         Some(_) if current != 2 => {
-            s.condenser = DistillationCondenser::PartialVaporLiquid {
+            *condenser = DistillationCondenser::PartialVaporLiquid {
                 liquid_distillate_mol_s: None,
             }
         }
@@ -164,7 +274,7 @@ fn condenser_form(ui: &mut Ui, s: &mut DistillationColumnSpec, units: DisplayUni
     }
     if let DistillationCondenser::PartialVaporLiquid {
         liquid_distillate_mol_s,
-    } = &mut s.condenser
+    } = condenser
     {
         opt_field(
             ui,
@@ -176,33 +286,39 @@ fn condenser_form(ui: &mut Ui, s: &mut DistillationColumnSpec, units: DisplayUni
     }
 }
 
-fn pressure_form(ui: &mut Ui, s: &mut DistillationColumnSpec, units: DisplayUnits) {
+fn pressure_form(
+    ui: &mut Ui,
+    pressure_pa: &mut Option<f64>,
+    condenser_drop_pa: &mut f64,
+    pressure_drop: &mut ColumnPressureDrop,
+    units: DisplayUnits,
+) {
     opt_field(
         ui,
         "Condenser pressure",
-        &mut s.pressure_pa,
+        pressure_pa,
         Quantity::Pressure,
         units,
     );
     value_field(
         ui,
         "Condenser pressure drop",
-        &mut s.condenser_pressure_drop_pa,
+        condenser_drop_pa,
         Quantity::PressureDrop,
         units,
     );
-    let current = matches!(s.pressure_drop, ColumnPressureDrop::Column(_)) as usize;
+    let current = matches!(pressure_drop, ColumnPressureDrop::Column(_)) as usize;
     match choice(
         ui,
         "Stage pressure drop",
         current,
         &["Per stage", "Whole column"],
     ) {
-        Some(0) if current != 0 => s.pressure_drop = ColumnPressureDrop::PerStage(0.0),
-        Some(1) if current != 1 => s.pressure_drop = ColumnPressureDrop::Column(0.0),
+        Some(0) if current != 0 => *pressure_drop = ColumnPressureDrop::PerStage(0.0),
+        Some(1) if current != 1 => *pressure_drop = ColumnPressureDrop::Column(0.0),
         _ => {}
     }
-    let (label, drop) = match &mut s.pressure_drop {
+    let (label, drop) = match pressure_drop {
         ColumnPressureDrop::PerStage(drop) => ("Drop per stage", drop),
         ColumnPressureDrop::Column(drop) => ("Drop first tray to reboiler", drop),
     };

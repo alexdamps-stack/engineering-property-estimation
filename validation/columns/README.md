@@ -180,3 +180,33 @@ comparison. Generation takes about two minutes.
 ```sh
 python validation/columns/generate-column-spec-references.py --output /tmp/specs-candidate.json
 ```
+
+## Petroleum fractionator references (#190)
+
+`petroleum-v1.json` covers the petroleum fractionator with an 8-cut
+crude-like feed (TBP 340–550 K, Watson K 11.8, equal-temperature cuts):
+two molar side products with a total condenser and reboiler; two standard
+liquid volume side products plus a molar one with a partial condenser and a
+pressure profile; and a steam-stripped column (5 mol/s steam at 520 K to the
+adiabatic bottom stage, partial condenser, water/cut kij = 0.5 as an
+explicit approximation). Each case records the cut inputs and correlated
+constants, the feed states, stage temperatures and pressures, duties,
+internal flows and every product (flow, phase, composition and, without
+water, standard liquid volume flow).
+
+`generate-petroleum-references.py` uses the independent Python correlations
+of `validation/generate-pseudo-component-references.py` (CoolProp is stubbed
+when absent; only its plain-Python functions are used), teqp 0.23.2 PR for
+fugacity coefficients and residual enthalpy with the A4 adapter's root
+selection, the Kesler–Lee cp and the water NASA7 lower interval for the
+ideal gas. It solves the MESH equations in temperatures, log mole fractions
+with explicit summations, log flows, duties and the free distillate and
+volume-specified draw rates, started by a Wang–Henke bubble-point iteration.
+Every fitted stage phase and both feed phases pass the A4 adapter's
+multi-start TPD search. The budgets are those of `extended-v1.json`, plus
+1e-8 m³/s on standard liquid volume flows, fixed before any Rust comparison.
+No Rust code or output is used.
+
+```sh
+python validation/columns/generate-petroleum-references.py --output /tmp/petroleum-candidate.json
+```

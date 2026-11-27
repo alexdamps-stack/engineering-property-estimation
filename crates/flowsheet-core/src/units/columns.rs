@@ -14,12 +14,16 @@ use crate::unit::{
 mod absorber;
 mod distillation;
 mod mesh;
+mod petroleum;
 mod shortcut;
 
 pub use absorber::{AbsorberResult, AbsorberSpec};
 pub use distillation::{
     BottomSpecification, ColumnPressureDrop, ComponentTarget, DistillationColumnResult,
     DistillationColumnSpec, DistillationCondenser, LiquidSideDraw, TopSpecification, VaporSideDraw,
+};
+pub use petroleum::{
+    DrawRate, FractionatorBottom, PetroleumFractionatorSpec, SideProduct, WATER_DENSITY_60F_KG_M3,
 };
 pub use shortcut::{ShortcutColumnResult, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux};
 
@@ -139,9 +143,10 @@ pub(crate) fn info(kind: UnitKind) -> KindInfo {
 /// Calculation status of a column kind.
 pub(crate) fn status(kind: UnitKind) -> CalculationStatus {
     match kind {
-        UnitKind::ShortcutColumn | UnitKind::DistillationColumn | UnitKind::Absorber => {
-            CalculationStatus::Calculated
-        }
+        UnitKind::ShortcutColumn
+        | UnitKind::DistillationColumn
+        | UnitKind::Absorber
+        | UnitKind::PetroleumFractionator => CalculationStatus::Calculated,
         _ => DRAWN_ONLY,
     }
 }
@@ -161,14 +166,6 @@ pub enum ColumnSpec {
 
 /// Largest number of feeds or side draws of a column.
 pub const MAX_COLUMN_PORTS: u16 = 20;
-
-/// Petroleum fractionator specification (#190). Side draw `k` is the
-/// variable port `side draw k`.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct PetroleumFractionatorSpec {
-    /// Number of side draws, 0 to [`MAX_COLUMN_PORTS`].
-    pub side_draws: u16,
-}
 
 /// Default specification of a column kind.
 pub(crate) fn default_spec(kind: UnitKind) -> ColumnSpec {
@@ -201,16 +198,12 @@ impl GroupSpec for ColumnSpec {
     }
 
     fn issues(&self) -> Vec<SpecIssue> {
-        let mut out = Vec::new();
         match self {
-            ColumnSpec::Shortcut(s) => return s.issues(),
-            ColumnSpec::Distillation(s) => return s.issues(),
-            ColumnSpec::Absorber(s) => return s.issues(),
-            ColumnSpec::PetroleumFractionator(s) => {
-                count_issue(&mut out, "side draws", s.side_draws, 0)
-            }
+            ColumnSpec::Shortcut(s) => s.issues(),
+            ColumnSpec::Distillation(s) => s.issues(),
+            ColumnSpec::Absorber(s) => s.issues(),
+            ColumnSpec::PetroleumFractionator(s) => s.issues(),
         }
-        out
     }
 
     fn variable_ports(&self) -> Vec<PortSpec> {
@@ -227,7 +220,22 @@ impl GroupSpec for ColumnSpec {
                     .then_some(PortSpec::outlet("liquid distillate")),
                 )
                 .collect(),
-            ColumnSpec::PetroleumFractionator(s) => side_draws(s.side_draws).collect(),
+            // Side draws first, so drawn-only fractionators keep their
+            // side-draw connections; the fixed `feed` is feed 1.
+            ColumnSpec::PetroleumFractionator(s) => side_draws(s.side_draws)
+                .chain((2..=s.feeds).map(|n| PortSpec::inlet("feed").numbered(n)))
+                .chain(
+                    matches!(
+                        s.condenser,
+                        DistillationCondenser::PartialVaporLiquid { .. }
+                    )
+                    .then_some(PortSpec::outlet("liquid distillate")),
+                )
+                .chain([match s.bottom {
+                    FractionatorBottom::StrippingSteam => PortSpec::inlet("stripping steam"),
+                    FractionatorBottom::Reboiler(_) => PortSpec::energy_inlet("reboiler duty"),
+                }])
+                .collect(),
             _ => Vec::new(),
         }
     }
@@ -235,7 +243,7 @@ impl GroupSpec for ColumnSpec {
 
 /// Calculates a column unit.
 pub(crate) fn calculate(
-    kind: UnitKind,
+    _kind: UnitKind,
     spec: &ColumnSpec,
     inputs: &UnitInputs,
     ctx: &CalcContext,
@@ -256,7 +264,11 @@ pub(crate) fn calculate(
             output.absorber = Some(result);
             Ok(output)
         }
-        ColumnSpec::PetroleumFractionator(_) => Err(super::not_implemented(kind)),
+        ColumnSpec::PetroleumFractionator(s) => {
+            let (mut output, result) = petroleum::calculate(s, inputs.material, ctx)?;
+            output.distillation_column = Some(result);
+            Ok(output)
+        }
     }
 }
 

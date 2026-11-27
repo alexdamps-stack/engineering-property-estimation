@@ -8,9 +8,9 @@ use flowsheet_core::units::columns::packing::{
 };
 use flowsheet_core::units::columns::{
     AbsorberSpec, BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget,
-    DistillationColumnSpec, DistillationCondenser, LiquidSideDraw, MAX_COLUMN_PORTS,
-    PetroleumFractionatorSpec, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux,
-    TopSpecification, VaporSideDraw,
+    DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom, LiquidSideDraw,
+    MAX_COLUMN_PORTS, PetroleumFractionatorSpec, ShortcutColumnSpec, ShortcutCondenser,
+    ShortcutReflux, SideProduct, TopSpecification, VaporSideDraw,
 };
 use serde::{Deserialize, Serialize};
 
@@ -147,6 +147,62 @@ fn is_zero_count(v: &u16) -> bool {
     *v == 0
 }
 
+fn is_one(v: &u16) -> bool {
+    *v == 1
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
+/// Flow specification of a petroleum fractionator side product (#190).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub(crate) enum DrawRateRecord {
+    MolarFlowMolS(Option<f64>),
+    StandardLiquidVolumeFlowM3S(Option<f64>),
+}
+
+impl DrawRateRecord {
+    fn number(self) -> Option<f64> {
+        match self {
+            Self::MolarFlowMolS(v) | Self::StandardLiquidVolumeFlowM3S(v) => v,
+        }
+    }
+}
+
+/// Side product of a petroleum fractionator (#190).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SideProductRecord {
+    stage: u16,
+    rate: DrawRateRecord,
+}
+
+impl From<SideProduct> for SideProductRecord {
+    fn from(p: SideProduct) -> Self {
+        Self {
+            stage: p.stage,
+            rate: match p.rate {
+                DrawRate::Molar(v) => DrawRateRecord::MolarFlowMolS(v),
+                DrawRate::StandardLiquidVolume(v) => DrawRateRecord::StandardLiquidVolumeFlowM3S(v),
+            },
+        }
+    }
+}
+
+impl From<SideProductRecord> for SideProduct {
+    fn from(p: SideProductRecord) -> Self {
+        Self {
+            stage: p.stage,
+            rate: match p.rate {
+                DrawRateRecord::MolarFlowMolS(v) => DrawRate::Molar(v),
+                DrawRateRecord::StandardLiquidVolumeFlowM3S(v) => DrawRate::StandardLiquidVolume(v),
+            },
+        }
+    }
+}
+
 /// Rigorous column condenser (#186), added behind format version 4. Records
 /// without it load as a total condenser, and a total condenser is not written.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
@@ -163,6 +219,43 @@ pub(crate) enum DistillationCondenserRecord {
 impl DistillationCondenserRecord {
     fn is_total(&self) -> bool {
         *self == Self::Total
+    }
+
+    fn liquid_distillate(self) -> Option<f64> {
+        match self {
+            Self::PartialVaporLiquid {
+                liquid_distillate_mol_s,
+            } => liquid_distillate_mol_s,
+            _ => None,
+        }
+    }
+}
+
+impl From<DistillationCondenser> for DistillationCondenserRecord {
+    fn from(c: DistillationCondenser) -> Self {
+        match c {
+            DistillationCondenser::Total => Self::Total,
+            DistillationCondenser::PartialVapor => Self::PartialVapor,
+            DistillationCondenser::PartialVaporLiquid {
+                liquid_distillate_mol_s,
+            } => Self::PartialVaporLiquid {
+                liquid_distillate_mol_s,
+            },
+        }
+    }
+}
+
+impl From<DistillationCondenserRecord> for DistillationCondenser {
+    fn from(c: DistillationCondenserRecord) -> Self {
+        match c {
+            DistillationCondenserRecord::Total => Self::Total,
+            DistillationCondenserRecord::PartialVapor => Self::PartialVapor,
+            DistillationCondenserRecord::PartialVaporLiquid {
+                liquid_distillate_mol_s,
+            } => Self::PartialVaporLiquid {
+                liquid_distillate_mol_s,
+            },
+        }
     }
 }
 
@@ -184,6 +277,29 @@ impl Default for PressureDropRecord {
 impl PressureDropRecord {
     fn is_zero(&self) -> bool {
         *self == Self::PerStagePa(0.0)
+    }
+
+    fn value(self) -> f64 {
+        let (Self::PerStagePa(drop) | Self::ColumnPa(drop)) = self;
+        drop
+    }
+}
+
+impl From<ColumnPressureDrop> for PressureDropRecord {
+    fn from(d: ColumnPressureDrop) -> Self {
+        match d {
+            ColumnPressureDrop::PerStage(v) => Self::PerStagePa(v),
+            ColumnPressureDrop::Column(v) => Self::ColumnPa(v),
+        }
+    }
+}
+
+impl From<PressureDropRecord> for ColumnPressureDrop {
+    fn from(d: PressureDropRecord) -> Self {
+        match d {
+            PressureDropRecord::PerStagePa(v) => Self::PerStage(v),
+            PressureDropRecord::ColumnPa(v) => Self::Column(v),
+        }
     }
 }
 
@@ -442,9 +558,39 @@ pub(crate) enum ColumnRecord {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         internals: Option<InternalsRecord>,
     },
+    /// The drawn-only fractionator stored only `side_draws`; the other
+    /// fields were added behind format version 4 (#190) and load as one
+    /// feed, ten trays, a total condenser and a reboiler with unset values.
     PetroleumFractionator {
         #[serde(default)]
         side_draws: u16,
+        #[serde(default = "one", skip_serializing_if = "is_one")]
+        feeds: u16,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        feed_stages: Vec<u16>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        products: Vec<SideProductRecord>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        internals: Option<InternalsRecord>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pressure_pa: Option<f64>,
+        #[serde(default, skip_serializing_if = "is_zero")]
+        condenser_pressure_drop_pa: f64,
+        #[serde(default, skip_serializing_if = "PressureDropRecord::is_zero")]
+        pressure_drop: PressureDropRecord,
+        #[serde(default, skip_serializing_if = "DistillationCondenserRecord::is_total")]
+        condenser: DistillationCondenserRecord,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reflux_ratio: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        top_specification: Option<TopSpecificationRecord>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        distillate_fraction: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bottom_specification: Option<BottomSpecificationRecord>,
+        /// Stripping steam instead of a reboiler; no bottom specification.
+        #[serde(default, skip_serializing_if = "is_false")]
+        stripping_steam: bool,
     },
 }
 
@@ -522,7 +668,36 @@ impl ColumnRecord {
                 .copied()
                 .chain(internals.iter().flat_map(|i| i.numbers()))
                 .collect(),
-            _ => Vec::new(),
+            Self::PetroleumFractionator {
+                products,
+                internals,
+                pressure_pa,
+                condenser_pressure_drop_pa,
+                pressure_drop,
+                condenser,
+                reflux_ratio,
+                top_specification,
+                distillate_fraction,
+                bottom_specification,
+                ..
+            } => {
+                let mut values: Vec<f64> = [
+                    *pressure_pa,
+                    *reflux_ratio,
+                    *distillate_fraction,
+                    top_specification.as_ref().and_then(|t| t.number()),
+                    bottom_specification.as_ref().and_then(|b| b.number()),
+                    condenser.liquid_distillate(),
+                    Some(*condenser_pressure_drop_pa),
+                    Some(pressure_drop.value()),
+                ]
+                .into_iter()
+                .flatten()
+                .collect();
+                values.extend(products.iter().filter_map(|p| p.rate.number()));
+                values.extend(internals.iter().flat_map(|i| i.numbers()));
+                values
+            }
         }
     }
 }
@@ -583,9 +758,30 @@ impl From<&ColumnSpec> for ColumnRecord {
                 internals: (x.internals != AbsorberSpec::default().internals)
                     .then(|| x.internals.into()),
             },
-            ColumnSpec::PetroleumFractionator(x) => Self::PetroleumFractionator {
-                side_draws: x.side_draws,
-            },
+            ColumnSpec::PetroleumFractionator(x) => {
+                let (reflux_ratio, top_specification) = top_record(&x.top);
+                let (distillate_fraction, bottom_specification) = match &x.bottom {
+                    FractionatorBottom::Reboiler(b) => bottom_record(b),
+                    FractionatorBottom::StrippingSteam => (None, None),
+                };
+                Self::PetroleumFractionator {
+                    side_draws: x.side_draws,
+                    feeds: x.feeds,
+                    feed_stages: x.feed_stages.clone(),
+                    products: x.products.iter().map(|&p| p.into()).collect(),
+                    internals: (x.internals != PetroleumFractionatorSpec::default().internals)
+                        .then(|| x.internals.into()),
+                    pressure_pa: x.pressure_pa,
+                    condenser_pressure_drop_pa: x.condenser_pressure_drop_pa,
+                    pressure_drop: x.pressure_drop.into(),
+                    condenser: x.condenser.into(),
+                    reflux_ratio,
+                    top_specification,
+                    distillate_fraction,
+                    bottom_specification,
+                    stripping_steam: x.steam(),
+                }
+            }
         }
     }
 }
@@ -688,9 +884,59 @@ impl TryFrom<ColumnRecord> for ColumnSpec {
                 pressure_pa,
                 internals: internals.map_or_else(|| AbsorberSpec::default().internals, Into::into),
             }),
-            ColumnRecord::PetroleumFractionator { side_draws } => {
+            ColumnRecord::PetroleumFractionator {
+                side_draws,
+                feeds,
+                feed_stages,
+                products,
+                internals,
+                pressure_pa,
+                condenser_pressure_drop_pa,
+                pressure_drop,
+                condenser,
+                reflux_ratio,
+                top_specification,
+                distillate_fraction,
+                bottom_specification,
+                stripping_steam,
+            } => {
+                if feed_stages.len() > usize::from(feeds)
+                    || products.len() > usize::from(side_draws)
+                {
+                    return Err(
+                        "petroleum fractionator has more feed or product specifications than ports"
+                            .into(),
+                    );
+                }
+                let bottom = if stripping_steam {
+                    if distillate_fraction.is_some() || bottom_specification.is_some() {
+                        return Err(
+                            "petroleum fractionator has both stripping steam and a reboiler specification"
+                                .into(),
+                        );
+                    }
+                    FractionatorBottom::StrippingSteam
+                } else {
+                    FractionatorBottom::Reboiler(bottom_spec(
+                        distillate_fraction,
+                        bottom_specification,
+                    )?)
+                };
                 Self::PetroleumFractionator(PetroleumFractionatorSpec {
                     side_draws: count_in(side_draws, "side_draws", 0..=MAX_COLUMN_PORTS)?,
+                    feeds: count_in(feeds, "feeds", 1..=MAX_COLUMN_PORTS)?,
+                    feed_stages,
+                    products: products.into_iter().map(Into::into).collect(),
+                    internals: internals.map_or_else(
+                        || PetroleumFractionatorSpec::default().internals,
+                        Into::into,
+                    ),
+                    pressure_pa,
+                    condenser_pressure_drop_pa,
+                    pressure_drop: pressure_drop.into(),
+                    condenser: condenser.into(),
+                    top: top_spec(reflux_ratio, top_specification)?,
+                    bottom,
                 })
             }
         })

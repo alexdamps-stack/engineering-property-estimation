@@ -36,6 +36,8 @@ pub enum Quantity {
     Density,
     /// Volume, stored in m³.
     Volume,
+    /// Volumetric flow, stored in m³/s.
+    VolumeFlow,
     /// Length, stored in m.
     Length,
     /// Time, stored in s.
@@ -97,6 +99,8 @@ impl DisplayUnitsExt for DisplayUnits {
             (DisplayUnits::Si, Quantity::MolarEntropy) => "J/(mol K)",
             (_, Quantity::Density) => "kg/m³",
             (_, Quantity::Volume) => "m³",
+            (DisplayUnits::Si, Quantity::VolumeFlow) => "m³/s",
+            (DisplayUnits::ProcessMetric, Quantity::VolumeFlow) => "m³/h",
             (_, Quantity::Length) => "m",
             (_, Quantity::Time) => "s",
             (_, Quantity::TemperatureDifference) => "K",
@@ -123,7 +127,7 @@ impl DisplayUnitsExt for DisplayUnits {
             (DisplayUnits::ProcessMetric, Quantity::MolarFlow) => si * 3.6,
             (DisplayUnits::ProcessMetric, Quantity::Duty) => si / 1.0e3,
             (DisplayUnits::ProcessMetric, Quantity::Fraction) => si * 100.0,
-            (DisplayUnits::ProcessMetric, Quantity::MassFlow) => si * 3600.0,
+            (DisplayUnits::ProcessMetric, Quantity::MassFlow | Quantity::VolumeFlow) => si * 3600.0,
             // kJ/kmol and kJ/(kmol K) equal J/mol and J/(mol K) numerically.
             (
                 DisplayUnits::ProcessMetric,
@@ -153,7 +157,9 @@ impl DisplayUnitsExt for DisplayUnits {
             (DisplayUnits::ProcessMetric, Quantity::MolarFlow) => shown / 3.6,
             (DisplayUnits::ProcessMetric, Quantity::Duty) => shown * 1.0e3,
             (DisplayUnits::ProcessMetric, Quantity::Fraction) => shown / 100.0,
-            (DisplayUnits::ProcessMetric, Quantity::MassFlow) => shown / 3600.0,
+            (DisplayUnits::ProcessMetric, Quantity::MassFlow | Quantity::VolumeFlow) => {
+                shown / 3600.0
+            }
             (
                 DisplayUnits::ProcessMetric,
                 Quantity::MolarEnthalpy
@@ -212,6 +218,7 @@ pub fn starting_value(q: Quantity) -> f64 {
         Quantity::Fraction => 0.5,
         Quantity::Factor => 1.0,
         Quantity::MassFlow => 1.0,
+        Quantity::VolumeFlow => 1e-3,
         Quantity::MolarEnthalpy | Quantity::MolarEntropy | Quantity::Density => 0.0,
         Quantity::Volume | Quantity::Length => 1.0,
         Quantity::Time => 60.0,

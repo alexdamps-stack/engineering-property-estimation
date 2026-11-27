@@ -1810,6 +1810,54 @@ fn distillation_form_offers_condenser_pressure_drop_and_specification_choices() 
 }
 
 #[test]
+fn petroleum_fractionator_form_offers_steam_and_volume_products() {
+    use flowsheet_core::units::{
+        ColumnSpec,
+        columns::{DrawRate, FractionatorBottom, PetroleumFractionatorSpec},
+    };
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["ethane".into(), "propane".into()],
+        "petroleum fractionator form test",
+    ));
+    let column = ed.add_unit_at(UnitKind::PetroleumFractionator, egui::pos2(220.0, 150.0));
+    let mut spec = PetroleumFractionatorSpec {
+        side_draws: 2,
+        ..Default::default()
+    };
+    spec.products.push(Default::default());
+    spec.products
+        .push(flowsheet_core::units::columns::SideProduct {
+            stage: 5,
+            rate: DrawRate::StandardLiquidVolume(None),
+        });
+    ed.fs
+        .try_set_spec(
+            column,
+            UnitSpec::Columns(ColumnSpec::PetroleumFractionator(spec)),
+        )
+        .unwrap();
+    ed.selection = Some(Selection::Unit(column));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Side products");
+    h.get_by_label("Product 1 molar flow");
+    h.get_by_label("Product 2 volume flow");
+    h.get_by_label("Stripping steam (no reboiler)").click();
+    h.run();
+    let unit = h.state().editor().fs.unit(column).unwrap();
+    let UnitSpec::Columns(ColumnSpec::PetroleumFractionator(s)) = &unit.spec else {
+        panic!("{:?}", unit.spec)
+    };
+    assert_eq!(s.bottom, FractionatorBottom::StrippingSteam);
+    assert_eq!(s.products[1].rate, DrawRate::StandardLiquidVolume(None));
+    assert_eq!(unit.ports().last().unwrap().label(), "stripping steam");
+}
+
+#[test]
 fn absorber_runs_from_the_desktop_and_displays_contact_stages() {
     use flowsheet_core::units::{
         ColumnSpec,

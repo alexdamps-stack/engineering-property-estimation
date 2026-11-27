@@ -27,6 +27,9 @@ const ENTHALPY_SCALE: f64 = 10_000.0;
 /// over to the simultaneous Newton solve.
 const OUTER_TOLERANCE: f64 = 1e-8;
 const OUTER_ITERATIONS: usize = 40;
+/// Starting liquid fraction, relative to its feed fraction, of a component
+/// that is absent from the seed inlets (stripping steam).
+const ABSENT_LIQUID_SEED: f64 = 0.1;
 
 /// Liquid side draw from an internal stage, in port order.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -276,6 +279,12 @@ impl DistillationColumnSpec {
     }
 
     pub(super) fn issues(&self) -> Vec<SpecIssue> {
+        self.issues_with(BottomEnd::Reboiler)
+    }
+
+    /// Issues of the specification; an adiabatic bottom ignores `bottom`.
+    pub(super) fn issues_with(&self, end: BottomEnd) -> Vec<SpecIssue> {
+        let reboiler = end == BottomEnd::Reboiler;
         let mut issues = Vec::new();
         count_issue(&mut issues, "feeds", self.feeds, 1);
         count_issue(&mut issues, "side draws", self.side_draws, 0);
@@ -345,6 +354,7 @@ impl DistillationColumnSpec {
             }
         }
         match &self.bottom {
+            _ if !reboiler => {}
             BottomSpecification::DistillateFraction(v) => {
                 open_fraction(&mut issues, "distillate fraction", *v)
             }
@@ -364,7 +374,7 @@ impl DistillationColumnSpec {
                 target_issues(&mut issues, "bottoms recovery", t)
             }
         }
-        if self.overspecified() {
+        if reboiler && self.overspecified() {
             issues.push(SpecIssue {
                 field: "bottom specification",
                 problem: SpecProblem::Duplicate,
@@ -457,6 +467,29 @@ pub struct DistillationColumnResult {
     pub packed_height_m: Option<f64>,
     /// Accepted Newton iterations of the final solve.
     pub iterations: usize,
+}
+
+/// Bottom end of a column solved by [`calculate_with`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) enum BottomEnd {
+    /// Partial reboiler with the specification's bottom specification.
+    #[default]
+    Reboiler,
+    /// Adiabatic bottom stage without a reboiler, for example stripped by
+    /// steam entering as a bottom feed (#190). The bottom specification is
+    /// not used: the zero bottom duty takes its place, so the distillate
+    /// becomes a Newton unknown.
+    Adiabatic,
+}
+
+/// Options of [`calculate_with`] beyond the specification.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct ColumnOptions {
+    pub(super) bottom: BottomEnd,
+    /// Number of leading inlets whose blend sets the bubble-point start of
+    /// the profile; all inlets when `None`. A stripping-steam inlet is left
+    /// out so that the start is the hydrocarbon feed's bubble point.
+    pub(super) seed_inlets: Option<usize>,
 }
 
 /// How the solve obtains the total distillate.
@@ -823,14 +856,27 @@ pub(super) fn calculate(
     inlets: &[MaterialStream],
     ctx: &CalcContext<'_>,
 ) -> Result<(UnitOutput, DistillationColumnResult), String> {
-    if spec.overspecified() {
+    calculate_with(spec, inlets, ctx, ColumnOptions::default())
+}
+
+/// [`calculate`] with a choice of bottom end and initialization. With an
+/// adiabatic bottom the energy result holds the condenser port only and the
+/// unit duty is the condenser duty.
+pub(super) fn calculate_with(
+    spec: &DistillationColumnSpec,
+    inlets: &[MaterialStream],
+    ctx: &CalcContext<'_>,
+    options: ColumnOptions,
+) -> Result<(UnitOutput, DistillationColumnResult), String> {
+    let reboiled = options.bottom == BottomEnd::Reboiler;
+    if reboiled && spec.overspecified() {
         return Err(
             "column distillate rate and the bottom specification both fix the \
              distillate; choose a reboiler duty, boilup ratio, purity or recovery"
                 .into(),
         );
     }
-    if let Some(issue) = spec.issues().first() {
+    if let Some(issue) = spec.issues_with(options.bottom).first() {
         return Err(format!("column {} {}", issue.field, issue.problem));
     }
     let (n, packed) = spec.stage_layout()?;
@@ -839,6 +885,7 @@ pub(super) fn calculate(
     let mut feed_by_stage = vec![0.0; n];
     let mut feed_components = vec![0.0; ctx.component_count()];
     let mut feeds = Vec::with_capacity(inlets.len());
+    let mut seed_components = vec![0.0; ctx.component_count()];
     for (i, inlet) in inlets.iter().enumerate() {
         let stage = usize::from(spec.feed_stages.get(i).copied().unwrap_or(2));
         let feed = StageFeed::from_stream(stage, inlet, ctx.component_count())?;
@@ -856,6 +903,11 @@ pub(super) fn calculate(
         feed_by_stage[stage - 1] += feed.molar_flow_mol_s;
         for (total, z) in feed_components.iter_mut().zip(&feed.z) {
             *total += feed.molar_flow_mol_s * z;
+        }
+        if options.seed_inlets.is_none_or(|count| i < count) {
+            for (total, z) in seed_components.iter_mut().zip(&feed.z) {
+                *total += feed.molar_flow_mol_s * z;
+            }
         }
         feeds.push(feed);
     }
@@ -891,6 +943,12 @@ pub(super) fn calculate(
     // Resolve the two specifications into fixed flows and equations.
     let mut equations = Vec::new();
     let mut distillate = match &spec.bottom {
+        // The zero duty of an adiabatic bottom stage replaces the bottom
+        // specification; its residual is the reboiler-duty residual at zero.
+        _ if !reboiled => {
+            equations.push(SpecEquation::ReboilerDuty(0.0));
+            None
+        }
         BottomSpecification::DistillateFraction(f) => Some(flow * f.expect("checked")),
         BottomSpecification::BottomsRate(b) => Some(available - b.expect("checked")),
         BottomSpecification::ReboilerDuty(q) => {
@@ -953,8 +1011,14 @@ pub(super) fn calculate(
     }
 
     let seed_pressure = pressures[1];
+    let seed_total: f64 = seed_components.iter().sum();
+    let seed_composition: Vec<f64> = if options.seed_inlets.is_some() && seed_total > 0.0 {
+        seed_components.iter().map(|z| z / seed_total).collect()
+    } else {
+        feed_composition.clone()
+    };
     let seed = ctx
-        .saturation_temperature(&feed_composition, seed_pressure, SaturationKind::Bubble)
+        .saturation_temperature(&seed_composition, seed_pressure, SaturationKind::Bubble)
         .map_err(|e| format!("column feed bubble-point initialization: {e}"))?;
     // The condenser liquid starts at the composition of the vapor leaving
     // the first tray. Its own bubble point can be much colder than the tray.
@@ -1003,8 +1067,21 @@ pub(super) fn calculate(
         RefluxFlow::Ratio(r) => r * d0,
         RefluxFlow::Free => 2.0 * d0,
     };
-    let ratios = |phase: &[f64]| mesh::log_ratios(phase, &column.active_components);
-    let x = ratios(&seed.liquid_composition);
+    // A component absent from the seed inlets (stripping steam) starts at
+    // its overall feed fraction in the vapor and at a tenth of it in the
+    // liquid; with every inlet in the seed this changes nothing. (Started
+    // at the full fraction in the liquid, water/pseudo-component columns
+    // under PR either stalled or converged to a condenser liquid that splits.)
+    let fill = |phase: &[f64], scale: f64| {
+        let phase: Vec<f64> = phase
+            .iter()
+            .zip(&feed_composition)
+            .map(|(&p, &z)| if p > 0.0 { p } else { z * scale })
+            .collect();
+        mesh::log_ratios(&phase, &column.active_components)
+    };
+    let ratios = |phase: &[f64]| fill(phase, 1.0);
+    let x = fill(&seed.liquid_composition, ABSENT_LIQUID_SEED);
     let y = ratios(&seed.vapor_composition);
     let mut initial = vec![condenser_seed.temperature_k / TEMPERATURE_SCALE];
     if column.partial() {
@@ -1038,14 +1115,25 @@ pub(super) fn calculate(
     mesh::verify_phases(ctx, &cascade)?;
     let residuals = cascade.residuals(&properties)?;
     cascade.stages[0].duty_w = -residuals[0].energy_w;
-    cascade.stages[n - 1].duty_w = -residuals[n - 1].energy_w;
+    // An adiabatic bottom stage has no duty; its energy residual is within
+    // the solve tolerance and stays in the unit's energy balance.
+    cascade.stages[n - 1].duty_w = if reboiled {
+        -residuals[n - 1].energy_w
+    } else {
+        0.0
+    };
     if let Some(section) = &packed {
         section.check(&cascade, ends)?;
     }
-    let energy = ends.port_duties(&cascade)?;
+    let mut energy = ends.port_duties(&cascade)?;
     let condenser = -cascade.stages[0].duty_w;
     let reboiler = cascade.stages[n - 1].duty_w;
-    if condenser <= 0.0 || reboiler <= 0.0 {
+    if !reboiled {
+        energy.truncate(1);
+        if condenser <= 0.0 {
+            return Err("column requires heat removal at the condenser".into());
+        }
+    } else if condenser <= 0.0 || reboiler <= 0.0 {
         return Err(
             "column requires heat removal at the condenser and heat input at the reboiler".into(),
         );
