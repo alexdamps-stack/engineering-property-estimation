@@ -183,7 +183,7 @@ impl PureLiquid {
 
 /// CAS Registry Number: `NNNNNNN-NN-N` (2..=7 leading digits). The check digit
 /// is Σ (position-from-right × digit) mod 10 over the other digits.
-fn check_cas(id: &str, cas: &str) -> Result<(), CalculationError> {
+pub(crate) fn check_cas(id: &str, cas: &str) -> Result<(), CalculationError> {
     let invalid = || {
         CalculationError::MissingParameter(format!(
             "invalid embedded pure liquid {id}: CAS number {cas:?}"

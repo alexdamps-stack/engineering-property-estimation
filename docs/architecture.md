@@ -8,6 +8,8 @@ from a library target plus a thin `main.rs`.
   embedded component data and native homogeneous calculations: PR/PR-BM
   ([A1–A3 status](a1-a3-status.md)), GERG-2008 ([A6](a6-status.md)) and the
   NRTL excess model with a gamma–phi package ([A7](a7-status.md)).
+  `thermo-data` also characterises petroleum pseudo-components from assay
+  data (Tb, SG; [pseudo-components](pseudo-components-status.md)).
 - `thermo-solvers` implements Rachford–Rice, TPD stability, two-phase TP/PH
   flash and pure saturation ([A4 status](a4-status.md)), native GERG density
   inversion and TP/PH flash, NRTL bubble/dew and flash, and bounded PR/PR-BM
@@ -17,8 +19,13 @@ from a library target plus a thin `main.rs`.
 - `property-packages` supplies the immutable flowsheet packages behind the
   `FlowsheetPackage` interface: cubic (PR, PR-BM, SRK), NRTL-IG, GERG-2008 and
   EOS-CG-2021. Cubic and NRTL-IG also provide the three-phase `vlle_tp`/`vlle_ph`
-  operations; the others return `UnsupportedCapability`. Each retains model, interaction, data and caloric-reference
-  metadata. New models and packages follow the
+  operations; the others return `UnsupportedCapability`. The cubic packages also accept characterised petroleum
+  pseudo-components (#229). Each retains model, interaction, data and caloric-reference
+  metadata. Phase viscosity, thermal conductivity and surface tension come
+  from the package-independent transport methods
+  ([transport properties](transport-properties.md), #225). The cubic packages
+  also carry a separately labelled engineering liquid density
+  ([#228 status](liquid-density-status.md)). New models and packages follow the
   [property-model requirements](property-model-requirements.md).
 - `flowsheet-core` holds a GUI-independent topology and sequential calculation
   engine: units, ports, material streams, specifications, balances and

@@ -2,9 +2,14 @@
 
 use std::sync::Arc;
 
-use property_packages::{CubicPackage, EosCgPackage, FlowsheetPackage, GergPackage, NrtlPackage};
+use property_packages::{
+    CostaldLiquidDensity, CubicPackage, EosCgPackage, FlowsheetPackage, GergPackage, NrtlPackage,
+};
 use serde::{Deserialize, Serialize};
-use thermo_data::{COMPONENT_DATASET_ID, ComponentDatabase, LiquidDatabase};
+use thermo_data::{
+    COMPONENT_DATASET_ID, ChemsepLiquidDensityDatabase, ComponentDatabase, CostaldDatabase,
+    LiquidDatabase, PseudoComponentInput,
+};
 use thermo_models::{
     ActivityModel, CUBIC_TEMPERATURE_RANGE_K, CubicModel, CubicVariant, GERG_CALORIC_REFERENCE_ID,
     GERG_DATA_REVISION, GERG_MODEL_VERSION, GergModel, VaporModel,
@@ -100,6 +105,11 @@ pub struct PackageSelection {
     pub ph_minimum_temperature_k: f64,
     /// Upper PH search temperature, K.
     pub ph_maximum_temperature_k: f64,
+    /// Characterisation inputs of the petroleum pseudo-components (#229)
+    /// listed in `components`, cubic packages only. Every derived constant is
+    /// recomputed from these inputs when the package is built.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pseudo_components: Vec<PseudoComponentInput>,
 }
 
 /// Model, data and engine identity recorded with results. The fingerprint
@@ -161,6 +171,7 @@ impl PackageSelection {
             interaction_source: source.into(),
             ph_minimum_temperature_k: CUBIC_TEMPERATURE_RANGE_K[0],
             ph_maximum_temperature_k: CUBIC_TEMPERATURE_RANGE_K[1],
+            pseudo_components: Vec::new(),
         }
     }
 
@@ -193,7 +204,43 @@ impl PackageSelection {
                 ..self.clone()
             };
         }
-        Self::default_for(variant, self.components.clone(), zero_kij_source)
+        let mut selection = Self::default_for(variant, self.components.clone(), zero_kij_source);
+        if variant.uses_kij() {
+            // Pseudo-components stay with any cubic model; the new zero
+            // matrix carries the caller's explicit approximation note.
+            selection.pseudo_components = self.pseudo_components.clone();
+            if !selection.pseudo_components.is_empty() {
+                selection.ph_minimum_temperature_k = self.ph_minimum_temperature_k;
+                selection.ph_maximum_temperature_k = self.ph_maximum_temperature_k;
+            }
+        }
+        selection
+    }
+
+    /// A cubic selection of database components followed by characterised
+    /// pseudo-components, with a complete interaction matrix in that order
+    /// and its source (or explicit approximation note). The PH search
+    /// interval is set to [`property_packages::PSEUDO_CUBIC_TEMPERATURE_RANGE_K`],
+    /// the cubic envelope within the Kesler–Lee ideal-gas domain.
+    pub fn with_pseudo_components(
+        variant: PackageChoice,
+        database_components: Vec<String>,
+        pseudo_components: Vec<PseudoComponentInput>,
+        kij: Vec<Vec<f64>>,
+        interaction_source: impl Into<String>,
+    ) -> Self {
+        let mut components = database_components;
+        components.extend(pseudo_components.iter().map(|p| p.id.clone()));
+        let [lo, hi] = property_packages::PSEUDO_CUBIC_TEMPERATURE_RANGE_K;
+        Self {
+            variant,
+            components,
+            kij,
+            interaction_source: interaction_source.into(),
+            ph_minimum_temperature_k: lo,
+            ph_maximum_temperature_k: hi,
+            pseudo_components,
+        }
     }
 
     pub fn default_for(
@@ -212,6 +259,7 @@ impl PackageSelection {
             interaction_source: String::new(),
             ph_minimum_temperature_k: lo,
             ph_maximum_temperature_k: hi,
+            pseudo_components: Vec::new(),
         }
     }
 
@@ -247,6 +295,12 @@ impl PackageSelection {
             return Err(ProjectError::Package(
                 "select at least one component".into(),
             ));
+        }
+        if !self.pseudo_components.is_empty() && !self.variant.uses_kij() {
+            return Err(ProjectError::Package(format!(
+                "{} does not support petroleum pseudo-components; select PR, PR-BM or SRK",
+                self.variant.label()
+            )));
         }
         let (lo, hi) = (self.ph_minimum_temperature_k, self.ph_maximum_temperature_k);
         let [t_lo, t_hi] = self.variant.temperature_range();
@@ -327,6 +381,35 @@ impl PackageSelection {
             };
             return Ok((Arc::new(gerg), provenance));
         };
+        let options = PhFlashOptions {
+            minimum_temperature_k: lo,
+            maximum_temperature_k: hi,
+            ..Default::default()
+        };
+        if !self.pseudo_components.is_empty()
+            || self
+                .components
+                .iter()
+                .any(|id| id.starts_with(thermo_data::PSEUDO_COMPONENT_PREFIX))
+        {
+            let cubic = property_packages::cubic_package_with_pseudo_components(
+                cubic_variant,
+                &self.components,
+                &self.pseudo_components,
+                self.kij.clone(),
+                self.interaction_source.clone(),
+                options,
+            )
+            .map_err(|e| package(&e))?;
+            let db = property_packages::pseudo_component_database(
+                &self.components,
+                &self.pseudo_components,
+            )
+            .map_err(|e| package(&e))?;
+            let data = db.metadata_for(self.components.iter().map(String::as_str));
+            let provenance = provenance_of(cubic.model(), data);
+            return Ok((Arc::new(cubic), provenance));
+        }
         let db = ComponentDatabase::embedded().map_err(|e| package(&e))?;
         let model = CubicModel::new(
             &db,
@@ -336,14 +419,24 @@ impl PackageSelection {
             self.interaction_source.clone(),
         )
         .map_err(|e| package(&e))?;
-        let options = PhFlashOptions {
-            minimum_temperature_k: lo,
-            maximum_temperature_k: hi,
-            ..Default::default()
-        };
         let data = db.metadata_for(self.components.iter().map(String::as_str));
         let provenance = provenance_of(&model, data);
-        Ok((Arc::new(CubicPackage::new(model, options)), provenance))
+        // Separately labelled engineering liquid density (#228). It does not
+        // change any EOS result, so the provenance and fingerprints of the
+        // equilibrium results are unchanged; each density carries its own
+        // model and data versions.
+        let ids: Vec<&str> = self.components.iter().map(String::as_str).collect();
+        let density = CostaldLiquidDensity::from_databases(
+            &db,
+            &CostaldDatabase::embedded().map_err(|e| package(&e))?,
+            &ChemsepLiquidDensityDatabase::embedded().map_err(|e| package(&e))?,
+            &ids,
+        )
+        .map_err(|e| package(&e))?;
+        let cubic = CubicPackage::new(model, options)
+            .with_engineering_liquid_density(density)
+            .map_err(|e| package(&e))?;
+        Ok((Arc::new(cubic), provenance))
     }
 }
 

@@ -24,6 +24,9 @@ use crate::unit::{
 use property_packages::EquilibriumState;
 use thermo_types::Phase;
 
+/// Relative precision of the isentropic enthalpy change, scaled by
+/// max(|h_in|, T_in |s_in|, 1 J/mol): a hundred times the PS entropy tolerance.
+const ISENTROPIC_RESOLUTION: f64 = 1e-8;
 const SINGLE: [PortSpec; 2] = [PortSpec::inlet("in"), PortSpec::outlet("out")];
 const POWER_IN: [PortSpec; 1] = [PortSpec::energy_inlet("power")];
 const POWER_OUT: [PortSpec; 1] = [PortSpec::energy_outlet("power")];
@@ -155,20 +158,6 @@ impl GroupSpec for RotatingSpec {
     }
 }
 
-impl CalcContext<'_> {
-    /// PS equilibrium at the specified absolute pressure and molar entropy.
-    pub fn ps(
-        &self,
-        z: &[f64],
-        p_pa: f64,
-        s_j_mol_k: f64,
-    ) -> Result<property_packages::EquilibriumState, String> {
-        self.cubic_package()?
-            .ps(z, p_pa, s_j_mol_k)
-            .map_err(|e| e.to_string())
-    }
-}
-
 /// One compression or expansion step of a solved machine.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RotatingStage {
@@ -196,6 +185,98 @@ pub struct RotatingResult {
     /// Heat removed by all intercoolers, W (nonnegative; zero for single
     /// machines).
     pub intercooler_duty_w: f64,
+    /// Pumps with flow only: hydraulic quantities on the engineering liquid
+    /// density (#228), or why they are unavailable.
+    pub pump_hydraulics: Option<PumpHydraulics>,
+}
+
+/// Hydraulic quantities of a pump on the package's engineering liquid
+/// density (#228). They are reported beside the shaft power, which comes
+/// from the enthalpy change and closes the energy balance; they never
+/// change the outlet state.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PumpHydraulics {
+    Calculated(PumpHydraulicValues),
+    /// The package has no engineering liquid density, or the inlet is
+    /// outside its domain or not liquid. Nothing is substituted.
+    Unavailable(String),
+}
+
+/// Pump hydraulics at the inlet conditions.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PumpHydraulicValues {
+    /// Engineering liquid density of the inlet, kg/m³.
+    pub inlet_density_kg_m3: f64,
+    /// Inlet volumetric flow on that density, m³/s.
+    pub inlet_volumetric_flow_m3_s: f64,
+    /// Differential head Δp / (ρ g), m, with standard gravity.
+    pub differential_head_m: f64,
+    /// Hydraulic power V̇ Δp, W.
+    pub hydraulic_power_w: f64,
+    /// Model and data identity of the density, for labelling.
+    pub density_basis: String,
+    /// Whether the density lies in its qualified domain or is unassessed.
+    pub density_validity: thermo_types::ValidityStatus,
+    /// Net positive suction head available, (p_in − p_bubble)/(ρ g), m, at
+    /// the inlet without static or velocity head: the bubble pressure is the
+    /// package's own at the inlet temperature and composition. `Err` holds
+    /// why it is unavailable.
+    pub npsh_available_m: Result<f64, String>,
+}
+
+/// Standard acceleration of gravity, m/s² (CGPM 1901).
+pub const STANDARD_GRAVITY_M_S2: f64 = 9.80665;
+
+/// Hydraulic quantities of a pump raising `inlet` (molar flow `n`) by `dp`.
+fn pump_hydraulics(inlet: &EquilibriumState, n: f64, dp: f64, ctx: &CalcContext) -> PumpHydraulics {
+    if inlet.phases.is_empty() || inlet.phases.iter().any(|p| p.phase != Phase::Liquid) {
+        return PumpHydraulics::Unavailable(
+            "the engineering liquid density applies to liquid inlets only".into(),
+        );
+    }
+    let mut volume = 0.0;
+    let mut mass = 0.0;
+    let mut validity = thermo_types::ValidityStatus::WithinDeclaredDomain;
+    let mut basis = String::new();
+    for p in &inlet.phases {
+        let d = match ctx.package().engineering_liquid_density(
+            &p.composition,
+            p.state.temperature_k,
+            p.state.pressure_pa,
+        ) {
+            Ok(d) => d,
+            Err(e) => return PumpHydraulics::Unavailable(e.to_string()),
+        };
+        volume += p.phase_fraction * d.molar_volume;
+        mass += p.phase_fraction * d.molar_volume * d.mass_density;
+        if d.validity != thermo_types::ValidityStatus::WithinDeclaredDomain {
+            validity = d.validity;
+        }
+        basis = format!(
+            "{} v{} ({} {})",
+            d.model.identifier, d.model.implementation_version, d.data.identifier, d.data.version
+        );
+    }
+    let density = mass / volume;
+    let flow = n * volume;
+    let npsh_available_m = ctx
+        .package()
+        .saturation_pressure(
+            &inlet.mole_fractions,
+            inlet.temperature_k,
+            property_packages::SaturationKind::Bubble,
+        )
+        .map(|s| (inlet.pressure_pa - s.pressure_pa) / (density * STANDARD_GRAVITY_M_S2))
+        .map_err(|e| format!("inlet bubble pressure: {e}"));
+    PumpHydraulics::Calculated(PumpHydraulicValues {
+        inlet_density_kg_m3: density,
+        inlet_volumetric_flow_m3_s: flow,
+        differential_head_m: dp / (density * STANDARD_GRAVITY_M_S2),
+        hydraulic_power_w: flow * dp,
+        density_basis: basis,
+        density_validity: validity,
+        npsh_available_m,
+    })
 }
 
 impl RotatingResult {
@@ -289,6 +370,7 @@ fn stage(
     }
     let z = &inlet.mole_fractions;
     let h_in = inlet.enthalpy();
+    let mut warnings = Vec::new();
     let (ideal, out) = if p_out == p_in {
         // No pressure change: keep the inlet equilibrium phases unchanged.
         (inlet.clone(), inlet.clone())
@@ -297,9 +379,22 @@ fn stage(
             .ps(z, p_out, inlet.entropy())
             .map_err(|e| format!("{name} isentropic outlet: {e}"))?;
         let dh_s = ideal.enthalpy() - h_in;
-        if !dh_s.is_finite() || (compress && dh_s < 0.0) || (!compress && dh_s > 0.0) {
+        // The PS solve meets its entropy target to a relative 1e-10; T Δs of
+        // that size is the attainable precision of Δh_s.
+        let resolution = ISENTROPIC_RESOLUTION
+            * h_in
+                .abs()
+                .max(inlet.temperature_k * inlet.entropy().abs())
+                .max(1.0);
+        if !dh_s.is_finite() || (compress && dh_s < -resolution) || (!compress && dh_s > resolution)
+        {
             return Err(format!(
                 "{name} isentropic enthalpy change {dh_s} J/mol has the wrong sign"
+            ));
+        }
+        if dh_s.abs() <= resolution {
+            warnings.push(format!(
+                "{name} isentropic enthalpy change is zero within solver precision: the selected package's enthalpy and entropy of this state do not depend on pressure (for example the NRTL-IG liquid, which has no Poynting term), so the machine does no work in this model."
             ));
         }
         let out = if efficiency == 1.0 {
@@ -315,7 +410,6 @@ fn stage(
         };
         (ideal, out)
     };
-    let mut warnings = Vec::new();
     match machine {
         Machine::Pump if phase_fraction(&out, Phase::Vapor) > 0.0 => warnings
             .push("Pump outlet contains vapor; check the specification and inlet state.".into()),
@@ -355,6 +449,7 @@ fn zero_flow_output(kind: UnitKind, efficiency: f64, energy_ports: usize) -> Uni
         efficiency,
         stages: Vec::new(),
         intercooler_duty_w: 0.0,
+        pump_hydraulics: None,
     });
     out
 }
@@ -436,6 +531,8 @@ pub(crate) fn calculate_core(
         }
     };
     let (out, result, warnings) = stage(machine, state, p_out, efficiency, n, ctx)?;
+    let pump_hydraulics =
+        (machine == Machine::Pump).then(|| pump_hydraulics(state, n, p_out - p_in, ctx));
     let power = result.power_w;
     let mut output = UnitOutput::new(
         vec![MaterialStream {
@@ -449,6 +546,7 @@ pub(crate) fn calculate_core(
         efficiency,
         stages: vec![result],
         intercooler_duty_w: 0.0,
+        pump_hydraulics,
     });
     Ok(output)
 }
@@ -532,6 +630,7 @@ fn multistage(
         efficiency: spec.efficiency,
         stages,
         intercooler_duty_w: cooled_w,
+        pump_hydraulics: None,
     };
     let power = result.power_w();
     let mut output = UnitOutput::new(

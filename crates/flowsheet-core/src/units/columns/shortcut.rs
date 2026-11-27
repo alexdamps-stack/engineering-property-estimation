@@ -24,14 +24,14 @@
 //!
 //! Stage counts include the partial reboiler and exclude the total
 //! condenser. Bubble and dew points use the bounded A13 saturation solver
-//! (`CubicPackage::saturation_temperature`), so every component with feed
-//! flow must belong to its qualified dry methane/ethane/propane/N2/CO2
-//! domain at 200–350 K and 10 kPa–10 MPa.
+//! through the package (`FlowsheetPackage::saturation_temperature`): under
+//! the cubic and GERG-2008 packages every component with feed flow must
+//! belong to the qualified dry methane/ethane/propane/N2/CO2 domain (A13).
 
 // Negated comparisons are deliberate: they also reject NaN values.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 
-use thermo_solvers::{CubicSaturationKind, SaturationOptions, SaturationPoint};
+use property_packages::{SaturationKind, SaturationState};
 
 use crate::engine::MaterialStream;
 use crate::unit::{Sign, SpecIssue, SpecProblem, check_optional};
@@ -188,21 +188,20 @@ const ALPHA_ITERATIONS: usize = 100;
 const GILLILAND_X_RANGE: [f64; 2] = [0.01, 0.9];
 
 impl CalcContext<'_> {
-    /// Bubble or dew point temperature at `p_pa` with the bounded A13 solver.
+    /// Bubble or dew point temperature at `p_pa` from the package.
     fn saturation_t(
         &self,
         x: &[f64],
         p_pa: f64,
-        kind: CubicSaturationKind,
+        kind: SaturationKind,
         what: &str,
-    ) -> Result<SaturationPoint, String> {
-        self.cubic_package()?
-            .saturation_temperature(x, p_pa, kind, SaturationOptions::default())
+    ) -> Result<SaturationState, String> {
+        self.saturation_temperature(x, p_pa, kind)
             .map_err(|e| format!("shortcut column {what}: {e}"))
     }
 
     /// Relative volatilities K_i/K_hk at a saturation point.
-    fn relative_volatilities(&self, s: &SaturationPoint, hk: usize) -> Result<Vec<f64>, String> {
+    fn relative_volatilities(&self, s: &SaturationState, hk: usize) -> Result<Vec<f64>, String> {
         let k = self.k_values(
             &s.liquid_composition,
             &s.vapor_composition,
@@ -354,8 +353,8 @@ pub(super) fn calculate(
     let feed_flows: Vec<f64> = z.iter().map(|zi| flow * zi).collect();
 
     // Feed thermal condition from saturated enthalpies at column pressure.
-    let feed_bubble = ctx.saturation_t(z, p, CubicSaturationKind::Bubble, "feed bubble point")?;
-    let feed_dew = ctx.saturation_t(z, p, CubicSaturationKind::Dew, "feed dew point")?;
+    let feed_bubble = ctx.saturation_t(z, p, SaturationKind::Bubble, "feed bubble point")?;
+    let feed_dew = ctx.saturation_t(z, p, SaturationKind::Dew, "feed dew point")?;
     let latent = feed_dew.vapor.enthalpy - feed_bubble.liquid.enthalpy;
     if !(latent > 0.0) {
         return Err(
@@ -375,9 +374,8 @@ pub(super) fn calculate(
         let split = Split::new(&feed_flows, &alpha, lk, r_lk, r_hk)?;
         let (_, x_d) = fractions(&split.distillate);
         let (_, x_b) = fractions(&split.bottoms);
-        let top = ctx.saturation_t(&x_d, p, CubicSaturationKind::Dew, "overhead dew point")?;
-        let bottom =
-            ctx.saturation_t(&x_b, p, CubicSaturationKind::Bubble, "bottoms bubble point")?;
+        let top = ctx.saturation_t(&x_d, p, SaturationKind::Dew, "overhead dew point")?;
+        let bottom = ctx.saturation_t(&x_b, p, SaturationKind::Bubble, "bottoms bubble point")?;
         let a_top = ctx.relative_volatilities(&top, hk)?;
         let a_bottom = ctx.relative_volatilities(&bottom, hk)?;
         let next: Vec<f64> = a_top
@@ -456,12 +454,8 @@ pub(super) fn calculate(
     let rectifying = finite("feed location", stages * kirkbride / (1.0 + kirkbride))?;
 
     // Saturated-liquid products and duties.
-    let distillate_bubble = ctx.saturation_t(
-        &x_d,
-        p,
-        CubicSaturationKind::Bubble,
-        "distillate bubble point",
-    )?;
+    let distillate_bubble =
+        ctx.saturation_t(&x_d, p, SaturationKind::Bubble, "distillate bubble point")?;
     let distillate_state = ctx.tp(&x_d, distillate_bubble.temperature_k, p)?;
     let bottoms_state = ctx.tp(&x_b, bottom.temperature_k, p)?;
     if !(bottom.temperature_k > top.temperature_k) {

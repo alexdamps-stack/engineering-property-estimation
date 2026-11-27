@@ -50,10 +50,136 @@ pub struct PhaseResult {
     pub dynamic_viscosity_pa_s: Option<f64>,
     #[serde(default)]
     pub thermal_conductivity_w_m_k: Option<f64>,
+    /// Surface tension of a liquid phase in N/m, when available (#225).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface_tension_n_m: Option<f64>,
+    /// Transport method, data, validity and the reason for each unavailable
+    /// transport property (#225). Absent in results from older versions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transport: Option<TransportResult>,
     /// Computational validity of the phase state.
     pub validity: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nrtl_regression_interval_inferred: Option<bool>,
+    /// Liquid phases of packages with an engineering liquid density (#228):
+    /// that density, reported beside the EOS `density_kg_m3`, or why it is
+    /// unavailable. Absent for other phases and packages.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub engineering_liquid_density: Option<EngineeringDensityResult>,
+}
+
+/// Engineering liquid density of a phase (#228). It never replaces the EOS
+/// density, which stays in [`PhaseResult::density_kg_m3`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EngineeringDensityResult {
+    /// Engineering liquid mass density, kg/m³; `None` when unavailable.
+    #[serde(default)]
+    pub density_kg_m3: Option<f64>,
+    /// Method and data identity of the density, or why it is unavailable.
+    pub basis: String,
+    /// `within declared domain` or `unassessed` when calculated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validity: Option<String>,
+    /// Whether the compressed-liquid correction was applied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pressure_corrected: Option<bool>,
+}
+
+impl EngineeringDensityResult {
+    pub(crate) fn from_evaluation(
+        result: &Result<
+            property_packages::EngineeringLiquidDensity,
+            thermo_types::CalculationError,
+        >,
+    ) -> Self {
+        match result {
+            Ok(d) => Self {
+                density_kg_m3: Some(d.mass_density),
+                basis: format!(
+                    "{} v{} ({} {})",
+                    d.model.identifier,
+                    d.model.implementation_version,
+                    d.data.identifier,
+                    d.data.version
+                ),
+                validity: Some(validity_label(d.validity).into()),
+                pressure_corrected: Some(d.pressure_corrected),
+            },
+            Err(e) => Self {
+                density_kg_m3: None,
+                basis: format!("unavailable: {e}"),
+                validity: None,
+                pressure_corrected: None,
+            },
+        }
+    }
+}
+
+/// Identity and availability of a phase's transport properties (#225).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TransportResult {
+    /// `gas`, `dense fluid` or `liquid`; `None` when the phase could not be
+    /// evaluated at all (for example a component without transport data).
+    pub regime: Option<String>,
+    /// Method identifier and implementation version.
+    pub method: Option<String>,
+    /// Transport dataset identifier and version.
+    pub data: Option<String>,
+    /// `within declared domain` (one component) or `unassessed` (mixing rules).
+    pub validity: Option<String>,
+    /// Why each unavailable property is unavailable, `property: reason`.
+    pub unavailable: Vec<String>,
+}
+
+impl TransportResult {
+    fn from_state(
+        transport: &Result<property_packages::TransportProperties, thermo_types::CalculationError>,
+        liquid: bool,
+    ) -> Self {
+        let t = match transport {
+            Ok(t) => t,
+            Err(e) => {
+                return Self {
+                    regime: None,
+                    method: None,
+                    data: None,
+                    validity: None,
+                    unavailable: vec![format!("transport: {e}")],
+                };
+            }
+        };
+        let mut unavailable = Vec::new();
+        let mut note = |name: &str, r: &Result<f64, thermo_types::CalculationError>| {
+            if let Err(e) = r {
+                unavailable.push(format!("{name}: {e}"));
+            }
+        };
+        note("viscosity", &t.viscosity);
+        note("thermal conductivity", &t.thermal_conductivity);
+        if liquid {
+            note("surface tension", &t.surface_tension);
+        }
+        Self {
+            regime: Some(t.regime.label().into()),
+            method: Some(format!(
+                "{} {}",
+                t.model.identifier, t.model.implementation_version
+            )),
+            data: Some(format!("{} {}", t.data.identifier, t.data.version)),
+            validity: Some(validity_label(t.validity).into()),
+            unavailable,
+        }
+    }
+}
+
+fn validity_label(v: ValidityStatus) -> &'static str {
+    match v {
+        ValidityStatus::WithinDeclaredDomain => "within declared domain",
+        ValidityStatus::Extrapolated => "extrapolated",
+        ValidityStatus::Unassessed => "unassessed",
+    }
 }
 
 /// Equilibrium state of a stream.
@@ -92,6 +218,11 @@ pub struct StreamResult {
     pub molar_flow_mol_s: f64,
     /// Total mass flow, kg/s.
     pub mass_flow_kg_s: f64,
+    /// Volumetric flow of the liquid phases on the engineering liquid
+    /// density (#228), m³/s. Absent without a liquid phase or when the
+    /// package cannot supply the density.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub engineering_liquid_volume_flow_m3_s: Option<f64>,
     /// Equilibrium state; `None` for an absent separator phase (zero flow).
     pub state: Option<StateResult>,
     /// Warnings derived from state validity and solver diagnostics.
@@ -284,6 +415,33 @@ pub struct RotatingPerformance {
     pub stages: Vec<RotatingStageResult>,
     /// Heat removed by all intercoolers, W.
     pub intercooler_duty_w: f64,
+    /// Pumps: hydraulic quantities on the engineering liquid density (#228).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pump_hydraulics: Option<PumpHydraulicsResult>,
+}
+
+/// Saved pump hydraulics (#228) at inlet conditions on the engineering
+/// liquid density. The shaft power comes from the enthalpy change.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PumpHydraulicsResult {
+    /// Inlet volumetric flow, m³/s.
+    #[serde(default)]
+    pub inlet_volumetric_flow_m3_s: Option<f64>,
+    /// Differential head Δp/(ρ g), m.
+    #[serde(default)]
+    pub differential_head_m: Option<f64>,
+    /// Hydraulic power V̇ Δp, W.
+    #[serde(default)]
+    pub hydraulic_power_w: Option<f64>,
+    /// NPSH available (p_in − p_bubble)/(ρ g), m, on the package bubble pressure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub npsh_available_m: Option<f64>,
+    /// Why the NPSH available is missing, when it is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub npsh_note: Option<String>,
+    /// Inlet engineering density and its basis, or why it is unavailable.
+    pub inlet_density: EngineeringDensityResult,
 }
 
 impl RotatingPerformance {
@@ -305,6 +463,17 @@ impl RotatingPerformance {
                     s.power_w,
                 ]
             }))
+            .chain(self.pump_hydraulics.iter().flat_map(|h| {
+                [
+                    h.inlet_volumetric_flow_m3_s,
+                    h.differential_head_m,
+                    h.hydraulic_power_w,
+                    h.npsh_available_m,
+                    h.inlet_density.density_kg_m3,
+                ]
+                .into_iter()
+                .flatten()
+            }))
     }
 }
 
@@ -325,6 +494,41 @@ impl From<&flowsheet_core::units::rotating::RotatingResult> for RotatingPerforma
                 })
                 .collect(),
             intercooler_duty_w: r.intercooler_duty_w,
+            pump_hydraulics: r.pump_hydraulics.as_ref().map(|h| {
+                use flowsheet_core::units::rotating::PumpHydraulics;
+                match h {
+                    PumpHydraulics::Calculated(v) => PumpHydraulicsResult {
+                        inlet_volumetric_flow_m3_s: Some(v.inlet_volumetric_flow_m3_s),
+                        differential_head_m: Some(v.differential_head_m),
+                        hydraulic_power_w: Some(v.hydraulic_power_w),
+                        npsh_available_m: v.npsh_available_m.as_ref().ok().copied(),
+                        npsh_note: v
+                            .npsh_available_m
+                            .as_ref()
+                            .err()
+                            .map(|e| format!("unavailable: {e}")),
+                        inlet_density: EngineeringDensityResult {
+                            density_kg_m3: Some(v.inlet_density_kg_m3),
+                            basis: v.density_basis.clone(),
+                            validity: Some(validity_label(v.density_validity).into()),
+                            pressure_corrected: None,
+                        },
+                    },
+                    PumpHydraulics::Unavailable(reason) => PumpHydraulicsResult {
+                        inlet_volumetric_flow_m3_s: None,
+                        differential_head_m: None,
+                        hydraulic_power_w: None,
+                        npsh_available_m: None,
+                        npsh_note: None,
+                        inlet_density: EngineeringDensityResult {
+                            density_kg_m3: None,
+                            basis: format!("unavailable: {reason}"),
+                            validity: None,
+                            pressure_corrected: None,
+                        },
+                    },
+                }
+            }),
         }
     }
 }
@@ -473,6 +677,45 @@ impl ResultSet {
         }
     }
 
+    /// Adds the package's engineering liquid density (#228) to the liquid
+    /// phases of every stored stream, and the engineering liquid volumetric
+    /// flow. Packages without the capability leave both absent; liquid
+    /// phases outside its domain record why the density is unavailable.
+    pub fn attach_engineering_liquid_densities(
+        &mut self,
+        calc: &Calculation,
+        package: &dyn property_packages::FlowsheetPackage,
+    ) {
+        for (id, stream) in &calc.streams {
+            let (Some(result), Some(state)) = (self.streams.get_mut(id), &stream.state) else {
+                continue;
+            };
+            let Some(stored) = result.state.as_mut() else {
+                continue;
+            };
+            let densities =
+                flowsheet_core::liquid_volume::phase_engineering_densities(package, state);
+            let phases = state
+                .phases
+                .iter()
+                .zip(densities)
+                .filter(|(p, _)| p.phase_fraction > 0.0)
+                .map(|(_, d)| d);
+            for (phase, density) in stored.phases.iter_mut().zip(phases) {
+                phase.engineering_liquid_density = match density {
+                    Some(Err(thermo_types::CalculationError::UnsupportedCapability(_))) | None => {
+                        None
+                    }
+                    Some(d) => Some(EngineeringDensityResult::from_evaluation(&d)),
+                };
+            }
+            result.engineering_liquid_volume_flow_m3_s = stream
+                .engineering_liquid_volume_flow_m3_s(package)
+                .ok()
+                .flatten();
+        }
+    }
+
     /// Currency of a unit result against the current fingerprints.
     pub fn unit_currency(&self, id: UnitId, current: &Fingerprints) -> Currency {
         match self.units.get(&id) {
@@ -581,10 +824,18 @@ impl ResultSet {
                             || opt(p.speed_of_sound_m_s)
                             || opt(p.dynamic_viscosity_pa_s)
                             || opt(p.thermal_conductivity_w_m_k)
+                            || p.engineering_liquid_density
+                                .as_ref()
+                                .is_some_and(|d| opt(d.density_kg_m3))
+                            || opt(p.surface_tension_n_m)
                             || p.mole_fractions.iter().any(|v| bad(*v))
                     })
             });
-            if bad(s.molar_flow_mol_s) || bad(s.mass_flow_kg_s) || state_bad {
+            if bad(s.molar_flow_mol_s)
+                || bad(s.mass_flow_kg_s)
+                || opt(s.engineering_liquid_volume_flow_m3_s)
+                || state_bad
+            {
                 return Some(format!("result of stream {id}"));
             }
         }
@@ -681,11 +932,23 @@ fn stream_result(s: &MaterialStream, fingerprint: Fingerprint) -> StreamResult {
                     speed_of_sound_m_s: p.state.speed_of_sound,
                     dynamic_viscosity_pa_s: p.state.dynamic_viscosity,
                     thermal_conductivity_w_m_k: p.state.thermal_conductivity,
+                    surface_tension_n_m: p
+                        .state
+                        .transport
+                        .as_ref()
+                        .and_then(|t| t.as_ref().ok())
+                        .and_then(|t| t.surface_tension.clone().ok()),
+                    transport: p
+                        .state
+                        .transport
+                        .as_ref()
+                        .map(|t| TransportResult::from_state(t, p.phase == Phase::Liquid)),
                     validity: validity.into(),
                     nrtl_regression_interval_inferred: p
                         .state
                         .inferred_regression_interval
                         .then_some(true),
+                    engineering_liquid_density: None,
                 }
             })
             .collect();
@@ -722,6 +985,7 @@ fn stream_result(s: &MaterialStream, fingerprint: Fingerprint) -> StreamResult {
         fingerprint,
         molar_flow_mol_s: s.molar_flow_mol_s,
         mass_flow_kg_s: s.mass_flow_kg_s(),
+        engineering_liquid_volume_flow_m3_s: None,
         state,
         warnings,
     }

@@ -50,13 +50,16 @@ pub use project::{
 };
 pub use results::{
     AbsorberProfile, Currency, DistillationColumnEstimate, EnergyStreamResult,
-    MaterialExchangeResult, PhaseResult, ReactionResult, RecycleResult, ResultSet,
-    RotatingPerformance, RotatingStageResult, ShortcutColumnEstimate, StateResult, StreamResult,
-    UnitResult,
+    EngineeringDensityResult, MaterialExchangeResult, PhaseResult, PumpHydraulicsResult,
+    ReactionResult, RecycleResult, ResultSet, RotatingPerformance, RotatingStageResult,
+    ShortcutColumnEstimate, StateResult, StreamResult, TransportResult, UnitResult,
 };
 pub use time::format_utc;
 
 /// Revision of the flowsheet engine numerics recorded in result provenance.
 /// Change it whenever `flowsheet-core` unit-operation equations, balances or
 /// routing conventions change, so that stored results load as stale.
-pub const ENGINE_REVISION: &str = "flowsheet-core a17-integrated-v1";
+/// It also names the stream transport-property methods and data (#225),
+/// `thermo_models::TRANSPORT_MODEL_VERSION` and
+/// `thermo_data::TRANSPORT_DATA_VERSION`, which stored phase results carry.
+pub const ENGINE_REVISION: &str = "flowsheet-core a17-integrated-v1; transport-v1 2026-11-24.1";

@@ -119,7 +119,7 @@ pub(super) fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
                 }
                 ui.end_row();
                 type PhaseProperty = fn(&flowsheet_project::PhaseResult) -> Option<f64>;
-                let properties: [(&str, PhaseProperty); 5] = [
+                let properties: [(&str, PhaseProperty); 6] = [
                     ("Cp (J/mol K)", |p| p.cp_j_mol_k),
                     ("Cv (J/mol K)", |p| p.cv_j_mol_k),
                     ("Speed of sound (m/s)", |p| p.speed_of_sound_m_s),
@@ -127,6 +127,7 @@ pub(super) fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
                     ("Thermal conductivity (W/m K)", |p| {
                         p.thermal_conductivity_w_m_k
                     }),
+                    ("Surface tension (N/m)", |p| p.surface_tension_n_m),
                 ];
                 for (label, property) in properties {
                     ui.label(label);
@@ -176,6 +177,19 @@ pub(super) fn stream_properties(ui: &mut Ui, ed: &mut Editor, id: StreamId) {
             ));
             for p in &s.phases {
                 ui.label(format!("{} phase validity: {}", p.label, p.validity));
+                if let Some(t) = &p.transport {
+                    ui.label(format!(
+                        "{} phase transport: {} ({}), data {}, {}",
+                        p.label,
+                        t.regime.as_deref().unwrap_or("not evaluated"),
+                        t.method.as_deref().unwrap_or("no method"),
+                        t.data.as_deref().unwrap_or("none"),
+                        t.validity.as_deref().unwrap_or("unavailable")
+                    ));
+                    for reason in &t.unavailable {
+                        ui.label(RichText::new(format!("Unavailable {reason}")).small());
+                    }
+                }
             }
             for d in &s.diagnostics {
                 ui.label(RichText::new(d).small());

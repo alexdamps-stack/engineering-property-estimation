@@ -29,6 +29,7 @@ const TOLERANCE_ALIASES = Dict(
     "T"=>"temperature", "p"=>"pressure", "dew_pressure"=>"pressure", "bubble_pressure"=>"pressure",
     "x"=>"composition", "y"=>"composition", "z"=>"composition", "liquid"=>"composition", "vapor"=>"composition",
     "vl"=>"volume", "vv"=>"volume", "vapor_fraction"=>"fraction",
+    "isentropic_power_W"=>"power", "power_W"=>"power", "h_minus_inlet"=>"h", "s_minus_inlet"=>"s",
     "target_h"=>"h", "h_liquid"=>"h", "h_vapor"=>"h", "h_ideal"=>"h", "s_liquid"=>"s", "cp_liquid"=>"cp")
 # Solver diagnostics recorded as bounds rather than reference values; the
 # generators assert these bounds themselves (generate_a13.jl: residual < 1e-8).
@@ -79,7 +80,7 @@ function assert_matches_committed(candidate, fixture_name)
     println("Fresh Clapeyron reference reproduces committed $fixture_name within its declared tolerances.")
 end
 
-function live(generator_name, fixture_name, candidate, test, variable; minimal_compilation)
+function live(generator_name, fixture_name, candidate, test, variable; minimal_compilation, crate="thermo-solvers")
     generator = joinpath(@__DIR__, generator_name)
     project = @__DIR__
     # The PR/PR-BM generator avoids minutes of specializing reference-only flash
@@ -91,7 +92,7 @@ function live(generator_name, fixture_name, candidate, test, variable; minimal_c
     assert_matches_committed(candidate, fixture_name)
     cd(ROOT) do
         # Environment inheritance preserves caller CARGO_TARGET_DIR/toolchain settings.
-        run(addenv(`cargo test -p thermo-solvers --test $test --locked -- --nocapture`, variable=>candidate))
+        run(addenv(`cargo test -p $crate --test $test --locked -- --nocapture`, variable=>candidate))
     end
 end
 
@@ -99,14 +100,16 @@ function main()
     verify_provenance("clapeyron-v1.json", "generate.jl")
     verify_provenance("nrtl-v1.json", "generate_nrtl.jl")
     verify_provenance("a13-v1.json", "generate_a13.jl")
+    verify_provenance("package-operations-v1.json", "generate_packages.jl")
     verify_provenance("vlle-v1.json", "generate_vlle.jl")
     mktempdir() do dir
         live("generate.jl", "clapeyron-v1.json", joinpath(dir,"clapeyron-current.json"), "clapeyron", "THERMO_CLAPEYRON_REFERENCE"; minimal_compilation=true)
         live("generate_nrtl.jl", "nrtl-v1.json", joinpath(dir,"nrtl-current.json"), "nrtl_clapeyron", "THERMO_NRTL_REFERENCE"; minimal_compilation=false)
         live("generate_a13.jl", "a13-v1.json", joinpath(dir,"a13-current.json"), "a13_clapeyron", "THERMO_A13_REFERENCE"; minimal_compilation=false)
+        live("generate_packages.jl", "package-operations-v1.json", joinpath(dir,"packages-current.json"), "package_references", "THERMO_PACKAGE_REFERENCE"; minimal_compilation=false, crate="flowsheet-core")
         live("generate_vlle.jl", "vlle-v1.json", joinpath(dir,"vlle-current.json"), "vlle_clapeyron", "THERMO_VLLE_REFERENCE"; minimal_compilation=false)
     end
-    println("Live Clapeyron standard check passed (PR/PR-BM, NRTL, A13 saturation and #224 VLLE/LLE); fresh references reproduce the committed fixtures, which were not modified.")
+    println("Live Clapeyron standard check passed (PR/PR-BM, NRTL, A13 saturation, #226 package operations and #224 VLLE/LLE); fresh references reproduce the committed fixtures, which were not modified.")
 end
 
 main()

@@ -57,7 +57,7 @@ fn scaled(entropy: f64, target: f64) -> f64 {
     (entropy - target) / target.abs().max(1.0)
 }
 
-fn result(
+pub(crate) fn result(
     target: f64,
     phases: Vec<FlashPhase>,
     iterations: usize,

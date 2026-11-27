@@ -1135,6 +1135,22 @@ pub struct Kinetics {
     /// Catalyst bulk density in kg of catalyst per m³ of reactor, required
     /// when a rate is per catalyst mass.
     pub catalyst_bulk_density_kg_m3: Option<f64>,
+    /// Molar volume of liquid phases in concentrations and phase volume
+    /// shares (#228). Vapor and supercritical phases always use the EOS.
+    pub liquid_volume: LiquidVolumeBasis,
+}
+
+/// Which density gives the molar volume of a liquid reactor phase (#228).
+/// Each result states its basis; the engineering basis fails explicitly
+/// when the package cannot supply the density, with no fallback to the EOS.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LiquidVolumeBasis {
+    /// The package's equation-of-state volume (untranslated cubic volume).
+    #[default]
+    EquationOfState,
+    /// The package's separately labelled engineering liquid density
+    /// (COSTALD for the cubic packages).
+    EngineeringDensity,
 }
 
 /// One kinetic reaction.

@@ -1,6 +1,6 @@
 //! Constant-pressure MESH solve for a total condenser and partial reboiler.
 
-use thermo_solvers::{CubicSaturationKind, SaturationOptions};
+use property_packages::SaturationKind;
 use thermo_types::Phase;
 
 use super::mesh::{self, TEMPERATURE_SCALE};
@@ -263,7 +263,6 @@ pub(super) fn calculate(
     }
     let (n, packed) = spec.stage_layout()?;
     let pressure = spec.pressure_pa.expect("checked column pressure");
-    let options = SaturationOptions::default();
     let temperature_range = mesh::temperature_range(ctx)?;
     let mut totals = vec![0.0; n];
     let mut feed_composition = vec![0.0; ctx.component_count()];
@@ -318,24 +317,12 @@ pub(super) fn calculate(
         return Err("column withdrawals must leave positive bottoms flow and finite reflux".into());
     }
     let seed = ctx
-        .cubic_package()?
-        .saturation_temperature(
-            &feed_composition,
-            pressure,
-            CubicSaturationKind::Bubble,
-            options,
-        )
+        .saturation_temperature(&feed_composition, pressure, SaturationKind::Bubble)
         .map_err(|e| format!("column feed bubble-point initialization: {e}"))?;
     // The condenser liquid starts at the composition of the vapor leaving
     // the first tray. Its own bubble point can be much colder than the tray.
     let condenser_seed = ctx
-        .cubic_package()?
-        .saturation_temperature(
-            &seed.vapor_composition,
-            pressure,
-            CubicSaturationKind::Bubble,
-            options,
-        )
+        .saturation_temperature(&seed.vapor_composition, pressure, SaturationKind::Bubble)
         .map_err(|e| format!("column condenser bubble-point initialization: {e}"))?;
     let column = Column {
         ctx,

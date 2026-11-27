@@ -23,10 +23,10 @@ use crate::reaction::{Chemistry, ReactionTerms};
 use crate::units::UnitOutput;
 use crate::{
     BatchThermal, ConcentrationBasis, EquilibriumConstant, EquilibriumOptions, EquilibriumReaction,
-    FugacityBasis, KineticReaction, Kinetics, PlugFlowThermal, RateBasis, RateLaw, ReactingPhase,
-    SeparatorThermal,
+    FugacityBasis, KineticReaction, Kinetics, LiquidVolumeBasis, PlugFlowThermal, RateBasis,
+    RateLaw, ReactingPhase, SeparatorThermal,
 };
-use property_packages::{CubicPackage, EquilibriumState};
+use property_packages::{EquilibriumState, FlowsheetPackage, RootSelection};
 use thermo_types::{MOLAR_GAS_CONSTANT as R, Phase, Temperature};
 
 const P0: f64 = 1.0e5;
@@ -43,10 +43,10 @@ enum Constraint<'a> {
 }
 
 /// Standard Gibbs energies over RT of all package components at `t`.
-fn gibbs_over_rt(pkg: &CubicPackage, t: f64) -> Result<Vec<f64>, String> {
+fn gibbs_over_rt(pkg: &dyn FlowsheetPackage, t: f64) -> Result<Vec<f64>, String> {
     let temperature = Temperature::new(t).map_err(|e| e.to_string())?;
-    pkg.model()
-        .components()
+    pkg.formation_components()
+        .map_err(|e| e.to_string())?
         .iter()
         .map(|c| {
             c.standard_gibbs_energy(temperature)
@@ -74,7 +74,7 @@ fn dot(a: &[f64], b: &[f64]) -> f64 {
 fn equilibrium_flows(
     constraint: &Constraint,
     chemistry: &Chemistry,
-    pkg: &CubicPackage,
+    pkg: &dyn FlowsheetPackage,
     inlet: &[f64],
     t: f64,
     p: f64,
@@ -134,7 +134,7 @@ fn equilibrium_flows(
     minimize_gibbs(&c, &invariants, inlet, |x| match fugacity {
         FugacityBasis::IdealGas => Ok(vec![0.0; x.len()]),
         FugacityBasis::Package => pkg
-            .ln_fugacity_coefficients(x, t, p)
+            .ln_fugacity_coefficients(x, t, p, RootSelection::MinimumGibbs)
             .map_err(|e| format!("equilibrium fugacity coefficients: {e}")),
     })
 }
@@ -145,7 +145,7 @@ pub(crate) struct Feed<'a> {
     pub state: &'a EquilibriumState,
     pub flows: Vec<f64>,
     pub pressure: f64,
-    pub pkg: &'a CubicPackage,
+    pub pkg: &'a dyn FlowsheetPackage,
     pub chemistry: Chemistry,
 }
 
@@ -363,26 +363,56 @@ fn product(chemistry: &Chemistry, q: &[f64], orders: &[(String, f64)]) -> Result
     Ok(value)
 }
 
+/// Molar volume of each phase of `state` on the kinetics' liquid volume
+/// basis (#228): the EOS volume, or for liquid phases the package's
+/// engineering density. The engineering basis fails explicitly when the
+/// package cannot supply it; it never falls back to the EOS volume.
+pub(crate) fn phase_molar_volumes(
+    kinetics: &Kinetics,
+    state: &EquilibriumState,
+    pkg: &dyn FlowsheetPackage,
+) -> Result<Vec<f64>, String> {
+    state
+        .phases
+        .iter()
+        .map(|p| match (kinetics.liquid_volume, p.phase) {
+            (LiquidVolumeBasis::EngineeringDensity, Phase::Liquid) => pkg
+                .engineering_liquid_density(
+                    &p.composition,
+                    p.state.temperature_k,
+                    p.state.pressure_pa,
+                )
+                .map(|d| d.molar_volume)
+                .map_err(|e| format!("liquid volume on the engineering density basis: {e}")),
+            _ => Ok(p.state.molar_volume),
+        })
+        .collect()
+}
+
 /// Rate of each reaction per m³ of reactor at the given equilibrium state,
 /// mol/(m³ s). The reacting phase's share of the volume (no-slip, from the
-/// phase molar volumes) scales volume-based rates; catalyst-based rates are
-/// multiplied by the catalyst bulk density.
+/// phase molar volumes on the kinetics' [`LiquidVolumeBasis`]) scales
+/// volume-based rates; catalyst-based rates are multiplied by the catalyst
+/// bulk density.
 pub(crate) fn rates(
     chemistry: &Chemistry,
     kinetics: &Kinetics,
     state: &EquilibriumState,
+    pkg: &dyn FlowsheetPackage,
 ) -> Result<Vec<f64>, String> {
     let t = state.temperature_k;
+    let volumes = phase_molar_volumes(kinetics, state, pkg)?;
     let total_volume: f64 = state
         .phases
         .iter()
-        .map(|p| p.phase_fraction * p.state.molar_volume)
+        .zip(&volumes)
+        .map(|(p, v)| p.phase_fraction * v)
         .sum();
     kinetics
         .reactions
         .iter()
         .map(|r| {
-            let phase = state.phases.iter().find(|p| {
+            let phase = state.phases.iter().zip(&volumes).find(|(p, _)| {
                 p.phase_fraction > 0.0
                     && matches!(
                         (r.phase, p.phase),
@@ -391,22 +421,20 @@ pub(crate) fn rates(
                             | (ReactingPhase::Liquid, Phase::Liquid)
                     )
             });
-            let Some(phase) = phase else {
+            let Some((phase, &molar_volume)) = phase else {
                 return Ok(0.0);
             };
             let q = basis_values(
                 r.basis,
                 &phase.composition,
-                phase.state.molar_volume,
+                molar_volume,
                 &phase.state.ln_fugacity_coefficients,
                 state.pressure_pa,
                 chemistry.molar_masses(),
             );
             let intrinsic = rate_value(chemistry, r, &q, t)?;
             let scale = match r.rate_basis {
-                RateBasis::ReactorVolume => {
-                    phase.phase_fraction * phase.state.molar_volume / total_volume
-                }
+                RateBasis::ReactorVolume => phase.phase_fraction * molar_volume / total_volume,
                 RateBasis::CatalystMass => kinetics
                     .catalyst_bulk_density_kg_m3
                     .ok_or("catalyst bulk density is missing")?,
@@ -491,7 +519,7 @@ fn cstr_at(
             .pkg
             .tp(&fractions(&flows)?, t, feed.pressure)
             .map_err(|e| format!("CSTR contents: {e}"))?;
-        let rate = rates(&feed.chemistry, kinetics, &state)?;
+        let rate = rates(&feed.chemistry, kinetics, &state, feed.pkg)?;
         Ok((0..r).map(|j| xi[j] - v * rate[j]).collect())
     };
     // Largest step keeping every flow nonnegative.
@@ -643,7 +671,7 @@ pub(crate) fn plug_flow(
     atol.push(1e-10 * (thermal_scale + h_in.abs()));
     let rhs = |z: f64, y: &[f64]| -> Result<Vec<f64>, String> {
         let state = contents(feed, &y[..s], isothermal, y[s + r], pressure_at(z))?;
-        let rate = rates(&feed.chemistry, kinetics, &state)?;
+        let rate = rates(&feed.chemistry, kinetics, &state, feed.pkg)?;
         let mut d: Vec<f64> = (0..s)
             .map(|i| area * (0..r).map(|j| nu[j][i] * rate[j]).sum::<f64>())
             .collect();
@@ -707,12 +735,13 @@ pub(crate) fn batch(
     atol.push(1e-10 * (molar_scale(feed.state) + h0.abs()));
     let rhs = |_t: f64, y: &[f64]| -> Result<Vec<f64>, String> {
         let state = contents(feed, &y[..s], isothermal, y[s + r], p)?;
-        let rate = rates(&feed.chemistry, kinetics, &state)?;
+        let rate = rates(&feed.chemistry, kinetics, &state, feed.pkg)?;
         let n: f64 = y[..s].iter().sum();
         let volume: f64 = n * state
             .phases
             .iter()
-            .map(|ph| ph.phase_fraction * ph.state.molar_volume)
+            .zip(phase_molar_volumes(kinetics, &state, feed.pkg)?)
+            .map(|(ph, v)| ph.phase_fraction * v)
             .sum::<f64>();
         let mut d: Vec<f64> = (0..s)
             .map(|i| volume * (0..r).map(|j| nu[j][i] * rate[j]).sum::<f64>())

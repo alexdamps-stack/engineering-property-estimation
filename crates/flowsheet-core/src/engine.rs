@@ -7,7 +7,7 @@ use crate::{
     PortDirection, PortMedium, PortRef, PressureSpec, SeparatorThermal, Stream, StreamId,
     ThermalSpec, Unit, UnitId, UnitKind, UnitSpec,
 };
-use property_packages::{CubicPackage, EquilibriumState, FlowsheetPackage};
+use property_packages::{EquilibriumState, FlowsheetPackage};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::ops::ControlFlow;
@@ -302,8 +302,8 @@ impl Flowsheet {
                 return Err(fail(u.id, format!("{} {reason}{issue}", u.kind)));
             }
             if u.kind.group() == crate::UnitGroup::Reactors {
-                let cubic = package.cubic().map_err(|e| fail(u.id, e.to_string()))?;
-                check_chemistry(&u.spec, cubic).map_err(|e| fail(u.id, e))?;
+                // Packages without the formation basis fail before any calculation.
+                check_chemistry(&u.spec, package).map_err(|e| fail(u.id, e))?;
             }
             if u.kind == UnitKind::Feed {
                 let c = feeds
@@ -447,7 +447,7 @@ impl Flowsheet {
             }
             let chemistry = reaction
                 .as_ref()
-                .map(|_| package.cubic().map(Chemistry::of))
+                .map(|_| Chemistry::of(package))
                 .transpose()
                 .map_err(|e| fail(id, e.to_string()))?;
             let balance = if u.kind.is_boundary() {
@@ -467,8 +467,13 @@ impl Flowsheet {
             };
             transfer_energy(&ports.energy, duty_w, energy, &mut report.energy_streams)
                 .map_err(|e| fail(id, e))?;
-            for (stream, result) in ports.material_outlets.iter().zip(outlets) {
+            for (stream, mut result) in ports.material_outlets.iter().zip(outlets) {
                 if let Some(s) = stream {
+                    // Side properties of the stored stream (#225); they never
+                    // change the state, balances or recycle convergence.
+                    if let Some(state) = result.state.as_mut() {
+                        property_packages::annotate_transport(package, state);
+                    }
                     report.streams.insert(*s, result);
                 }
             }
@@ -1091,8 +1096,7 @@ fn calculate_unit(
             thermal,
             pressure_drop_pa,
         } => {
-            let pkg = pkg.cubic().map_err(|e| e.to_string())?;
-            let chemistry = Chemistry::of(pkg);
+            let chemistry = Chemistry::of(pkg).map_err(|e| e.to_string())?;
             let a = state(&inputs[0])?;
             let inlet = inputs[0].component_flows_mol_s(a.mole_fractions.len());
             let (flows, terms) = reaction::convert(&chemistry, reactions, &inlet)?;
@@ -1112,8 +1116,7 @@ fn calculate_unit(
             thermal,
             pressure_drop_pa,
         } => {
-            let pkg = pkg.cubic().map_err(|e| e.to_string())?;
-            let chemistry = Chemistry::of(pkg);
+            let chemistry = Chemistry::of(pkg).map_err(|e| e.to_string())?;
             let a = state(&inputs[0])?;
             let inlet = inputs[0].component_flows_mol_s(a.mole_fractions.len());
             let (flows, terms, warnings) =
@@ -1200,23 +1203,30 @@ fn reactor_feed<'a>(
     if !(p.is_finite() && p > 0.0) {
         return Err("pressure drop leaves nonpositive absolute outlet pressure".into());
     }
-    let pkg = pkg.cubic().map_err(|e| e.to_string())?;
     Ok(reactors::Feed {
         inlet,
         state,
         flows: inlet.component_flows_mol_s(state.mole_fractions.len()),
         pressure: p,
         pkg,
-        chemistry: Chemistry::of(pkg),
+        chemistry: Chemistry::of(pkg).map_err(|e| e.to_string())?,
     })
 }
 
 /// Preflight of reactor chemistry against the package: every named component
 /// must exist and every conversion-reactor reaction must conserve elements.
-fn check_chemistry(spec: &UnitSpec, package: &CubicPackage) -> Result<(), String> {
+fn check_chemistry(spec: &UnitSpec, package: &dyn FlowsheetPackage) -> Result<(), String> {
+    // Pseudo-components (#229) have no formula and no formation properties.
+    let components = package.formation_components().map_err(|e| e.to_string())?;
+    if let Some(c) = components.iter().find(|c| c.is_pseudo()) {
+        return Err(format!(
+            "reactors do not support petroleum pseudo-components ({} has no formula or formation properties)",
+            c.id()
+        ));
+    }
     match spec {
         UnitSpec::ConversionReactor { reactions, .. } => {
-            let chemistry = Chemistry::of(package);
+            let chemistry = Chemistry::of(package).map_err(|e| e.to_string())?;
             for (k, r) in reactions.iter().enumerate() {
                 chemistry.stoichiometry(k + 1, &r.coefficients)?;
                 if let crate::ReactionExtent::Conversion { key: Some(key), .. } = &r.extent {
@@ -1231,13 +1241,13 @@ fn check_chemistry(spec: &UnitSpec, package: &CubicPackage) -> Result<(), String
             inerts,
             ..
         } => {
-            let chemistry = Chemistry::of(package);
+            let chemistry = Chemistry::of(package).map_err(|e| e.to_string())?;
             for id in mass_yields.iter().map(|(id, _)| id).chain(inerts) {
                 chemistry.index(id)?;
             }
         }
         UnitSpec::EquilibriumReactor { reactions, .. } => {
-            let chemistry = Chemistry::of(package);
+            let chemistry = Chemistry::of(package).map_err(|e| e.to_string())?;
             let nu = reactions
                 .iter()
                 .enumerate()
@@ -1251,7 +1261,7 @@ fn check_chemistry(spec: &UnitSpec, package: &CubicPackage) -> Result<(), String
             }
         }
         UnitSpec::GibbsReactor { inerts, .. } => {
-            let chemistry = Chemistry::of(package);
+            let chemistry = Chemistry::of(package).map_err(|e| e.to_string())?;
             for id in inerts {
                 chemistry.index(id)?;
             }
@@ -1259,7 +1269,7 @@ fn check_chemistry(spec: &UnitSpec, package: &CubicPackage) -> Result<(), String
         UnitSpec::Cstr { kinetics, .. }
         | UnitSpec::PlugFlow { kinetics, .. }
         | UnitSpec::Batch { kinetics, .. } => {
-            let chemistry = Chemistry::of(package);
+            let chemistry = Chemistry::of(package).map_err(|e| e.to_string())?;
             for (k, r) in kinetics.reactions.iter().enumerate() {
                 chemistry.stoichiometry(k + 1, &r.coefficients)?;
                 let orders: Vec<&(String, f64)> = match &r.rate {
@@ -1300,7 +1310,7 @@ pub(crate) fn react(
     warnings: Vec<String>,
     thermal: SeparatorThermal,
     pressure: f64,
-    pkg: &CubicPackage,
+    pkg: &dyn FlowsheetPackage,
 ) -> Result<UnitOutput, String> {
     let a = inlet
         .state

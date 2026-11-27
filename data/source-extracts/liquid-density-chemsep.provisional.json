@@ -1,0 +1,64 @@
+{
+  "schema": "liquid-density-chemsep-source-extract-v1",
+  "version": "2026-11-27.1",
+  "status": "source transcription for the #228 engineering liquid density; accuracy is qualified against CoolProp 7.2.0 in validation/fixtures/liquid-density-v1.json",
+  "sources": [
+    {
+      "id": "chemsep_pcd",
+      "url": "https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml",
+      "sha256": "31e72c40b2b3b084161314c3262e227fcdd773c0bf2070bacbae9c5da203533f"
+    },
+    {
+      "id": "artistic_license_2_0",
+      "url": "https://raw.githubusercontent.com/spdx/license-list-data/v3.24.0/text/Artistic-2.0.txt",
+      "sha256": "bae466ac8d7100c304fe76632ccc627203a3897d3f7166f3cce00fb9df8c2074"
+    }
+  ],
+  "chemsep_library": "glycerolChemSep v8.3 pure component data - Copyright (c) Harry Kooijman and Ross Taylor (2021) - http://www.perlfoundation.org/artistic_license_2_0",
+  "equations": {
+    "105": "rho = A / B^(1 + (1 - T/C)^D), kmol/m3, T in K",
+    "106": "rho = A (1 - Tr)^(B + C Tr + D Tr^2 + E Tr^3), Tr = T/Tc with the ChemSep critical temperature, kmol/m3"
+  },
+  "components": [
+    {
+      "id": "water",
+      "cas": "7732-18-5",
+      "chemsep_name": "Water",
+      "chemsep_index": 1921,
+      "equation": 106,
+      "coefficients": [
+        32.51621,
+        -3.213004,
+        7.92411,
+        -7.359898,
+        2.703522
+      ],
+      "coefficient_units": "kmol/m3 (A); multiply the result by 1000 for mol/m3",
+      "temperature_range_K": [
+        253.1,
+        647.29
+      ],
+      "chemsep_critical_temperature_K": 647.14
+    },
+    {
+      "id": "methanol",
+      "cas": "67-56-1",
+      "chemsep_name": "Methanol",
+      "chemsep_index": 1101,
+      "equation": 105,
+      "coefficients": [
+        1.7918,
+        0.23929,
+        512.64,
+        0.21078,
+        0.0
+      ],
+      "coefficient_units": "kmol/m3 (A); multiply the result by 1000 for mol/m3",
+      "temperature_range_K": [
+        175.47,
+        503.1
+      ],
+      "chemsep_critical_temperature_K": 512.64
+    }
+  ]
+}

@@ -1,0 +1,2201 @@
+{
+ "schema": "transport-references-v1",
+ "purpose": "implementation verification (matched formulation, independent Python) and model comparison against CoolProp 7.2.0 pure-fluid transport correlations",
+ "generator": "validation/transport/generate-transport-references.py",
+ "environment": {
+  "python": "3.14.4",
+  "CoolProp": "7.2.0",
+  "chemicals": "1.5.2"
+ },
+ "input_sha256": {
+  "data/source-extracts/transport.provisional.json": "38ecc1ce9f766c1fba0cadd02f2f6129dcb137c42ec2359afd05ba302c0de815",
+  "data/source-extracts/components.provisional.json": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147"
+ },
+ "comparison": "abs(actual-expected) <= atol + rtol*abs(expected); null expected means OutsideValidityDomain",
+ "tolerances": {
+  "implementation_viscosity": [
+   1e-15,
+   1e-10
+  ],
+  "implementation_thermal_conductivity": [
+   1e-13,
+   1e-10
+  ],
+  "implementation_surface_tension": [
+   1e-15,
+   1e-10
+  ],
+  "coolprop_dilute_gas_viscosity_nonpolar": [
+   0.0,
+   0.06
+  ],
+  "coolprop_dense_fluid_viscosity_nonpolar": [
+   0.0,
+   0.12
+  ],
+  "coolprop_gas_viscosity_polar": [
+   0.0,
+   0.15
+  ],
+  "coolprop_gas_thermal_conductivity_nonpolar": [
+   0.0,
+   0.12
+  ],
+  "coolprop_liquid_viscosity": [
+   0.0,
+   0.15
+  ],
+  "coolprop_liquid_thermal_conductivity": [
+   0.0,
+   0.1
+  ],
+  "coolprop_surface_tension": [
+   0.0,
+   0.08
+  ]
+ },
+ "coolprop_gas_eos": "Rust evaluates gas states on the PR-exact-1976 largest-volume root; liquid states need no volume",
+ "implementation": [
+  {
+   "id": "methane-dilute",
+   "phase": "gas",
+   "components": [
+    "methane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 300.0,
+   "molar_volume_m3_per_mol": 0.0249,
+   "reduced_density": 0.003959839357429717,
+   "expected": {
+    "viscosity": 1.12081282102093e-05,
+    "thermal_conductivity": 0.03387666959197407,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "methane-dense",
+   "phase": "gas",
+   "components": [
+    "methane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 300.0,
+   "molar_volume_m3_per_mol": 0.0001,
+   "reduced_density": 0.9859999999999994,
+   "expected": {
+    "viscosity": 2.0720654221302276e-05,
+    "thermal_conductivity": 0.06097195000052065,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "natural-gas-dense",
+   "phase": "gas",
+   "components": [
+    "methane",
+    "ethane",
+    "propane",
+    "nitrogen",
+    "carbon-dioxide"
+   ],
+   "mole_fractions": [
+    0.85,
+    0.07,
+    0.03,
+    0.03,
+    0.02
+   ],
+   "temperature_K": 280.0,
+   "molar_volume_m3_per_mol": 0.0002,
+   "reduced_density": 0.5189347735411289,
+   "expected": {
+    "viscosity": 1.3789742905741984e-05,
+    "thermal_conductivity": 0.03864788969848178,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "natural-gas-dilute",
+   "phase": "gas",
+   "components": [
+    "methane",
+    "ethane",
+    "propane",
+    "nitrogen",
+    "carbon-dioxide"
+   ],
+   "mole_fractions": [
+    0.85,
+    0.07,
+    0.03,
+    0.03,
+    0.02
+   ],
+   "temperature_K": 400.0,
+   "molar_volume_m3_per_mol": 0.01,
+   "reduced_density": 0.010378695470822579,
+   "expected": {
+    "viscosity": 1.4163572074893741e-05,
+    "thermal_conductivity": 0.04612111294378237,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "air-like",
+   "phase": "gas",
+   "components": [
+    "nitrogen",
+    "oxygen"
+   ],
+   "mole_fractions": [
+    0.79,
+    0.21
+   ],
+   "temperature_K": 250.0,
+   "molar_volume_m3_per_mol": 0.02,
+   "reduced_density": 0.0043222149684951,
+   "expected": {
+    "viscosity": 1.583781569943315e-05,
+    "thermal_conductivity": 0.022678469907021114,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "co2-supercritical",
+   "phase": "gas",
+   "components": [
+    "carbon-dioxide"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 320.0,
+   "molar_volume_m3_per_mol": 0.00015,
+   "reduced_density": 0.6266666666666666,
+   "expected": {
+    "viscosity": 2.5878274452118284e-05,
+    "thermal_conductivity": 0.0345490658668345,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "zero-component-retained",
+   "phase": "gas",
+   "components": [
+    "methane",
+    "water"
+   ],
+   "mole_fractions": [
+    1.0,
+    0.0
+   ],
+   "temperature_K": 350.0,
+   "molar_volume_m3_per_mol": 0.01,
+   "reduced_density": 0.009859999999999994,
+   "expected": {
+    "viscosity": 1.275061666407777e-05,
+    "thermal_conductivity": 0.040930101611311616,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "wet-methane",
+   "phase": "gas",
+   "components": [
+    "methane",
+    "water"
+   ],
+   "mole_fractions": [
+    0.95,
+    0.05
+   ],
+   "temperature_K": 450.0,
+   "molar_volume_m3_per_mol": 0.03,
+   "reduced_density": 0.0032060810816957165,
+   "expected": {
+    "viscosity": 1.5662572516649886e-05,
+    "thermal_conductivity": null,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "water-vapor",
+   "phase": "gas",
+   "components": [
+    "water"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 500.0,
+   "molar_volume_m3_per_mol": 0.04,
+   "reduced_density": 0.0013987499999999992,
+   "expected": {
+    "viscosity": 1.8650746104073898e-05,
+    "thermal_conductivity": null,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "methanol-vapor-dilute",
+   "phase": "gas",
+   "components": [
+    "methanol"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 500.0,
+   "molar_volume_m3_per_mol": 0.002,
+   "reduced_density": 0.05899999999999997,
+   "expected": {
+    "viscosity": 1.712371069060223e-05,
+    "thermal_conductivity": null,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "methanol-vapor-too-dense",
+   "phase": "gas",
+   "components": [
+    "methanol"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 500.0,
+   "molar_volume_m3_per_mol": 0.0005,
+   "reduced_density": 0.23599999999999988,
+   "expected": {
+    "viscosity": null,
+    "thermal_conductivity": null,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "methane-too-hot",
+   "phase": "gas",
+   "components": [
+    "methane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 650.0,
+   "molar_volume_m3_per_mol": 0.05,
+   "reduced_density": 0.001971999999999999,
+   "expected": {
+    "viscosity": null,
+    "thermal_conductivity": null,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "propane-too-dense",
+   "phase": "gas",
+   "components": [
+    "propane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 400.0,
+   "molar_volume_m3_per_mol": 8e-05,
+   "reduced_density": 2.4999999999999982,
+   "expected": {
+    "viscosity": null,
+    "thermal_conductivity": null,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "water-ambient",
+   "phase": "liquid",
+   "components": [
+    "water"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 300.0,
+   "pressure_Pa": 100000.0,
+   "expected": {
+    "viscosity": 0.0008601724263134742,
+    "thermal_conductivity": 0.6129891391383242,
+    "surface_tension": 0.07177091149054499
+   }
+  },
+  {
+   "id": "water-hot",
+   "phase": "liquid",
+   "components": [
+    "water"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 450.0,
+   "pressure_Pa": 2000000.0,
+   "expected": {
+    "viscosity": 0.00015580523676263556,
+    "thermal_conductivity": 0.6779533006421472,
+    "surface_tension": 0.042876839173083756
+   }
+  },
+  {
+   "id": "methanol-ambient",
+   "phase": "liquid",
+   "components": [
+    "methanol"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 300.0,
+   "pressure_Pa": 100000.0,
+   "expected": {
+    "viscosity": 0.0005302334089299248,
+    "thermal_conductivity": 0.2015036421495613,
+    "surface_tension": 0.02205931759823719
+   }
+  },
+  {
+   "id": "propane-cold",
+   "phase": "liquid",
+   "components": [
+    "propane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 250.0,
+   "pressure_Pa": 2000000.0,
+   "expected": {
+    "viscosity": 0.00016754130199643838,
+    "thermal_conductivity": 0.11901776585400248,
+    "surface_tension": 0.012829885561973458
+   }
+  },
+  {
+   "id": "ethane-cold",
+   "phase": "liquid",
+   "components": [
+    "ethane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 200.0,
+   "pressure_Pa": 1000000.0,
+   "expected": {
+    "viscosity": 0.00014097501005222516,
+    "thermal_conductivity": 0.15106086863346435,
+    "surface_tension": 0.013725921248012569
+   }
+  },
+  {
+   "id": "methanol-water",
+   "phase": "liquid",
+   "components": [
+    "water",
+    "methanol"
+   ],
+   "mole_fractions": [
+    0.6,
+    0.4
+   ],
+   "temperature_K": 320.0,
+   "pressure_Pa": 100000.0,
+   "expected": {
+    "viscosity": 0.0005043657317417878,
+    "thermal_conductivity": 0.2563254982921089,
+    "surface_tension": 0.04928239492973779
+   }
+  },
+  {
+   "id": "ethane-propane",
+   "phase": "liquid",
+   "components": [
+    "ethane",
+    "propane"
+   ],
+   "mole_fractions": [
+    0.5,
+    0.5
+   ],
+   "temperature_K": 210.0,
+   "pressure_Pa": 1000000.0,
+   "expected": {
+    "viscosity": 0.00018059089350290912,
+    "thermal_conductivity": 0.14309490142798928,
+    "surface_tension": 0.015273189349196782
+   }
+  },
+  {
+   "id": "water-compressed",
+   "phase": "liquid",
+   "components": [
+    "water"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 300.0,
+   "pressure_Pa": 20000000.0,
+   "expected": {
+    "viscosity": null,
+    "thermal_conductivity": null,
+    "surface_tension": 0.07177091149054499
+   }
+  },
+  {
+   "id": "propane-near-critical",
+   "phase": "liquid",
+   "components": [
+    "propane"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 300.0,
+   "pressure_Pa": 2000000.0,
+   "expected": {
+    "viscosity": null,
+    "thermal_conductivity": null,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "co2-below-correlation-range",
+   "phase": "liquid",
+   "components": [
+    "carbon-dioxide"
+   ],
+   "mole_fractions": [
+    1.0
+   ],
+   "temperature_K": 210.0,
+   "pressure_Pa": 3000000.0,
+   "expected": {
+    "viscosity": null,
+    "thermal_conductivity": null,
+    "surface_tension": null
+   }
+  },
+  {
+   "id": "methane-trace-in-propane",
+   "phase": "liquid",
+   "components": [
+    "methane",
+    "propane"
+   ],
+   "mole_fractions": [
+    1e-06,
+    0.999999
+   ],
+   "temperature_K": 200.0,
+   "pressure_Pa": 1000000.0,
+   "expected": {
+    "viscosity": null,
+    "thermal_conductivity": null,
+    "surface_tension": null
+   }
+  }
+ ],
+ "coolprop": [
+  {
+   "id": "methane-gas-250K-100000Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.004758563597789503,
+   "expected": {
+    "viscosity": 9.618171438868671e-06,
+    "thermal_conductivity": 0.027801679027319625
+   }
+  },
+  {
+   "id": "methane-gas-250K-2e+06Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.10138871335008995,
+   "expected": {
+    "viscosity": 9.925551961061698e-06,
+    "thermal_conductivity": 0.02951008444465842
+   }
+  },
+  {
+   "id": "methane-gas-250K-1e+07Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.6909757296960883,
+   "expected": {
+    "viscosity": 1.4129360343529908e-05,
+    "thermal_conductivity": 0.046707834169926986
+   }
+  },
+  {
+   "id": "methane-gas-350K-100000Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0033913197566188416,
+   "expected": {
+    "viscosity": 1.2793918041637404e-05,
+    "thermal_conductivity": 0.04178624969640526
+   }
+  },
+  {
+   "id": "methane-gas-350K-2e+06Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.06897813513213633,
+   "expected": {
+    "viscosity": 1.3053694750205826e-05,
+    "thermal_conductivity": 0.04287286732823393
+   }
+  },
+  {
+   "id": "methane-gas-350K-1e+07Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.3642231300451006,
+   "expected": {
+    "viscosity": 1.4720444188521168e-05,
+    "thermal_conductivity": 0.0490902877620663
+   }
+  },
+  {
+   "id": "methane-gas-450K-100000Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0026357974807721617,
+   "expected": {
+    "viscosity": 1.564421608518065e-05,
+    "thermal_conductivity": 0.05895187775089349
+   }
+  },
+  {
+   "id": "methane-gas-450K-2e+06Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0528873678704568,
+   "expected": {
+    "viscosity": 1.586442630090705e-05,
+    "thermal_conductivity": 0.05976391023906702
+   }
+  },
+  {
+   "id": "methane-gas-450K-1e+07Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.26541751112780654,
+   "expected": {
+    "viscosity": 1.702724108327984e-05,
+    "thermal_conductivity": 0.06382465311640695
+   }
+  },
+  {
+   "id": "methane-gas-550K-100000Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0021559497862059553,
+   "expected": {
+    "viscosity": 1.8260085198585686e-05,
+    "thermal_conductivity": 0.07852731205903948
+   }
+  },
+  {
+   "id": "methane-gas-550K-2e+06Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.04303423723339716,
+   "expected": {
+    "viscosity": 1.8449753646928358e-05,
+    "thermal_conductivity": 0.07917876667544112
+   }
+  },
+  {
+   "id": "methane-gas-550K-1e+07Pa",
+   "component": "methane",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.21223016695418714,
+   "expected": {
+    "viscosity": 1.9373290066522284e-05,
+    "thermal_conductivity": 0.08225466565851292
+   }
+  },
+  {
+   "id": "methane-liquid-95.28K-100000Pa",
+   "component": "methane",
+   "phase": "liquid",
+   "temperature_K": 95.28,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00017825906684194794,
+    "thermal_conductivity": 0.20570500630667612,
+    "surface_tension": 0.01615241350224531
+   }
+  },
+  {
+   "id": "methane-liquid-95.28K-5e+06Pa",
+   "component": "methane",
+   "phase": "liquid",
+   "temperature_K": 95.28,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00018855187993236435,
+    "thermal_conductivity": 0.21018256379494554,
+    "surface_tension": 0.01615241350224531
+   }
+  },
+  {
+   "id": "methane-liquid-114.34K-188386Pa",
+   "component": "methane",
+   "phase": "liquid",
+   "temperature_K": 114.34,
+   "pressure_Pa": 188386.18110667777,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00011037831184855688,
+    "thermal_conductivity": 0.18011344881965213,
+    "surface_tension": 0.012399592804037103
+   }
+  },
+  {
+   "id": "methane-liquid-114.34K-5e+06Pa",
+   "component": "methane",
+   "phase": "liquid",
+   "temperature_K": 114.34,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00011665824858136088,
+    "thermal_conductivity": 0.18550396669898375,
+    "surface_tension": 0.012399592804037103
+   }
+  },
+  {
+   "id": "methane-liquid-133.39K-671795Pa",
+   "component": "methane",
+   "phase": "liquid",
+   "temperature_K": 133.39,
+   "pressure_Pa": 671794.5369155356,
+   "polar": false,
+   "expected": {
+    "viscosity": 7.665558611631669e-05,
+    "thermal_conductivity": 0.1532831978188781,
+    "surface_tension": 0.008773246175374306
+   }
+  },
+  {
+   "id": "methane-liquid-133.39K-5e+06Pa",
+   "component": "methane",
+   "phase": "liquid",
+   "temperature_K": 133.39,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 8.116623734626648e-05,
+    "thermal_conductivity": 0.15932934792492776,
+    "surface_tension": 0.008773246175374306
+   }
+  },
+  {
+   "id": "methane-liquid-141.02K-1.01351e+06Pa",
+   "component": "methane",
+   "phase": "liquid",
+   "temperature_K": 141.02,
+   "pressure_Pa": 1013506.0601907038,
+   "polar": false,
+   "expected": {
+    "viscosity": 6.726744464409345e-05,
+    "thermal_conductivity": 0.14262879057533379,
+    "surface_tension": 0.00737628829904639
+   }
+  },
+  {
+   "id": "methane-liquid-141.02K-5e+06Pa",
+   "component": "methane",
+   "phase": "liquid",
+   "temperature_K": 141.02,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 7.132700093769917e-05,
+    "thermal_conductivity": 0.14880141321033552,
+    "surface_tension": 0.00737628829904639
+   }
+  },
+  {
+   "id": "ethane-gas-250K-100000Pa",
+   "component": "ethane",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.007090997777423305,
+   "expected": {
+    "viscosity": 7.913349606744174e-06,
+    "thermal_conductivity": 0.015411876156648676
+   }
+  },
+  {
+   "id": "ethane-gas-350K-100000Pa",
+   "component": "ethane",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.005022585790113061,
+   "expected": {
+    "viscosity": 1.0841801435939473e-05,
+    "thermal_conductivity": 0.02811564529561485
+   }
+  },
+  {
+   "id": "ethane-gas-350K-2e+06Pa",
+   "component": "ethane",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.11046010133969711,
+   "expected": {
+    "viscosity": 1.1386051111406524e-05,
+    "thermal_conductivity": 0.02968503235467039
+   }
+  },
+  {
+   "id": "ethane-gas-350K-1e+07Pa",
+   "component": "ethane",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 1.0528555942060487,
+   "expected": {
+    "viscosity": 2.4419879771455147e-05,
+    "thermal_conductivity": 0.05704698348930953
+   }
+  },
+  {
+   "id": "ethane-gas-450K-100000Pa",
+   "component": "ethane",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.003896171313037942,
+   "expected": {
+    "viscosity": 1.352340917195438e-05,
+    "thermal_conductivity": 0.044577322016718025
+   }
+  },
+  {
+   "id": "ethane-gas-450K-2e+06Pa",
+   "component": "ethane",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.08081351564011625,
+   "expected": {
+    "viscosity": 1.3955556356417888e-05,
+    "thermal_conductivity": 0.04544167181591749
+   }
+  },
+  {
+   "id": "ethane-gas-450K-1e+07Pa",
+   "component": "ethane",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.46720206541142156,
+   "expected": {
+    "viscosity": 1.7501705718633983e-05,
+    "thermal_conductivity": 0.05193711551103325
+   }
+  },
+  {
+   "id": "ethane-gas-550K-100000Pa",
+   "component": "ethane",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0031843248099340336,
+   "expected": {
+    "viscosity": 1.597985647149857e-05,
+    "thermal_conductivity": 0.0633950947964372
+   }
+  },
+  {
+   "id": "ethane-gas-550K-2e+06Pa",
+   "component": "ethane",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.06464500786305563,
+   "expected": {
+    "viscosity": 1.6345414304051993e-05,
+    "thermal_conductivity": 0.0639741972233386
+   }
+  },
+  {
+   "id": "ethane-gas-550K-1e+07Pa",
+   "component": "ethane",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.33897272420285485,
+   "expected": {
+    "viscosity": 1.8677379640106563e-05,
+    "thermal_conductivity": 0.06760527146892686
+   }
+  },
+  {
+   "id": "ethane-liquid-152.66K-100000Pa",
+   "component": "ethane",
+   "phase": "liquid",
+   "temperature_K": 152.66,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.0002583973906367583,
+    "thermal_conductivity": 0.19811979199561475,
+    "surface_tension": 0.021335751057350937
+   }
+  },
+  {
+   "id": "ethane-liquid-152.66K-5e+06Pa",
+   "component": "ethane",
+   "phase": "liquid",
+   "temperature_K": 152.66,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.0002673595652866558,
+    "thermal_conductivity": 0.2015029162327491,
+    "surface_tension": 0.021335751057350937
+   }
+  },
+  {
+   "id": "ethane-liquid-183.19K-141003Pa",
+   "component": "ethane",
+   "phase": "liquid",
+   "temperature_K": 183.19,
+   "pressure_Pa": 141003.22706645305,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00016925099722121028,
+    "thermal_conductivity": 0.16832677665447573,
+    "surface_tension": 0.01641105924604982
+   }
+  },
+  {
+   "id": "ethane-liquid-183.19K-5e+06Pa",
+   "component": "ethane",
+   "phase": "liquid",
+   "temperature_K": 183.19,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00017616811179258036,
+    "thermal_conductivity": 0.17236189722494202,
+    "surface_tension": 0.01641105924604982
+   }
+  },
+  {
+   "id": "ethane-liquid-213.73K-581278Pa",
+   "component": "ethane",
+   "phase": "liquid",
+   "temperature_K": 213.73,
+   "pressure_Pa": 581278.2169449717,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.0001183537462145414,
+    "thermal_conductivity": 0.1403357553050741,
+    "surface_tension": 0.011642236310931118
+   }
+  },
+  {
+   "id": "ethane-liquid-213.73K-5e+06Pa",
+   "component": "ethane",
+   "phase": "liquid",
+   "temperature_K": 213.73,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00012420393321179154,
+    "thermal_conductivity": 0.14485648320777533,
+    "surface_tension": 0.011642236310931118
+   }
+  },
+  {
+   "id": "ethane-liquid-225.94K-913684Pa",
+   "component": "ethane",
+   "phase": "liquid",
+   "temperature_K": 225.94,
+   "pressure_Pa": 913683.578618021,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00010333644091071078,
+    "thermal_conductivity": 0.1297845930520674,
+    "surface_tension": 0.009797821093328284
+   }
+  },
+  {
+   "id": "ethane-liquid-225.94K-5e+06Pa",
+   "component": "ethane",
+   "phase": "liquid",
+   "temperature_K": 225.94,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00010881206935771497,
+    "thermal_conductivity": 0.13439174205251564,
+    "surface_tension": 0.009797821093328284
+   }
+  },
+  {
+   "id": "propane-gas-250K-100000Pa",
+   "component": "propane",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.009902027785185306,
+   "expected": {
+    "viscosity": 6.834994322608883e-06,
+    "thermal_conductivity": 0.013344741709570201
+   }
+  },
+  {
+   "id": "propane-gas-350K-100000Pa",
+   "component": "propane",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.006939203385318017,
+   "expected": {
+    "viscosity": 9.524599505699617e-06,
+    "thermal_conductivity": 0.024394516367767394
+   }
+  },
+  {
+   "id": "propane-gas-450K-100000Pa",
+   "component": "propane",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.005368123678293826,
+   "expected": {
+    "viscosity": 1.207486517725724e-05,
+    "thermal_conductivity": 0.03831677849241123
+   }
+  },
+  {
+   "id": "propane-gas-450K-2e+06Pa",
+   "component": "propane",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.11709936545485558,
+   "expected": {
+    "viscosity": 1.2577274429286353e-05,
+    "thermal_conductivity": 0.0406174566996855
+   }
+  },
+  {
+   "id": "propane-gas-450K-1e+07Pa",
+   "component": "propane",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.9193578184558819,
+   "expected": {
+    "viscosity": 2.33511439200821e-05,
+    "thermal_conductivity": 0.05803890312458253
+   }
+  },
+  {
+   "id": "propane-gas-550K-100000Pa",
+   "component": "propane",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0043824750112391245,
+   "expected": {
+    "viscosity": 1.4459784680322177e-05,
+    "thermal_conductivity": 0.055134502824528704
+   }
+  },
+  {
+   "id": "propane-gas-550K-2e+06Pa",
+   "component": "propane",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.09112313894622666,
+   "expected": {
+    "viscosity": 1.4912929183003267e-05,
+    "thermal_conductivity": 0.0577648986333231
+   }
+  },
+  {
+   "id": "propane-gas-550K-1e+07Pa",
+   "component": "propane",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.5247810265283406,
+   "expected": {
+    "viscosity": 1.9375095985593253e-05,
+    "thermal_conductivity": 0.06513813219600666
+   }
+  },
+  {
+   "id": "propane-liquid-184.94K-100000Pa",
+   "component": "propane",
+   "phase": "liquid",
+   "temperature_K": 184.94,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00035528203129816594,
+    "thermal_conductivity": 0.15755737273978604,
+    "surface_tension": 0.021836089473734263
+   }
+  },
+  {
+   "id": "propane-liquid-184.94K-5e+06Pa",
+   "component": "propane",
+   "phase": "liquid",
+   "temperature_K": 184.94,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00036962706416389645,
+    "thermal_conductivity": 0.16013920103610563,
+    "surface_tension": 0.021836089473734263
+   }
+  },
+  {
+   "id": "propane-liquid-221.93K-100000Pa",
+   "component": "propane",
+   "phase": "liquid",
+   "temperature_K": 221.93,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00021923061407135187,
+    "thermal_conductivity": 0.1348845257818381,
+    "surface_tension": 0.016894217541988374
+   }
+  },
+  {
+   "id": "propane-liquid-221.93K-5e+06Pa",
+   "component": "propane",
+   "phase": "liquid",
+   "temperature_K": 221.93,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.0002295198639190271,
+    "thermal_conductivity": 0.13809112789273367,
+    "surface_tension": 0.016894217541988374
+   }
+  },
+  {
+   "id": "propane-liquid-258.92K-449169Pa",
+   "component": "propane",
+   "phase": "liquid",
+   "temperature_K": 258.92,
+   "pressure_Pa": 449169.45281686453,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00014585975548152594,
+    "thermal_conductivity": 0.11383098480420083,
+    "surface_tension": 0.01197196351753588
+   }
+  },
+  {
+   "id": "propane-liquid-258.92K-5e+06Pa",
+   "component": "propane",
+   "phase": "liquid",
+   "temperature_K": 258.92,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00015420491441950752,
+    "thermal_conductivity": 0.11750831516010488,
+    "surface_tension": 0.01197196351753588
+   }
+  },
+  {
+   "id": "propane-liquid-273.72K-724155Pa",
+   "component": "propane",
+   "phase": "liquid",
+   "temperature_K": 273.72,
+   "pressure_Pa": 724154.5590634993,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00012531109370927945,
+    "thermal_conductivity": 0.1061002577882633,
+    "surface_tension": 0.010058671886079541
+   }
+  },
+  {
+   "id": "propane-liquid-273.72K-5e+06Pa",
+   "component": "propane",
+   "phase": "liquid",
+   "temperature_K": 273.72,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00013308918461099104,
+    "thermal_conductivity": 0.10987912057923555,
+    "surface_tension": 0.010058671886079541
+   }
+  },
+  {
+   "id": "nitrogen-gas-250K-100000Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.004338008939408642,
+   "expected": {
+    "viscosity": 1.5499360818785855e-05,
+    "thermal_conductivity": 0.02225059873904541
+   }
+  },
+  {
+   "id": "nitrogen-gas-250K-2e+06Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.08797218481285522,
+   "expected": {
+    "viscosity": 1.585742183553732e-05,
+    "thermal_conductivity": 0.023181633005471998
+   }
+  },
+  {
+   "id": "nitrogen-gas-250K-1e+07Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.452188517629129,
+   "expected": {
+    "viscosity": 1.8383301159093987e-05,
+    "thermal_conductivity": 0.029083439490620512
+   }
+  },
+  {
+   "id": "nitrogen-gas-350K-100000Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0030957671493704432,
+   "expected": {
+    "viscosity": 2.0117226487507335e-05,
+    "thermal_conductivity": 0.029475323527537036
+   }
+  },
+  {
+   "id": "nitrogen-gas-350K-2e+06Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.061739204063190826,
+   "expected": {
+    "viscosity": 2.0340386706668384e-05,
+    "thermal_conductivity": 0.030091271636850585
+   }
+  },
+  {
+   "id": "nitrogen-gas-350K-1e+07Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.30149986036172305,
+   "expected": {
+    "viscosity": 2.1722396125068365e-05,
+    "thermal_conductivity": 0.03368111321543309
+   }
+  },
+  {
+   "id": "nitrogen-gas-450K-100000Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0024072476910302057,
+   "expected": {
+    "viscosity": 2.4184629763194888e-05,
+    "thermal_conductivity": 0.0359881437160217
+   }
+  },
+  {
+   "id": "nitrogen-gas-450K-2e+06Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.04780751853283921,
+   "expected": {
+    "viscosity": 2.434267218996358e-05,
+    "thermal_conductivity": 0.036448914450076135
+   }
+  },
+  {
+   "id": "nitrogen-gas-450K-1e+07Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.2309722816323601,
+   "expected": {
+    "viscosity": 2.527001956934326e-05,
+    "thermal_conductivity": 0.03904734438381466
+   }
+  },
+  {
+   "id": "nitrogen-gas-550K-100000Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0019694467610412475,
+   "expected": {
+    "viscosity": 2.785659946779391e-05,
+    "thermal_conductivity": 0.04198912519043132
+   }
+  },
+  {
+   "id": "nitrogen-gas-550K-2e+06Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0390733844810953,
+   "expected": {
+    "viscosity": 2.797690446474332e-05,
+    "thermal_conductivity": 0.04235703823235194
+   }
+  },
+  {
+   "id": "nitrogen-gas-550K-1e+07Pa",
+   "component": "nitrogen",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.1884861196613864,
+   "expected": {
+    "viscosity": 2.866004745148268e-05,
+    "thermal_conductivity": 0.04438237601869113
+   }
+  },
+  {
+   "id": "nitrogen-liquid-75.72K-124782Pa",
+   "component": "nitrogen",
+   "phase": "liquid",
+   "temperature_K": 75.72,
+   "pressure_Pa": 124782.16888183265,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00017169431225880544,
+    "thermal_conductivity": 0.14807892568559264,
+    "surface_tension": 0.009251532312653377
+   }
+  },
+  {
+   "id": "nitrogen-liquid-75.72K-5e+06Pa",
+   "component": "nitrogen",
+   "phase": "liquid",
+   "temperature_K": 75.72,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00018490537615373313,
+    "thermal_conductivity": 0.15320542411494723,
+    "surface_tension": 0.009251532312653377
+   }
+  },
+  {
+   "id": "nitrogen-liquid-88.33K-467341Pa",
+   "component": "nitrogen",
+   "phase": "liquid",
+   "temperature_K": 88.33,
+   "pressure_Pa": 467340.8443577943,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00010886757144037729,
+    "thermal_conductivity": 0.12332849702807817,
+    "surface_tension": 0.006466277729384887
+   }
+  },
+  {
+   "id": "nitrogen-liquid-88.33K-5e+06Pa",
+   "component": "nitrogen",
+   "phase": "liquid",
+   "temperature_K": 88.33,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00011869086202279402,
+    "thermal_conductivity": 0.12961734249589008,
+    "surface_tension": 0.006466277729384887
+   }
+  },
+  {
+   "id": "nitrogen-liquid-93.38K-714476Pa",
+   "component": "nitrogen",
+   "phase": "liquid",
+   "temperature_K": 93.38,
+   "pressure_Pa": 714475.7718643688,
+   "polar": false,
+   "expected": {
+    "viscosity": 9.299848454192802e-05,
+    "thermal_conductivity": 0.11355481260833562,
+    "surface_tension": 0.005409902982843773
+   }
+  },
+  {
+   "id": "nitrogen-liquid-93.38K-5e+06Pa",
+   "component": "nitrogen",
+   "phase": "liquid",
+   "temperature_K": 93.38,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00010190167645078312,
+    "thermal_conductivity": 0.12029409487477755,
+    "surface_tension": 0.005409902982843773
+   }
+  },
+  {
+   "id": "carbon-dioxide-gas-250K-100000Pa",
+   "component": "carbon-dioxide",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.004562913798866999,
+   "expected": {
+    "viscosity": 1.2581123233705806e-05,
+    "thermal_conductivity": 0.013051154502185643
+   }
+  },
+  {
+   "id": "carbon-dioxide-gas-350K-100000Pa",
+   "component": "carbon-dioxide",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.003239561538831249,
+   "expected": {
+    "viscosity": 1.735949341712559e-05,
+    "thermal_conductivity": 0.020691494015644588
+   }
+  },
+  {
+   "id": "carbon-dioxide-gas-350K-2e+06Pa",
+   "component": "carbon-dioxide",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.06870025273723158,
+   "expected": {
+    "viscosity": 1.7661823231167828e-05,
+    "thermal_conductivity": 0.02176954429795071
+   }
+  },
+  {
+   "id": "carbon-dioxide-gas-350K-1e+07Pa",
+   "component": "carbon-dioxide",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.4887004477606438,
+   "expected": {
+    "viscosity": 2.2027635666445497e-05,
+    "thermal_conductivity": 0.03389694868996038
+   }
+  },
+  {
+   "id": "carbon-dioxide-gas-450K-100000Pa",
+   "component": "carbon-dioxide",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0025152501258718834,
+   "expected": {
+    "viscosity": 2.18231224547701e-05,
+    "thermal_conductivity": 0.028793102762901313
+   }
+  },
+  {
+   "id": "carbon-dioxide-gas-450K-2e+06Pa",
+   "component": "carbon-dioxide",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.05142176612675489,
+   "expected": {
+    "viscosity": 2.2108722151431203e-05,
+    "thermal_conductivity": 0.029607899501689572
+   }
+  },
+  {
+   "id": "carbon-dioxide-gas-450K-1e+07Pa",
+   "component": "carbon-dioxide",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.2811564981578325,
+   "expected": {
+    "viscosity": 2.4032728148133405e-05,
+    "thermal_conductivity": 0.03399884355817493
+   }
+  },
+  {
+   "id": "carbon-dioxide-gas-550K-100000Pa",
+   "component": "carbon-dioxide",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0020564966204332106,
+   "expected": {
+    "viscosity": 2.593911380827254e-05,
+    "thermal_conductivity": 0.03693831354292275
+   }
+  },
+  {
+   "id": "carbon-dioxide-gas-550K-2e+06Pa",
+   "component": "carbon-dioxide",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.041477883232894724,
+   "expected": {
+    "viscosity": 2.6186612412899184e-05,
+    "thermal_conductivity": 0.03762871855773232
+   }
+  },
+  {
+   "id": "carbon-dioxide-gas-550K-1e+07Pa",
+   "component": "carbon-dioxide",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.21343850679857193,
+   "expected": {
+    "viscosity": 2.7540720794897212e-05,
+    "thermal_conductivity": 0.04063570521628834
+   }
+  },
+  {
+   "id": "carbon-dioxide-liquid-225.05K-1.10483e+06Pa",
+   "component": "carbon-dioxide",
+   "phase": "liquid",
+   "temperature_K": 225.05,
+   "pressure_Pa": 1104828.4413244622,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.0002207919216371357,
+    "thermal_conductivity": 0.16696837928189412,
+    "surface_tension": 0.014521027949597979
+   }
+  },
+  {
+   "id": "carbon-dioxide-liquid-225.05K-5e+06Pa",
+   "component": "carbon-dioxide",
+   "phase": "liquid",
+   "temperature_K": 225.05,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00022862496433755035,
+    "thermal_conductivity": 0.17031421507355007,
+    "surface_tension": 0.014521027949597979
+   }
+  },
+  {
+   "id": "oxygen-gas-250K-100000Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0035346408178076544,
+   "expected": {
+    "viscosity": 1.7795123820492103e-05,
+    "thermal_conductivity": 0.02246346417205338
+   }
+  },
+  {
+   "id": "oxygen-gas-250K-2e+06Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.07255440575830767,
+   "expected": {
+    "viscosity": 1.8247909228654243e-05,
+    "thermal_conductivity": 0.023532155715106966
+   }
+  },
+  {
+   "id": "oxygen-gas-250K-1e+07Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 250.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.40019722587472356,
+   "expected": {
+    "viscosity": 2.1014658333231034e-05,
+    "thermal_conductivity": 0.029372487332798645
+   }
+  },
+  {
+   "id": "oxygen-gas-350K-100000Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0025218732441937715,
+   "expected": {
+    "viscosity": 2.3324111025636705e-05,
+    "thermal_conductivity": 0.03033213608229499
+   }
+  },
+  {
+   "id": "oxygen-gas-350K-2e+06Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.05064189368283868,
+   "expected": {
+    "viscosity": 2.3704356709798678e-05,
+    "thermal_conductivity": 0.031069980880934135
+   }
+  },
+  {
+   "id": "oxygen-gas-350K-1e+07Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.25531866526243163,
+   "expected": {
+    "viscosity": 2.5462337143146833e-05,
+    "thermal_conductivity": 0.03434797857067737
+   }
+  },
+  {
+   "id": "oxygen-gas-450K-100000Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.001960791383002901,
+   "expected": {
+    "viscosity": 2.8220533629389528e-05,
+    "thermal_conductivity": 0.03759372128546662
+   }
+  },
+  {
+   "id": "oxygen-gas-450K-2e+06Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.03912811742271949,
+   "expected": {
+    "viscosity": 2.8545798047140716e-05,
+    "thermal_conductivity": 0.03816326589023097
+   }
+  },
+  {
+   "id": "oxygen-gas-450K-1e+07Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.19300808872275427,
+   "expected": {
+    "viscosity": 2.9946640570040256e-05,
+    "thermal_conductivity": 0.0405817826155772
+   }
+  },
+  {
+   "id": "oxygen-gas-550K-100000Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.0016040948803989156,
+   "expected": {
+    "viscosity": 3.265051830721493e-05,
+    "thermal_conductivity": 0.04439811274270596
+   }
+  },
+  {
+   "id": "oxygen-gas-550K-2e+06Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 2000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.03194162165691039,
+   "expected": {
+    "viscosity": 3.2933987770539134e-05,
+    "thermal_conductivity": 0.04486285429471456
+   }
+  },
+  {
+   "id": "oxygen-gas-550K-1e+07Pa",
+   "component": "oxygen",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 10000000.0,
+   "polar": false,
+   "coolprop_reduced_density": 0.15647916399487288,
+   "expected": {
+    "viscosity": 3.4123909149956035e-05,
+    "thermal_conductivity": 0.046802957804364255
+   }
+  },
+  {
+   "id": "oxygen-liquid-77.29K-100000Pa",
+   "component": "oxygen",
+   "phase": "liquid",
+   "temperature_K": 77.29,
+   "pressure_Pa": 100000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.0002855268363995493,
+    "thermal_conductivity": 0.16936085411870316,
+    "surface_tension": 0.016440388701845682
+   }
+  },
+  {
+   "id": "oxygen-liquid-77.29K-5e+06Pa",
+   "component": "oxygen",
+   "phase": "liquid",
+   "temperature_K": 77.29,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.0002981396271818132,
+    "thermal_conductivity": 0.17222568275418737,
+    "surface_tension": 0.016440388701845682
+   }
+  },
+  {
+   "id": "oxygen-liquid-92.75K-197111Pa",
+   "component": "oxygen",
+   "phase": "liquid",
+   "temperature_K": 92.75,
+   "pressure_Pa": 197111.23074126145,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00018226259240993357,
+    "thermal_conductivity": 0.14710878181287598,
+    "surface_tension": 0.01250782591303626
+   }
+  },
+  {
+   "id": "oxygen-liquid-92.75K-5e+06Pa",
+   "component": "oxygen",
+   "phase": "liquid",
+   "temperature_K": 92.75,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00019138513887828384,
+    "thermal_conductivity": 0.1508297213825746,
+    "surface_tension": 0.01250782591303626
+   }
+  },
+  {
+   "id": "oxygen-liquid-108.21K-718960Pa",
+   "component": "oxygen",
+   "phase": "liquid",
+   "temperature_K": 108.21,
+   "pressure_Pa": 718959.992534084,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00012687853793814732,
+    "thermal_conductivity": 0.12479677220656389,
+    "surface_tension": 0.008792372155189316
+   }
+  },
+  {
+   "id": "oxygen-liquid-108.21K-5e+06Pa",
+   "component": "oxygen",
+   "phase": "liquid",
+   "temperature_K": 108.21,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00013412500497247105,
+    "thermal_conductivity": 0.12914629526613228,
+    "surface_tension": 0.008792372155189316
+   }
+  },
+  {
+   "id": "oxygen-liquid-114.39K-1.09039e+06Pa",
+   "component": "oxygen",
+   "phase": "liquid",
+   "temperature_K": 114.39,
+   "pressure_Pa": 1090392.1782811296,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00011092422333980902,
+    "thermal_conductivity": 0.11590181111845861,
+    "surface_tension": 0.007379245200681544
+   }
+  },
+  {
+   "id": "oxygen-liquid-114.39K-5e+06Pa",
+   "component": "oxygen",
+   "phase": "liquid",
+   "temperature_K": 114.39,
+   "pressure_Pa": 5000000.0,
+   "polar": false,
+   "expected": {
+    "viscosity": 0.00011755021347999429,
+    "thermal_conductivity": 0.12036013976852453,
+    "surface_tension": 0.007379245200681544
+   }
+  },
+  {
+   "id": "water-gas-350K-10000Pa",
+   "component": "water",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 10000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.00019265526319673377,
+   "expected": {
+    "viscosity": 1.1472803549734945e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "water-gas-450K-10000Pa",
+   "component": "water",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 10000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.0001496342630121976,
+   "expected": {
+    "viscosity": 1.5308394636732174e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "water-gas-450K-100000Pa",
+   "component": "water",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 100000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.0015049723922913275,
+   "expected": {
+    "viscosity": 1.5267399227568418e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "water-gas-550K-10000Pa",
+   "component": "water",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 10000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.00012238546848225391,
+   "expected": {
+    "viscosity": 1.9370119254593413e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "water-gas-550K-100000Pa",
+   "component": "water",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 100000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.00122696624866156,
+   "expected": {
+    "viscosity": 1.9355787242960288e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "water-gas-550K-2e+06Pa",
+   "component": "water",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 2000000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.026059201585554945,
+   "expected": {
+    "viscosity": 1.906235106422565e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "water-liquid-323.55K-100000Pa",
+   "component": "water",
+   "phase": "liquid",
+   "temperature_K": 323.55,
+   "pressure_Pa": 100000.0,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.0005428661935840426,
+    "thermal_conductivity": 0.6410682145703874,
+    "surface_tension": 0.0679542456262517
+   }
+  },
+  {
+   "id": "water-liquid-323.55K-5e+06Pa",
+   "component": "water",
+   "phase": "liquid",
+   "temperature_K": 323.55,
+   "pressure_Pa": 5000000.0,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.000543869569877919,
+    "thermal_conductivity": 0.6436155492056221,
+    "surface_tension": 0.0679542456262517
+   }
+  },
+  {
+   "id": "water-liquid-388.26K-254685Pa",
+   "component": "water",
+   "phase": "liquid",
+   "temperature_K": 388.26,
+   "pressure_Pa": 254685.24235371524,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.00024261107282329823,
+    "thermal_conductivity": 0.681517759618041,
+    "surface_tension": 0.0559271343892347
+   }
+  },
+  {
+   "id": "water-liquid-388.26K-5e+06Pa",
+   "component": "water",
+   "phase": "liquid",
+   "temperature_K": 388.26,
+   "pressure_Pa": 5000000.0,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.0002438721425442665,
+    "thermal_conductivity": 0.684341772068058,
+    "surface_tension": 0.0559271343892347
+   }
+  },
+  {
+   "id": "water-liquid-452.97K-1.498e+06Pa",
+   "component": "water",
+   "phase": "liquid",
+   "temperature_K": 452.97,
+   "pressure_Pa": 1497998.6305904137,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.00015066662959962405,
+    "thermal_conductivity": 0.6717388099317648,
+    "surface_tension": 0.04207778241969553
+   }
+  },
+  {
+   "id": "water-liquid-452.97K-5e+06Pa",
+   "component": "water",
+   "phase": "liquid",
+   "temperature_K": 452.97,
+   "pressure_Pa": 5000000.0,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.000151544797303067,
+    "thermal_conductivity": 0.6743767070488308,
+    "surface_tension": 0.04207778241969553
+   }
+  },
+  {
+   "id": "water-liquid-478.85K-2.62366e+06Pa",
+   "component": "water",
+   "phase": "liquid",
+   "temperature_K": 478.85,
+   "pressure_Pa": 2623660.9651517994,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.00013089629804589913,
+    "thermal_conductivity": 0.6569073166937445,
+    "surface_tension": 0.03617959412624574
+   }
+  },
+  {
+   "id": "water-liquid-478.85K-5e+06Pa",
+   "component": "water",
+   "phase": "liquid",
+   "temperature_K": 478.85,
+   "pressure_Pa": 5000000.0,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.00013150166317200466,
+    "thermal_conductivity": 0.658932531253625,
+    "surface_tension": 0.03617959412624574
+   }
+  },
+  {
+   "id": "methanol-gas-350K-10000Pa",
+   "component": "methanol",
+   "phase": "gas",
+   "temperature_K": 350.0,
+   "pressure_Pa": 10000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.0004065129556146291,
+   "expected": {
+    "viscosity": 1.1347026384050194e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "methanol-gas-450K-10000Pa",
+   "component": "methanol",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 10000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.0003155967982676435,
+   "expected": {
+    "viscosity": 1.4719074819768361e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "methanol-gas-450K-100000Pa",
+   "component": "methanol",
+   "phase": "gas",
+   "temperature_K": 450.0,
+   "pressure_Pa": 100000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.003175842565373192,
+   "expected": {
+    "viscosity": 1.4683956710440804e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "methanol-gas-550K-10000Pa",
+   "component": "methanol",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 10000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.0002581120462749502,
+   "expected": {
+    "viscosity": 1.8120933606236566e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "methanol-gas-550K-100000Pa",
+   "component": "methanol",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 100000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.002587806722131438,
+   "expected": {
+    "viscosity": 1.810752380402873e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "methanol-gas-550K-2e+06Pa",
+   "component": "methanol",
+   "phase": "gas",
+   "temperature_K": 550.0,
+   "pressure_Pa": 2000000.0,
+   "polar": true,
+   "coolprop_reduced_density": 0.05506541929945266,
+   "expected": {
+    "viscosity": 1.7903518516621534e-05,
+    "thermal_conductivity": null
+   }
+  },
+  {
+   "id": "methanol-liquid-307.5K-100000Pa",
+   "component": "methanol",
+   "phase": "liquid",
+   "temperature_K": 307.5,
+   "pressure_Pa": 100000.0,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.0004765405660775462,
+    "thermal_conductivity": 0.19842696228913717,
+    "surface_tension": 0.02136622322220033
+   }
+  },
+  {
+   "id": "methanol-liquid-307.5K-5e+06Pa",
+   "component": "methanol",
+   "phase": "liquid",
+   "temperature_K": 307.5,
+   "pressure_Pa": 5000000.0,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.0004911561965400893,
+    "thermal_conductivity": 0.20078509526894764,
+    "surface_tension": 0.02136622322220033
+   }
+  },
+  {
+   "id": "methanol-liquid-358.75K-330440Pa",
+   "component": "methanol",
+   "phase": "liquid",
+   "temperature_K": 358.75,
+   "pressure_Pa": 330439.95966124244,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.00025854567356424247,
+    "thermal_conductivity": 0.18859383094506765,
+    "surface_tension": 0.016938303307846656
+   }
+  },
+  {
+   "id": "methanol-liquid-358.75K-5e+06Pa",
+   "component": "methanol",
+   "phase": "liquid",
+   "temperature_K": 358.75,
+   "pressure_Pa": 5000000.0,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.00026765881680776177,
+    "thermal_conductivity": 0.1909797963235976,
+    "surface_tension": 0.016938303307846656
+   }
+  },
+  {
+   "id": "methanol-liquid-379.25K-640722Pa",
+   "component": "methanol",
+   "phase": "liquid",
+   "temperature_K": 379.25,
+   "pressure_Pa": 640722.0974737193,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.00021000367954991677,
+    "thermal_conductivity": 0.18464492514078373,
+    "surface_tension": 0.015010834190278554
+   }
+  },
+  {
+   "id": "methanol-liquid-379.25K-5e+06Pa",
+   "component": "methanol",
+   "phase": "liquid",
+   "temperature_K": 379.25,
+   "pressure_Pa": 5000000.0,
+   "polar": true,
+   "expected": {
+    "viscosity": 0.00021782402908703902,
+    "thermal_conductivity": 0.1869164450295905,
+    "surface_tension": 0.015010834190278554
+   }
+  }
+ ]
+}
