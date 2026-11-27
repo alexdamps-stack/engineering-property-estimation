@@ -4,7 +4,7 @@
 use flowsheet_core::{
     Arrhenius, BatchThermal, ConcentrationBasis, Correlation, EquilibriumConstant,
     EquilibriumOptions, EquilibriumReaction, FugacityBasis, KineticReaction, Kinetics, LhhwTerm,
-    PlugFlowThermal, RateBasis, RateLaw, RateTerm, ReactingPhase,
+    LiquidVolumeBasis, PlugFlowThermal, RateBasis, RateLaw, RateTerm, ReactingPhase,
 };
 use serde::{Deserialize, Serialize};
 
@@ -170,6 +170,24 @@ pub(crate) struct KineticReactionRecord {
 pub(crate) struct KineticsRecord {
     pub reactions: Vec<KineticReactionRecord>,
     pub catalyst_bulk_density_kg_m3: Option<f64>,
+    /// Liquid volume basis (#228). Omitted when it is the EOS default, so
+    /// older projects and their fingerprints are unchanged.
+    #[serde(default, skip_serializing_if = "LiquidVolumeRecord::is_default")]
+    pub liquid_volume: LiquidVolumeRecord,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum LiquidVolumeRecord {
+    #[default]
+    EquationOfState,
+    EngineeringDensity,
+}
+
+impl LiquidVolumeRecord {
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -304,6 +322,10 @@ impl From<Kinetics> for KineticsRecord {
     fn from(k: Kinetics) -> Self {
         Self {
             catalyst_bulk_density_kg_m3: k.catalyst_bulk_density_kg_m3,
+            liquid_volume: match k.liquid_volume {
+                LiquidVolumeBasis::EquationOfState => LiquidVolumeRecord::EquationOfState,
+                LiquidVolumeBasis::EngineeringDensity => LiquidVolumeRecord::EngineeringDensity,
+            },
             reactions: k
                 .reactions
                 .into_iter()
@@ -356,6 +378,10 @@ impl From<KineticsRecord> for Kinetics {
     fn from(k: KineticsRecord) -> Self {
         Self {
             catalyst_bulk_density_kg_m3: k.catalyst_bulk_density_kg_m3,
+            liquid_volume: match k.liquid_volume {
+                LiquidVolumeRecord::EquationOfState => LiquidVolumeBasis::EquationOfState,
+                LiquidVolumeRecord::EngineeringDensity => LiquidVolumeBasis::EngineeringDensity,
+            },
             reactions: k
                 .reactions
                 .into_iter()

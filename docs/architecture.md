@@ -20,7 +20,9 @@ from a library target plus a thin `main.rs`.
   pseudo-components (#229). Each retains model, interaction, data and caloric-reference
   metadata. Phase viscosity, thermal conductivity and surface tension come
   from the package-independent transport methods
-  ([transport properties](transport-properties.md), #225). New models and packages follow the
+  ([transport properties](transport-properties.md), #225). The cubic packages
+  also carry a separately labelled engineering liquid density
+  ([#228 status](liquid-density-status.md)). New models and packages follow the
   [property-model requirements](property-model-requirements.md).
 - `flowsheet-core` holds a GUI-independent topology and sequential calculation
   engine: units, ports, material streams, specifications, balances and

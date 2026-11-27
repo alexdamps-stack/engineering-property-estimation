@@ -20,6 +20,7 @@
 
 mod engine;
 mod flowsheet;
+pub mod liquid_volume;
 mod numerics;
 mod reaction;
 mod reactors;
@@ -39,8 +40,9 @@ pub use unit::{
     Arrhenius, BatchThermal, CalculationStatus, ConcentrationBasis, Correlation,
     DEFAULT_EFFICIENCY, EnergyRole, EnergySourceDuty, EquilibriumConstant, EquilibriumOptions,
     EquilibriumReaction, ExchangerSpec, FugacityBasis, KindInfo, KineticReaction, Kinetics,
-    LhhwTerm, MixerPressure, PaletteCategory, PlugFlowThermal, PortDirection, PortMedium, PortRef,
-    PortSpec, PressureRise, PressureSpec, RateBasis, RateLaw, RateTerm, ReactingPhase, Reaction,
-    ReactionExtent, SeparatorThermal, Sign, SpecIssue, SpecProblem, ThermalSpec, Unit, UnitGroup,
-    UnitId, UnitKind, UnitSpec, check_optional, check_value, ports_for,
+    LhhwTerm, LiquidVolumeBasis, MixerPressure, PaletteCategory, PlugFlowThermal, PortDirection,
+    PortMedium, PortRef, PortSpec, PressureRise, PressureSpec, RateBasis, RateLaw, RateTerm,
+    ReactingPhase, Reaction, ReactionExtent, SeparatorThermal, Sign, SpecIssue, SpecProblem,
+    ThermalSpec, Unit, UnitGroup, UnitId, UnitKind, UnitSpec, check_optional, check_value,
+    ports_for,
 };

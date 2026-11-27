@@ -1,6 +1,6 @@
 ChemSep v8.3 pure component data - Copyright (c) Harry Kooijman and Ross Taylor (2021).
 Distributed under the Artistic License 2.0; obtained from https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml
-Only the transcribed values in transport.provisional.json are redistributed here; they are unmodified apart from SI unit conversion.
+Only the transcribed values in transport.provisional.json and liquid-density-chemsep.provisional.json are redistributed here; they are unmodified apart from SI unit conversion.
 
 The Artistic License 2.0
 

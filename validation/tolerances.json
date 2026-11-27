@@ -522,6 +522,32 @@
       },
       "domain": "Kerosene surrogate case of docs/pseudo-components-status.md: m-xylene/n-decane/n-dodecane (0.2/0.4/0.4 mol) as defined compounds (CoolProp 7.2.0 HEOS constants) versus pseudo-components characterised from Tb and SG; PR, 1 atm, 300..560 K; ideal-gas cp at 300..600 K",
       "rationale": "correlation_relative is implementation agreement with an independent plain-Python evaluation of the same correlations; the other budgets are model-comparison limits declared before the first comparison, with the two m-xylene exceedances it found recorded in the fixture instead of widening a budget. Not experimental accuracy."
+    },
+    {
+      "fixture": "validation/fixtures/liquid-density-v1.json",
+      "budget_key": "tolerances",
+      "budgets": {
+        "implementation": {
+          "quantity": "molar volume and pseudo saturation pressure",
+          "atol": 0.0,
+          "rtol": 1e-11,
+          "rationale": "Same closed-form expressions in double precision; R differs from fluids.constants by 2e-12 relative"
+        },
+        "experimental": [
+          {
+            "reduced_temperature_max": 0.9,
+            "max_abs_relative_deviation": 0.02,
+            "rationale": "Hankinson-Thomson report about 0.4 % average deviation for pure saturated liquids and Thomson-Brobst-Hankinson about 1 % for compressed liquids below Tr 0.95; 2 % bounds single points"
+          },
+          {
+            "reduced_temperature_max": 0.95,
+            "max_abs_relative_deviation": 0.05,
+            "rationale": "Near-critical band 0.90 < Tr <= 0.95 where the corresponding-states fit and the reference EOS both lose accuracy"
+          }
+        ]
+      },
+      "domain": "COSTALD engineering liquid density (#228): 0.25 <= T/Tcm <= 0.95, p <= 69 MPa (10 MPa with water or methanol above trace); implementation cases for 10 pure fluids and 10 mixtures; experimental points for 10 pure fluids (saturated and compressed) and 10 bubble-point mixtures, budgets applied to the qualified scope only",
+      "rationale": "Implementation: same closed-form expressions as chemicals 1.5.2 (COSTALD, COSTALD-Tait, DIPPR 105/106) in double precision. Experimental: Hankinson-Thomson / Thomson-Brobst-Hankinson reported accuracy against CoolProp 7.2.0 reference EOS; sets failing the budget (COSTALD for water and methanol, hydrogen, CO2 in hydrocarbon mixtures, water/methanol compression above 10 MPa) were excluded from the qualified scope or replaced by ChemSep correlations instead of widening it."
     }
   ],
   "deferred": [

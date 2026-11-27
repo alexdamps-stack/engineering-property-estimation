@@ -235,6 +235,7 @@ fn equilibrium_and_kinetic_specifications_round_trip() {
             },
         ],
         catalyst_bulk_density_kg_m3: Some(900.0),
+        liquid_volume: Default::default(),
     };
     let equilibrium = EquilibriumOptions {
         fugacity: FugacityBasis::IdealGas,
@@ -344,6 +345,7 @@ fn a_solved_cstr_stores_its_extents() {
                 },
             }],
             catalyst_bulk_density_kg_m3: None,
+            liquid_volume: Default::default(),
         },
         volume_m3: Some(1.0),
         thermal: SeparatorThermal::OutletTemperature(Some(500.0)),

@@ -16,8 +16,8 @@ use thermo_types::{
 };
 
 use crate::{
-    Convergence, CubicPackage, EquilibriumPhase, EquilibriumState, PhaseProperties, SaturationKind,
-    SaturationState,
+    Convergence, CubicPackage, EngineeringLiquidDensity, EquilibriumPhase, EquilibriumState,
+    PhaseProperties, SaturationKind, SaturationState,
 };
 
 /// Equilibrium operations required by a sequential flowsheet.
@@ -42,6 +42,19 @@ pub trait FlowsheetPackage: Debug + Send + Sync {
     /// Access for legacy unit models that depend on cubic-specific operations.
     /// No unit uses it; new code must call package operations instead.
     fn cubic(&self) -> Result<&CubicPackage, CalculationError>;
+
+    /// Engineering liquid density of one liquid phase at T, p and phase mole
+    /// fractions (#228). It is reported beside the phase's EOS density and
+    /// never enters equilibrium or caloric results. Packages without one
+    /// return `UnsupportedCapability`; nothing is substituted.
+    fn engineering_liquid_density(
+        &self,
+        _fractions: &[f64],
+        _temperature_k: f64,
+        _pressure_pa: f64,
+    ) -> Result<EngineeringLiquidDensity, CalculationError> {
+        Err(unsupported("an engineering liquid density"))
+    }
 
     /// Viscosity, thermal conductivity and surface tension of one phase of a
     /// state returned by this package (#225). The provided method applies the
@@ -661,6 +674,15 @@ impl FlowsheetPackage for CubicPackage {
 
     fn formation_components(&self) -> Result<&[Component], CalculationError> {
         Ok(self.model().components())
+    }
+
+    fn engineering_liquid_density(
+        &self,
+        fractions: &[f64],
+        temperature_k: f64,
+        pressure_pa: f64,
+    ) -> Result<EngineeringLiquidDensity, CalculationError> {
+        CubicPackage::engineering_liquid_density(self, fractions, temperature_k, pressure_pa)
     }
 }
 

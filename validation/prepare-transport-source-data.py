@@ -7,6 +7,8 @@ the Chung et al. (1988) gas method and the ChemSep temperature correlations of
 saturated-liquid viscosity, liquid thermal conductivity and surface tension.
 Adds the Chung association factors of water and methanol from the cited paper.
 Writes a transcription; evaluates no transport model. Standard library only.
+For #228 it also transcribes the ChemSep saturated-liquid density correlations
+of water and methanol into a separate liquid-density-chemsep.provisional.json.
 
     python validation/prepare-transport-source-data.py --output-directory data/source-extracts
 """
@@ -130,13 +132,64 @@ def main():
     }
     out.mkdir(parents=True, exist_ok=True)
     (out / "transport.provisional.json").write_text(json.dumps(extract, indent=2) + "\n", encoding="utf-8")
+    (out / "liquid-density-chemsep.provisional.json").write_text(
+        json.dumps(liquid_density_extract(root, header, provenance), indent=2) + "\n", encoding="utf-8"
+    )
     (out / "ChemSep-LICENSE.txt").write_bytes(
         b"ChemSep v8.3 pure component data - Copyright (c) Harry Kooijman and Ross Taylor (2021).\n"
         + f"Distributed under the Artistic License 2.0; obtained from {SOURCES['chemsep_pcd']}\n".encode()
-        + b"Only the transcribed values in transport.provisional.json are redistributed here; they are unmodified apart from SI unit conversion.\n\n"
+        + b"Only the transcribed values in transport.provisional.json and liquid-density-chemsep.provisional.json are redistributed here; they are unmodified apart from SI unit conversion.\n\n"
         + raw["artistic_license_2_0"]
     )
 
+
+
+# #228: component-specific saturated-liquid densities for the components that
+# COSTALD does not qualify. Hydrogen is excluded: its ChemSep range (13.8-33.2 K)
+# lies below every package temperature interval.
+LIQUID_DENSITY_VERSION = "2026-11-27.1"
+LIQUID_DENSITY_COMPONENTS = [("water", "7732-18-5", 106), ("methanol", "67-56-1", 105)]
+
+
+def liquid_density_extract(root, header, provenance):
+    records = []
+    for cid, cas, equation in LIQUID_DENSITY_COMPONENTS:
+        matches = [c for c in root.findall("compound") if c.find("CAS") is not None and c.find("CAS").get("value") == cas]
+        if len(matches) != 1:
+            raise SystemExit(f"expected one ChemSep record for {cid} ({cas})")
+        c = matches[0]
+        element = c.find("LiquidDensity")
+        if element is None or element.get("units") != "kmol/m3" or int(element.find("eqno").get("value")) != equation:
+            raise SystemExit(f"{cid}: unexpected LiquidDensity record")
+        coefficients = [float(element.find(k).get("value")) if element.find(k) is not None else 0.0 for k in "ABCDE"]
+        t_min = float(element.find("Tmin").get("value"))
+        t_max = float(element.find("Tmax").get("value"))
+        if element.find("Tmin").get("units") != "K" or element.find("Tmax").get("units") != "K" or not 0 < t_min < t_max:
+            raise SystemExit(f"{cid}: invalid temperature range")
+        records.append({
+            "id": cid,
+            "cas": cas,
+            "chemsep_name": c.find("CompoundID").get("value"),
+            "chemsep_index": int(c.find("LibraryIndex").get("value")),
+            "equation": equation,
+            # SI: kmol/m3 is numerically mol/L; times 1000 gives mol/m3.
+            "coefficients": coefficients,
+            "coefficient_units": "kmol/m3 (A); multiply the result by 1000 for mol/m3",
+            "temperature_range_K": [t_min, t_max],
+            "chemsep_critical_temperature_K": value(c, "CriticalTemperature", "K"),
+        })
+    return {
+        "schema": "liquid-density-chemsep-source-extract-v1",
+        "version": LIQUID_DENSITY_VERSION,
+        "status": "source transcription for the #228 engineering liquid density; accuracy is qualified against CoolProp 7.2.0 in validation/fixtures/liquid-density-v1.json",
+        "sources": provenance,
+        "chemsep_library": header,
+        "equations": {
+            "105": "rho = A / B^(1 + (1 - T/C)^D), kmol/m3, T in K",
+            "106": "rho = A (1 - Tr)^(B + C Tr + D Tr^2 + E Tr^3), Tr = T/Tc with the ChemSep critical temperature, kmol/m3",
+        },
+        "components": records,
+    }
 
 if __name__ == "__main__":
     main()
