@@ -7,14 +7,23 @@ molar enthalpy required for heaters and ideal isenthalpic valves.
 
 ## Algorithm and energy contract
 
-The solver brackets temperature around equilibrium TP evaluations. Every inner
-TP/stability failure propagates. It accepts a state only when
+The solver brackets temperature around equilibrium TP evaluations. When the
+two-phase TP flash detects an additional phase, the VLLE TP enthalpy can
+guide the bracket. An equilibrium requiring this path at the target itself
+returns `UnsupportedCapability` and directs the caller to `vlle_ph`.
+Other inner TP/stability errors propagate. The solver accepts a state only when
 `abs(h - h_target) / max(abs(h_target), 1 J/mol)` meets the requested tolerance
 (default `1e-10`; permitted positive values up to `1e-6`). A collapsed
 temperature interval alone never establishes convergence. Default bounds are
 200 and 600 K; both bounds and every intermediate evaluation must be supported.
 Callers can narrow the interval explicitly. Targets outside its endpoint
 enthalpy range return `OutsideValidityDomain`.
+
+For issue #243, the default 200 K endpoint for nitrogen/methanol/water at
+1 MPa has three phases under PR and PR-BM with zero interaction parameters.
+The states at 280–330 K have two phases and recover through the default PH
+bracket. The independent phase-count check is
+`validation/julia/check_ph_nitrogen_methanol_water.jl`.
 
 Pure coexistence is handled before the ordinary temperature iteration: at
 fixed pressure, bracket the outer-root log-fugacity difference in temperature,

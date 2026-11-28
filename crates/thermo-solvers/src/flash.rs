@@ -13,6 +13,9 @@ use thermo_types::{
 /// Bc = OMEGA_B. Used only for the single-phase label heuristic.
 pub const PR_CRITICAL_VOLUME_OVER_COVOLUME: f64 = 0.307_401_308_698_7 / thermo_models::OMEGA_B;
 
+pub(crate) const ADDITIONAL_PHASE: &str =
+    "post-split stability indicates an additional phase; more than two phases are not supported";
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FlashOptions {
     /// Iteration limit for the phase split (including Newton steps).
@@ -358,9 +361,7 @@ pub(crate) fn tp_flash_impl<M: EquilibriumModel>(
             options.stability,
         )?;
         if !assessment.stable_in_trials {
-            return Err(Error::UnsupportedCapability(
-                "post-split stability indicates an additional phase; more than two phases are not supported".into(),
-            ));
+            return Err(Error::UnsupportedCapability(ADDITIONAL_PHASE.into()));
         }
         phase_stability.push(assessment);
     }

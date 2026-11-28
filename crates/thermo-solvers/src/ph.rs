@@ -1,6 +1,7 @@
 //! Pressure/enthalpy flash with bracketed temperature and pure-fluid lever rule.
 use crate::{
-    FlashOptions, FlashPhase, PR_CRITICAL_VOLUME_OVER_COVOLUME, PureSaturation, TpFlash, tp_flash,
+    FlashOptions, FlashPhase, MultiphaseOptions, PR_CRITICAL_VOLUME_OVER_COVOLUME, PureSaturation,
+    TpFlash, flash::ADDITIONAL_PHASE, tp_flash, vlle_tp_flash,
 };
 use thermo_models::{CUBIC_TEMPERATURE_RANGE_K, CubicModel, RootSelection};
 use thermo_types::{
@@ -101,7 +102,9 @@ pub(crate) fn result(
 }
 
 /// PH equilibrium of a fixed feed composition. No temperature guess is required.
-/// Errors from inner TP/stability solves propagate; they are never skipped.
+/// When a TP sample indicates a third phase, a VLLE enthalpy can bound the
+/// search, but only a successful ordinary TP sample can satisfy the target.
+/// Other TP or stability failures propagate.
 /// The temperature bracket assumes a regular equilibrium enthalpy branch. Pure
 /// coexistence is solved explicitly at saturation; near-critical coexistence
 /// above 0.95 Tc is outside this implementation's supported domain.
@@ -140,9 +143,52 @@ pub fn ph_flash(
             "PH temperature iteration limit is zero".into(),
         ));
     }
+    let sample = |temperature| -> Result<(f64, Option<TpFlash>), Error> {
+        let temperature = Temperature::new(temperature)?;
+        match tp_flash(model, temperature, pressure, options.tp) {
+            Ok(tp) => Ok((tp.enthalpy(), Some(tp))),
+            Err(Error::UnsupportedCapability(message)) if message == ADDITIONAL_PHASE => {
+                // Use the equilibrium enthalpy on the cold or hot side of a
+                // multiphase region, without accepting that state as a PH result.
+                let multiphase = vlle_tp_flash(
+                    model,
+                    temperature,
+                    pressure,
+                    MultiphaseOptions {
+                        max_iterations: options.tp.max_iterations,
+                        tolerance: options.tp.tolerance,
+                        trial_max_iterations: options.tp.stability.max_iterations,
+                        trial_tolerance: options.tp.stability.tolerance,
+                        tm_threshold: options.tp.stability.tm_threshold,
+                        newton: options.tp.acceleration && options.tp.newton,
+                        ..MultiphaseOptions::default()
+                    },
+                )?;
+                let enthalpy = multiphase
+                    .phases
+                    .iter()
+                    .map(|phase| phase.phase_fraction * phase.state.enthalpy)
+                    .sum();
+                Ok((enthalpy, None))
+            }
+            Err(error) => Err(error),
+        }
+    };
+    let accept = |tp: Option<TpFlash>, iteration| {
+        let tp = tp.ok_or_else(|| Error::UnsupportedCapability(
+            "PH target requires a multiphase state. Use vlle_ph (vlle_ph_flash in thermo-solvers).".into()
+        ))?;
+        result(
+            target_enthalpy,
+            tp.phases.clone(),
+            iteration,
+            Some(tp),
+            None,
+        )
+    };
     // Validate pressure and the inner solver before the separate saturation path.
-    let low = tp_flash(model, Temperature::new(lo)?, pressure, options.tp)?;
-    let high = tp_flash(model, Temperature::new(hi)?, pressure, options.tp)?;
+    let (h_lo, low) = sample(lo)?;
+    let (h_hi, high) = sample(hi)?;
     if let Some(index) = crate::saturation::single_active_component(model.fractions()) {
         let top = hi.min(0.95 * model.components()[index].critical_temperature());
         if top >= lo
@@ -193,38 +239,23 @@ pub fn ph_flash(
             }
         }
     }
-    if target_enthalpy < low.enthalpy() || target_enthalpy > high.enthalpy() {
+    if target_enthalpy < h_lo || target_enthalpy > h_hi {
         return Err(Error::OutsideValidityDomain(format!(
-            "PH target {target_enthalpy} J/mol is outside endpoint enthalpies [{}, {}] J/mol at [{lo}, {hi}] K",
-            low.enthalpy(),
-            high.enthalpy()
+            "PH target {target_enthalpy} J/mol is outside endpoint enthalpies [{h_lo}, {h_hi}] J/mol at [{lo}, {hi}] K"
         )));
     }
-    for endpoint in [low, high] {
-        if ((endpoint.enthalpy() - target_enthalpy) / target_enthalpy.abs().max(1.0)).abs()
-            <= options.energy_tolerance
-        {
-            return result(
-                target_enthalpy,
-                endpoint.phases.clone(),
-                0,
-                Some(endpoint),
-                None,
-            );
+    let scale = target_enthalpy.abs().max(1.0);
+    for (h, endpoint) in [(h_lo, low), (h_hi, high)] {
+        if ((h - target_enthalpy) / scale).abs() <= options.energy_tolerance {
+            return accept(endpoint, 0);
         }
     }
     for iteration in 1..=options.max_iterations {
         let mid = lo + (hi - lo) / 2.0;
-        let flash = tp_flash(model, Temperature::new(mid)?, pressure, options.tp)?;
-        let residual = (flash.enthalpy() - target_enthalpy) / target_enthalpy.abs().max(1.0);
+        let (h, flash) = sample(mid)?;
+        let residual = (h - target_enthalpy) / scale;
         if residual.abs() <= options.energy_tolerance {
-            return result(
-                target_enthalpy,
-                flash.phases.clone(),
-                iteration,
-                Some(flash),
-                None,
-            );
+            return accept(flash, iteration);
         }
         if mid == lo || mid == hi {
             return Err(Error::NonConvergence("PH temperature bracket collapsed without energy convergence; unresolved coexistence or ill-conditioned state".into()));
