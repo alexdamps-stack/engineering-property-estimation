@@ -388,6 +388,75 @@ pub struct DistillationColumnEstimate {
     /// Boilup `V_N`, mol/s (added behind format version 4).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boilup_mol_s: Option<f64>,
+    /// TBP/D86 curves of petroleum fractionator products (#190, added
+    /// behind format version 4; empty for other columns and older results).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub product_curves: Vec<ProductCurveEstimate>,
+    /// Heat removed by each petroleum-fractionator pump-around, W (#190,
+    /// added behind format version 4).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pump_around_duties_w: Vec<f64>,
+    /// Profile of each petroleum-fractionator side stripper (#190, added
+    /// behind format version 4).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub side_strippers: Vec<SideStripperResult>,
+}
+
+/// Saved TBP and ASTM D86 points of one fractionator product (#190).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductCurveEstimate {
+    /// Outlet port label.
+    pub product: String,
+    /// Mole fraction left out of the pseudo-component curve.
+    pub excluded_mole_fraction: f64,
+    /// `[volume %, K]` TBP points.
+    pub tbp_k: Vec<[f64; 2]>,
+    /// `[volume %, K]` ASTM D86 points.
+    pub d86_k: Vec<[f64; 2]>,
+}
+
+impl ProductCurveEstimate {
+    fn numbers(&self) -> impl Iterator<Item = f64> + '_ {
+        std::iter::once(self.excluded_mole_fraction)
+            .chain(self.tbp_k.iter().flatten().copied())
+            .chain(self.d86_k.iter().flatten().copied())
+    }
+}
+
+impl From<&flowsheet_core::units::columns::ProductCurve> for ProductCurveEstimate {
+    fn from(c: &flowsheet_core::units::columns::ProductCurve) -> Self {
+        Self {
+            product: c.product.clone(),
+            excluded_mole_fraction: c.excluded_mole_fraction,
+            tbp_k: c.tbp_k.iter().map(|&(v, t)| [v, t]).collect(),
+            d86_k: c.d86_k.iter().map(|&(v, t)| [v, t]).collect(),
+        }
+    }
+}
+
+/// Saved profile of a petroleum-fractionator side stripper (#190).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SideStripperResult {
+    /// Stage temperatures, top first.
+    pub stage_temperatures_k: Vec<f64>,
+    /// Liquid drawn from the main column, mol/s.
+    pub draw_mol_s: f64,
+    /// Top vapor returned to the main column, mol/s.
+    pub vapor_return_mol_s: f64,
+    /// Reboiler duty, W; zero when steam-stripped.
+    pub reboiler_duty_w: f64,
+}
+
+impl SideStripperResult {
+    fn numbers(&self) -> impl Iterator<Item = f64> + '_ {
+        self.stage_temperatures_k.iter().copied().chain([
+            self.draw_mol_s,
+            self.vapor_return_mol_s,
+            self.reboiler_duty_w,
+        ])
+    }
 }
 
 impl From<&flowsheet_core::units::columns::DistillationColumnResult>
@@ -395,6 +464,18 @@ impl From<&flowsheet_core::units::columns::DistillationColumnResult>
 {
     fn from(r: &flowsheet_core::units::columns::DistillationColumnResult) -> Self {
         Self {
+            product_curves: r.product_curves.iter().map(Into::into).collect(),
+            pump_around_duties_w: r.pump_around_duties_w.clone(),
+            side_strippers: r
+                .side_strippers
+                .iter()
+                .map(|s| SideStripperResult {
+                    stage_temperatures_k: s.stage_temperatures_k.clone(),
+                    draw_mol_s: s.draw_mol_s,
+                    vapor_return_mol_s: s.vapor_return_mol_s,
+                    reboiler_duty_w: s.reboiler_duty_w,
+                })
+                .collect(),
             stage_temperatures_k: r.stage_temperatures_k.clone(),
             condenser_duty_w: r.condenser_duty_w,
             reboiler_duty_w: r.reboiler_duty_w,
@@ -450,6 +531,25 @@ pub struct ThreePhaseColumnProfile {
     pub reboiler_duty_w: f64,
     pub packed_height_m: Option<f64>,
     pub iterations: usize,
+    /// Phases on each stage (decanter 2, vapor–liquid 2, vapor–liquid–liquid
+    /// 3). Empty in results saved before three-phase stages existed.
+    #[serde(default)]
+    pub stage_phase_counts: Vec<u8>,
+    /// Both liquids of each stage that carries two (stage 1: the decanter),
+    /// `null` on single-liquid stages; on a three-phase stage
+    /// `liquid_compositions` holds the total liquid. Empty in older results.
+    #[serde(default)]
+    pub stage_liquid_splits: Vec<Option<StageLiquidSplitProfile>>,
+}
+
+/// Saved two-liquid split of one three-phase column stage.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StageLiquidSplitProfile {
+    pub light_mol_s: f64,
+    pub light_composition: Vec<f64>,
+    pub heavy_mol_s: f64,
+    pub heavy_composition: Vec<f64>,
 }
 
 impl ThreePhaseColumnProfile {
@@ -470,6 +570,13 @@ impl ThreePhaseColumnProfile {
                 self.reboiler_duty_w,
             ])
             .chain(self.packed_height_m)
+            .chain(self.stage_liquid_splits.iter().flatten().flat_map(|s| {
+                s.light_composition
+                    .iter()
+                    .chain(&s.heavy_composition)
+                    .copied()
+                    .chain([s.light_mol_s, s.heavy_mol_s])
+            }))
     }
 }
 
@@ -490,6 +597,19 @@ impl From<&flowsheet_core::units::multiphase::ThreePhaseColumnResult> for ThreeP
             reboiler_duty_w: r.reboiler_duty_w,
             packed_height_m: r.packed_height_m,
             iterations: r.iterations,
+            stage_phase_counts: r.stage_phase_counts.clone(),
+            stage_liquid_splits: r
+                .stage_liquid_splits
+                .iter()
+                .map(|s| {
+                    s.as_ref().map(|s| StageLiquidSplitProfile {
+                        light_mol_s: s.light_mol_s,
+                        light_composition: s.light_composition.clone(),
+                        heavy_mol_s: s.heavy_mol_s,
+                        heavy_composition: s.heavy_composition.clone(),
+                    })
+                })
+                .collect(),
         }
     }
 }
@@ -924,6 +1044,8 @@ impl ResultSet {
                         || opt(r.packed_height_m)
                         || r.stage_temperatures_k.iter().copied().any(bad)
                         || r.stage_pressures_pa.iter().copied().any(bad)
+                        || r.pump_around_duties_w.iter().copied().any(bad)
+                        || r.side_strippers.iter().flat_map(|s| s.numbers()).any(bad)
                         || [
                             r.distillate_mol_s,
                             r.reflux_mol_s,
@@ -932,6 +1054,7 @@ impl ResultSet {
                         ]
                         .into_iter()
                         .any(opt)
+                        || r.product_curves.iter().any(|c| c.numbers().any(bad))
                 })
                 || u.absorber.as_ref().is_some_and(|r| {
                     opt(r.packed_height_m) || r.stage_temperatures_k.iter().copied().any(bad)

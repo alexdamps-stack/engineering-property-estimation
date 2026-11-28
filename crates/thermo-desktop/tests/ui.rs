@@ -1858,6 +1858,128 @@ fn petroleum_fractionator_form_offers_steam_and_volume_products() {
 }
 
 #[test]
+fn petroleum_fractionator_form_offers_cut_point_products() {
+    use flowsheet_core::units::{
+        ColumnSpec,
+        columns::{CurveBasis, CutPoint, DrawRate, PetroleumFractionatorSpec},
+    };
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["ethane".into(), "propane".into()],
+        "petroleum fractionator cut-point form test",
+    ));
+    let column = ed.add_unit_at(UnitKind::PetroleumFractionator, egui::pos2(220.0, 150.0));
+    ed.fs
+        .try_set_spec(
+            column,
+            UnitSpec::Columns(ColumnSpec::PetroleumFractionator(
+                PetroleumFractionatorSpec {
+                    side_draws: 1,
+                    ..Default::default()
+                },
+            )),
+        )
+        .unwrap();
+    ed.selection = Some(Selection::Unit(column));
+    let mut h = harness(app, egui::Theme::Dark);
+    let rate = |h: &egui_kittest::Harness<'_, FlowsheetApp>| {
+        let unit = h.state().editor().fs.unit(column).unwrap();
+        let UnitSpec::Columns(ColumnSpec::PetroleumFractionator(s)) = &unit.spec else {
+            panic!("{:?}", unit.spec)
+        };
+        s.products[0].rate
+    };
+    h.get_by_label("Cut point (TBP / D86)").scroll_to_me();
+    h.run();
+    h.get_by_label("Cut point (TBP / D86)").click_accesskit();
+    h.run();
+    assert_eq!(rate(&h), DrawRate::CutPoint(CutPoint::default()));
+    h.get_by_label("Product 1 cut-point temperature");
+    h.get_by_label("Product 1 volume distilled");
+    h.get_by_label("ASTM D86 (from TBP)").scroll_to_me();
+    h.run();
+    h.get_by_label("ASTM D86 (from TBP)").click_accesskit();
+    h.run();
+    let DrawRate::CutPoint(cut) = rate(&h) else {
+        panic!("{:?}", rate(&h))
+    };
+    assert_eq!(cut.basis, CurveBasis::AstmD86);
+    assert_eq!(cut.volume_percent, 95.0);
+    assert_eq!(cut.temperature_k, None);
+}
+
+#[test]
+fn petroleum_fractionator_form_edits_pump_arounds_and_side_strippers() {
+    use flowsheet_core::units::{
+        ColumnSpec,
+        columns::{
+            PetroleumFractionatorSpec, PumpAround, PumpAroundCooling, SideStripper,
+            SideStripperBottom,
+        },
+    };
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["ethane".into(), "propane".into()],
+        "petroleum side sections form test",
+    ));
+    let column = ed.add_unit_at(UnitKind::PetroleumFractionator, egui::pos2(220.0, 150.0));
+    let spec = PetroleumFractionatorSpec {
+        side_draws: 2,
+        pump_arounds: vec![PumpAround::default()],
+        side_strippers: vec![SideStripper::default()],
+        ..Default::default()
+    };
+    ed.fs
+        .try_set_spec(
+            column,
+            UnitSpec::Columns(ColumnSpec::PetroleumFractionator(spec)),
+        )
+        .unwrap();
+    ed.selection = Some(Selection::Unit(column));
+    // A tall window, so the side-section fields below the column form are
+    // on screen and can be clicked.
+    let mut h = Harness::builder()
+        .with_size(vec2(WINDOW.x, 3200.0))
+        .with_theme(egui::Theme::Dark)
+        .build_eframe(move |_cc| app);
+    h.run();
+    h.get_by_label("Pump-arounds");
+    h.get_by_label("Pump-around 1 draw stage");
+    h.get_by_label("Pump-around 1 return temperature");
+    h.get_by_label("Side strippers");
+    h.get_by_label("Stripper 1 stages");
+    h.get_by_label("Stripper 1 vapor return stage");
+    h.get_by_label("Reboiler (boilup ratio)").click();
+    h.run();
+    h.get_by_label("Stripper 1 boilup ratio");
+    h.get_by_label("Duty removed").click();
+    h.run();
+    h.get_by_label("Pump-around 1 duty (removed)");
+    let unit = h.state().editor().fs.unit(column).unwrap();
+    let UnitSpec::Columns(ColumnSpec::PetroleumFractionator(s)) = &unit.spec else {
+        panic!("{:?}", unit.spec)
+    };
+    assert_eq!(s.pump_arounds[0].cooling, PumpAroundCooling::Duty(None));
+    assert_eq!(
+        s.side_strippers[0].bottom,
+        SideStripperBottom::BoilupRatio(None)
+    );
+    let labels: Vec<String> = unit.ports().iter().map(|p| p.label()).collect();
+    assert_eq!(
+        &labels[labels.len() - 2..],
+        ["pump-around duty 1", "stripper reboiler duty 1"]
+    );
+}
+
+#[test]
 fn absorber_runs_from_the_desktop_and_displays_contact_stages() {
     use flowsheet_core::units::{
         ColumnSpec,

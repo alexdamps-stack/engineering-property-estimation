@@ -122,6 +122,7 @@ fn spec_for(case: &Value) -> PetroleumFractionatorSpec {
         } else {
             FractionatorBottom::StrippingSteam
         },
+        ..Default::default()
     }
 }
 

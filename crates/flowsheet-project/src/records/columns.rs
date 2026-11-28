@@ -8,9 +8,10 @@ use flowsheet_core::units::columns::packing::{
 };
 use flowsheet_core::units::columns::{
     AbsorberSpec, BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget,
-    DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom, LiquidSideDraw,
-    MAX_COLUMN_PORTS, PetroleumFractionatorSpec, ShortcutColumnSpec, ShortcutCondenser,
-    ShortcutReflux, SideProduct, TopSpecification, VaporSideDraw,
+    CurveBasis, CutPoint, DistillationColumnSpec, DistillationCondenser, DrawRate,
+    FractionatorBottom, LiquidSideDraw, MAX_COLUMN_PORTS, PetroleumFractionatorSpec, PumpAround,
+    PumpAroundCooling, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux, SideProduct,
+    SideStripper, SideStripperBottom, TopSpecification, VaporSideDraw,
 };
 use serde::{Deserialize, Serialize};
 
@@ -161,12 +162,186 @@ fn is_false(v: &bool) -> bool {
 pub(crate) enum DrawRateRecord {
     MolarFlowMolS(Option<f64>),
     StandardLiquidVolumeFlowM3S(Option<f64>),
+    /// TBP or ASTM D86 cut point (#190, added behind format version 4).
+    CutPoint(CutPointRecord),
 }
 
 impl DrawRateRecord {
-    fn number(self) -> Option<f64> {
+    fn numbers(self) -> Vec<f64> {
         match self {
-            Self::MolarFlowMolS(v) | Self::StandardLiquidVolumeFlowM3S(v) => v,
+            Self::MolarFlowMolS(v) | Self::StandardLiquidVolumeFlowM3S(v) => {
+                v.into_iter().collect()
+            }
+            Self::CutPoint(c) => [Some(c.volume_percent), c.temperature_k, c.estimate_mol_s]
+                .into_iter()
+                .flatten()
+                .collect(),
+        }
+    }
+}
+
+/// Distillation curve of a cut-point specification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CurveBasisRecord {
+    Tbp,
+    AstmD86,
+}
+
+/// Cut-point specification of a side product (#190).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CutPointRecord {
+    basis: CurveBasisRecord,
+    volume_percent: f64,
+    temperature_k: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    estimate_mol_s: Option<f64>,
+}
+
+impl From<CutPoint> for CutPointRecord {
+    fn from(c: CutPoint) -> Self {
+        Self {
+            basis: match c.basis {
+                CurveBasis::Tbp => CurveBasisRecord::Tbp,
+                CurveBasis::AstmD86 => CurveBasisRecord::AstmD86,
+            },
+            volume_percent: c.volume_percent,
+            temperature_k: c.temperature_k,
+            estimate_mol_s: c.estimate_mol_s,
+        }
+    }
+}
+
+impl From<CutPointRecord> for CutPoint {
+    fn from(c: CutPointRecord) -> Self {
+        Self {
+            basis: match c.basis {
+                CurveBasisRecord::Tbp => CurveBasis::Tbp,
+                CurveBasisRecord::AstmD86 => CurveBasis::AstmD86,
+            },
+            volume_percent: c.volume_percent,
+            temperature_k: c.temperature_k,
+            estimate_mol_s: c.estimate_mol_s,
+        }
+    }
+}
+
+/// Cooling of a petroleum fractionator pump-around (#190).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub(crate) enum PumpAroundCoolingRecord {
+    ReturnTemperatureK(Option<f64>),
+    DutyW(Option<f64>),
+}
+
+/// Pump-around of a petroleum fractionator (#190), behind format version 4.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PumpAroundRecord {
+    draw_stage: u16,
+    return_stage: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    molar_flow_mol_s: Option<f64>,
+    cooling: PumpAroundCoolingRecord,
+}
+
+impl PumpAroundRecord {
+    fn numbers(&self) -> impl Iterator<Item = f64> {
+        let cooling = match self.cooling {
+            PumpAroundCoolingRecord::ReturnTemperatureK(v) | PumpAroundCoolingRecord::DutyW(v) => v,
+        };
+        self.molar_flow_mol_s.into_iter().chain(cooling)
+    }
+}
+
+impl From<PumpAround> for PumpAroundRecord {
+    fn from(p: PumpAround) -> Self {
+        Self {
+            draw_stage: p.draw_stage,
+            return_stage: p.return_stage,
+            molar_flow_mol_s: p.molar_flow_mol_s,
+            cooling: match p.cooling {
+                PumpAroundCooling::ReturnTemperature(v) => {
+                    PumpAroundCoolingRecord::ReturnTemperatureK(v)
+                }
+                PumpAroundCooling::Duty(v) => PumpAroundCoolingRecord::DutyW(v),
+            },
+        }
+    }
+}
+
+impl From<PumpAroundRecord> for PumpAround {
+    fn from(p: PumpAroundRecord) -> Self {
+        Self {
+            draw_stage: p.draw_stage,
+            return_stage: p.return_stage,
+            molar_flow_mol_s: p.molar_flow_mol_s,
+            cooling: match p.cooling {
+                PumpAroundCoolingRecord::ReturnTemperatureK(v) => {
+                    PumpAroundCooling::ReturnTemperature(v)
+                }
+                PumpAroundCoolingRecord::DutyW(v) => PumpAroundCooling::Duty(v),
+            },
+        }
+    }
+}
+
+/// Stripping agent of a petroleum fractionator side stripper (#190).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub(crate) enum SideStripperBottomRecord {
+    Steam,
+    ReboilerDutyW(Option<f64>),
+    BoilupRatio(Option<f64>),
+}
+
+/// Side stripper of a petroleum fractionator (#190), behind format version 4.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SideStripperRecord {
+    product: u16,
+    stages: u16,
+    return_stage: u16,
+    bottom: SideStripperBottomRecord,
+}
+
+impl SideStripperRecord {
+    fn number(&self) -> Option<f64> {
+        match self.bottom {
+            SideStripperBottomRecord::Steam => None,
+            SideStripperBottomRecord::ReboilerDutyW(v)
+            | SideStripperBottomRecord::BoilupRatio(v) => v,
+        }
+    }
+}
+
+impl From<SideStripper> for SideStripperRecord {
+    fn from(s: SideStripper) -> Self {
+        Self {
+            product: s.product,
+            stages: s.stages,
+            return_stage: s.return_stage,
+            bottom: match s.bottom {
+                SideStripperBottom::Steam => SideStripperBottomRecord::Steam,
+                SideStripperBottom::ReboilerDuty(v) => SideStripperBottomRecord::ReboilerDutyW(v),
+                SideStripperBottom::BoilupRatio(v) => SideStripperBottomRecord::BoilupRatio(v),
+            },
+        }
+    }
+}
+
+impl From<SideStripperRecord> for SideStripper {
+    fn from(s: SideStripperRecord) -> Self {
+        Self {
+            product: s.product,
+            stages: s.stages,
+            return_stage: s.return_stage,
+            bottom: match s.bottom {
+                SideStripperBottomRecord::Steam => SideStripperBottom::Steam,
+                SideStripperBottomRecord::ReboilerDutyW(v) => SideStripperBottom::ReboilerDuty(v),
+                SideStripperBottomRecord::BoilupRatio(v) => SideStripperBottom::BoilupRatio(v),
+            },
         }
     }
 }
@@ -186,6 +361,7 @@ impl From<SideProduct> for SideProductRecord {
             rate: match p.rate {
                 DrawRate::Molar(v) => DrawRateRecord::MolarFlowMolS(v),
                 DrawRate::StandardLiquidVolume(v) => DrawRateRecord::StandardLiquidVolumeFlowM3S(v),
+                DrawRate::CutPoint(c) => DrawRateRecord::CutPoint(c.into()),
             },
         }
     }
@@ -198,6 +374,7 @@ impl From<SideProductRecord> for SideProduct {
             rate: match p.rate {
                 DrawRateRecord::MolarFlowMolS(v) => DrawRate::Molar(v),
                 DrawRateRecord::StandardLiquidVolumeFlowM3S(v) => DrawRate::StandardLiquidVolume(v),
+                DrawRateRecord::CutPoint(c) => DrawRate::CutPoint(c.into()),
             },
         }
     }
@@ -591,6 +768,13 @@ pub(crate) enum ColumnRecord {
         /// Stripping steam instead of a reboiler; no bottom specification.
         #[serde(default, skip_serializing_if = "is_false")]
         stripping_steam: bool,
+        /// Pump-arounds; added behind format version 4 after the first
+        /// fractionator records, absent means none.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pump_arounds: Vec<PumpAroundRecord>,
+        /// Side strippers; added like `pump_arounds`.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        side_strippers: Vec<SideStripperRecord>,
     },
 }
 
@@ -679,6 +863,8 @@ impl ColumnRecord {
                 top_specification,
                 distillate_fraction,
                 bottom_specification,
+                pump_arounds,
+                side_strippers,
                 ..
             } => {
                 let mut values: Vec<f64> = [
@@ -694,8 +880,10 @@ impl ColumnRecord {
                 .into_iter()
                 .flatten()
                 .collect();
-                values.extend(products.iter().filter_map(|p| p.rate.number()));
+                values.extend(products.iter().flat_map(|p| p.rate.numbers()));
                 values.extend(internals.iter().flat_map(|i| i.numbers()));
+                values.extend(pump_arounds.iter().flat_map(PumpAroundRecord::numbers));
+                values.extend(side_strippers.iter().filter_map(SideStripperRecord::number));
                 values
             }
         }
@@ -780,6 +968,8 @@ impl From<&ColumnSpec> for ColumnRecord {
                     distillate_fraction,
                     bottom_specification,
                     stripping_steam: x.steam(),
+                    pump_arounds: x.pump_arounds.iter().map(|&p| p.into()).collect(),
+                    side_strippers: x.side_strippers.iter().map(|&s| s.into()).collect(),
                 }
             }
         }
@@ -899,9 +1089,13 @@ impl TryFrom<ColumnRecord> for ColumnSpec {
                 distillate_fraction,
                 bottom_specification,
                 stripping_steam,
+                pump_arounds,
+                side_strippers,
             } => {
                 if feed_stages.len() > usize::from(feeds)
                     || products.len() > usize::from(side_draws)
+                    || pump_arounds.len() > usize::from(MAX_COLUMN_PORTS)
+                    || side_strippers.len() > usize::from(side_draws)
                 {
                     return Err(
                         "petroleum fractionator has more feed or product specifications than ports"
@@ -937,6 +1131,8 @@ impl TryFrom<ColumnRecord> for ColumnSpec {
                     condenser: condenser.into(),
                     top: top_spec(reflux_ratio, top_specification)?,
                     bottom,
+                    pump_arounds: pump_arounds.into_iter().map(Into::into).collect(),
+                    side_strippers: side_strippers.into_iter().map(Into::into).collect(),
                 })
             }
         })

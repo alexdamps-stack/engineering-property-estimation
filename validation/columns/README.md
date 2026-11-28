@@ -210,3 +210,63 @@ No Rust code or output is used.
 ```sh
 python validation/columns/generate-petroleum-references.py --output /tmp/petroleum-candidate.json
 ```
+
+### Product curves and cut points (#190)
+
+`petroleum-curves-v1.json` comes from
+`generate-petroleum-curve-references.py`, Python standard library only and
+independent of the Rust engine. It writes its own TBP construction (component
+boiling intervals between neighbouring Tb midpoints, linear in cumulative
+standard liquid volume) and the inverse API D86 conversion with the Fahim et
+al. Table 3.2 constants typed independently, and evaluates them on four
+synthetic component sets, on every product of `petroleum-v1.json` at its
+reference composition, and on example E3.1 of
+`validation/pseudo-components/fahim-2010-worked-examples.json` read backwards
+(printed TBP to printed D86 within 0.105 °C). The cut-point case replaces the
+side-product flows of `crude-two-draws-reboiled-PR` by the TBP 95 % point of
+side draw 1 and the D86 50 % point of side draw 2 read from the reference
+products, so the expected column is the reference column. Budgets, fixed
+before any Rust comparison: 1e-9 K for the curve functions at given
+compositions, and for curves of Rust-solved products the composition budget
+2e-7 propagated through Σ|∂T/∂xᵢ| by central differences (recorded per point).
+
+```sh
+python validation/columns/generate-petroleum-curve-references.py --output /tmp/petroleum-curves-candidate.json
+```
+
+## Petroleum fractionator pump-around and side-stripper references (#190)
+
+`petroleum-v2.json` adds three cases on the same 8-cut crude-like feed
+(`petroleum-v1.json` is unchanged):
+
+| id | Column | Pump-arounds | Side strippers |
+|---|---|---|---|
+| `crude-pump-arounds-reboiled-PR` | total / reboiler (R = 2, D/F = 0.3), feed 480 K | stage 7 → 5 at 30 mol/s returned at 400 K; stage 4 → 2 at 20 mol/s removing 300 kW | — |
+| `crude-reboiled-side-strippers-volume-PR` | total / reboiler (R = 3, D/F = 0.3), feed 470 K | — | product 1 (stage 4, 15 mol/s): 2 stages, reboiler duty 150 kW, vapor to stage 3; product 2 (stage 7, 3.0 L/s standard liquid volume): 3 stages, boilup ratio 0.5, vapor to stage 6 |
+| `crude-steam-side-stripper-pump-around-PR` | partial vapor / 5 mol/s steam to the bottom (water/cut kij = 0.5) | stage 7 → 6 at 25 mol/s removing 200 kW | product 1 (stage 4, 15 mol/s): 3 stages, 2 mol/s steam at 520 K and 3 bar, vapor to stage 3 |
+
+Each case records everything `petroleum-v1.json` records, plus the
+pump-around duties and, per side stripper, its stage temperatures, draw from
+the main column, vapor return, bottoms and reboiler duty; a stripped product
+is that stripper's bottoms.
+
+`generate-petroleum-side-section-references.py` imports the feed,
+characterisation, property, flash, stability, Wang–Henke and Newton pieces
+of `generate-petroleum-references.py` unchanged and adds its own network
+MESH formulation: every stage of the main column and of each stripper has
+its temperature, log mole fractions with explicit summations and log liquid
+and vapor flows; the stripper draws, the free distillate, the boilup-ratio
+reboiler duty and the volume-specified product rates are further unknowns
+with one residual per specification (duties carried in units of 100 kW). The
+start is the Wang–Henke iteration of the main column with each stripper
+replaced by its product drawn at the draw stage and its steam fed to the
+return stage; pump-arounds enter by continuation in their circulation
+(0, 25, 50, 75, 100 %). Every fitted phase of every cascade and each
+pump-around liquid at its return temperature pass the A4 TPD search. The
+budgets are those of `petroleum-v1.json`, fixed before any Rust comparison.
+No Rust code or output is used. Each case takes a few minutes; the cases can
+be generated separately with `--case` and merged.
+
+```sh
+python validation/columns/generate-petroleum-side-section-references.py --output /tmp/petroleum-v2-candidate.json
+```

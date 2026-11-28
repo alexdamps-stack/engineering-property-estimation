@@ -1,20 +1,21 @@
 //! Specification forms of the columns group; owned by the columns work
 //! package.
 
-use eframe::egui::{ComboBox, Ui};
+use eframe::egui::{ComboBox, DragValue, Ui};
 use flowsheet_core::units::columns::packing::{
     PackedSectionBasis, PackedSectionSpec, StageRounding,
 };
 use flowsheet_core::units::columns::{
-    BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget,
-    DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom, MAX_COLUMN_PORTS,
-    MAX_COLUMN_STAGES, MAX_DISTILLATION_INTERNAL_STAGES, PetroleumFractionatorSpec,
-    ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux, TopSpecification,
+    BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget, CurveBasis,
+    CutPoint, DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom,
+    MAX_COLUMN_PORTS, MAX_COLUMN_STAGES, MAX_DISTILLATION_INTERNAL_STAGES,
+    PetroleumFractionatorSpec, PumpAround, PumpAroundCooling, ShortcutColumnSpec,
+    ShortcutCondenser, ShortcutReflux, SideStripper, SideStripperBottom, TopSpecification,
 };
 use flowsheet_core::units::{ColumnSpec, GroupSpec};
 
 use super::{choice, count_field, drawn_only_note, note_row, opt_field, value_field};
-use crate::units::{DisplayUnits, Quantity};
+use crate::units::{DisplayUnits, DisplayUnitsExt, Quantity};
 
 /// Form of a [`ColumnSpec`]. Feeds and side draws are numbered ports; a
 /// connected port cannot be removed (disconnect it first).
@@ -158,6 +159,7 @@ fn petroleum_form(
     count_field(ui, "Side products", &mut s.side_draws, 0..=MAX_COLUMN_PORTS);
     s.feed_stages.truncate(usize::from(s.feeds));
     s.products.truncate(usize::from(s.side_draws));
+    s.side_strippers.truncate(usize::from(s.side_draws));
     internals_form(ui, &mut s.internals, units);
     condenser_form(ui, &mut s.condenser, units);
     pressure_form(
@@ -189,8 +191,8 @@ fn petroleum_form(
     note_row(
         ui,
         "Stage 1 is the condenser and the last stage the reboiler or steam-stripped bottom tray. \
-         Feeds must carry characterised pseudo-components. Side strippers and pump-arounds \
-         are not modelled.",
+         Feeds must carry characterised pseudo-components. Pump-arounds and side strippers \
+         are solved with the column.",
     );
     let stage_range = 2..=MAX_DISTILLATION_INTERNAL_STAGES + 2;
     for i in 0..usize::from(s.feeds.min(MAX_COLUMN_PORTS)) {
@@ -215,16 +217,25 @@ fn petroleum_form(
             stage_range.clone(),
         );
         ui.push_id(("side product", i), |ui| {
-            let volume = matches!(product.rate, DrawRate::StandardLiquidVolume(_)) as usize;
+            let basis = match product.rate {
+                DrawRate::Molar(_) => 0,
+                DrawRate::StandardLiquidVolume(_) => 1,
+                DrawRate::CutPoint(_) => 2,
+            };
             match choice(
                 ui,
                 &format!("Product {} basis", i + 1),
-                volume,
-                &["Molar flow", "Standard liquid volume (60 °F)"],
+                basis,
+                &[
+                    "Molar flow",
+                    "Standard liquid volume (60 °F)",
+                    "Cut point (TBP / D86)",
+                ],
             ) {
-                Some(0) if volume != 0 => product.rate = DrawRate::Molar(None),
-                Some(1) if volume != 1 => product.rate = DrawRate::StandardLiquidVolume(None),
-                _ => {}
+                Some(0) => product.rate = DrawRate::Molar(None),
+                Some(1) => product.rate = DrawRate::StandardLiquidVolume(None),
+                Some(_) => product.rate = DrawRate::CutPoint(CutPoint::default()),
+                None => {}
             }
             match &mut product.rate {
                 DrawRate::Molar(v) => opt_field(
@@ -241,6 +252,7 @@ fn petroleum_form(
                     Quantity::VolumeFlow,
                     units,
                 ),
+                DrawRate::CutPoint(cut) => cut_point_form(ui, i + 1, cut, units),
             }
         });
         if product != original {
@@ -249,6 +261,237 @@ fn petroleum_form(
             s.products[i] = product;
         }
     }
+    pump_around_form(ui, s, units, stage_range.clone());
+    side_stripper_form(ui, s, units, stage_range);
+}
+
+/// Pump-arounds of the petroleum fractionator (#190): each has a
+/// `pump-around duty k` energy outlet.
+fn pump_around_form(
+    ui: &mut Ui,
+    s: &mut PetroleumFractionatorSpec,
+    units: DisplayUnits,
+    stage_range: std::ops::RangeInclusive<u16>,
+) {
+    let mut count = u16::try_from(s.pump_arounds.len()).unwrap_or(MAX_COLUMN_PORTS);
+    if count_field(ui, "Pump-arounds", &mut count, 0..=MAX_COLUMN_PORTS) {
+        s.pump_arounds
+            .resize(usize::from(count), PumpAround::default());
+    }
+    for (i, pump) in s.pump_arounds.iter_mut().enumerate() {
+        let n = i + 1;
+        {
+            count_field(
+                ui,
+                &format!("Pump-around {n} draw stage"),
+                &mut pump.draw_stage,
+                stage_range.clone(),
+            );
+            count_field(
+                ui,
+                &format!("Pump-around {n} return stage"),
+                &mut pump.return_stage,
+                stage_range.clone(),
+            );
+            opt_field(
+                ui,
+                &format!("Pump-around {n} molar flow"),
+                &mut pump.molar_flow_mol_s,
+                Quantity::MolarFlow,
+                units,
+            );
+            let duty = matches!(pump.cooling, PumpAroundCooling::Duty(_)) as usize;
+            match choice(
+                ui,
+                &format!("Pump-around {n} cooling"),
+                duty,
+                &["Return temperature", "Duty removed"],
+            ) {
+                Some(0) if duty != 0 => pump.cooling = PumpAroundCooling::ReturnTemperature(None),
+                Some(1) if duty != 1 => pump.cooling = PumpAroundCooling::Duty(None),
+                _ => {}
+            }
+            match &mut pump.cooling {
+                PumpAroundCooling::ReturnTemperature(t) => opt_field(
+                    ui,
+                    &format!("Pump-around {n} return temperature"),
+                    t,
+                    Quantity::Temperature,
+                    units,
+                ),
+                PumpAroundCooling::Duty(q) => opt_field(
+                    ui,
+                    &format!("Pump-around {n} duty (removed)"),
+                    q,
+                    Quantity::Duty,
+                    units,
+                ),
+            }
+        }
+    }
+}
+
+/// Side strippers of the petroleum fractionator (#190): each takes one side
+/// product's draw, returns its vapor and delivers its bottoms on the
+/// product's port, with a `stripper steam k` inlet or a `stripper reboiler
+/// duty k` energy inlet.
+fn side_stripper_form(
+    ui: &mut Ui,
+    s: &mut PetroleumFractionatorSpec,
+    units: DisplayUnits,
+    stage_range: std::ops::RangeInclusive<u16>,
+) {
+    let mut count = u16::try_from(s.side_strippers.len()).unwrap_or(MAX_COLUMN_PORTS);
+    if count_field(ui, "Side strippers", &mut count, 0..=s.side_draws) {
+        let next = s.side_strippers.len();
+        s.side_strippers
+            .resize(usize::from(count), SideStripper::default());
+        for (i, stripper) in s.side_strippers.iter_mut().enumerate().skip(next) {
+            stripper.product = u16::try_from(i + 1).unwrap_or(1);
+        }
+    }
+    if s.side_strippers.is_empty() {
+        return;
+    }
+    note_row(
+        ui,
+        "A stripped product is the stripper's bottoms at the product's flow; the stripper runs \
+         at its draw-stage pressure and returns its top vapor to the return stage.",
+    );
+    for (i, stripper) in s.side_strippers.iter_mut().enumerate() {
+        let n = i + 1;
+        {
+            count_field(
+                ui,
+                &format!("Stripper {n} product"),
+                &mut stripper.product,
+                1..=s.side_draws.max(1),
+            );
+            count_field(
+                ui,
+                &format!("Stripper {n} stages"),
+                &mut stripper.stages,
+                1..=MAX_COLUMN_STAGES,
+            );
+            count_field(
+                ui,
+                &format!("Stripper {n} vapor return stage"),
+                &mut stripper.return_stage,
+                stage_range.clone(),
+            );
+            let current = match stripper.bottom {
+                SideStripperBottom::Steam => 0,
+                SideStripperBottom::ReboilerDuty(_) => 1,
+                SideStripperBottom::BoilupRatio(_) => 2,
+            };
+            match choice(
+                ui,
+                &format!("Stripper {n} stripping"),
+                current,
+                &["Steam", "Reboiler (duty)", "Reboiler (boilup ratio)"],
+            ) {
+                Some(0) if current != 0 => stripper.bottom = SideStripperBottom::Steam,
+                Some(1) if current != 1 => stripper.bottom = SideStripperBottom::ReboilerDuty(None),
+                Some(2) if current != 2 => stripper.bottom = SideStripperBottom::BoilupRatio(None),
+                _ => {}
+            }
+            match &mut stripper.bottom {
+                SideStripperBottom::Steam => {}
+                SideStripperBottom::ReboilerDuty(q) => opt_field(
+                    ui,
+                    &format!("Stripper {n} reboiler duty"),
+                    q,
+                    Quantity::Duty,
+                    units,
+                ),
+                SideStripperBottom::BoilupRatio(r) => opt_field(
+                    ui,
+                    &format!("Stripper {n} boilup ratio"),
+                    r,
+                    Quantity::Factor,
+                    units,
+                ),
+            }
+        }
+    }
+}
+
+/// Cut-point specification of side product `n`: TBP or ASTM D86 temperature
+/// at a liquid volume percent, with an optional starting molar flow.
+fn cut_point_form(ui: &mut Ui, n: usize, cut: &mut CutPoint, units: DisplayUnits) {
+    let current = (cut.basis == CurveBasis::AstmD86) as usize;
+    match choice(
+        ui,
+        &format!("Product {n} curve"),
+        current,
+        &["TBP", "ASTM D86 (from TBP)"],
+    ) {
+        Some(0) => cut.basis = CurveBasis::Tbp,
+        Some(_) => {
+            cut.basis = CurveBasis::AstmD86;
+            cut.volume_percent = cut.volume_percent.min(95.0);
+        }
+        None => {}
+    }
+    let max = if cut.basis == CurveBasis::Tbp {
+        100.0
+    } else {
+        95.0
+    };
+    let label = ui.label(format!("Product {n} volume distilled"));
+    ui.add(
+        DragValue::new(&mut cut.volume_percent)
+            .range(0.0..=max)
+            .speed(0.5)
+            .max_decimals(3)
+            .suffix(" vol%"),
+    )
+    .labelled_by(label.id);
+    ui.end_row();
+    opt_field(
+        ui,
+        &format!("Product {n} cut-point temperature"),
+        &mut cut.temperature_k,
+        Quantity::Temperature,
+        units,
+    );
+    ui.label(format!("Product {n} flow estimate"));
+    ui.horizontal(|ui| match &mut cut.estimate_mol_s {
+        Some(v) => {
+            let mut shown = units.si_to_display(Quantity::MolarFlow, *v);
+            if ui
+                .add(
+                    DragValue::new(&mut shown)
+                        .range(0.0..=f64::MAX)
+                        .speed(units.drag_speed(Quantity::MolarFlow))
+                        .suffix(format!(" {}", units.symbol(Quantity::MolarFlow))),
+                )
+                .changed()
+            {
+                *v = units.display_to_si(Quantity::MolarFlow, shown);
+            }
+            if ui
+                .small_button("×")
+                .on_hover_text("Use the default")
+                .clicked()
+            {
+                cut.estimate_mol_s = None;
+            }
+        }
+        None => {
+            ui.label("automatic");
+            if ui.small_button("Set").clicked() {
+                cut.estimate_mol_s = Some(1.0);
+            }
+        }
+    });
+    ui.end_row();
+    note_row(
+        ui,
+        "The product's molar flow is iterated until its curve meets the cut point. Curves are \
+         on a pseudo-component basis (TBP by component boiling intervals; D86 by the inverse \
+         API Riazi–Daubert method, 0–95 vol%).",
+    );
 }
 
 fn condenser_form(ui: &mut Ui, condenser: &mut DistillationCondenser, units: DisplayUnits) {

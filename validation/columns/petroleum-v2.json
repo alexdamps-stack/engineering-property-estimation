@@ -1,0 +1,1408 @@
+{
+  "schema": "a17-petroleum-fractionator-side-section-reference-v2",
+  "packages": {
+    "teqp": "0.23.2",
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "sha256": {
+    "validation/columns/generate-petroleum-side-section-references.py": "a24f22898c20b3c147e6d328a2b0ce82116f324855840feb3d26eed8bb9e859c",
+    "validation/columns/generate-petroleum-references.py": "b439384a337e28a3255f7a3ae1064a0d3fc7de221df7a71e7412ab32428ab5f4",
+    "validation/generate-flash-references.py": "13dbb9f40fa221ecae9472e15a8b11bc81a98233c83d7d9e298b1b0ec7809e31",
+    "validation/generate-pseudo-component-references.py": "56d2c4f41b84ef75f9cc31250f2b39d885fc5da8469d1cd2e585d4b9d7754665",
+    "data/source-extracts/components.provisional.json": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147"
+  },
+  "water_density_60F_kg_m3": 999.0170824078306,
+  "tolerances": {
+    "temperature_K": [
+      2e-05,
+      0
+    ],
+    "composition": [
+      2e-07,
+      0
+    ],
+    "molar_flow_mol_s": [
+      2e-05,
+      0
+    ],
+    "duty_W": [
+      0.02,
+      2e-06
+    ],
+    "standard_liquid_volume_flow_m3_s": [
+      1e-08,
+      0
+    ]
+  },
+  "cases": [
+    {
+      "variant": "PR",
+      "water": false,
+      "steam": null,
+      "condenser": "total",
+      "pressure_Pa": 150000.0,
+      "condenser_pressure_drop_Pa": 0.0,
+      "stage_pressure_drop_Pa": 0.0,
+      "internal_stages": 10,
+      "tbp_curve_K": [
+        [
+          0.0,
+          340.0
+        ],
+        [
+          20.0,
+          400.0
+        ],
+        [
+          50.0,
+          460.0
+        ],
+        [
+          80.0,
+          510.0
+        ],
+        [
+          100.0,
+          550.0
+        ]
+      ],
+      "watson_k": 11.8,
+      "cuts": 8,
+      "kij_note": "kij = 0 between pseudo-components: an explicit approximation (Fahim et al. 2010, sec. 3.6.1), not fitted values",
+      "id": "crude-pump-arounds-reboiled-PR",
+      "feeds": [
+        {
+          "temperature_K": 480.0,
+          "pressure_Pa": 200000.0,
+          "molar_flow_mol_s": 100.0,
+          "z": [
+            0.1255989244073973,
+            0.11278385737464298,
+            0.1381310912640909,
+            0.13834557144098328,
+            0.1365782882235646,
+            0.13765743867264263,
+            0.11485036203406898,
+            0.09605446658260931
+          ],
+          "stage": 9,
+          "vapor_fraction": 0.5908868666291454,
+          "enthalpy_J_per_mol": 30014.59045902426
+        }
+      ],
+      "draws": [
+        {
+          "stage": 4,
+          "molar_flow_mol_s": 15.0
+        },
+        {
+          "stage": 7,
+          "molar_flow_mol_s": 15.0
+        }
+      ],
+      "pump_arounds": [
+        {
+          "draw_stage": 7,
+          "return_stage": 5,
+          "molar_flow_mol_s": 30.0,
+          "return_temperature_K": 400.0
+        },
+        {
+          "draw_stage": 4,
+          "return_stage": 2,
+          "molar_flow_mol_s": 20.0,
+          "duty_W": 300000.0
+        }
+      ],
+      "top": {
+        "reflux_ratio": 2.0
+      },
+      "bottom": {
+        "distillate_fraction": 0.3
+      },
+      "guess": {
+        "top_K": 390.0,
+        "bottom_K": 480.0,
+        "distillate_mol_s": 30.0
+      },
+      "ids": [
+        "pseudo:crude-1",
+        "pseudo:crude-2",
+        "pseudo:crude-3",
+        "pseudo:crude-4",
+        "pseudo:crude-5",
+        "pseudo:crude-6",
+        "pseudo:crude-7",
+        "pseudo:crude-8"
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "components": [
+        {
+          "id": "pseudo:crude-1",
+          "normal_boiling_point_K": 353.125,
+          "specific_gravity": 0.7286489042072262,
+          "liquid_volume_fraction": 0.0875,
+          "critical_temperature_K": 531.2473397022095,
+          "critical_pressure_Pa": 3386648.942611867,
+          "acentric_factor": 0.2867989728928951,
+          "molar_mass_kg_per_mol": 0.0910968725134804,
+          "ideal_gas_cp_over_R": [
+            -1.8831270394665782,
+            0.06842663148298958,
+            -2.2751618577903868e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00012514463523281797
+        },
+        {
+          "id": "pseudo:crude-2",
+          "normal_boiling_point_K": 379.375,
+          "specific_gravity": 0.7462741478285313,
+          "liquid_volume_fraction": 0.0875,
+          "critical_temperature_K": 560.2345837904891,
+          "critical_pressure_Pa": 3095251.870022921,
+          "acentric_factor": 0.32903234849885954,
+          "molar_mass_kg_per_mol": 0.1039016691881228,
+          "ideal_gas_cp_over_R": [
+            -1.3060454649154432,
+            0.07527778863017481,
+            -2.6641165597827268e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00013936419578545
+        },
+        {
+          "id": "pseudo:crude-3",
+          "normal_boiling_point_K": 405.625,
+          "specific_gravity": 0.7631040042519116,
+          "liquid_volume_fraction": 0.11875,
+          "critical_temperature_K": 588.2418825488508,
+          "critical_pressure_Pa": 2835576.4205936287,
+          "acentric_factor": 0.3743378105141382,
+          "molar_mass_kg_per_mol": 0.11773048314273227,
+          "ideal_gas_cp_over_R": [
+            -0.8462388771933417,
+            0.08319253519561454,
+            -3.073099318135453e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.0001544302162007164
+        },
+        {
+          "id": "pseudo:crude-4",
+          "normal_boiling_point_K": 431.875,
+          "specific_gravity": 0.7792225568601951,
+          "liquid_volume_fraction": 0.13125,
+          "critical_temperature_K": 615.4106673961273,
+          "critical_pressure_Pa": 2603080.0988027495,
+          "acentric_factor": 0.4223026370705897,
+          "molar_mass_kg_per_mol": 0.13266567922108755,
+          "ideal_gas_cp_over_R": [
+            -0.47961887605583475,
+            0.0921517976010579,
+            -3.5058669820007296e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00017042141013494415
+        },
+        {
+          "id": "pseudo:crude-5",
+          "normal_boiling_point_K": 458.125,
+          "specific_gravity": 0.7947005099952297,
+          "liquid_volume_fraction": 0.1425,
+          "critical_temperature_K": 641.855158615871,
+          "critical_pressure_Pa": 2394022.9932097774,
+          "acentric_factor": 0.4726242409411514,
+          "molar_mass_kg_per_mol": 0.14879889605594113,
+          "ideal_gas_cp_over_R": [
+            -0.18490283393726717,
+            0.1021510258444416,
+            -3.9663062790788075e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00018742318034945755
+        },
+        {
+          "id": "pseudo:crude-6",
+          "normal_boiling_point_K": 484.375,
+          "specific_gravity": 0.8095979522385847,
+          "liquid_volume_fraction": 0.1575,
+          "critical_temperature_K": 667.6688127230893,
+          "critical_pressure_Pa": 2205300.8870470035,
+          "acentric_factor": 0.5250723366988571,
+          "molar_mass_kg_per_mol": 0.16623148819596217,
+          "ideal_gas_cp_over_R": [
+            0.05474388152443915,
+            0.11320597965410534,
+            -4.458301326312839e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00020552799120690843
+        },
+        {
+          "id": "pseudo:crude-7",
+          "normal_boiling_point_K": 510.625,
+          "specific_gravity": 0.8239664318355324,
+          "liquid_volume_fraction": 0.14375,
+          "critical_temperature_K": 692.9289856526293,
+          "critical_pressure_Pa": 2034318.3420556472,
+          "acentric_factor": 0.5794657321323338,
+          "molar_mass_kg_per_mol": 0.18507511258220488,
+          "ideal_gas_cp_over_R": [
+            0.2521020511373451,
+            0.12535203920286733,
+            -4.9857592017565336e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00022483586465473805
+        },
+        {
+          "id": "pseudo:crude-8",
+          "normal_boiling_point_K": 536.875,
+          "specific_gravity": 0.8378505417070635,
+          "liquid_volume_fraction": 0.13125,
+          "critical_temperature_K": 717.7003692563766,
+          "critical_pressure_Pa": 1878890.937560619,
+          "acentric_factor": 0.6356575224945179,
+          "molar_mass_kg_per_mol": 0.2054524481615393,
+          "ideal_gas_cp_over_R": [
+            0.4167383477306643,
+            0.13864212349573646,
+            -5.552677696610477e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.0002454549820504199
+        }
+      ],
+      "cut_mole_fractions": [
+        0.1255989244073973,
+        0.11278385737464298,
+        0.1381310912640909,
+        0.13834557144098328,
+        0.1365782882235646,
+        0.13765743867264263,
+        0.11485036203406898,
+        0.09605446658260931
+      ],
+      "stage_temperatures_K": [
+        387.209728563015,
+        405.86543904492373,
+        416.3424778302501,
+        425.93340792818316,
+        437.7505150047189,
+        443.39219179458405,
+        449.9315477630309,
+        461.13712955655274,
+        470.2353245294849,
+        478.4379770965783,
+        487.3688667351435,
+        500.14514102470554
+      ],
+      "stage_pressures_Pa": [
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0
+      ],
+      "condenser_duty_W": 3273913.2505138726,
+      "reboiler_duty_W": 1291972.854975352,
+      "distillate_mol_s": 30.0,
+      "reflux_mol_s": 59.999999999999986,
+      "bottoms_mol_s": 40.000000000000036,
+      "boilup_mol_s": 23.12247302782173,
+      "pump_around_duties_W": [
+        528765.954060595,
+        300000.0
+      ],
+      "side_strippers": [],
+      "outlets": [
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 30.0,
+          "z": [
+            0.3788925533622136,
+            0.2978305454670689,
+            0.2382265120291065,
+            0.0750843378397621,
+            0.00927789501580113,
+            0.000656917729337752,
+            3.0084431228920013e-05,
+            1.1541254812647542e-06
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 40.000000000000036,
+          "z": [
+            0.0005766281229807629,
+            0.002661248027323977,
+            0.015749374139853785,
+            0.06134892255077361,
+            0.1585516712857339,
+            0.2617977348808194,
+            0.2643463149380042,
+            0.2349681060545104
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 15.0,
+          "z": [
+            0.05108939603495716,
+            0.10545534819184868,
+            0.290967385022984,
+            0.3607594179361599,
+            0.1560343446276235,
+            0.03159905092440852,
+            0.0037296755291418393,
+            0.00036538173287638845
+          ],
+          "standard_liquid_volume_flow_m3_s": 0.0024625911103086265
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 15.0,
+          "z": [
+            0.026913984961982728,
+            0.04367928196543581,
+            0.1114552016398,
+            0.2477785891888082,
+            0.3131273300692485,
+            0.18667607841901465,
+            0.05695572933418175,
+            0.013413804421528404
+          ],
+          "standard_liquid_volume_flow_m3_s": 0.0027307042728933386
+        }
+      ]
+    },
+    {
+      "variant": "PR",
+      "water": false,
+      "steam": null,
+      "condenser": "total",
+      "pressure_Pa": 150000.0,
+      "condenser_pressure_drop_Pa": 0.0,
+      "stage_pressure_drop_Pa": 0.0,
+      "internal_stages": 10,
+      "tbp_curve_K": [
+        [
+          0.0,
+          340.0
+        ],
+        [
+          20.0,
+          400.0
+        ],
+        [
+          50.0,
+          460.0
+        ],
+        [
+          80.0,
+          510.0
+        ],
+        [
+          100.0,
+          550.0
+        ]
+      ],
+      "watson_k": 11.8,
+      "cuts": 8,
+      "kij_note": "kij = 0 between pseudo-components: an explicit approximation (Fahim et al. 2010, sec. 3.6.1), not fitted values",
+      "id": "crude-reboiled-side-strippers-volume-PR",
+      "feeds": [
+        {
+          "temperature_K": 470.0,
+          "pressure_Pa": 200000.0,
+          "molar_flow_mol_s": 100.0,
+          "z": [
+            0.1255989244073973,
+            0.11278385737464298,
+            0.1381310912640909,
+            0.13834557144098328,
+            0.1365782882235646,
+            0.13765743867264263,
+            0.11485036203406898,
+            0.09605446658260931
+          ],
+          "stage": 9,
+          "vapor_fraction": 0.4419381429532842,
+          "enthalpy_J_per_mol": 20869.893797337754
+        }
+      ],
+      "draws": [
+        {
+          "stage": 4,
+          "molar_flow_mol_s": 15.0,
+          "stripper": {
+            "stages": 2,
+            "return_stage": 3,
+            "reboiler_duty_W": 150000.0,
+            "vapor_guess_mol_s": 4.0
+          }
+        },
+        {
+          "stage": 7,
+          "standard_liquid_volume_flow_m3_s": 0.003,
+          "stripper": {
+            "stages": 3,
+            "return_stage": 6,
+            "boilup_ratio": 0.5,
+            "vapor_guess_mol_s": 8.0
+          }
+        }
+      ],
+      "pump_arounds": [],
+      "top": {
+        "reflux_ratio": 3.0
+      },
+      "bottom": {
+        "distillate_fraction": 0.3
+      },
+      "guess": {
+        "top_K": 390.0,
+        "bottom_K": 500.0,
+        "distillate_mol_s": 30.0,
+        "draws_mol_s": [
+          15.0,
+          16.0
+        ]
+      },
+      "ids": [
+        "pseudo:crude-1",
+        "pseudo:crude-2",
+        "pseudo:crude-3",
+        "pseudo:crude-4",
+        "pseudo:crude-5",
+        "pseudo:crude-6",
+        "pseudo:crude-7",
+        "pseudo:crude-8"
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "components": [
+        {
+          "id": "pseudo:crude-1",
+          "normal_boiling_point_K": 353.125,
+          "specific_gravity": 0.7286489042072262,
+          "liquid_volume_fraction": 0.0875,
+          "critical_temperature_K": 531.2473397022095,
+          "critical_pressure_Pa": 3386648.942611867,
+          "acentric_factor": 0.2867989728928951,
+          "molar_mass_kg_per_mol": 0.0910968725134804,
+          "ideal_gas_cp_over_R": [
+            -1.8831270394665782,
+            0.06842663148298958,
+            -2.2751618577903868e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00012514463523281797
+        },
+        {
+          "id": "pseudo:crude-2",
+          "normal_boiling_point_K": 379.375,
+          "specific_gravity": 0.7462741478285313,
+          "liquid_volume_fraction": 0.0875,
+          "critical_temperature_K": 560.2345837904891,
+          "critical_pressure_Pa": 3095251.870022921,
+          "acentric_factor": 0.32903234849885954,
+          "molar_mass_kg_per_mol": 0.1039016691881228,
+          "ideal_gas_cp_over_R": [
+            -1.3060454649154432,
+            0.07527778863017481,
+            -2.6641165597827268e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00013936419578545
+        },
+        {
+          "id": "pseudo:crude-3",
+          "normal_boiling_point_K": 405.625,
+          "specific_gravity": 0.7631040042519116,
+          "liquid_volume_fraction": 0.11875,
+          "critical_temperature_K": 588.2418825488508,
+          "critical_pressure_Pa": 2835576.4205936287,
+          "acentric_factor": 0.3743378105141382,
+          "molar_mass_kg_per_mol": 0.11773048314273227,
+          "ideal_gas_cp_over_R": [
+            -0.8462388771933417,
+            0.08319253519561454,
+            -3.073099318135453e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.0001544302162007164
+        },
+        {
+          "id": "pseudo:crude-4",
+          "normal_boiling_point_K": 431.875,
+          "specific_gravity": 0.7792225568601951,
+          "liquid_volume_fraction": 0.13125,
+          "critical_temperature_K": 615.4106673961273,
+          "critical_pressure_Pa": 2603080.0988027495,
+          "acentric_factor": 0.4223026370705897,
+          "molar_mass_kg_per_mol": 0.13266567922108755,
+          "ideal_gas_cp_over_R": [
+            -0.47961887605583475,
+            0.0921517976010579,
+            -3.5058669820007296e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00017042141013494415
+        },
+        {
+          "id": "pseudo:crude-5",
+          "normal_boiling_point_K": 458.125,
+          "specific_gravity": 0.7947005099952297,
+          "liquid_volume_fraction": 0.1425,
+          "critical_temperature_K": 641.855158615871,
+          "critical_pressure_Pa": 2394022.9932097774,
+          "acentric_factor": 0.4726242409411514,
+          "molar_mass_kg_per_mol": 0.14879889605594113,
+          "ideal_gas_cp_over_R": [
+            -0.18490283393726717,
+            0.1021510258444416,
+            -3.9663062790788075e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00018742318034945755
+        },
+        {
+          "id": "pseudo:crude-6",
+          "normal_boiling_point_K": 484.375,
+          "specific_gravity": 0.8095979522385847,
+          "liquid_volume_fraction": 0.1575,
+          "critical_temperature_K": 667.6688127230893,
+          "critical_pressure_Pa": 2205300.8870470035,
+          "acentric_factor": 0.5250723366988571,
+          "molar_mass_kg_per_mol": 0.16623148819596217,
+          "ideal_gas_cp_over_R": [
+            0.05474388152443915,
+            0.11320597965410534,
+            -4.458301326312839e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00020552799120690843
+        },
+        {
+          "id": "pseudo:crude-7",
+          "normal_boiling_point_K": 510.625,
+          "specific_gravity": 0.8239664318355324,
+          "liquid_volume_fraction": 0.14375,
+          "critical_temperature_K": 692.9289856526293,
+          "critical_pressure_Pa": 2034318.3420556472,
+          "acentric_factor": 0.5794657321323338,
+          "molar_mass_kg_per_mol": 0.18507511258220488,
+          "ideal_gas_cp_over_R": [
+            0.2521020511373451,
+            0.12535203920286733,
+            -4.9857592017565336e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00022483586465473805
+        },
+        {
+          "id": "pseudo:crude-8",
+          "normal_boiling_point_K": 536.875,
+          "specific_gravity": 0.8378505417070635,
+          "liquid_volume_fraction": 0.13125,
+          "critical_temperature_K": 717.7003692563766,
+          "critical_pressure_Pa": 1878890.937560619,
+          "acentric_factor": 0.6356575224945179,
+          "molar_mass_kg_per_mol": 0.2054524481615393,
+          "ideal_gas_cp_over_R": [
+            0.4167383477306643,
+            0.13864212349573646,
+            -5.552677696610477e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.0002454549820504199
+        }
+      ],
+      "cut_mole_fractions": [
+        0.1255989244073973,
+        0.11278385737464298,
+        0.1381310912640909,
+        0.13834557144098328,
+        0.1365782882235646,
+        0.13765743867264263,
+        0.11485036203406898,
+        0.09605446658260931
+      ],
+      "stage_temperatures_K": [
+        385.15256261958245,
+        399.86069118634566,
+        412.56755746297154,
+        422.4184873743781,
+        431.3832327477584,
+        438.8724877738406,
+        446.3415564382897,
+        457.1562564519238,
+        465.26446385402807,
+        477.7831550267411,
+        489.21666154106856,
+        503.135599825059
+      ],
+      "stage_pressures_Pa": [
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0
+      ],
+      "condenser_duty_W": 4207980.282798038,
+      "reboiler_duty_W": 1907155.9522730247,
+      "distillate_mol_s": 30.0,
+      "reflux_mol_s": 90.0,
+      "bottoms_mol_s": 38.88636131321059,
+      "boilup_mol_s": 35.36395839237528,
+      "pump_around_duties_W": [],
+      "side_strippers": [
+        {
+          "product": 1,
+          "stage_temperatures_K": [
+            423.77588496256004,
+            427.6028642458806
+          ],
+          "draw_mol_s": 18.7020367719583,
+          "vapor_return_mol_s": 3.7020367719582996,
+          "bottoms_mol_s": 15.0,
+          "reboiler_duty_W": 150000.0
+        },
+        {
+          "product": 2,
+          "stage_temperatures_K": [
+            450.2559529978228,
+            454.92579824079166,
+            462.62494780860465
+          ],
+          "draw_mol_s": 23.450100260587885,
+          "vapor_return_mol_s": 7.336461573798498,
+          "bottoms_mol_s": 16.11363868678939,
+          "reboiler_duty_W": 368327.484549602
+        }
+      ],
+      "outlets": [
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 30.0,
+          "z": [
+            0.4033300410240379,
+            0.3219610717152321,
+            0.2330568159521321,
+            0.04048181053632663,
+            0.0011618767836430418,
+            8.36079791668512e-06,
+            2.3153195079438967e-08,
+            3.751654522415441e-11
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 38.88636131321059,
+          "z": [
+            0.0002920115585529931,
+            0.0014546479607114376,
+            0.010062960004983865,
+            0.05035443990463482,
+            0.15697421676235837,
+            0.2683954876965713,
+            0.27111509513412246,
+            0.24135114097806482
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 15.0,
+          "z": [
+            0.02696008157427027,
+            0.09018441298413592,
+            0.34850778470614396,
+            0.422162470652393,
+            0.10427630801026466,
+            0.00765020821459016,
+            0.0002529922913585277,
+            5.741566843614166e-06
+          ],
+          "standard_liquid_volume_flow_m3_s": 0.0024432369615392884
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 16.11363868678939,
+          "z": [
+            0.0027451726013491043,
+            0.013046179646183318,
+            0.07462473262507882,
+            0.2686894567095018,
+            0.3695423426426812,
+            0.19944694511106836,
+            0.05824637723565097,
+            0.013658793428486452
+          ],
+          "standard_liquid_volume_flow_m3_s": 0.0029999999999999996
+        }
+      ]
+    },
+    {
+      "variant": "PR",
+      "water": true,
+      "steam": {
+        "temperature_K": 520.0,
+        "pressure_Pa": 300000.0,
+        "z": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "molar_flow_mol_s": 5.0,
+        "stage": 12,
+        "vapor_fraction": 1.0,
+        "enthalpy_J_per_mol": 7501.284864324657
+      },
+      "condenser": "partial_vapor",
+      "pressure_Pa": 150000.0,
+      "condenser_pressure_drop_Pa": 0.0,
+      "stage_pressure_drop_Pa": 0.0,
+      "internal_stages": 10,
+      "tbp_curve_K": [
+        [
+          0.0,
+          340.0
+        ],
+        [
+          20.0,
+          400.0
+        ],
+        [
+          50.0,
+          460.0
+        ],
+        [
+          80.0,
+          510.0
+        ],
+        [
+          100.0,
+          550.0
+        ]
+      ],
+      "watson_k": 11.8,
+      "cuts": 8,
+      "kij_note": "kij = 0 between pseudo-components and water/pseudo-component kij = 0.5: explicit approximations of the magnitude used for PR water/hydrocarbon pairs, for implementation agreement, not fitted values",
+      "id": "crude-steam-side-stripper-pump-around-PR",
+      "feeds": [
+        {
+          "temperature_K": 480.0,
+          "pressure_Pa": 200000.0,
+          "molar_flow_mol_s": 100.0,
+          "z": [
+            0.0,
+            0.1255989244073973,
+            0.11278385737464298,
+            0.1381310912640909,
+            0.13834557144098328,
+            0.1365782882235646,
+            0.13765743867264263,
+            0.11485036203406898,
+            0.09605446658260931
+          ],
+          "stage": 9,
+          "vapor_fraction": 0.5908868666292516,
+          "enthalpy_J_per_mol": 30014.590459028368
+        }
+      ],
+      "draws": [
+        {
+          "stage": 4,
+          "molar_flow_mol_s": 15.0,
+          "stripper": {
+            "stages": 3,
+            "return_stage": 3,
+            "steam": {
+              "temperature_K": 520.0,
+              "pressure_Pa": 300000.0,
+              "z": [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "molar_flow_mol_s": 2.0,
+              "enthalpy_J_per_mol": 7501.284864324657,
+              "vapor_fraction": 1.0
+            },
+            "vapor_guess_mol_s": 5.0
+          }
+        },
+        {
+          "stage": 7,
+          "molar_flow_mol_s": 15.0
+        }
+      ],
+      "pump_arounds": [
+        {
+          "draw_stage": 7,
+          "return_stage": 6,
+          "molar_flow_mol_s": 25.0,
+          "duty_W": 200000.0
+        }
+      ],
+      "top": {
+        "reflux_ratio": 2.0
+      },
+      "bottom": null,
+      "guess": {
+        "top_K": 395.0,
+        "bottom_K": 455.0,
+        "distillate_mol_s": 34.0
+      },
+      "ids": [
+        "water",
+        "pseudo:crude-1",
+        "pseudo:crude-2",
+        "pseudo:crude-3",
+        "pseudo:crude-4",
+        "pseudo:crude-5",
+        "pseudo:crude-6",
+        "pseudo:crude-7",
+        "pseudo:crude-8"
+      ],
+      "kij": [
+        [
+          0.0,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ],
+        [
+          0.5,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.5,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.5,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.5,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.5,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.5,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.5,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.5,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "components": [
+        {
+          "id": "water",
+          "source": "constants",
+          "critical_temperature_K": 647.096,
+          "critical_pressure_Pa": 22064000.0,
+          "acentric_factor": 0.3442920843,
+          "molar_mass_kg_per_mol": 0.018015268
+        },
+        {
+          "id": "pseudo:crude-1",
+          "normal_boiling_point_K": 353.125,
+          "specific_gravity": 0.7286489042072262,
+          "liquid_volume_fraction": 0.0875,
+          "critical_temperature_K": 531.2473397022095,
+          "critical_pressure_Pa": 3386648.942611867,
+          "acentric_factor": 0.2867989728928951,
+          "molar_mass_kg_per_mol": 0.0910968725134804,
+          "ideal_gas_cp_over_R": [
+            -1.8831270394665782,
+            0.06842663148298958,
+            -2.2751618577903868e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00012514463523281797
+        },
+        {
+          "id": "pseudo:crude-2",
+          "normal_boiling_point_K": 379.375,
+          "specific_gravity": 0.7462741478285313,
+          "liquid_volume_fraction": 0.0875,
+          "critical_temperature_K": 560.2345837904891,
+          "critical_pressure_Pa": 3095251.870022921,
+          "acentric_factor": 0.32903234849885954,
+          "molar_mass_kg_per_mol": 0.1039016691881228,
+          "ideal_gas_cp_over_R": [
+            -1.3060454649154432,
+            0.07527778863017481,
+            -2.6641165597827268e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00013936419578545
+        },
+        {
+          "id": "pseudo:crude-3",
+          "normal_boiling_point_K": 405.625,
+          "specific_gravity": 0.7631040042519116,
+          "liquid_volume_fraction": 0.11875,
+          "critical_temperature_K": 588.2418825488508,
+          "critical_pressure_Pa": 2835576.4205936287,
+          "acentric_factor": 0.3743378105141382,
+          "molar_mass_kg_per_mol": 0.11773048314273227,
+          "ideal_gas_cp_over_R": [
+            -0.8462388771933417,
+            0.08319253519561454,
+            -3.073099318135453e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.0001544302162007164
+        },
+        {
+          "id": "pseudo:crude-4",
+          "normal_boiling_point_K": 431.875,
+          "specific_gravity": 0.7792225568601951,
+          "liquid_volume_fraction": 0.13125,
+          "critical_temperature_K": 615.4106673961273,
+          "critical_pressure_Pa": 2603080.0988027495,
+          "acentric_factor": 0.4223026370705897,
+          "molar_mass_kg_per_mol": 0.13266567922108755,
+          "ideal_gas_cp_over_R": [
+            -0.47961887605583475,
+            0.0921517976010579,
+            -3.5058669820007296e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00017042141013494415
+        },
+        {
+          "id": "pseudo:crude-5",
+          "normal_boiling_point_K": 458.125,
+          "specific_gravity": 0.7947005099952297,
+          "liquid_volume_fraction": 0.1425,
+          "critical_temperature_K": 641.855158615871,
+          "critical_pressure_Pa": 2394022.9932097774,
+          "acentric_factor": 0.4726242409411514,
+          "molar_mass_kg_per_mol": 0.14879889605594113,
+          "ideal_gas_cp_over_R": [
+            -0.18490283393726717,
+            0.1021510258444416,
+            -3.9663062790788075e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00018742318034945755
+        },
+        {
+          "id": "pseudo:crude-6",
+          "normal_boiling_point_K": 484.375,
+          "specific_gravity": 0.8095979522385847,
+          "liquid_volume_fraction": 0.1575,
+          "critical_temperature_K": 667.6688127230893,
+          "critical_pressure_Pa": 2205300.8870470035,
+          "acentric_factor": 0.5250723366988571,
+          "molar_mass_kg_per_mol": 0.16623148819596217,
+          "ideal_gas_cp_over_R": [
+            0.05474388152443915,
+            0.11320597965410534,
+            -4.458301326312839e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00020552799120690843
+        },
+        {
+          "id": "pseudo:crude-7",
+          "normal_boiling_point_K": 510.625,
+          "specific_gravity": 0.8239664318355324,
+          "liquid_volume_fraction": 0.14375,
+          "critical_temperature_K": 692.9289856526293,
+          "critical_pressure_Pa": 2034318.3420556472,
+          "acentric_factor": 0.5794657321323338,
+          "molar_mass_kg_per_mol": 0.18507511258220488,
+          "ideal_gas_cp_over_R": [
+            0.2521020511373451,
+            0.12535203920286733,
+            -4.9857592017565336e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.00022483586465473805
+        },
+        {
+          "id": "pseudo:crude-8",
+          "normal_boiling_point_K": 536.875,
+          "specific_gravity": 0.8378505417070635,
+          "liquid_volume_fraction": 0.13125,
+          "critical_temperature_K": 717.7003692563766,
+          "critical_pressure_Pa": 1878890.937560619,
+          "acentric_factor": 0.6356575224945179,
+          "molar_mass_kg_per_mol": 0.2054524481615393,
+          "ideal_gas_cp_over_R": [
+            0.4167383477306643,
+            0.13864212349573646,
+            -5.552677696610477e-05
+          ],
+          "standard_liquid_volume_m3_per_mol": 0.0002454549820504199
+        }
+      ],
+      "cut_mole_fractions": [
+        0.1255989244073973,
+        0.11278385737464298,
+        0.1381310912640909,
+        0.13834557144098328,
+        0.1365782882235646,
+        0.13765743867264263,
+        0.11485036203406898,
+        0.09605446658260931
+      ],
+      "stage_temperatures_K": [
+        390.0428782100273,
+        407.1546117943981,
+        416.09927263322555,
+        424.751166552604,
+        434.1451196576697,
+        443.0167083618403,
+        449.4861897270234,
+        460.2782029544273,
+        468.05189469483196,
+        460.80789288492736,
+        456.1176610241437,
+        449.7493755256078
+      ],
+      "stage_pressures_Pa": [
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0,
+        150000.0
+      ],
+      "condenser_duty_W": 2736107.6695234054,
+      "reboiler_duty_W": 0.0,
+      "distillate_mol_s": 34.97785669007669,
+      "reflux_mol_s": 69.95571338015338,
+      "bottoms_mol_s": 42.02214330992332,
+      "boilup_mol_s": 8.345552594045827,
+      "pump_around_duties_W": [
+        200000.0
+      ],
+      "side_strippers": [
+        {
+          "product": 1,
+          "stage_temperatures_K": [
+            413.7593883514673,
+            406.77956436017223,
+            398.47500066143414
+          ],
+          "draw_mol_s": 19.083938021499442,
+          "vapor_return_mol_s": 6.083938021499441,
+          "bottoms_mol_s": 15.0,
+          "reboiler_duty_W": 0.0
+        }
+      ],
+      "outlets": [
+        {
+          "phase": "vapor",
+          "molar_flow_mol_s": 34.97785669007669,
+          "z": [
+            0.1922033634827951,
+            0.33548798254460444,
+            0.26463731313473243,
+            0.18492878785282635,
+            0.02225381707949567,
+            0.00048556150181043725,
+            3.1672822975737185e-06,
+            7.112453660351189e-09,
+            8.9843425905749e-12
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 42.02214330992332,
+          "z": [
+            0.004522568331734042,
+            0.0031423867985153953,
+            0.010168908612734626,
+            0.03545287498315575,
+            0.08162450062523635,
+            0.15570885000307036,
+            0.24103582742066273,
+            0.24635887373839688,
+            0.22198520948649392
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 15.0,
+          "z": [
+            0.005379041579789414,
+            0.018430377089858226,
+            0.06309224838359641,
+            0.28930669930221165,
+            0.42696346876197055,
+            0.16951181665860213,
+            0.025599912576847395,
+            0.0016430347034631881,
+            7.340094366102944e-05
+          ],
+          "standard_liquid_volume_flow_m3_s": null
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 15.0,
+          "z": [
+            0.0004269772324122422,
+            0.027782425421420294,
+            0.04321577753379178,
+            0.10101934694661338,
+            0.2147785216786932,
+            0.30366320416003395,
+            0.21685282074454787,
+            0.07385750241135632,
+            0.01840342387113102
+          ],
+          "standard_liquid_volume_flow_m3_s": null
+        }
+      ]
+    }
+  ]
+}

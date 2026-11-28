@@ -22,7 +22,7 @@ pub use extractor::{
 // Three-phase distillation column (#188).
 pub mod three_phase_column;
 pub use three_phase_column::{
-    DecanterReflux, PhaseReflux, ThreePhaseColumnResult, ThreePhaseColumnSpec,
+    DecanterReflux, PhaseReflux, StageLiquidSplit, ThreePhaseColumnResult, ThreePhaseColumnSpec,
 };
 
 /// Metadata of a multiphase kind.
