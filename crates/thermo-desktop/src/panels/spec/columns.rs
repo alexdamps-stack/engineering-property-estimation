@@ -56,9 +56,15 @@ pub(super) fn form(ui: &mut Ui, spec: &mut ColumnSpec, u: DisplayUnits, componen
                     rate_based_form(ui, &mut s.internals, rate, u, components)
                 }
             }
+            let pressure_label = match &s.calculation {
+                PackedCalculation::RateBased(rate) if rate.couple_pressure_drop => {
+                    "Bed top pressure"
+                }
+                _ => "Column pressure",
+            };
             opt_field(
                 ui,
-                "Column pressure",
+                pressure_label,
                 &mut s.pressure_pa,
                 Quantity::Pressure,
                 u,
@@ -836,6 +842,14 @@ fn rate_based_form(
         .labelled_by(text.id);
     ui.end_row();
     count_field(ui, "Segments", &mut rate.segments, 1..=MAX_RATE_SEGMENTS);
+    if let Some(index) = choice(
+        ui,
+        "Pressure model",
+        usize::from(rate.couple_pressure_drop),
+        &["Fixed column pressure", "Coupled bed pressure drop"],
+    ) {
+        rate.couple_pressure_drop = index == 1;
+    }
     choice(ui, "Mass transfer", 0, &["Onda (1968)"]);
     choice(ui, "Film model", 0, &["Effective diffusivity"]);
     value_field(
@@ -872,7 +886,7 @@ fn rate_based_form(
     }
     note_row(
         ui,
-        "Trace components (at most 1 mol%) may be left out of a phase's transport properties; the result reports it. Pressure drop and flooding are reported; the column is solved at one pressure.",
+        "Trace components (at most 1 mol%) may be left out of a phase's transport properties. Coupled pressure requires the gas inlet pressure to reach the calculated bed bottom pressure.",
     );
 }
 

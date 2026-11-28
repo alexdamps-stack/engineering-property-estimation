@@ -11,11 +11,11 @@ use crate::MaterialStream;
 use crate::unit::{Sign, SpecIssue, check_optional};
 use crate::units::{CalcContext, UnitOutput};
 
-/// Countercurrent contacting at one absolute pressure. Liquid
-/// enters the top stage and the gas enters the bottom stage.
+/// Countercurrent contacting with liquid entering the top stage and gas
+/// entering the bottom stage.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AbsorberSpec {
-    /// Column pressure in Pa, at most the lower inlet pressure.
+    /// Column pressure in Pa, or bed top pressure in coupled rate-based mode.
     pub pressure_pa: Option<f64>,
     /// Ideal trays or a packed bed sized by HETP.
     pub internals: ColumnInternals,
@@ -289,7 +289,12 @@ pub(super) fn calculate(
             })
             .sum::<f64>()
             / total_flow;
-        return rate_based(spec, rate, column, blend_t);
+        let gas_inlet_pressure_pa = inputs[0]
+            .state
+            .as_ref()
+            .expect("checked gas inlet")
+            .pressure_pa;
+        return rate_based(spec, rate, column, blend_t, gas_inlet_pressure_pa);
     }
     let (solved, iterations) = mesh::solve(column.initial()?, |v| column.residual(v))?;
     let cascade = column.decode(&solved);
@@ -331,6 +336,7 @@ fn rate_based(
     rate: &super::packing::RateBasedSpec,
     column: Absorber<'_, '_>,
     blend_temperature_k: f64,
+    gas_inlet_pressure_pa: f64,
 ) -> Result<(UnitOutput, AbsorberResult), String> {
     let solve = |start: Option<f64>| {
         column
@@ -353,7 +359,7 @@ fn rate_based(
         active: column.active,
         total_flow: column.total_flow,
     })?;
-    let (outlets, profile, warnings) = rate_column.solve(&seed)?;
+    let (outlets, profile, warnings) = rate_column.solve(&seed, gas_inlet_pressure_pa)?;
     Ok((
         UnitOutput::new(outlets, 0.0, warnings),
         AbsorberResult {

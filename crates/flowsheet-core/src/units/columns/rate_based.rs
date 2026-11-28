@@ -42,6 +42,8 @@ use crate::units::CalcContext;
 const ENTHALPY_SCALE: f64 = 10_000.0;
 const MAX_ITERATIONS: usize = 60;
 const RESIDUAL_TOLERANCE: f64 = 1e-10;
+const MAX_PRESSURE_ITERATIONS: usize = 30;
+const PRESSURE_TOLERANCE_PA: f64 = 1e-6;
 /// Relative mole-number step of the partial molar enthalpies.
 const PARTIAL_MOLAR_STEP: f64 = 1e-6;
 /// Area factors of the continuation from near-equilibrium rates, as
@@ -73,11 +75,12 @@ pub struct RateBasedProfile {
     pub interfacial_area_m2_m3: Vec<f64>,
     pub flooding_fractions: Vec<f64>,
     pub pressure_drops_pa_m: Vec<f64>,
+    /// Whether the boundary pressures were used in the segment equations.
+    pub pressure_drop_coupled: bool,
     /// Estimated absolute pressure at each segment boundary, from the top to
     /// the bottom. The top is anchored at the specified column pressure.
     pub estimated_boundary_pressures_pa: Vec<f64>,
-    /// Total bed pressure drop, Pa (reported; the column is solved at one
-    /// pressure).
+    /// Total bed pressure drop, Pa.
     pub pressure_drop_pa: f64,
     pub max_flooding_fraction: f64,
     /// Largest fraction of a component neglected in a phase's transport
@@ -100,6 +103,7 @@ pub(super) struct RateColumn<'a, 'p> {
     diffusivity: DiffusivityModel,
     gas_neglected: Vec<usize>,
     liquid_neglected: Vec<usize>,
+    boundary_pressures_pa: Vec<f64>,
 }
 
 /// Inputs of [`RateColumn::new`].
@@ -134,6 +138,7 @@ impl<'a, 'p> RateColumn<'a, 'p> {
         Ok(Self {
             gas_neglected: indices(ctx, &inputs.spec.gas_transport_neglected)?,
             liquid_neglected: indices(ctx, &inputs.spec.liquid_transport_neglected)?,
+            boundary_pressures_pa: vec![inputs.pressure; usize::from(inputs.spec.segments) + 1],
             diffusivity,
             ctx,
             spec: inputs.spec,
@@ -349,7 +354,9 @@ impl RateColumn<'_, '_> {
 
     fn props(&self, j: usize, s: &Segment, factor: f64) -> Result<Props, String> {
         let ctx = self.ctx;
-        let p = self.pressure;
+        let p_v = self.boundary_pressures_pa[j];
+        let p_l = self.boundary_pressures_pa[j + 1];
+        let p_i = p_v.midpoint(p_l);
         let [lo, hi] = self.temperature_range;
         for (name, t) in [("vapor", s.t_v), ("liquid", s.t_l), ("interface", s.t_i)] {
             if !(lo..=hi).contains(&t) {
@@ -368,10 +375,10 @@ impl RateColumn<'_, '_> {
         }
         let y: Vec<f64> = s.v.iter().map(|v| v / vapor).collect();
         let x: Vec<f64> = s.l.iter().map(|l| l / liquid).collect();
-        let bulk_v = ctx.homogeneous(&y, s.t_v, p, RootSelection::LargestVolume)?;
-        let bulk_l = ctx.homogeneous(&x, s.t_l, p, RootSelection::SmallestVolume)?;
-        let int_v = ctx.homogeneous(&s.y_i, s.t_i, p, RootSelection::LargestVolume)?;
-        let int_l = ctx.homogeneous(&s.x_i, s.t_i, p, RootSelection::SmallestVolume)?;
+        let bulk_v = ctx.homogeneous(&y, s.t_v, p_v, RootSelection::LargestVolume)?;
+        let bulk_l = ctx.homogeneous(&x, s.t_l, p_l, RootSelection::SmallestVolume)?;
+        let int_v = ctx.homogeneous(&s.y_i, s.t_i, p_i, RootSelection::LargestVolume)?;
+        let int_l = ctx.homogeneous(&s.x_i, s.t_i, p_i, RootSelection::SmallestVolume)?;
         if int_v.molar_volume <= 1.05 * int_l.molar_volume
             || bulk_v.molar_volume <= 1.05 * bulk_l.molar_volume
         {
@@ -407,9 +414,9 @@ impl RateColumn<'_, '_> {
         let (liquid_basis, liquid_dropped) =
             transport_basis(&x, &self.liquid_neglected, "liquid", j, &ids)?;
         let context = |e: String| format!("rate-based segment {}: {e}", j + 1);
-        let gas_phase = phase_of(ctx, &gas_basis, s.t_v, p, Phase::Vapor).map_err(context)?;
+        let gas_phase = phase_of(ctx, &gas_basis, s.t_v, p_v, Phase::Vapor).map_err(context)?;
         let liquid_phase =
-            phase_of(ctx, &liquid_basis, s.t_l, p, Phase::Liquid).map_err(context)?;
+            phase_of(ctx, &liquid_basis, s.t_l, p_l, Phase::Liquid).map_err(context)?;
         let gas_t = ctx.transport(&gas_phase).map_err(context)?;
         let liquid_t = ctx.transport(&liquid_phase).map_err(context)?;
         let unavailable =
@@ -431,12 +438,12 @@ impl RateColumn<'_, '_> {
             .map_err(|e| unavailable("liquid surface tension", e))?;
         let density = ctx
             .package()
-            .engineering_liquid_density(&x, s.t_l, p)
+            .engineering_liquid_density(&x, s.t_l, p_l)
             .map_err(|e| unavailable("engineering liquid density", e))?;
 
         let d_v = self
             .diffusivity
-            .gas_effective(&y, s.t_v, p)
+            .gas_effective(&y, s.t_v, p_v)
             .map_err(|e| context(e.to_string()))?;
         let d_l = self
             .diffusivity
@@ -735,7 +742,11 @@ impl RateColumn<'_, '_> {
         out
     }
 
-    pub(super) fn solve(&self, seed: &StageCascade) -> Result<Solved, String> {
+    pub(super) fn solve(
+        mut self,
+        seed: &StageCascade,
+        gas_inlet_pressure_pa: f64,
+    ) -> Result<Solved, String> {
         // Hydraulic correlations outside their stated domain fail before
         // the solve (Robbins: at most 3 bar; Kister-Gill: Fp <= 60 1/ft).
         if self.pressure > pd::ROBBINS_MAX_PRESSURE_PA {
@@ -748,7 +759,7 @@ impl RateColumn<'_, '_> {
             .map_err(|e| format!("rate-based hydraulics: {e}"))?;
         let target = self.spec.interfacial_area_factor;
         let initial = self.seed(seed);
-        let (values, iterations) = match self.solve_at(initial.clone(), target) {
+        let (mut values, mut iterations) = match self.solve_at(initial.clone(), target) {
             Ok(solved) => solved,
             Err(direct) => {
                 let mut values = initial;
@@ -763,25 +774,74 @@ impl RateColumn<'_, '_> {
                 (values, total)
             }
         };
-        let (segments, props, _) = self.evaluate(&values, target)?;
-        self.finish(&segments, &props, iterations)
+        let mut pressure_updates = 0;
+        loop {
+            let (segments, props, _) = self.evaluate(&values, target)?;
+            let (flooding, drops) = self.hydraulics(&props)?;
+            let mut pressures = Vec::with_capacity(segments.len() + 1);
+            pressures.push(self.pressure);
+            let dz = self.height_m / segments.len() as f64;
+            let mut cumulative_drop = 0.0;
+            for drop_per_m in &drops {
+                cumulative_drop += drop_per_m * dz;
+                pressures.push(self.pressure + cumulative_drop);
+            }
+            if !self.spec.couple_pressure_drop {
+                return self.finish(&segments, &props, flooding, drops, pressures, iterations);
+            }
+            let bottom = *pressures.last().expect("bed boundary");
+            // Keep trial pressures in the correlation's domain. A capped
+            // fixed point is admissible only if the uncapped drop agrees.
+            for pressure in &mut pressures {
+                *pressure = pressure.min(pd::ROBBINS_MAX_PRESSURE_PA);
+            }
+            let change = pressures
+                .iter()
+                .zip(&self.boundary_pressures_pa)
+                .map(|(next, current)| (next - current).abs())
+                .fold(0.0, f64::max);
+            if change <= PRESSURE_TOLERANCE_PA {
+                if bottom > pd::ROBBINS_MAX_PRESSURE_PA + PRESSURE_TOLERANCE_PA {
+                    return Err(format!(
+                        "rate-based hydraulics: bed bottom pressure {bottom:.2} Pa exceeds the Robbins limit of 3 bar absolute"
+                    ));
+                }
+                if bottom > gas_inlet_pressure_pa + PRESSURE_TOLERANCE_PA {
+                    return Err(format!(
+                        "rate-based bed bottom pressure {bottom:.2} Pa exceeds the gas inlet pressure {gas_inlet_pressure_pa:.2} Pa"
+                    ));
+                }
+                return self.finish(
+                    &segments,
+                    &props,
+                    flooding,
+                    drops,
+                    self.boundary_pressures_pa.clone(),
+                    iterations,
+                );
+            }
+            if pressure_updates == MAX_PRESSURE_ITERATIONS {
+                return Err(format!(
+                    "rate-based pressure profile did not converge in {MAX_PRESSURE_ITERATIONS} updates (maximum pressure change {change:.3e} Pa)"
+                ));
+            }
+            self.boundary_pressures_pa = pressures;
+            pressure_updates += 1;
+            let (next, used) = self
+                .solve_at(values, target)
+                .map_err(|e| format!("rate-based pressure update {pressure_updates}: {e}"))?;
+            values = next;
+            iterations += used;
+        }
     }
 
-    fn finish(
-        &self,
-        segments: &[Segment],
-        props: &[Props],
-        iterations: usize,
-    ) -> Result<Solved, String> {
-        let ctx = self.ctx;
+    fn hydraulics(&self, props: &[Props]) -> Result<(Vec<f64>, Vec<f64>), String> {
         let packing = self.packing();
-        let n = segments.len();
-        let dz = self.height_m / n as f64;
-        let mut flooding = Vec::with_capacity(n);
-        let mut drops = Vec::with_capacity(n);
+        let mut flooding = Vec::with_capacity(props.len());
+        let mut drops = Vec::with_capacity(props.len());
         for (j, pr) in props.iter().enumerate() {
-            let fraction =
-                pd::flooding_fraction(&packing, &pr.gas_film, &pr.liquid_film, self.pressure)?;
+            let p = self.boundary_pressures_pa[j].midpoint(self.boundary_pressures_pa[j + 1]);
+            let fraction = pd::flooding_fraction(&packing, &pr.gas_film, &pr.liquid_film, p)?;
             if !(fraction.is_finite() && fraction < 1.0) {
                 return Err(format!(
                     "rate-based segment {}: flooding exceeded (fraction of flood {fraction:.3})",
@@ -807,17 +867,33 @@ impl RateColumn<'_, '_> {
                 &packing,
                 &pr.gas_film,
                 &pr.liquid_film,
-                self.pressure,
+                p,
             )?);
         }
+        Ok((flooding, drops))
+    }
+
+    fn finish(
+        &self,
+        segments: &[Segment],
+        props: &[Props],
+        flooding: Vec<f64>,
+        drops: Vec<f64>,
+        boundary_pressures: Vec<f64>,
+        iterations: usize,
+    ) -> Result<Solved, String> {
+        let ctx = self.ctx;
+        let n = segments.len();
+        let dz = self.height_m / n as f64;
         // The interface of every segment must be a stable vapor–liquid split.
         let interfaces = StageCascade {
             stages: segments
                 .iter()
-                .map(|s| {
+                .enumerate()
+                .map(|(j, s)| {
                     Stage::equilibrium(
                         s.t_i,
-                        self.pressure,
+                        self.boundary_pressures_pa[j].midpoint(self.boundary_pressures_pa[j + 1]),
                         s.liquid(),
                         s.vapor(),
                         s.x_i.clone(),
@@ -841,7 +917,7 @@ impl RateColumn<'_, '_> {
         );
         let liquid_out = Stage::equilibrium(
             bottom.t_l,
-            self.pressure,
+            self.boundary_pressures_pa[n],
             bottom.liquid(),
             bottom.vapor(),
             props[n - 1].x.clone(),
@@ -861,13 +937,6 @@ impl RateColumn<'_, '_> {
             ));
         }
         let pressure_drop_pa = drops.iter().sum::<f64>() * dz;
-        let mut estimated_boundary_pressures_pa = Vec::with_capacity(n + 1);
-        estimated_boundary_pressures_pa.push(self.pressure);
-        let mut cumulative_drop = 0.0;
-        for drop_per_m in &drops {
-            cumulative_drop += drop_per_m * dz;
-            estimated_boundary_pressures_pa.push(self.pressure + cumulative_drop);
-        }
         let max_flooding_fraction = flooding.iter().copied().fold(0.0, f64::max);
         let profile = RateBasedProfile {
             packing: self.spec.packing,
@@ -884,7 +953,8 @@ impl RateColumn<'_, '_> {
             interfacial_area_m2_m3: props.iter().map(|p| p.area_m2_m3).collect(),
             flooding_fractions: flooding,
             pressure_drops_pa_m: drops,
-            estimated_boundary_pressures_pa,
+            pressure_drop_coupled: self.spec.couple_pressure_drop,
+            estimated_boundary_pressures_pa: boundary_pressures,
             pressure_drop_pa,
             max_flooding_fraction,
             max_neglected_transport_fraction: neglected,

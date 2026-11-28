@@ -19,6 +19,8 @@ use flowsheet_project::{
 use serde_json::Value;
 
 const FIXTURE: &str = include_str!("../../../validation/columns/rate-based-v1.json");
+const COUPLED_FIXTURE: &str =
+    include_str!("../../../validation/columns/rate-based-coupled-pressure-v1.json");
 
 fn number(value: &Value) -> f64 {
     value.as_f64().unwrap()
@@ -182,6 +184,7 @@ fn fixture_rig(case: &Value) -> Rig {
                 other => panic!("unexpected packing {other}"),
             },
             interfacial_area_factor: number(&case["area_factor"]),
+            couple_pressure_drop: case["couple_pressure_drop"].as_bool().unwrap_or(false),
             critical_surface_tension_n_m: Some(number(&case["critical_surface_tension_N_m"])),
             gas_transport_neglected: strings(&case["gas_neglected"]),
             liquid_transport_neglected: strings(&case["liquid_neglected"]),
@@ -212,8 +215,15 @@ fn fixture_rig(case: &Value) -> Rig {
 
 #[test]
 fn segment_profiles_match_independent_references() {
-    let fixture: Value = serde_json::from_str(FIXTURE).unwrap();
-    for case in fixture["cases"].as_array().unwrap() {
+    let fixtures =
+        [FIXTURE, COUPLED_FIXTURE].map(|source| serde_json::from_str::<Value>(source).unwrap());
+    for (fixture, case) in fixtures.iter().flat_map(|fixture| {
+        fixture["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(move |case| (fixture, case))
+    }) {
         let mut rig = fixture_rig(case);
         let result = rig
             .solve()
@@ -296,6 +306,8 @@ fn segment_profiles_match_independent_references() {
         );
         let drops = profiles["pressure_drops_Pa_m"].as_array().unwrap();
         let pressures = &rate.estimated_boundary_pressures_pa;
+        let coupled = case["couple_pressure_drop"].as_bool().unwrap_or(false);
+        assert_eq!(rate.pressure_drop_coupled, coupled);
         let top = number(&case["pressure_Pa"]);
         let segment_height = number(&case["packed_height_m"]) / drops.len() as f64;
         assert_eq!(pressures.len(), drops.len() + 1);
@@ -308,7 +320,25 @@ fn segment_profiles_match_independent_references() {
                 number(drop),
             );
         }
-        assert!((pressures.last().unwrap() - top - rate.pressure_drop_pa).abs() < 1e-8);
+        let pressure_balance_tolerance = if coupled { 1e-6 } else { 1e-8 };
+        assert!(
+            (pressures.last().unwrap() - top - rate.pressure_drop_pa).abs()
+                <= pressure_balance_tolerance
+        );
+        if coupled {
+            let expected = case["boundary_pressures_Pa"].as_array().unwrap();
+            assert_eq!(pressures.len(), expected.len());
+            for (index, (&actual, reference)) in pressures.iter().zip(expected).enumerate() {
+                // Compare rise relative to the specified top pressure so the
+                // tolerance scales with the hydraulic effect, not the base pressure.
+                compare(
+                    "hydraulics",
+                    &format!("boundary pressure rise {index}"),
+                    actual - top,
+                    number(reference) - top,
+                );
+            }
+        }
         compare(
             "hydraulics",
             "max flooding",
@@ -334,7 +364,12 @@ fn segment_profiles_match_independent_references() {
                 number(&expected["molar_flow_mol_s"]),
             );
             let state = stream.state.as_ref().unwrap();
-            assert_eq!(state.pressure_pa, number(&case["pressure_Pa"]));
+            let outlet_boundary = if coupled && k == 1 {
+                pressures.len() - 1
+            } else {
+                0
+            };
+            assert_eq!(state.pressure_pa, pressures[outlet_boundary]);
             compare(
                 "temperature_K",
                 "outlet T",
@@ -369,6 +404,10 @@ fn segment_profiles_match_independent_references() {
                 .remove("estimated_boundary_pressures_pa")
                 .is_some()
         );
+        profile
+            .as_object_mut()
+            .unwrap()
+            .remove("pressure_drop_coupled");
         let legacy_saved = serde_json::to_string(&legacy).unwrap();
         let reopened_legacy = Project::from_json(&legacy_saved).unwrap();
         let rate = reopened_legacy.results.as_ref().unwrap().units[&rig.column]
@@ -379,11 +418,96 @@ fn segment_profiles_match_independent_references() {
             .as_ref()
             .unwrap();
         assert!(rate.estimated_boundary_pressures_pa.is_empty());
+        assert!(!rate.pressure_drop_coupled);
         assert_eq!(
             reopened.flowsheet.unit(rig.column).unwrap().spec,
             rig.project.flowsheet.unit(rig.column).unwrap().spec
         );
     }
+}
+
+#[test]
+fn coupled_rate_based_pressures_close_the_hydraulic_and_energy_balances() {
+    let fixture: Value = serde_json::from_str(FIXTURE).unwrap();
+    for case in fixture["cases"].as_array().unwrap() {
+        let mut rig = fixture_rig(case);
+        let fixed = rig.solve().unwrap();
+        rig.edit_rate(|rate| rate.couple_pressure_drop = true);
+        let result = rig.solve().unwrap();
+        let unit = &result.units[&rig.column];
+        assert!(unit.max_scaled_component_residual.unwrap() < 1e-9);
+        assert!(unit.scaled_energy_residual.unwrap().abs() < 1e-9);
+        let profile = |result: &ResultSet| {
+            result.units[&rig.column]
+                .absorber
+                .as_ref()
+                .unwrap()
+                .rate_based
+                .as_ref()
+                .unwrap()
+                .clone()
+        };
+        let rate = profile(&result);
+        assert!(rate.pressure_drop_coupled);
+        assert!((rate.pressure_drop_pa - profile(&fixed).pressure_drop_pa).abs() > 1e-6);
+        let pressures = &rate.estimated_boundary_pressures_pa;
+        assert_eq!(pressures.len(), rate.pressure_drops_pa_m.len() + 1);
+        let top = pressures[0];
+        let bottom = *pressures.last().unwrap();
+        assert_eq!(top, number(&case["pressure_Pa"]));
+        assert!(bottom > top && bottom < number(&case["gas"]["pressure_Pa"]));
+        for (boundaries, drop) in pressures.windows(2).zip(&rate.pressure_drops_pa_m) {
+            let dp = boundaries[1] - boundaries[0];
+            assert!(dp > 0.0);
+            assert!((dp - drop * rate.segment_height_m).abs() < 2e-6);
+        }
+        for (stream, pressure) in rig.outlets.iter().zip([top, bottom]) {
+            assert_eq!(
+                result.streams[stream].state.as_ref().unwrap().pressure_pa,
+                pressure
+            );
+        }
+        rig.project.results = Some(result);
+        let saved = rig.project.to_json().unwrap();
+        let reopened = Project::from_json(&saved).unwrap();
+        assert_eq!(reopened.to_json().unwrap(), saved);
+        assert_eq!(
+            reopened.flowsheet.unit(rig.column).unwrap().spec,
+            rig.project.flowsheet.unit(rig.column).unwrap().spec
+        );
+    }
+}
+
+#[test]
+fn coupled_rate_based_pressures_check_gas_inlet_and_bed_bottom_limits() {
+    let fixture: Value = serde_json::from_str(FIXTURE).unwrap();
+    let case = &fixture["cases"][0];
+    let mut rig = fixture_rig(case);
+    rig.edit_rate(|rate| rate.couple_pressure_drop = true);
+    let [temperature, _, flow] = inlet(&case["gas"]).1;
+    rig.project.flowsheet.set_spec(
+        rig.gas,
+        UnitSpec::Feed {
+            temperature_k: Some(temperature),
+            pressure_pa: Some(number(&case["pressure_Pa"])),
+            molar_flow_mol_s: Some(flow),
+        },
+    );
+    let error = rig.solve().unwrap_err();
+    assert!(
+        error.message.contains("exceeds the gas inlet pressure"),
+        "{}",
+        error.message
+    );
+
+    let mut rig = co2_wash(true);
+    rig.edit_rate(|rate| rate.couple_pressure_drop = true);
+    let error = rig.solve().unwrap_err();
+    assert!(
+        error.message.contains("bed bottom pressure") && error.message.contains("Robbins limit"),
+        "{}",
+        error.message
+    );
 }
 
 /// Nitrogen/carbon dioxide gas washed with water: the second system, used
