@@ -102,10 +102,8 @@ extractor) to a scaled residual of 1e-11. No package-interface extension; no
    line of that flash (lever rule of the stage liquid, 5..95 %).
 3. Each three-phase stage is checked with `vlle_ph` of its contents (same
    temperature within 1e-5 K, compositions within 1e-5, fractions within
-   1e-4). If the package finds fewer phases, the second liquid is removed;
-   if its PH flash fails (seen for strongly immiscible PR binaries at their
-   three-phase temperature), both solved liquids must pass the liquid
-   tangent-plane test instead.
+   1e-4). If the package finds fewer phases, the second liquid is removed.
+   A PH flash failure is reported with the stage number.
 4. During Newton a second liquid that falls below 1e-9 of the stage liquid or
    comes within 1e-4 in mole fraction of the first is merged into it and the
    round restarts.

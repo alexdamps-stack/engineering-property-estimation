@@ -36,7 +36,12 @@ not yet rate-based (next step, below).
 Project records: `rate_based` on the absorber record (snake-case packing,
 correlation, film-model and surface names), behind format version 4.
 Results: `AbsorberProfile::rate_based` (`RateBasedSegmentsProfile`), absent
-for the equilibrium mode and for older results.
+for the equilibrium mode and for older results. New rate-based results include
+estimated absolute pressures at the segment boundaries. The estimate starts at
+the specified column pressure at the top of the bed and adds each segment's
+Robbins pressure drop (Pa/m times segment height) moving downward. The
+thermodynamic and transport calculations use the specified column pressure
+throughout the bed, and both outlet states use that pressure.
 
 ## Segment model
 
@@ -218,5 +223,5 @@ the actual phase.
 * Rate-based packed bed of the rigorous distillation column (#186).
 * A verified σc table (Onda et al. 1967) as library data; Billet–Schultes
   and Bravo–Rocha–Fair with verified packing constants; structured packings;
-  Maxwell–Stefan films; pressure profile from the computed pressure drop;
+  Maxwell–Stefan films; coupling the hydraulic pressure profile to the segment equations;
   hydraulics above 3 bar (a correlation with a stated high-pressure domain).

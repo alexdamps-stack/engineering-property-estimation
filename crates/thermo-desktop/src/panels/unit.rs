@@ -698,6 +698,13 @@ fn rate_based_rows(
             format!("{:.2e}", rate.max_neglected_transport_fraction),
         );
     }
+    let boundary_pressures = &rate.estimated_boundary_pressures_pa;
+    if let Some(&top) = boundary_pressures.first() {
+        row(
+            "Bed top estimated pressure".into(),
+            format_quantity(units, Quantity::Pressure, top),
+        );
+    }
     for (j, t) in rate.liquid_temperatures_k.iter().enumerate() {
         let temperature = |t: f64| format_quantity(units, Quantity::Temperature, t);
         row(
@@ -709,6 +716,12 @@ fn rate_based_rows(
                 temperature(*t)
             ),
         );
+        if let Some(&pressure) = boundary_pressures.get(j + 1) {
+            row(
+                format!("Segment {} bottom estimated pressure", j + 1),
+                format_quantity(units, Quantity::Pressure, pressure),
+            );
+        }
         row(
             format!("Segment {} flood / ΔP per m / a_e", j + 1),
             format!(

@@ -173,7 +173,7 @@ pub(crate) fn stability<A: VlleAdapter>(
 }
 
 /// Stability relative to a reference phase of the given kind and ln φ.
-fn stability_with<A: VlleAdapter>(
+pub(crate) fn stability_with<A: VlleAdapter>(
     a: &A,
     x: &[f64],
     reference_kind: FluidKind,

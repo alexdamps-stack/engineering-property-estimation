@@ -2,7 +2,7 @@
 //! with the lever rule at an invariant temperature.
 
 use thermo_models::{ActivityModel, ActivityPhaseState, CubicModel, HomogeneousState};
-use thermo_types::{CalculationError as Error, DiagnosticSeverity, Pressure, Temperature};
+use thermo_types::{CalculationError as Error, DiagnosticSeverity, Phase, Pressure, Temperature};
 
 use super::adapters::{ActivityAt, CubicAt, VlleAdapter};
 use super::core::{self, active, diagnostic, distance};
@@ -17,7 +17,8 @@ use super::{MultiphaseOptions, MultiphasePhFlash, MultiphasePhase, MultiphaseTpF
 /// bisection safeguard until |h − h_target| ≤ energy_tolerance · max(|h_target|,
 /// 1 J/mol). If the bracket shrinks to a few ulp with an enthalpy step across
 /// it, the phases from both sides are combined and their amounts follow from the
-/// lever rule (component balances and the energy balance).
+/// lever rule (component balances and the energy balance). For a binary, a
+/// numerical TP failure inside the bracket can also trigger this solve.
 pub fn vlle_ph_flash(
     model: &CubicModel,
     pressure: Pressure,
@@ -112,7 +113,7 @@ fn ph_flash<A: VlleAdapter>(
         }
         if b - a <= 4.0 * f64::EPSILON * b {
             return invariant(
-                &make, z, target, scale, options, a, b, flash_a, flash_b, iteration,
+                &make, z, target, scale, options, &flash_a, &flash_b, iteration, false,
             );
         }
         // Illinois regula falsi; bisect when the bracket stopped halving.
@@ -129,7 +130,20 @@ fn ph_flash<A: VlleAdapter>(
         if iteration % 3 == 0 {
             last_width = b - a;
         }
-        let (flash, f) = evaluate(t)?;
+        let (flash, f) = match evaluate(t) {
+            Ok(sample) => sample,
+            Err(error @ (Error::NonConvergence(_) | Error::NumericalFailure(_)))
+                if active(z).len() == 2 =>
+            {
+                // Near binary VLLE the TP split can fail while trying to resolve
+                // three phase amounts, which the enthalpy balance fixes in PH.
+                return invariant(
+                    &make, z, target, scale, options, &flash_a, &flash_b, iteration, true,
+                )
+                .map_err(|_| error);
+            }
+            Err(error) => return Err(error),
+        };
         if f < 0.0 {
             a = t;
             fa = f;
@@ -188,25 +202,51 @@ fn invariant<A: VlleAdapter>(
     target: f64,
     scale: f64,
     options: MultiphaseOptions,
-    t_lo: f64,
-    t_hi: f64,
-    lower: MultiphaseTpFlash<A::State>,
-    upper: MultiphaseTpFlash<A::State>,
+    lower: &MultiphaseTpFlash<A::State>,
+    upper: &MultiphaseTpFlash<A::State>,
     iterations: usize,
+    recover_tp_failure: bool,
 ) -> Result<MultiphasePhFlash<A::State>, Error> {
+    let (t_lo, t_hi) = (lower.temperature_k, upper.temperature_k);
     let mut t = 0.5 * (t_lo + t_hi);
     // Phases on both sides keep their own states: at T* a minimum-Gibbs
     // re-evaluation could not tell coexisting roots of one composition apart.
     let mut candidates: Vec<MultiphasePhase<A::State>> = Vec::new();
-    for p in lower.phases.iter().chain(&upper.phases) {
-        let same = |c: &MultiphasePhase<A::State>| {
-            c.kind == p.kind
-                && c.phase == p.phase
-                && distance(&c.composition, &p.composition) < 1e-6
-                && (A::molar_volume(&c.state) / A::molar_volume(&p.state) - 1.0).abs() < 1e-6
-        };
-        if !candidates.iter().any(same) {
-            candidates.push(p.clone());
+    if recover_tp_failure {
+        // The bracket can still be wide enough that a shared liquid has
+        // different properties on either side. Seed with the two cooler liquids
+        // and the hotter vapor.
+        candidates.extend(
+            lower
+                .phases
+                .iter()
+                .filter(|p| p.phase == Phase::Liquid)
+                .cloned(),
+        );
+        if candidates.len() != 2 {
+            return Err(Error::NonConvergence(
+                "missing liquid seeds for binary invariant refinement".into(),
+            ));
+        }
+        let vapor = upper
+            .phases
+            .iter()
+            .find(|p| p.phase == Phase::Vapor)
+            .ok_or_else(|| {
+                Error::NonConvergence("missing vapor seed for binary invariant refinement".into())
+            })?;
+        candidates.push(vapor.clone());
+    } else {
+        for p in lower.phases.iter().chain(&upper.phases) {
+            let same = |c: &MultiphasePhase<A::State>| {
+                c.kind == p.kind
+                    && c.phase == p.phase
+                    && distance(&c.composition, &p.composition) < 1e-6
+                    && (A::molar_volume(&c.state) / A::molar_volume(&p.state) - 1.0).abs() < 1e-6
+            };
+            if !candidates.iter().any(same) {
+                candidates.push(p.clone());
+            }
         }
     }
     if candidates.len() > core::MAX_PHASES {
@@ -218,12 +258,36 @@ fn invariant<A: VlleAdapter>(
     // The bracket locates the enthalpy step only to within the TPD threshold; solve
     // the invariant point itself (C + 1 phases at fixed p, no degree of freedom).
     if let Some((t_star, compositions)) = refine_invariant(make, &act, z.len(), &candidates, t) {
+        if recover_tp_failure && !(t_lo..=t_hi).contains(&t_star) {
+            return Err(Error::NonConvergence(
+                "binary invariant temperature outside the PH bracket".into(),
+            ));
+        }
         let adapter = make(t_star)?;
         for (c, x) in candidates.iter_mut().zip(compositions) {
             c.state = adapter.state_labelled(&x, c.kind, c.phase)?;
             c.composition = x;
         }
+        if recover_tp_failure {
+            let phase = &candidates[0];
+            let check = core::stability_with(
+                &adapter,
+                &phase.composition,
+                phase.kind,
+                A::state_ln_phi(&phase.state),
+                options,
+            )?;
+            if !check.stable_in_trials {
+                return Err(Error::NonConvergence(
+                    "binary invariant split failed the stability check".into(),
+                ));
+            }
+        }
         t = t_star;
+    } else if recover_tp_failure {
+        return Err(Error::NonConvergence(
+            "could not refine the binary invariant temperature".into(),
+        ));
     }
     let h: Vec<f64> = candidates.iter().map(|c| A::enthalpy(&c.state)).collect();
     let span = h.iter().fold(f64::NEG_INFINITY, |m, v| m.max(*v))
@@ -302,6 +366,11 @@ fn invariant<A: VlleAdapter>(
         )));
     }
     let phases = core::order::<A>(kept);
+    if recover_tp_failure && phases.len() != 3 {
+        return Err(Error::NonConvergence(
+            "binary invariant recovery requires three material phases".into(),
+        ));
+    }
     let mut diagnostics = lower.diagnostics.clone();
     diagnostics.push(diagnostic(
         "VLLE-PH-INVARIANT",
@@ -319,7 +388,7 @@ fn invariant<A: VlleAdapter>(
         iterations,
         max_ln_fugacity_residual: residual,
         max_component_balance_residual: balance,
-        tp: lower,
+        tp: lower.clone(),
         diagnostics,
     })
 }
