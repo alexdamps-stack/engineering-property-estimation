@@ -1,6 +1,7 @@
 //! Three-phase distillation column (#188): equilibrium stages at one
 //! pressure, a total condenser with a decanter and a partial reboiler
-//! (Aspen Plus RadFrac with a decanter / HYSYS Three Phase Distillation).
+//! (Aspen Plus RadFrac with a decanter and free-water/three-phase stages /
+//! HYSYS Three Phase Distillation).
 //!
 //! Supported scope (`docs/a17-multiphase-three-phase-column.md`):
 //!
@@ -9,10 +10,14 @@
 //!   splits into a light and a heavy liquid (liquid–liquid equilibrium at the
 //!   decanter temperature and column pressure).
 //! - Stages 2..N−1 are ideal trays (or ideal packed stages) and stage N is the
-//!   partial reboiler. These stages carry **one** liquid (vapor–liquid
-//!   equilibrium). After convergence every stage is flashed with the package's
-//!   three-phase operation; a second liquid on any of them is an explicit
-//!   failure. A full VLLE stage model is not implemented.
+//!   partial reboiler. Each of them carries one liquid (vapor–liquid
+//!   equilibrium) or two liquids (vapor–liquid–liquid equilibrium). The set
+//!   of three-phase stages is found automatically: after each converged pass
+//!   every single-liquid stage is flashed with the package's three-phase
+//!   operation (a split adds its second liquid), every three-phase stage is
+//!   checked against the package's VLLE PH flash, and a second liquid that
+//!   vanishes or merges with the first during the iteration is removed. A
+//!   phase set that recurs is an explicit phase-count oscillation failure.
 //! - [`DecanterReflux`] chooses which liquid returns as reflux and how much.
 //!   The `distillate` port carries the non-refluxed part of the reflux liquid
 //!   (zero for total reflux of that phase); the `decant` port carries the
@@ -20,23 +25,30 @@
 //!   non-refluxed light liquid and the decant the non-refluxed heavy liquid.
 //!
 //! Stage equations (Seader, Henley and Roper, *Separation Process
-//! Principles*, 3rd ed., 2011, §10.1; in − out):
+//! Principles*, 3rd ed., 2011, §10.1; three-phase stages as in Cairns and
+//! Furzer, Ind. Eng. Chem. Res. 29 (1990) 1349, in a Naphtali–Sandholm
+//! (AIChE J. 17 (1971) 148) simultaneous-correction form; in − out):
 //!
 //! - decanter: v_{2,i} − a_i − b_i = 0, ln x^a_i + ln φ^a_i − ln x^b_i −
 //!   ln φ^b_i = 0, V_2 h^V_2 − Q_C − A h^a − B h^b = 0 (a light, b heavy
 //!   liquid at the decanter temperature);
-//! - stage j ≥ 2: l_{j−1,i} + v_{j+1,i} + f_{j,i} − l_{j,i} − v_{j,i} = 0
-//!   with l_{1,i} = φ_L a_i + φ_H b_i (reflux fractions),
-//!   ln y_ji − ln x_ji − ln K_ji = 0 (K = φ^L/φ^V of the package's liquid and
-//!   vapor at the stage state), and the energy balance on stages 2..N−1;
+//! - stage j ≥ 2: l_{j−1,i} + v_{j+1,i} + f_{j,i} − l_{j,i} − l'_{j,i} −
+//!   v_{j,i} = 0 with l_{1,i} = φ_L a_i + φ_H b_i (reflux fractions) and
+//!   l_{j−1} the total liquid of the stage above, ln y_ji − ln x_ji −
+//!   ln K_ji = 0 (K = φ^L/φ^V of the package's liquid and vapor at the stage
+//!   state), on a three-phase stage also ln x_ji + ln φ_ji − ln x'_ji −
+//!   ln φ'_ji = 0 for its second liquid l', and the energy balance on stages
+//!   2..N−1;
 //! - the reboiler replaces its energy balance by the bottoms flow
-//!   specification L_N = B; its duty follows from its energy balance.
+//!   specification L_N + L'_N = B; its duty follows from its energy balance.
 //!
 //! Unknowns: ln component flows of both decanter liquids and the scaled
-//! condenser duty; ln liquid and vapor component flows and temperature of
-//! every other stage. The solve starts from constant-molar-overflow
-//! bubble-point passes with a lagged decanter flash and finishes with a
-//! damped Newton iteration on the block-tridiagonal stage Jacobian.
+//! condenser duty; ln liquid, vapor and second-liquid component flows and
+//! temperature of every other stage (the second-liquid variables of a
+//! single-liquid stage are inert). The solve starts from
+//! constant-molar-overflow bubble-point passes with a lagged decanter flash
+//! and finishes with a damped Newton iteration on the block-tridiagonal stage
+//! Jacobian.
 
 use property_packages::{
     Convergence, EquilibriumPhase, EquilibriumState, PhaseProperties, PhaseRole, RootSelection,
@@ -62,6 +74,15 @@ pub const DECANTER_PLAIT_DISTANCE: f64 = 1e-3;
 /// Largest deviation of the solved decanter and stage phases from the
 /// independent check flash.
 const FLASH_AGREEMENT: f64 = 1e-6;
+/// Largest deviation of a three-phase stage from the package VLLE PH flash
+/// of its contents (temperature in K, mole fractions, phase fractions / 10).
+const THREE_PHASE_AGREEMENT: f64 = 1e-5;
+/// A second stage liquid below this share of the stage liquid vanishes.
+const VANISHING_LIQUID_SHARE: f64 = 1e-9;
+/// Two stage liquids closer than this (max mole-fraction difference) merge.
+const MERGE_DISTANCE: f64 = 1e-4;
+/// Phase-set rounds before an explicit failure.
+const MAX_PHASE_ROUNDS: usize = 12;
 
 /// How much of one decanter liquid returns to the column.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -235,20 +256,37 @@ impl ThreePhaseColumnSpec {
     }
 }
 
+/// Two liquids on one stage. The light liquid is the less dense one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StageLiquidSplit {
+    pub light_mol_s: f64,
+    pub light_composition: Vec<f64>,
+    pub heavy_mol_s: f64,
+    pub heavy_composition: Vec<f64>,
+}
+
 /// Solved profile of a three-phase column. Stage vectors run from the
 /// decanter (stage 1) to the reboiler (stage N).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ThreePhaseColumnResult {
     /// Stage temperatures; stage 1 is the decanter temperature.
     pub stage_temperatures_k: Vec<f64>,
-    /// Liquid leaving each stage downward, mol/s; stage 1: the reflux.
+    /// Liquid leaving each stage downward (both liquids on a three-phase
+    /// stage), mol/s; stage 1: the reflux.
     pub liquid_flows_mol_s: Vec<f64>,
     /// Vapor leaving each stage upward, mol/s; stage 1: zero.
     pub vapor_flows_mol_s: Vec<f64>,
-    /// Liquid mole fractions; stage 1: the reflux composition.
+    /// Liquid mole fractions (total liquid on a three-phase stage); stage 1:
+    /// the reflux composition.
     pub liquid_compositions: Vec<Vec<f64>>,
     /// Vapor mole fractions; stage 1: the condensate (vapor from stage 2).
     pub vapor_compositions: Vec<Vec<f64>>,
+    /// Phases on each stage: 2 on the decanter (two liquids), 2 on a
+    /// vapor–liquid stage, 3 on a vapor–liquid–liquid stage.
+    pub stage_phase_counts: Vec<u8>,
+    /// Both liquids of every stage that carries two: stage 1 the decanter,
+    /// `None` on a single-liquid stage.
+    pub stage_liquid_splits: Vec<Option<StageLiquidSplit>>,
     /// Light decanter liquid: flow (mol/s) and mole fractions.
     pub light_liquid_mol_s: f64,
     pub light_liquid_composition: Vec<f64>,
@@ -264,24 +302,27 @@ pub struct ThreePhaseColumnResult {
     pub reboiler_duty_w: f64,
     /// Bed height supplied or derived from the specified HETP.
     pub packed_height_m: Option<f64>,
-    /// Accepted Newton iterations.
+    /// Accepted Newton iterations (all phase-set rounds).
     pub iterations: usize,
 }
 
 /// Properties of one block: the two decanter liquids, or a stage's liquid
-/// and vapor.
+/// and vapor plus its second liquid on a three-phase stage.
 #[derive(Debug, Clone)]
 struct BlockProperties {
     first: PhaseProperties,
     second: PhaseProperties,
+    third: Option<PhaseProperties>,
 }
 
 /// Decoded block: decanter (`l` light, `v` heavy, `t` = scaled condenser
-/// duty) or stage (`l` liquid, `v` vapor component flows, `t` temperature).
+/// duty) or stage (`l` liquid in vapor–liquid equilibrium, `v` vapor,
+/// `l2` second liquid (zero on a single-liquid stage), `t` temperature).
 #[derive(Debug, Clone)]
 struct Block {
     l: Vec<f64>,
     v: Vec<f64>,
+    l2: Vec<f64>,
     t: f64,
 }
 
@@ -309,6 +350,25 @@ fn max_difference(a: &[f64], b: &[f64]) -> f64 {
         .fold(0.0, f64::max)
 }
 
+/// Why a Newton pass ended without a solution.
+enum NewtonFailure {
+    Failed(String),
+    /// A second liquid vanished or merged with the first on this block: the
+    /// stage returns to one liquid and the column is solved again.
+    Merge {
+        block: usize,
+        v: Vec<f64>,
+        iterations: usize,
+    },
+}
+
+/// Phase-set change of one stage found after a converged pass.
+enum PhaseChange {
+    /// The stage liquid splits: light and heavy liquid of the check flash.
+    Split(usize, Vec<f64>, Vec<f64>),
+    Merge(usize),
+}
+
 struct Column<'a, 'p> {
     ctx: &'a CalcContext<'p>,
     pressure: f64,
@@ -328,11 +388,13 @@ struct Column<'a, 'p> {
     bottoms: f64,
     /// Refluxed fractions of the light (a) and heavy (b) liquid.
     reflux: [f64; 2],
+    /// Blocks carrying a second liquid (never the decanter).
+    split: Vec<bool>,
 }
 
 impl Column<'_, '_> {
     fn width(&self) -> usize {
-        2 * self.active.len() + 1
+        3 * self.active.len() + 1
     }
 
     fn decode(&self, v: &[f64], j: usize) -> Block {
@@ -340,30 +402,44 @@ impl Column<'_, '_> {
         let block = &v[j * w..(j + 1) * w];
         let mut l = vec![0.0; self.components];
         let mut u = vec![0.0; self.components];
+        let mut l2 = vec![0.0; self.components];
         for (k, &i) in self.active.iter().enumerate() {
             l[i] = block[k].exp();
             u[i] = block[m + k].exp();
+            if self.split[j] {
+                l2[i] = block[2 * m + k].exp();
+            }
         }
         Block {
             l,
             v: u,
-            t: block[2 * m],
+            l2,
+            t: block[3 * m],
         }
     }
 
     fn encode(&self, blocks: &[Block]) -> Vec<f64> {
         let mut out = Vec::with_capacity(self.blocks * self.width());
-        for b in blocks {
+        for (j, b) in blocks.iter().enumerate() {
             out.extend(self.active.iter().map(|&i| b.l[i].ln()));
             out.extend(self.active.iter().map(|&i| b.v[i].ln()));
+            if self.split[j] {
+                out.extend(self.active.iter().map(|&i| b.l2[i].ln()));
+            } else {
+                out.extend(self.active.iter().map(|_| 0.0));
+            }
             out.push(b.t);
         }
         out
     }
 
+    fn decode_all(&self, v: &[f64]) -> Vec<Block> {
+        (0..self.blocks).map(|j| self.decode(v, j)).collect()
+    }
+
     fn properties(&self, v: &[f64], j: usize) -> Result<BlockProperties, String> {
         let b = self.decode(v, j);
-        if b.l.iter().chain(&b.v).any(|f| !f.is_finite()) || !b.t.is_finite() {
+        if b.l.iter().chain(&b.v).chain(&b.l2).any(|f| !f.is_finite()) || !b.t.is_finite() {
             return Err(format!("stage {} flows are not finite", j + 1));
         }
         let liquid = |flows: &[f64], t| {
@@ -378,6 +454,7 @@ impl Column<'_, '_> {
             return Ok(BlockProperties {
                 first: liquid(&b.l, self.decanter_t)?,
                 second: liquid(&b.v, self.decanter_t)?,
+                third: None,
             });
         }
         let [lo, hi] = self.range;
@@ -401,7 +478,16 @@ impl Column<'_, '_> {
                 j + 1
             ));
         }
-        Ok(BlockProperties { first, second })
+        let third = if self.split[j] {
+            Some(liquid(&b.l2, b.t)?)
+        } else {
+            None
+        };
+        Ok(BlockProperties {
+            first,
+            second,
+            third,
+        })
     }
 
     fn all_properties(&self, v: &[f64]) -> Result<Vec<BlockProperties>, String> {
@@ -422,10 +508,25 @@ impl Column<'_, '_> {
         (flows, h)
     }
 
+    /// Liquid leaving a stage downward (both liquids): component flows and
+    /// enthalpy flow.
+    fn liquid_out(b: &Block, p: &BlockProperties) -> (Vec<f64>, f64) {
+        let flows = b.l.iter().zip(&b.l2).map(|(a, c)| a + c).collect();
+        let h = total(&b.l) * p.first.enthalpy
+            + p.third
+                .as_ref()
+                .map_or(0.0, |third| total(&b.l2) * third.enthalpy);
+        (flows, h)
+    }
+
     fn residual(&self, v: &[f64], props: &[BlockProperties]) -> Vec<f64> {
-        let n = self.blocks;
-        let blocks: Vec<Block> = (0..n).map(|j| self.decode(v, j)).collect();
-        let mut out = Vec::with_capacity(n * self.width());
+        let (n, w, m) = (self.blocks, self.width(), self.active.len());
+        let blocks = self.decode_all(v);
+        let mut out = Vec::with_capacity(n * w);
+        // Rows of an unused second liquid: its (zero) variables themselves.
+        let dummy = |out: &mut Vec<f64>, j: usize| {
+            out.extend((0..m).map(|k| v[j * w + 2 * m + k]));
+        };
         let top = &blocks[1];
         // Decanter.
         {
@@ -441,6 +542,7 @@ impl Column<'_, '_> {
                         - p.second.ln_fugacity_coefficients[i],
                 );
             }
+            dummy(&mut out, 0);
             let h_in = total(&top.v) * props[1].second.enthalpy;
             let h_out = d.t * self.energy_scale
                 + total(&d.l) * p.first.enthalpy
@@ -454,10 +556,7 @@ impl Column<'_, '_> {
             let (l_in, h_l_in) = if j == 1 {
                 (reflux.clone(), reflux_h)
             } else {
-                (
-                    blocks[j - 1].l.clone(),
-                    total(&blocks[j - 1].l) * props[j - 1].first.enthalpy,
-                )
+                Self::liquid_out(&blocks[j - 1], &props[j - 1])
             };
             let zero = vec![0.0; self.components];
             let (v_in, h_v_in) = if j + 1 < n {
@@ -470,7 +569,8 @@ impl Column<'_, '_> {
             };
             for (k, &i) in self.active.iter().enumerate() {
                 out.push(
-                    (l_in[i] + v_in[i] + self.feed_flows[j][i] - s.l[i] - s.v[i]) / self.scale[k],
+                    (l_in[i] + v_in[i] + self.feed_flows[j][i] - s.l[i] - s.l2[i] - s.v[i])
+                        / self.scale[k],
                 );
             }
             let (ln_l, ln_v) = (total(&s.l).ln(), total(&s.v).ln());
@@ -481,12 +581,25 @@ impl Column<'_, '_> {
                             - p.second.ln_fugacity_coefficients[i]),
                 );
             }
+            match &p.third {
+                Some(third) => {
+                    let ln_l2 = total(&s.l2).ln();
+                    for &i in &self.active {
+                        out.push(
+                            s.l[i].ln() - ln_l + p.first.ln_fugacity_coefficients[i] - s.l2[i].ln()
+                                + ln_l2
+                                - third.ln_fugacity_coefficients[i],
+                        );
+                    }
+                }
+                None => dummy(&mut out, j),
+            }
             if j + 1 < n {
                 let h_in = h_l_in + h_v_in + self.feed_enthalpy[j];
-                let h_out = total(&s.l) * p.first.enthalpy + total(&s.v) * p.second.enthalpy;
+                let h_out = Self::liquid_out(s, p).1 + total(&s.v) * p.second.enthalpy;
                 out.push((h_in - h_out) / self.energy_scale);
             } else {
-                out.push((total(&s.l) - self.bottoms) / self.flow);
+                out.push((total(&s.l) + total(&s.l2) - self.bottoms) / self.flow);
             }
         }
         out
@@ -496,12 +609,12 @@ impl Column<'_, '_> {
     fn reboiler_duty(&self, v: &[f64], props: &[BlockProperties]) -> f64 {
         let n = self.blocks;
         let last = self.decode(v, n - 1);
-        let h_out = total(&last.l) * props[n - 1].first.enthalpy
+        let h_out = Self::liquid_out(&last, &props[n - 1]).1
             + total(&last.v) * props[n - 1].second.enthalpy;
         let h_in = if n == 2 {
             self.reflux_of(&self.decode(v, 0), &props[0]).1
         } else {
-            total(&self.decode(v, n - 2).l) * props[n - 2].first.enthalpy
+            Self::liquid_out(&self.decode(v, n - 2), &props[n - 2]).1
         };
         h_out - h_in - self.feed_enthalpy[n - 1]
     }
@@ -522,7 +635,10 @@ impl Column<'_, '_> {
         for color in 0..3.min(n) {
             let group: Vec<usize> = (color..n).step_by(3).collect();
             for k in 0..w {
-                let base = if k < 2 * m { 1e-7 } else { 1e-6 };
+                let base = if k < 3 * m { 1e-7 } else { 1e-6 };
+                // A second-liquid variable changes the properties only on a
+                // three-phase stage.
+                let second_liquid = (2 * m..3 * m).contains(&k);
                 let mut attempt = None;
                 for h in [base, -base] {
                     let mut trial = v.to_vec();
@@ -531,7 +647,9 @@ impl Column<'_, '_> {
                     }
                     let mut perturbed = props.to_vec();
                     let ok = group.iter().try_for_each(|&j| {
-                        perturbed[j] = self.properties(&trial, j)?;
+                        if !second_liquid || self.split[j] {
+                            perturbed[j] = self.properties(&trial, j)?;
+                        }
                         Ok::<(), String>(())
                     });
                     if ok.is_ok() {
@@ -561,16 +679,27 @@ impl Column<'_, '_> {
         Ok((lower, diag, upper))
     }
 
-    fn newton(&self, mut v: Vec<f64>) -> Result<(Vec<f64>, usize), String> {
+    /// A three-phase block whose second liquid vanished or coincides with
+    /// the first.
+    fn degenerate_split(&self, b: &Block) -> bool {
+        let (a, c) = (total(&b.l), total(&b.l2));
+        a.min(c) < VANISHING_LIQUID_SHARE * (a + c)
+            || max_difference(&normalized(&b.l), &normalized(&b.l2)) < MERGE_DISTANCE
+    }
+
+    fn newton(&self, mut v: Vec<f64>) -> Result<(Vec<f64>, usize), NewtonFailure> {
+        let failed = NewtonFailure::Failed;
         let (w, m) = (self.width(), self.active.len());
         let mut props = self
             .all_properties(&v)
-            .map_err(|e| format!("three-phase column initialization: {e}"))?;
+            .map_err(|e| failed(format!("three-phase column initialization: {e}")))?;
         let mut r = self.residual(&v, &props);
         for iteration in 0..=MAX_NEWTON {
             let error = max_abs(&r);
             if !error.is_finite() {
-                return Err("three-phase column stage residuals are not finite".into());
+                return Err(failed(
+                    "three-phase column stage residuals are not finite".into(),
+                ));
             }
             if error <= TOLERANCE {
                 return Ok((v, iteration));
@@ -578,13 +707,13 @@ impl Column<'_, '_> {
             if iteration == MAX_NEWTON {
                 break;
             }
-            let (lower, diag, upper) = self.jacobian(&v, &props, &r)?;
+            let (lower, diag, upper) = self.jacobian(&v, &props, &r).map_err(failed)?;
             let step = block_tridiagonal_solve(lower, diag, upper, r.iter().map(|x| -x).collect())
-                .ok_or("three-phase column stage Jacobian is singular (vanishing phase or decanter plait point)")?;
+                .ok_or_else(|| failed("three-phase column stage Jacobian is singular (vanishing phase or decanter plait point)".into()))?;
             let mut limit = 1.0_f64;
             for (index, d) in step.iter().enumerate() {
                 let cap = match (index / w, index % w) {
-                    (_, k) if k < 2 * m => MAX_LN_STEP,
+                    (_, k) if k < 3 * m => MAX_LN_STEP,
                     (0, _) => f64::INFINITY,
                     _ => MAX_T_STEP,
                 };
@@ -607,22 +736,308 @@ impl Column<'_, '_> {
                 lambda *= 0.5;
             }
             let Some((trial, p, rt)) = accepted else {
-                return Err(format!(
+                return Err(failed(format!(
                     "three-phase column stage equations stalled (scaled residual {error:.3e}); change the reflux or bottoms specification"
-                ));
+                )));
             };
             v = trial;
             props = p;
             r = rt;
+            if let Some(block) = (1..self.blocks)
+                .find(|&j| self.split[j] && self.degenerate_split(&self.decode(&v, j)))
+            {
+                return Err(NewtonFailure::Merge {
+                    block,
+                    v,
+                    iterations: iteration + 1,
+                });
+            }
         }
-        Err(format!(
+        Err(failed(format!(
             "three-phase column did not converge in {MAX_NEWTON} Newton iterations (scaled residual {:.3e}); check that the bottoms and reflux specification is feasible for the decanter liquids",
             max_abs(&r)
-        ))
+        )))
+    }
+
+    /// Returns block `j` to one liquid (both liquids combined).
+    fn merge(&mut self, v: &[f64], j: usize) -> Vec<f64> {
+        let mut blocks = self.decode_all(v);
+        let b = &mut blocks[j];
+        b.l = b.l.iter().zip(&b.l2).map(|(a, c)| a + c).collect();
+        b.l2 = vec![0.0; self.components];
+        self.split[j] = false;
+        self.encode(&blocks)
+    }
+
+    /// Splits the liquid of block `j` onto the tie line `light`–`heavy` of a
+    /// check flash (lever rule of the current liquid, kept inside 5..95 %).
+    fn split_block(&mut self, v: &[f64], j: usize, light: &[f64], heavy: &[f64]) -> Vec<f64> {
+        let mut blocks = self.decode_all(v);
+        let floor = 1e-14 * self.flow;
+        let b = &mut blocks[j];
+        let liquid = total(&b.l);
+        let x = normalized(&b.l);
+        let (mut num, mut den) = (0.0, 0.0);
+        for i in 0..self.components {
+            let d = heavy[i] - light[i];
+            num += (x[i] - light[i]) * d;
+            den += d * d;
+        }
+        let beta = if den > 0.0 {
+            (num / den).clamp(0.05, 0.95)
+        } else {
+            0.5
+        };
+        for &i in &self.active {
+            b.l[i] = (liquid * (1.0 - beta) * light[i]).max(floor);
+            b.l2[i] = (liquid * beta * heavy[i]).max(floor);
+        }
+        self.split[j] = true;
+        self.encode(&blocks)
+    }
+
+    /// Light and heavy liquid of a VLLE flash of `z` at the stage state, if
+    /// it has both; flash errors count as no split.
+    fn liquid_split(&self, z: &[f64], t: f64) -> Option<(Vec<f64>, Vec<f64>)> {
+        let flash = self.ctx.vlle(z, t, self.pressure).ok()?;
+        let light = flash.phase_with_role(PhaseRole::LightLiquid)?;
+        let heavy = flash.phase_with_role(PhaseRole::HeavyLiquid)?;
+        Some((light.composition.clone(), heavy.composition.clone()))
+    }
+
+    /// Liquid–liquid tangent-plane test of the stage liquid `x` (Michelsen,
+    /// Fluid Phase Equilib. 9 (1982) 1) with the package liquid fugacity
+    /// coefficients, from a near-pure trial of every component: the
+    /// incipient liquid of the deepest negative stationary point. Used when
+    /// the package flash of the stage fails (close to a binary three-phase
+    /// temperature).
+    fn incipient_liquid(&self, x: &[f64], t: f64) -> Option<Vec<f64>> {
+        let ln_phi = |w: &[f64]| {
+            self.ctx
+                .homogeneous(w, t, self.pressure, RootSelection::SmallestVolume)
+                .ok()
+                .map(|p| p.ln_fugacity_coefficients)
+        };
+        let parent = ln_phi(x)?;
+        let d: Vec<f64> = (0..self.components)
+            .map(|i| {
+                if x[i] > 0.0 {
+                    x[i].ln() + parent[i]
+                } else {
+                    f64::NEG_INFINITY
+                }
+            })
+            .collect();
+        let mut best: Option<(f64, Vec<f64>)> = None;
+        for &dominant in &self.active {
+            let mut w: Vec<f64> = (0..self.components)
+                .map(|i| match (i == dominant, x[i] > 0.0) {
+                    (true, _) => 1.0,
+                    (false, true) => 1e-3,
+                    (false, false) => 0.0,
+                })
+                .collect();
+            w = normalized(&w);
+            let mut tm = 0.0;
+            for _ in 0..300 {
+                let Some(phi) = ln_phi(&w) else { break };
+                let big: Vec<f64> = (0..self.components)
+                    .map(|i| {
+                        if x[i] > 0.0 {
+                            (d[i] - phi[i]).exp()
+                        } else {
+                            0.0
+                        }
+                    })
+                    .collect();
+                tm = 1.0 - total(&big);
+                let next = normalized(&big);
+                let change = max_difference(&next, &w);
+                w = next;
+                if change < 1e-12 {
+                    break;
+                }
+            }
+            if tm < -1e-8
+                && max_difference(&w, x) > 1e-3
+                && best.as_ref().is_none_or(|(b, _)| tm < *b)
+            {
+                best = Some((tm, w));
+            }
+        }
+        best.map(|(_, w)| w)
+    }
+
+    /// Stages whose liquid splits in a VLLE flash of the tie-line midpoint
+    /// or of the stage liquid (light and heavy liquid of that flash).
+    fn splitting_stages(&self, v: &[f64]) -> Vec<(usize, Vec<f64>, Vec<f64>)> {
+        let mut out = Vec::new();
+        for j in 1..self.blocks {
+            let b = self.decode(v, j);
+            let (xs, ys) = (normalized(&b.l), normalized(&b.v));
+            let midpoint: Vec<f64> = xs.iter().zip(&ys).map(|(x, y)| 0.5 * (x + y)).collect();
+            if let Some((light, heavy)) = self
+                .liquid_split(&midpoint, b.t)
+                .or_else(|| self.liquid_split(&xs, b.t))
+                .or_else(|| self.incipient_liquid(&xs, b.t).map(|w| (xs.clone(), w)))
+            {
+                out.push((j, light, heavy));
+            }
+        }
+        out
+    }
+
+    /// Phase-set check of a converged pass: single-liquid stages against a
+    /// VLLE flash of their tie-line midpoint, three-phase stages against a
+    /// VLLE PH flash of their contents.
+    fn phase_changes(
+        &self,
+        v: &[f64],
+        props: &[BlockProperties],
+    ) -> Result<Vec<PhaseChange>, String> {
+        let mut changes = Vec::new();
+        for (j, p) in props.iter().enumerate().skip(1) {
+            let stage = j + 1;
+            let b = self.decode(v, j);
+            let (xs, ys) = (normalized(&b.l), normalized(&b.v));
+            if self.split[j] {
+                if self.degenerate_split(&b) {
+                    changes.push(PhaseChange::Merge(j));
+                    continue;
+                }
+                let third = p.third.as_ref().expect("three-phase stage properties");
+                let (la, lb, lv) = (total(&b.l), total(&b.l2), total(&b.v));
+                let f = la + lb + lv;
+                let z: Vec<f64> = (0..self.components)
+                    .map(|i| (b.l[i] + b.l2[i] + b.v[i]) / f)
+                    .collect();
+                let h = (la * p.first.enthalpy + lb * third.enthalpy + lv * p.second.enthalpy) / f;
+                let x2 = normalized(&b.l2);
+                let flash = match self.ctx.vlle_ph(&z, self.pressure, h) {
+                    Ok(flash) => flash,
+                    Err(e) => {
+                        // The PH flash can fail for strongly immiscible
+                        // binaries at their three-phase temperature; the
+                        // solved liquids (iso-fugacity holds) then must pass
+                        // the liquid tangent-plane test.
+                        if self.incipient_liquid(&xs, b.t).is_none()
+                            && self.incipient_liquid(&x2, b.t).is_none()
+                        {
+                            continue;
+                        }
+                        return Err(format!("three-phase column stage {stage} phase check: {e}"));
+                    }
+                };
+                let phases = (
+                    flash.phase_with_role(PhaseRole::Vapor),
+                    flash.phase_with_role(PhaseRole::LightLiquid),
+                    flash.phase_with_role(PhaseRole::HeavyLiquid),
+                );
+                let (Some(vap), Some(light), Some(heavy)) = phases else {
+                    // The package finds fewer phases: the second liquid is
+                    // not stable, solve the stage with one liquid.
+                    changes.push(PhaseChange::Merge(j));
+                    continue;
+                };
+                let liquids = |a: &[f64], c: &[f64], fa: f64, fc: f64| {
+                    max_difference(&light.composition, a)
+                        .max(max_difference(&heavy.composition, c))
+                        .max((light.phase_fraction - fa).abs() / 10.0)
+                        .max((heavy.phase_fraction - fc).abs() / 10.0)
+                };
+                let deviation = (flash.state.temperature_k - b.t)
+                    .abs()
+                    .max(max_difference(&vap.composition, &ys))
+                    .max((vap.phase_fraction - lv / f).abs() / 10.0)
+                    .max(liquids(&xs, &x2, la / f, lb / f).min(liquids(&x2, &xs, lb / f, la / f)));
+                if deviation > THREE_PHASE_AGREEMENT {
+                    return Err(format!(
+                        "three-phase column: stage {stage} did not reproduce a stable vapor-liquid-liquid split (deviation {deviation:.2e} from the VLLE PH flash)"
+                    ));
+                }
+                continue;
+            }
+            let midpoint: Vec<f64> = xs.iter().zip(&ys).map(|(x, y)| 0.5 * (x + y)).collect();
+            let flash = match self.ctx.vlle(&midpoint, b.t, self.pressure) {
+                Ok(flash) => flash,
+                Err(e) => {
+                    // Close to a binary three-phase temperature the midpoint
+                    // flash can fail; a second liquid is then still found
+                    // from the stage liquid alone.
+                    if let Some((light, heavy)) = self.liquid_split(&xs, b.t) {
+                        changes.push(PhaseChange::Split(j, light, heavy));
+                        continue;
+                    }
+                    if let Some(w) = self.incipient_liquid(&xs, b.t) {
+                        changes.push(PhaseChange::Split(j, xs, w));
+                        continue;
+                    }
+                    return Err(format!("three-phase column stage {stage} phase check: {e}"));
+                }
+            };
+            if let (Some(a), Some(c)) = (
+                flash.phase_with_role(PhaseRole::LightLiquid),
+                flash.phase_with_role(PhaseRole::HeavyLiquid),
+            ) {
+                changes.push(PhaseChange::Split(
+                    j,
+                    a.composition.clone(),
+                    c.composition.clone(),
+                ));
+                continue;
+            }
+            let matches = match (
+                flash.phase_with_role(PhaseRole::Vapor),
+                flash.phase_with_role(PhaseRole::Liquid),
+            ) {
+                (Some(v), Some(l)) => {
+                    (v.phase_fraction - 0.5).abs() <= 2e-5
+                        && max_difference(&v.composition, &ys) <= 2e-6
+                        && max_difference(&l.composition, &xs) <= 2e-6
+                }
+                _ => false,
+            };
+            if !matches {
+                return Err(format!(
+                    "three-phase column: stage {stage} did not reproduce a stable vapor-liquid split"
+                ));
+            }
+        }
+        Ok(changes)
+    }
+
+    fn three_phase_stages(&self) -> String {
+        let stages: Vec<String> = (1..self.blocks)
+            .filter(|&j| self.split[j])
+            .map(|j| (j + 1).to_string())
+            .collect();
+        if stages.is_empty() {
+            String::new()
+        } else {
+            format!(" (two liquids on stages {})", stages.join(", "))
+        }
     }
 }
 
 type Matrix = Vec<Vec<f64>>;
+
+/// Records a phase set; a set seen before is a phase-count oscillation.
+fn remember(seen: &mut Vec<Vec<bool>>, split: &[bool]) -> Result<(), String> {
+    if seen.iter().any(|s| s == split) {
+        let stages: Vec<String> = split
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| **s)
+            .map(|(j, _)| (j + 1).to_string())
+            .collect();
+        return Err(format!(
+            "three-phase column: the stage phase counts oscillate (the set with two liquids on stages [{}] recurs); change the reflux or bottoms specification",
+            stages.join(", ")
+        ));
+    }
+    seen.push(split.to_vec());
+    Ok(())
+}
 
 /// K-values and the bubble function ln Σ K_i x_i of a single liquid `x` at T,
 /// with the incipient vapor `y` (updated in place).
@@ -726,32 +1141,46 @@ fn decanter_split(
     }
 }
 
+/// A liquid product: one liquid, or (bottoms of a three-phase reboiler) two
+/// liquids given as (fraction, composition, properties).
 fn product(
     ctx: &CalcContext<'_>,
     flow: f64,
     composition: &[f64],
     temperature_k: f64,
     pressure_pa: f64,
+    liquids: Option<[(f64, Vec<f64>, PhaseProperties); 2]>,
 ) -> Result<MaterialStream, String> {
     let composition = composition.to_vec();
-    let state = ctx.homogeneous(
-        &composition,
-        temperature_k,
-        pressure_pa,
-        RootSelection::SmallestVolume,
-    )?;
+    let phases = match liquids {
+        Some(pair) => pair
+            .into_iter()
+            .map(|(phase_fraction, composition, state)| EquilibriumPhase {
+                phase: Phase::Liquid,
+                phase_fraction,
+                composition,
+                state,
+            })
+            .collect(),
+        None => vec![EquilibriumPhase {
+            phase: Phase::Liquid,
+            phase_fraction: 1.0,
+            composition: composition.clone(),
+            state: ctx.homogeneous(
+                &composition,
+                temperature_k,
+                pressure_pa,
+                RootSelection::SmallestVolume,
+            )?,
+        }],
+    };
     Ok(MaterialStream {
         molar_flow_mol_s: flow,
         state: Some(EquilibriumState {
             temperature_k,
             pressure_pa,
-            mole_fractions: composition.clone(),
-            phases: vec![EquilibriumPhase {
-                phase: Phase::Liquid,
-                phase_fraction: 1.0,
-                composition,
-                state,
-            }],
+            mole_fractions: composition,
+            phases,
             iterations: 0,
             convergence: Convergence {
                 max_ln_fugacity_residual: 0.0,
@@ -841,7 +1270,7 @@ pub(super) fn calculate(
     feed_enthalpy[feed_block] = flow * feed.molar_enthalpy_j_mol;
     let bottoms = flow * spec.bottoms_fraction.expect("checked bottoms fraction");
     let overhead = flow - bottoms;
-    let column = Column {
+    let mut column = Column {
         ctx,
         pressure,
         decanter_t,
@@ -856,6 +1285,7 @@ pub(super) fn calculate(
         energy_scale: stream.thermal_scale_w().max(flow),
         bottoms,
         reflux,
+        split: vec![false; blocks],
     };
 
     // Initialization: constant molar overflow, bubble-point temperatures and
@@ -969,6 +1399,7 @@ pub(super) fn calculate(
         v: (0..components)
             .map(|i| keep(vapor * heavy.1 * heavy.0[i], i))
             .collect(),
+        l2: vec![0.0; components],
         t: 0.0,
     });
     for s in 0..stages {
@@ -985,6 +1416,7 @@ pub(super) fn calculate(
             v: (0..components)
                 .map(|i| keep(vapor_flow * y[s][i], i))
                 .collect(),
+            l2: vec![0.0; components],
             t: temperatures[s],
         });
     }
@@ -995,9 +1427,72 @@ pub(super) fn calculate(
         let r = column.residual(&v0, &props);
         v0[w - 1] = r[w - 1];
     }
-    let (solved, iterations) = column.newton(v0)?;
+
+    // Phase-set rounds: solve with the current set of three-phase stages,
+    // then split stages whose liquid is unstable and merge stages whose
+    // second liquid vanished, until the set no longer changes.
+    let mut seen = vec![column.split.clone()];
+    let mut start = v0.clone();
+    let mut iterations = 0;
+    let mut round = 0;
+    let solved = loop {
+        round += 1;
+        if round > MAX_PHASE_ROUNDS {
+            return Err(format!(
+                "three-phase column: the stage phase counts did not settle in {MAX_PHASE_ROUNDS} rounds{}",
+                column.three_phase_stages()
+            ));
+        }
+        let (v, used) = match column.newton(start) {
+            Ok(solution) => solution,
+            Err(NewtonFailure::Merge {
+                block,
+                v,
+                iterations: used,
+            }) => {
+                iterations += used;
+                start = column.merge(&v, block);
+                remember(&mut seen, &column.split)?;
+                continue;
+            }
+            Err(NewtonFailure::Failed(message)) => {
+                // Single-liquid stages failed: retry with two liquids where
+                // the initial profile already splits.
+                let splits = if round == 1 {
+                    column.splitting_stages(&v0)
+                } else {
+                    Vec::new()
+                };
+                if splits.is_empty() {
+                    return Err(format!("{message}{}", column.three_phase_stages()));
+                }
+                start = v0.clone();
+                for (j, light, heavy) in splits {
+                    start = column.split_block(&start, j, &light, &heavy);
+                }
+                remember(&mut seen, &column.split)?;
+                continue;
+            }
+        };
+        iterations += used;
+        let props = column.all_properties(&v)?;
+        let changes = column.phase_changes(&v, &props)?;
+        if changes.is_empty() {
+            break v;
+        }
+        start = v;
+        for change in changes {
+            start = match change {
+                PhaseChange::Split(j, light, heavy) => {
+                    column.split_block(&start, j, &light, &heavy)
+                }
+                PhaseChange::Merge(j) => column.merge(&start, j),
+            };
+        }
+        remember(&mut seen, &column.split)?;
+    };
     let props = column.all_properties(&solved)?;
-    let decoded: Vec<Block> = (0..blocks).map(|j| column.decode(&solved, j)).collect();
+    let decoded = column.decode_all(&solved);
 
     // Verification: decanter against an independent LLE flash.
     let mut warnings = Vec::new();
@@ -1022,40 +1517,6 @@ pub(super) fn calculate(
             )
         });
     }
-    // Stages: exactly one vapor and one liquid, matching the solved tie line.
-    for (j, b) in decoded.iter().enumerate().skip(1) {
-        let stage = j + 1;
-        let (xs, ys) = (normalized(&b.l), normalized(&b.v));
-        let midpoint: Vec<f64> = xs.iter().zip(&ys).map(|(x, y)| 0.5 * (x + y)).collect();
-        let flash = ctx
-            .vlle(&midpoint, b.t, pressure)
-            .map_err(|e| format!("three-phase column stage {stage} phase check: {e}"))?;
-        if flash
-            .roles
-            .iter()
-            .any(|r| matches!(r, PhaseRole::LightLiquid | PhaseRole::HeavyLiquid))
-        {
-            return Err(format!(
-                "three-phase column: stage {stage} liquid splits into two liquids; this column allows two liquids only in the decanter (internal three-phase stages are not supported)"
-            ));
-        }
-        let matches = match (
-            flash.phase_with_role(PhaseRole::Vapor),
-            flash.phase_with_role(PhaseRole::Liquid),
-        ) {
-            (Some(v), Some(l)) => {
-                (v.phase_fraction - 0.5).abs() <= 2e-5
-                    && max_difference(&v.composition, &ys) <= 2e-6
-                    && max_difference(&l.composition, &xs) <= 2e-6
-            }
-            _ => false,
-        };
-        if !matches {
-            return Err(format!(
-                "three-phase column: stage {stage} did not reproduce a stable vapor-liquid split"
-            ));
-        }
-    }
     let light_flow = total(&decanter.l);
     let heavy_flow = total(&decanter.v);
     if props[0].first.mass_density > props[0].second.mass_density {
@@ -1075,6 +1536,42 @@ pub(super) fn calculate(
             "three-phase column requires heat removal at the condenser and heat input at the reboiler (condenser {condenser:.3e} W removed, reboiler {reboiler:.3e} W supplied); the specification is infeasible"
         ));
     }
+    // Both liquids of every three-phase stage, ordered by mass density.
+    let mut splits = vec![Some(StageLiquidSplit {
+        light_mol_s: light_flow,
+        light_composition: xa.clone(),
+        heavy_mol_s: heavy_flow,
+        heavy_composition: xb.clone(),
+    })];
+    let mut phase_counts = vec![2_u8];
+    for (j, b) in decoded.iter().enumerate().skip(1) {
+        let Some(third) = &props[j].third else {
+            splits.push(None);
+            phase_counts.push(2);
+            continue;
+        };
+        let first = (total(&b.l), normalized(&b.l));
+        let second = (total(&b.l2), normalized(&b.l2));
+        let (light, heavy) = if props[j].first.mass_density <= third.mass_density {
+            (first, second)
+        } else {
+            (second, first)
+        };
+        let distance = max_difference(&light.1, &heavy.1);
+        if distance < 0.02 {
+            warnings.push(format!(
+                "TPC-NEAR-PLAIT-POINT: stage {} liquids differ by only {distance:.4} in mole fraction",
+                j + 1
+            ));
+        }
+        splits.push(Some(StageLiquidSplit {
+            light_mol_s: light.0,
+            light_composition: light.1,
+            heavy_mol_s: heavy.0,
+            heavy_composition: heavy.1,
+        }));
+        phase_counts.push(3);
+    }
     let [fa, fb] = reflux;
     let (distillate, decant) = match spec.reflux {
         DecanterReflux::Light(_) => (((1.0 - fa) * light_flow, &xa), (heavy_flow, &xb)),
@@ -1085,10 +1582,33 @@ pub(super) fn calculate(
         ),
     };
     let last = &decoded[blocks - 1];
+    let (bottoms_flows, _) = Column::liquid_out(last, &props[blocks - 1]);
+    let bottoms_flow = total(&bottoms_flows);
+    // A three-phase reboiler delivers both liquids, the light one first.
+    let bottoms_liquids = props[blocks - 1].third.clone().map(|third| {
+        let first = (
+            total(&last.l) / bottoms_flow,
+            normalized(&last.l),
+            props[blocks - 1].first.clone(),
+        );
+        let second = (total(&last.l2) / bottoms_flow, normalized(&last.l2), third);
+        if first.2.mass_density <= second.2.mass_density {
+            [first, second]
+        } else {
+            [second, first]
+        }
+    });
     let outlets = vec![
-        product(ctx, distillate.0, distillate.1, decanter_t, pressure)?,
-        product(ctx, decant.0, decant.1, decanter_t, pressure)?,
-        product(ctx, total(&last.l), &normalized(&last.l), last.t, pressure)?,
+        product(ctx, distillate.0, distillate.1, decanter_t, pressure, None)?,
+        product(ctx, decant.0, decant.1, decanter_t, pressure, None)?,
+        product(
+            ctx,
+            bottoms_flow,
+            &normalized(&bottoms_flows),
+            last.t,
+            pressure,
+            bottoms_liquids,
+        )?,
     ];
     let (reflux_flows, _) = column.reflux_of(decanter, &props[0]);
     let mut liquid_flows = vec![total(&reflux_flows)];
@@ -1096,10 +1616,11 @@ pub(super) fn calculate(
     let mut liquid_compositions = vec![normalized(&reflux_flows)];
     let mut vapor_compositions = vec![condensate];
     let mut temperatures = vec![decanter_t];
-    for b in &decoded[1..] {
-        liquid_flows.push(total(&b.l));
+    for (b, p) in decoded[1..].iter().zip(&props[1..]) {
+        let (liquid, _) = Column::liquid_out(b, p);
+        liquid_flows.push(total(&liquid));
         vapor_flows.push(total(&b.v));
-        liquid_compositions.push(normalized(&b.l));
+        liquid_compositions.push(normalized(&liquid));
         vapor_compositions.push(normalized(&b.v));
         temperatures.push(b.t);
     }
@@ -1113,6 +1634,8 @@ pub(super) fn calculate(
             vapor_flows_mol_s: vapor_flows,
             liquid_compositions,
             vapor_compositions,
+            stage_phase_counts: phase_counts,
+            stage_liquid_splits: splits,
             light_liquid_mol_s: light_flow,
             light_liquid_composition: xa,
             heavy_liquid_mol_s: heavy_flow,
@@ -1152,6 +1675,19 @@ mod tests {
             DecanterReflux::Light(PhaseReflux::Ratio(None)).fractions(),
             None
         );
+    }
+
+    #[test]
+    fn a_recurring_phase_set_is_an_oscillation_failure() {
+        let mut seen = vec![vec![false; 4]];
+        remember(&mut seen, &[false, true, false, false]).unwrap();
+        remember(&mut seen, &[false, true, true, false]).unwrap();
+        let message = remember(&mut seen, &[false, true, false, false]).unwrap_err();
+        assert!(
+            message.contains("phase counts oscillate") && message.contains("stages [2]"),
+            "{message}"
+        );
+        assert_eq!(seen.len(), 3);
     }
 
     #[test]

@@ -135,6 +135,62 @@ fn three_phase_column_solves_saves_and_reloads() {
 }
 
 #[test]
+fn three_phase_stage_results_save_and_older_results_still_open() {
+    // Most of both liquids refluxed: two liquids on the upper trays.
+    let fixture: Value = serde_json::from_str(FIXTURE).unwrap();
+    let case = &fixture["cases"][0];
+    let (mut project, unit, _, _) = project(case, &fixture["components"]);
+    let UnitSpec::Multiphase(MultiphaseSpec::ThreePhaseColumn(mut spec)) =
+        project.flowsheet.unit(unit).unwrap().spec.clone()
+    else {
+        panic!("three-phase column spec");
+    };
+    spec.reflux = DecanterReflux::Fractions {
+        light: Some(0.95),
+        heavy: Some(0.9),
+    };
+    project.flowsheet.set_spec(
+        unit,
+        UnitSpec::Multiphase(MultiphaseSpec::ThreePhaseColumn(spec)),
+    );
+    let result = solve_project(
+        &project,
+        &project.package.prepare().unwrap(),
+        |_| ControlFlow::Continue(()),
+        0,
+    )
+    .unwrap_or_else(|e| panic!("{}", e.message));
+    let profile = result.units[&unit].three_phase_column.clone().unwrap();
+    assert_eq!(profile.stage_phase_counts, [2, 3, 3, 3, 3, 3, 2, 2]);
+    assert!(profile.stage_liquid_splits[1].is_some());
+    assert!(profile.stage_liquid_splits[7].is_none());
+    project.results = Some(result);
+    let saved = project.to_json().unwrap();
+    let reopened = Project::from_json(&saved).unwrap();
+    assert_eq!(
+        reopened.results.as_ref().unwrap().units[&unit].three_phase_column,
+        Some(profile)
+    );
+    // Results saved before three-phase stages existed lack both fields.
+    let mut old: Value = serde_json::from_str(&saved).unwrap();
+    let units = old["results"]["units"].as_object_mut().unwrap();
+    let column = units
+        .values_mut()
+        .find_map(|u| u.get_mut("three_phase_column").filter(|c| !c.is_null()))
+        .unwrap()
+        .as_object_mut()
+        .unwrap();
+    column.remove("stage_phase_counts");
+    column.remove("stage_liquid_splits");
+    let reopened = Project::from_json(&old.to_string()).unwrap();
+    let profile = reopened.results.as_ref().unwrap().units[&unit]
+        .three_phase_column
+        .clone()
+        .unwrap();
+    assert!(profile.stage_phase_counts.is_empty() && profile.stage_liquid_splits.is_empty());
+}
+
+#[test]
 fn drawn_only_three_phase_column_record_opens_with_its_connections() {
     let fixture: Value = serde_json::from_str(FIXTURE).unwrap();
     let (project, unit, _, _) = project(&fixture["cases"][0], &fixture["components"]);
