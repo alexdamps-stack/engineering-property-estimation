@@ -14,7 +14,10 @@ use property_packages::SaturationKind;
 use thermo_types::Phase;
 
 use super::mesh::{self, TEMPERATURE_SCALE};
-use super::stages::{ColumnEnds, Condenser, PlacedPackedSection, Stage, StageCascade, StageFeed};
+use super::side_sections::{Cooling, SideSections, SideStripperProfile, Stripping};
+use super::stages::{
+    ColumnEnds, Condenser, PlacedPackedSection, Stage, StageCascade, StageFeed, StageProperties,
+};
 use super::{ColumnInternals, count_issue};
 use crate::MaterialStream;
 use crate::numerics::solve_dense;
@@ -467,6 +470,12 @@ pub struct DistillationColumnResult {
     pub packed_height_m: Option<f64>,
     /// Accepted Newton iterations of the final solve.
     pub iterations: usize,
+    /// Heat removed by each pump-around of a petroleum fractionator (#190),
+    /// W; empty without pump-arounds.
+    pub pump_around_duties_w: Vec<f64>,
+    /// Profile of each side stripper of a petroleum fractionator (#190);
+    /// empty without side strippers.
+    pub side_strippers: Vec<SideStripperProfile>,
 }
 
 /// Bottom end of a column solved by [`calculate_with`].
@@ -526,6 +535,16 @@ struct Decoded {
     distillate: f64,
     reflux: f64,
     bottoms: f64,
+    /// Side-stripper cascades, in specification order.
+    strippers: Vec<StageCascade>,
+}
+
+/// A decoded column with its stage properties and every coupling feed's
+/// enthalpy set.
+struct Evaluated {
+    decoded: Decoded,
+    properties: Vec<StageProperties>,
+    stripper_properties: Vec<Vec<StageProperties>>,
 }
 
 #[derive(Clone)]
@@ -549,6 +568,8 @@ struct Column<'a, 'p> {
     distillate: DistillateFlow,
     reflux: RefluxFlow,
     equations: Vec<SpecEquation>,
+    /// Pump-arounds and side strippers solved with the column (#190).
+    sections: SideSections,
 }
 
 impl Column<'_, '_> {
@@ -563,8 +584,21 @@ impl Column<'_, '_> {
         self.condenser == Condenser::Partial
     }
 
-    /// Number of profile variables, before any free flow.
+    /// Number of profile variables, before any free flow: the main column,
+    /// then each side stripper.
     fn profile_len(&self) -> usize {
+        let m = self.active_components.len() - 1;
+        self.main_profile_len()
+            + self
+                .sections
+                .strippers
+                .iter()
+                .map(|s| s.variable_len(m))
+                .sum::<usize>()
+    }
+
+    /// Number of main-column profile variables.
+    fn main_profile_len(&self) -> usize {
         let n = self.pressures.len();
         let m = self.active_components.len() - 1;
         let condenser = 1 + m + if self.partial() { m } else { 0 };
@@ -601,6 +635,25 @@ impl Column<'_, '_> {
         out
     }
 
+    /// The starting column of a column with side strippers: each stripper
+    /// replaced by its bottoms drawn at its draw stage and its steam fed to
+    /// its return stage, which keeps the external balance.
+    fn precursor(&self) -> Self {
+        let mut precursor = self.clone();
+        precursor.sections.strippers.clear();
+        for stripper in &self.sections.strippers {
+            precursor.liquid_draws[stripper.draw] += stripper.bottoms;
+            if let Stripping::Steam(steam) = &stripper.bottom {
+                precursor.feeds.push(StageFeed {
+                    stage: stripper.ret + 1,
+                    ..steam.clone()
+                });
+                precursor.feed_by_stage[stripper.ret] += steam.molar_flow_mol_s;
+            }
+        }
+        precursor
+    }
+
     /// The same column with both flows fixed.
     fn with_fixed_flows(&self, distillate: f64, reflux: f64) -> Self {
         let mut fixed = self.clone();
@@ -615,6 +668,13 @@ impl Column<'_, '_> {
         let c = self.ctx.component_count();
         let m = self.active_components.len() - 1;
         let (profile, extra) = values.split_at(self.profile_len());
+        let (profile, mut section_values) = profile.split_at(self.main_profile_len());
+        let mut stripper_values = Vec::with_capacity(self.sections.strippers.len());
+        for stripper in &self.sections.strippers {
+            let (own, rest) = section_values.split_at(stripper.variable_len(m));
+            stripper_values.push(own);
+            section_values = rest;
+        }
         let (distillate, reflux) = self.flows(extra);
         if !(distillate.is_finite() && reflux.is_finite() && distillate > 0.0 && reflux > 0.0) {
             return Err("column distillate and reflux must be positive and finite".into());
@@ -626,10 +686,37 @@ impl Column<'_, '_> {
                     .into(),
             );
         }
+        // Pump-around and side-stripper streams are internal draws and feeds.
+        let mut feed_by_stage = self.feed_by_stage.clone();
+        let mut liquid_draws = self.liquid_draws.clone();
+        for pump in &self.sections.pump_arounds {
+            liquid_draws[pump.draw] += pump.flow;
+            feed_by_stage[pump.ret] += pump.flow;
+        }
+        let mut tops = Vec::with_capacity(self.sections.strippers.len());
+        for (k, (stripper, own)) in self
+            .sections
+            .strippers
+            .iter()
+            .zip(&stripper_values)
+            .enumerate()
+        {
+            let (vapor, y) = stripper.top_vapor(own, &self.active_components, c, self.flow);
+            let draw = stripper.draw_flow(vapor);
+            if !(draw.is_finite() && draw > 0.0) {
+                return Err(format!(
+                    "side stripper {} draws no liquid from the column: its top vapor and bottoms are below its steam",
+                    k + 1
+                ));
+            }
+            liquid_draws[stripper.draw] += draw;
+            feed_by_stage[stripper.ret] += vapor;
+            tops.push((vapor, y, draw));
+        }
         let mut remaining = -distillate;
         let liquid_offset: Vec<_> = (0..n)
             .map(|j| {
-                remaining += self.feed_by_stage[j] - self.liquid_draws[j] - self.vapor_draws[j];
+                remaining += feed_by_stage[j] - liquid_draws[j] - self.vapor_draws[j];
                 remaining
             })
             .collect();
@@ -671,7 +758,7 @@ impl Column<'_, '_> {
             stage.liquid_draw_mol_s = match j {
                 0 if self.partial() => self.liquid_distillate,
                 0 => distillate,
-                _ => self.liquid_draws[j],
+                _ => liquid_draws[j],
             };
             stage.vapor_draw_mol_s = self.vapor_draws[j];
             stages.push(stage);
@@ -682,14 +769,84 @@ impl Column<'_, '_> {
         for (s, l) in stages.iter_mut().zip(liquid) {
             s.liquid_mol_s = l;
         }
+        // Coupling feeds carry placeholder enthalpies until `evaluate`.
+        let mut feeds = self.feeds.clone();
+        for pump in &self.sections.pump_arounds {
+            feeds.push(StageFeed {
+                stage: pump.ret + 1,
+                molar_flow_mol_s: pump.flow,
+                z: stages[pump.draw].x.clone(),
+                molar_enthalpy_j_mol: 0.0,
+            });
+        }
+        let mut strippers = Vec::with_capacity(tops.len());
+        for ((stripper, own), (vapor, y, draw)) in self
+            .sections
+            .strippers
+            .iter()
+            .zip(stripper_values)
+            .zip(tops)
+        {
+            feeds.push(StageFeed {
+                stage: stripper.ret + 1,
+                molar_flow_mol_s: vapor,
+                z: y,
+                molar_enthalpy_j_mol: 0.0,
+            });
+            strippers.push(stripper.decode(
+                own,
+                &self.active_components,
+                c,
+                self.flow,
+                self.pressures[stripper.draw],
+                draw,
+                stages[stripper.draw].x.clone(),
+            )?);
+        }
         Ok(Decoded {
-            cascade: StageCascade {
-                stages,
-                feeds: self.feeds.clone(),
-            },
+            cascade: StageCascade { stages, feeds },
             distillate,
             reflux,
             bottoms,
+            strippers,
+        })
+    }
+
+    /// Decodes `values` and evaluates the stage properties of the column and
+    /// its side strippers, setting the enthalpy of every coupling feed: a
+    /// side stripper's liquid feed at its draw-stage liquid, its vapor return
+    /// at its top-stage vapor and a pump-around return from its cooling.
+    fn evaluate(&self, values: &[f64]) -> Result<Evaluated, String> {
+        let mut decoded = self.decode(values)?;
+        let properties = mesh::properties(
+            self.ctx,
+            &decoded.cascade,
+            self.ends(),
+            self.temperature_range,
+        )?;
+        let mut stripper_properties = Vec::with_capacity(decoded.strippers.len());
+        for (stripper, cascade) in self.sections.strippers.iter().zip(&mut decoded.strippers) {
+            cascade.feeds[0].molar_enthalpy_j_mol = properties[stripper.draw].liquid_enthalpy_j_mol;
+            stripper_properties.push(mesh::properties(
+                self.ctx,
+                cascade,
+                stripper.ends(),
+                self.temperature_range,
+            )?);
+        }
+        let external = self.feeds.len();
+        for (k, pump) in self.sections.pump_arounds.iter().enumerate() {
+            let h = pump.return_enthalpy(self.ctx, &decoded.cascade, &properties)?;
+            decoded.cascade.feeds[external + k].molar_enthalpy_j_mol = h;
+        }
+        let returns = external + self.sections.pump_arounds.len();
+        for (k, props) in stripper_properties.iter().enumerate() {
+            decoded.cascade.feeds[returns + k].molar_enthalpy_j_mol = props[0].vapor_enthalpy_j_mol;
+        }
+        Ok(Evaluated {
+            decoded,
+            properties,
+            stripper_properties,
         })
     }
 
@@ -704,10 +861,13 @@ impl Column<'_, '_> {
     }
 
     fn residual(&self, values: &[f64]) -> Result<Vec<f64>, String> {
-        let decoded = self.decode(values)?;
+        let Evaluated {
+            decoded,
+            properties,
+            stripper_properties,
+        } = self.evaluate(values)?;
         let cascade = &decoded.cascade;
         let ends = self.ends();
-        let properties = mesh::properties(self.ctx, cascade, ends, self.temperature_range)?;
         let mut out = mesh::residuals(
             cascade,
             &properties,
@@ -715,6 +875,15 @@ impl Column<'_, '_> {
             &self.active_components,
             self.flow,
         )?;
+        for ((stripper, own), props) in self
+            .sections
+            .strippers
+            .iter()
+            .zip(&decoded.strippers)
+            .zip(&stripper_properties)
+        {
+            out.extend(stripper.residuals(own, props, &self.active_components, self.flow)?);
+        }
         if self.equations.is_empty() {
             return Ok(out);
         }
@@ -868,6 +1037,22 @@ pub(super) fn calculate_with(
     ctx: &CalcContext<'_>,
     options: ColumnOptions,
 ) -> Result<(UnitOutput, DistillationColumnResult), String> {
+    calculate_sections(spec, inlets, ctx, options, SideSections::default())
+}
+
+/// [`calculate_with`] with pump-arounds and side strippers solved
+/// simultaneously with the column (#190). `inlets` are the main-column
+/// feeds; side-stripper steam is part of `sections`. The outlets are those
+/// of [`calculate_with`] followed by each side stripper's bottoms, and the
+/// energy values those of [`calculate_with`] followed by each pump-around
+/// duty (outlet) and each side-stripper reboiler duty (inlet).
+pub(super) fn calculate_sections(
+    spec: &DistillationColumnSpec,
+    inlets: &[MaterialStream],
+    ctx: &CalcContext<'_>,
+    options: ColumnOptions,
+    sections: SideSections,
+) -> Result<(UnitOutput, DistillationColumnResult), String> {
     let reboiled = options.bottom == BottomEnd::Reboiler;
     if reboiled && spec.overspecified() {
         return Err(
@@ -916,7 +1101,23 @@ pub(super) fn calculate_with(
         return Err("column requires a positive, finite total feed flow".into());
     }
     let feed_composition: Vec<f64> = feed_components.iter().map(|z| z / flow).collect();
-    let active_components = mesh::active_components(&feed_composition)?;
+    // Side-stripper steam can bring components the main feeds lack.
+    let mut steam_components = feed_components.clone();
+    let mut steam_flow = flow;
+    for stripper in &sections.strippers {
+        if let Stripping::Steam(steam) = &stripper.bottom {
+            steam_flow += steam.molar_flow_mol_s;
+            for (total, z) in steam_components.iter_mut().zip(&steam.z) {
+                *total += steam.molar_flow_mol_s * z;
+            }
+        }
+    }
+    let all_composition: Vec<f64> = if steam_flow > flow {
+        steam_components.iter().map(|z| z / steam_flow).collect()
+    } else {
+        feed_composition.clone()
+    };
+    let active_components = mesh::active_components(&all_composition)?;
     let liquid = &spec.liquid_draws[..usize::from(spec.side_draws)];
     let vapor = &spec.vapor_draws[..usize::from(spec.vapor_side_draws)];
     let mut liquid_draws = vec![0.0; n];
@@ -929,7 +1130,11 @@ pub(super) fn calculate_with(
         vapor_draws[usize::from(draw.stage) - 1] +=
             draw.molar_flow_mol_s.expect("checked vapor-draw flow");
     }
-    let available = flow - liquid_draws.iter().sum::<f64>() - vapor_draws.iter().sum::<f64>();
+    let mut available = flow - liquid_draws.iter().sum::<f64>() - vapor_draws.iter().sum::<f64>();
+    // Each side stripper withdraws its bottoms net of its steam.
+    for stripper in &sections.strippers {
+        available -= stripper.bottoms - stripper.steam_flow();
+    }
     if !available.is_finite() || available <= 0.0 {
         return Err("column side draws must leave positive bottoms flow and distillate".into());
     }
@@ -1051,6 +1256,7 @@ pub(super) fn calculate_with(
         distillate: distillate.map_or(DistillateFlow::Free, DistillateFlow::Fixed),
         reflux,
         equations,
+        sections,
     };
     // Starting flows: a free distillate starts at half the available
     // product (or above the liquid distillate), a free reflux at L/D = 2.
@@ -1075,7 +1281,7 @@ pub(super) fn calculate_with(
     let fill = |phase: &[f64], scale: f64| {
         let phase: Vec<f64> = phase
             .iter()
-            .zip(&feed_composition)
+            .zip(&all_composition)
             .map(|(&p, &z)| if p > 0.0 { p } else { z * scale })
             .collect();
         mesh::log_ratios(&phase, &column.active_components)
@@ -1096,23 +1302,71 @@ pub(super) fn calculate_with(
             initial.push(((l0 + d0) / flow).ln());
         }
     }
-    let (solved, iterations) = if column.equations.is_empty() {
-        mesh::solve(initial, |values| column.residual(values))?
-    } else {
-        let flows = column.flow_variables(d0, l0);
-        let (profile, flows) = column
-            .converge_flows(initial, flows)
-            .map_err(|e| format!("column specifications cannot be met: {e}"))?;
-        let start: Vec<f64> = profile.into_iter().chain(flows).collect();
-        mesh::solve(start, |values| column.residual(values))
-            .map_err(|e| format!("column specifications cannot be met: {e}"))?
+    let (mut d_start, mut l_start) = (d0, l0);
+    let mut warm = false;
+    if !column.sections.strippers.is_empty() {
+        // Side strippers start from the converged precursor column: each
+        // stripper replaced by its bottoms drawn at the draw stage and its
+        // steam fed to the return stage (the same external balance). Its
+        // stages start at the draw-stage state. The coupled solve below is
+        // the simultaneous Newton solve; a precursor that does not converge
+        // leaves the plain start.
+        let precursor = column.precursor();
+        if let Ok((solved, _)) = column_solve(&precursor, initial.clone(), d0, l0)
+            && let Ok(decoded) = precursor.decode(&solved)
+        {
+            initial = solved[..column.main_profile_len()].to_vec();
+            for stripper in &column.sections.strippers {
+                let stage = &decoded.cascade.stages[stripper.draw];
+                initial.extend(stripper.initial(
+                    stage.temperature_k,
+                    &mesh::log_ratios(&stage.x, &column.active_components),
+                    &mesh::log_ratios(&stage.y, &column.active_components),
+                    flow,
+                ));
+            }
+            (d_start, l_start) = (decoded.distillate, decoded.reflux);
+            warm = true;
+        } else {
+            for stripper in &column.sections.strippers {
+                initial.extend(stripper.initial(seed.temperature_k, &x, &y, flow));
+            }
+        }
+    }
+    // From the precursor the simultaneous Newton solve starts directly
+    // (free flows included); the outer flow iteration is the fallback.
+    let warm_solve = warm
+        .then(|| {
+            let start: Vec<f64> = initial
+                .iter()
+                .copied()
+                .chain(column.flow_variables(d_start, l_start))
+                .collect();
+            mesh::solve(start, |values| column.residual(values)).ok()
+        })
+        .flatten();
+    let (solved, iterations) = match warm_solve {
+        Some(solved) => solved,
+        None => column_solve(&column, initial, d_start, l_start)?,
     };
-    let decoded = column.decode(&solved)?;
+    let Evaluated {
+        decoded,
+        properties,
+        stripper_properties,
+    } = column.evaluate(&solved)?;
     let ends = column.ends();
     let mut cascade = decoded.cascade;
-    let properties = mesh::properties(ctx, &cascade, ends, temperature_range)?;
-    let warnings = mesh::check_liquid_liquid(ctx, &cascade)?;
+    let mut warnings = mesh::check_liquid_liquid(ctx, &cascade)?;
     mesh::verify_phases(ctx, &cascade)?;
+    for (k, stripper) in decoded.strippers.iter().enumerate() {
+        let context = |e: String| format!("side stripper {}: {e}", k + 1);
+        for warning in mesh::check_liquid_liquid(ctx, stripper).map_err(context)? {
+            if !warnings.contains(&warning) {
+                warnings.push(warning);
+            }
+        }
+        mesh::verify_phases(ctx, stripper).map_err(context)?;
+    }
     let residuals = cascade.residuals(&properties)?;
     cascade.stages[0].duty_w = -residuals[0].energy_w;
     // An adiabatic bottom stage has no duty; its energy residual is within
@@ -1137,6 +1391,81 @@ pub(super) fn calculate_with(
         return Err(
             "column requires heat removal at the condenser and heat input at the reboiler".into(),
         );
+    }
+    let mut duty = reboiler - condenser;
+    // Pump-arounds: a cooled liquid returned at or above its draw.
+    let external = column.feeds.len();
+    let mut pump_around_duties = Vec::with_capacity(column.sections.pump_arounds.len());
+    for (k, pump) in column.sections.pump_arounds.iter().enumerate() {
+        let returned = &cascade.feeds[external + k];
+        let draw = &cascade.stages[pump.draw];
+        let removed = pump.flow
+            * (properties[pump.draw].liquid_enthalpy_j_mol - returned.molar_enthalpy_j_mol);
+        if let Cooling::ReturnTemperature(t) = pump.cooling {
+            if t >= draw.temperature_k {
+                return Err(format!(
+                    "pump-around {} return temperature {t} K is not below its draw-stage temperature {:.3} K",
+                    k + 1,
+                    draw.temperature_k
+                ));
+            }
+            let pressure = cascade.stages[pump.ret].pressure_pa;
+            let state = ctx
+                .tp(&returned.z, t, pressure)
+                .map_err(|e| format!("pump-around {} return state: {e}", k + 1))?;
+            if !matches!(state.phases.as_slice(), [p] if p.phase == Phase::Liquid) {
+                return Err(format!(
+                    "pump-around {} return at {t} K and {pressure} Pa is not a single liquid",
+                    k + 1
+                ));
+            }
+        }
+        if !(removed.is_finite() && removed > 0.0) {
+            return Err(format!("pump-around {} must remove heat", k + 1));
+        }
+        duty -= removed;
+        pump_around_duties.push(removed);
+        energy.push(Some(removed));
+    }
+    // Side strippers: bottoms products and reboiler duties.
+    let returns = external + column.sections.pump_arounds.len();
+    let mut profiles = Vec::with_capacity(decoded.strippers.len());
+    let mut stripper_products = Vec::with_capacity(decoded.strippers.len());
+    for (k, ((stripper, own), props)) in column
+        .sections
+        .strippers
+        .iter()
+        .zip(&decoded.strippers)
+        .zip(&stripper_properties)
+        .enumerate()
+    {
+        let last = own.stages.len() - 1;
+        let reboiler_duty = if stripper.reboiled() {
+            let q = -own.residuals(props)?[last].energy_w;
+            if !(q.is_finite() && q > 0.0) {
+                return Err(format!(
+                    "side stripper {} requires heat input at its reboiler",
+                    k + 1
+                ));
+            }
+            duty += q;
+            energy.push(Some(q));
+            q
+        } else {
+            0.0
+        };
+        stripper_products.push(mesh::product(
+            ctx,
+            &own.stages[last],
+            stripper.bottoms,
+            Phase::Liquid,
+        )?);
+        profiles.push(SideStripperProfile {
+            stage_temperatures_k: own.stages.iter().map(|s| s.temperature_k).collect(),
+            draw_mol_s: own.feeds[0].molar_flow_mol_s,
+            vapor_return_mol_s: cascade.feeds[returns + k].molar_flow_mol_s,
+            reboiler_duty_w: reboiler_duty,
+        });
     }
     let top = &cascade.stages[0];
     let mut outlets = vec![
@@ -1166,7 +1495,8 @@ pub(super) fn calculate_with(
     if liquid_distillate > 0.0 {
         outlets.push(mesh::product(ctx, top, liquid_distillate, Phase::Liquid)?);
     }
-    let mut output = UnitOutput::new(outlets, reboiler - condenser, warnings);
+    outlets.extend(stripper_products);
+    let mut output = UnitOutput::new(outlets, duty, warnings);
     output.energy = energy;
     Ok((
         output,
@@ -1181,8 +1511,31 @@ pub(super) fn calculate_with(
             boilup_mol_s: cascade.stages[n - 1].vapor_mol_s,
             packed_height_m: packed.map(|section| section.packed.packed_height_m),
             iterations,
+            pump_around_duties_w: pump_around_duties,
+            side_strippers: profiles,
         },
     ))
+}
+
+/// Solves `column` from the profile `initial` and the starting distillate
+/// and reflux: directly, or with free flows by the outer flow iteration
+/// followed by the simultaneous Newton solve.
+fn column_solve(
+    column: &Column<'_, '_>,
+    initial: Vec<f64>,
+    distillate: f64,
+    reflux: f64,
+) -> Result<(Vec<f64>, usize), String> {
+    if column.equations.is_empty() {
+        return mesh::solve(initial, |values| column.residual(values));
+    }
+    let flows = column.flow_variables(distillate, reflux);
+    let (profile, flows) = column
+        .converge_flows(initial, flows)
+        .map_err(|e| format!("column specifications cannot be met: {e}"))?;
+    let start: Vec<f64> = profile.into_iter().chain(flows).collect();
+    mesh::solve(start, |values| column.residual(values))
+        .map_err(|e| format!("column specifications cannot be met: {e}"))
 }
 
 /// Saturation failures caused by a liquid that splits into two liquids: a

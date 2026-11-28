@@ -8,8 +8,9 @@ use flowsheet_core::units::columns::packing::{
 use flowsheet_core::units::columns::{
     BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget,
     DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom, MAX_COLUMN_PORTS,
-    MAX_COLUMN_STAGES, MAX_DISTILLATION_INTERNAL_STAGES, PetroleumFractionatorSpec,
-    ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux, TopSpecification,
+    MAX_COLUMN_STAGES, MAX_DISTILLATION_INTERNAL_STAGES, PetroleumFractionatorSpec, PumpAround,
+    PumpAroundCooling, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux, SideStripper,
+    SideStripperBottom, TopSpecification,
 };
 use flowsheet_core::units::{ColumnSpec, GroupSpec};
 
@@ -158,6 +159,7 @@ fn petroleum_form(
     count_field(ui, "Side products", &mut s.side_draws, 0..=MAX_COLUMN_PORTS);
     s.feed_stages.truncate(usize::from(s.feeds));
     s.products.truncate(usize::from(s.side_draws));
+    s.side_strippers.truncate(usize::from(s.side_draws));
     internals_form(ui, &mut s.internals, units);
     condenser_form(ui, &mut s.condenser, units);
     pressure_form(
@@ -189,8 +191,8 @@ fn petroleum_form(
     note_row(
         ui,
         "Stage 1 is the condenser and the last stage the reboiler or steam-stripped bottom tray. \
-         Feeds must carry characterised pseudo-components. Side strippers and pump-arounds \
-         are not modelled.",
+         Feeds must carry characterised pseudo-components. Pump-arounds and side strippers \
+         are solved with the column.",
     );
     let stage_range = 2..=MAX_DISTILLATION_INTERNAL_STAGES + 2;
     for i in 0..usize::from(s.feeds.min(MAX_COLUMN_PORTS)) {
@@ -247,6 +249,159 @@ fn petroleum_form(
             s.products
                 .resize(s.products.len().max(i + 1), Default::default());
             s.products[i] = product;
+        }
+    }
+    pump_around_form(ui, s, units, stage_range.clone());
+    side_stripper_form(ui, s, units, stage_range);
+}
+
+/// Pump-arounds of the petroleum fractionator (#190): each has a
+/// `pump-around duty k` energy outlet.
+fn pump_around_form(
+    ui: &mut Ui,
+    s: &mut PetroleumFractionatorSpec,
+    units: DisplayUnits,
+    stage_range: std::ops::RangeInclusive<u16>,
+) {
+    let mut count = u16::try_from(s.pump_arounds.len()).unwrap_or(MAX_COLUMN_PORTS);
+    if count_field(ui, "Pump-arounds", &mut count, 0..=MAX_COLUMN_PORTS) {
+        s.pump_arounds
+            .resize(usize::from(count), PumpAround::default());
+    }
+    for (i, pump) in s.pump_arounds.iter_mut().enumerate() {
+        let n = i + 1;
+        {
+            count_field(
+                ui,
+                &format!("Pump-around {n} draw stage"),
+                &mut pump.draw_stage,
+                stage_range.clone(),
+            );
+            count_field(
+                ui,
+                &format!("Pump-around {n} return stage"),
+                &mut pump.return_stage,
+                stage_range.clone(),
+            );
+            opt_field(
+                ui,
+                &format!("Pump-around {n} molar flow"),
+                &mut pump.molar_flow_mol_s,
+                Quantity::MolarFlow,
+                units,
+            );
+            let duty = matches!(pump.cooling, PumpAroundCooling::Duty(_)) as usize;
+            match choice(
+                ui,
+                &format!("Pump-around {n} cooling"),
+                duty,
+                &["Return temperature", "Duty removed"],
+            ) {
+                Some(0) if duty != 0 => pump.cooling = PumpAroundCooling::ReturnTemperature(None),
+                Some(1) if duty != 1 => pump.cooling = PumpAroundCooling::Duty(None),
+                _ => {}
+            }
+            match &mut pump.cooling {
+                PumpAroundCooling::ReturnTemperature(t) => opt_field(
+                    ui,
+                    &format!("Pump-around {n} return temperature"),
+                    t,
+                    Quantity::Temperature,
+                    units,
+                ),
+                PumpAroundCooling::Duty(q) => opt_field(
+                    ui,
+                    &format!("Pump-around {n} duty (removed)"),
+                    q,
+                    Quantity::Duty,
+                    units,
+                ),
+            }
+        }
+    }
+}
+
+/// Side strippers of the petroleum fractionator (#190): each takes one side
+/// product's draw, returns its vapor and delivers its bottoms on the
+/// product's port, with a `stripper steam k` inlet or a `stripper reboiler
+/// duty k` energy inlet.
+fn side_stripper_form(
+    ui: &mut Ui,
+    s: &mut PetroleumFractionatorSpec,
+    units: DisplayUnits,
+    stage_range: std::ops::RangeInclusive<u16>,
+) {
+    let mut count = u16::try_from(s.side_strippers.len()).unwrap_or(MAX_COLUMN_PORTS);
+    if count_field(ui, "Side strippers", &mut count, 0..=s.side_draws) {
+        let next = s.side_strippers.len();
+        s.side_strippers
+            .resize(usize::from(count), SideStripper::default());
+        for (i, stripper) in s.side_strippers.iter_mut().enumerate().skip(next) {
+            stripper.product = u16::try_from(i + 1).unwrap_or(1);
+        }
+    }
+    if s.side_strippers.is_empty() {
+        return;
+    }
+    note_row(
+        ui,
+        "A stripped product is the stripper's bottoms at the product's flow; the stripper runs \
+         at its draw-stage pressure and returns its top vapor to the return stage.",
+    );
+    for (i, stripper) in s.side_strippers.iter_mut().enumerate() {
+        let n = i + 1;
+        {
+            count_field(
+                ui,
+                &format!("Stripper {n} product"),
+                &mut stripper.product,
+                1..=s.side_draws.max(1),
+            );
+            count_field(
+                ui,
+                &format!("Stripper {n} stages"),
+                &mut stripper.stages,
+                1..=MAX_COLUMN_STAGES,
+            );
+            count_field(
+                ui,
+                &format!("Stripper {n} vapor return stage"),
+                &mut stripper.return_stage,
+                stage_range.clone(),
+            );
+            let current = match stripper.bottom {
+                SideStripperBottom::Steam => 0,
+                SideStripperBottom::ReboilerDuty(_) => 1,
+                SideStripperBottom::BoilupRatio(_) => 2,
+            };
+            match choice(
+                ui,
+                &format!("Stripper {n} stripping"),
+                current,
+                &["Steam", "Reboiler (duty)", "Reboiler (boilup ratio)"],
+            ) {
+                Some(0) if current != 0 => stripper.bottom = SideStripperBottom::Steam,
+                Some(1) if current != 1 => stripper.bottom = SideStripperBottom::ReboilerDuty(None),
+                Some(2) if current != 2 => stripper.bottom = SideStripperBottom::BoilupRatio(None),
+                _ => {}
+            }
+            match &mut stripper.bottom {
+                SideStripperBottom::Steam => {}
+                SideStripperBottom::ReboilerDuty(q) => opt_field(
+                    ui,
+                    &format!("Stripper {n} reboiler duty"),
+                    q,
+                    Quantity::Duty,
+                    units,
+                ),
+                SideStripperBottom::BoilupRatio(r) => opt_field(
+                    ui,
+                    &format!("Stripper {n} boilup ratio"),
+                    r,
+                    Quantity::Factor,
+                    units,
+                ),
+            }
         }
     }
 }

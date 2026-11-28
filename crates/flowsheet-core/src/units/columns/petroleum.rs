@@ -11,15 +11,19 @@
 //! and is adiabatic ([`BottomEnd::Adiabatic`]). A side product specified by
 //! standard liquid volume is converted to its molar flow by successive
 //! substitution on the product's own composition, each pass a converged
-//! column. Side strippers, pump-arounds, ASTM D86/TBP cut-point
-//! specifications and coupled multi-column systems are not modelled
+//! column. Pump-arounds and side strippers ([`super::side_sections`]) are
+//! solved simultaneously with the main column in one Newton system; a
+//! stripped side product is the stripper's bottoms. ASTM D86/TBP cut-point
+//! specifications and general coupled multi-column systems are not modelled
 //! (`docs/a17-columns-petroleum.md`).
 
 use super::distillation::{self, BottomEnd, ColumnOptions};
+use super::side_sections::{Cooling, PumpAroundLoop, SideSections, StripperSection, Stripping};
+use super::stages::StageFeed;
 use super::{
     BottomSpecification, ColumnInternals, ColumnPressureDrop, DistillationColumnResult,
     DistillationColumnSpec, DistillationCondenser, LiquidSideDraw, MAX_COLUMN_PORTS,
-    TopSpecification, count_issue,
+    MAX_COLUMN_STAGES, TopSpecification, count_issue,
 };
 use crate::MaterialStream;
 use crate::unit::{Sign, SpecIssue, SpecProblem, check_optional};
@@ -70,6 +74,87 @@ impl Default for SideProduct {
     }
 }
 
+/// Cooling of a pump-around.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PumpAroundCooling {
+    /// Temperature of the returned liquid, K; below the draw-stage
+    /// temperature, and the return must be a single liquid at the
+    /// return-stage pressure.
+    ReturnTemperature(Option<f64>),
+    /// Heat removed, W; positive.
+    Duty(Option<f64>),
+}
+
+impl Default for PumpAroundCooling {
+    fn default() -> Self {
+        Self::ReturnTemperature(None)
+    }
+}
+
+/// A pump-around (port `pump-around duty k`): liquid drawn from an internal
+/// stage, cooled and returned to the same or a higher stage.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PumpAround {
+    /// One-based internal stage the liquid is drawn from.
+    pub draw_stage: u16,
+    /// One-based stage the cooled liquid returns to, `2..=draw_stage`.
+    pub return_stage: u16,
+    /// Circulated molar flow, mol/s.
+    pub molar_flow_mol_s: Option<f64>,
+    pub cooling: PumpAroundCooling,
+}
+
+impl Default for PumpAround {
+    fn default() -> Self {
+        Self {
+            draw_stage: 3,
+            return_stage: 2,
+            molar_flow_mol_s: None,
+            cooling: PumpAroundCooling::default(),
+        }
+    }
+}
+
+/// Stripping agent of a side stripper.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum SideStripperBottom {
+    /// Steam (port `stripper steam k`) to the adiabatic bottom stage.
+    #[default]
+    Steam,
+    /// Partial reboiler (port `stripper reboiler duty k`) with its duty, W.
+    ReboilerDuty(Option<f64>),
+    /// Partial reboiler (port `stripper reboiler duty k`) with the boilup
+    /// ratio, vapor from the reboiler over the product.
+    BoilupRatio(Option<f64>),
+}
+
+/// A side stripper on one side product: the product's liquid draw feeds its
+/// top stage, its top vapor returns to the main column and its bottoms
+/// leave on the product's `side draw` port at the product's flow
+/// specification. It operates at the pressure of the draw stage.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SideStripper {
+    /// One-based side product (`side draw k`) the stripper is attached to.
+    pub product: u16,
+    /// Number of equilibrium stages, including a reboiler.
+    pub stages: u16,
+    /// One-based main-column stage receiving the top vapor, `2..=` the
+    /// product's draw stage.
+    pub return_stage: u16,
+    pub bottom: SideStripperBottom,
+}
+
+impl Default for SideStripper {
+    fn default() -> Self {
+        Self {
+            product: 1,
+            stages: 3,
+            return_stage: 2,
+            bottom: SideStripperBottom::default(),
+        }
+    }
+}
+
 /// Bottom end of the fractionator.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FractionatorBottom {
@@ -92,7 +177,9 @@ impl Default for FractionatorBottom {
 /// Ports beyond the fixed `feed`, `overhead`, `bottoms` and `condenser duty`
 /// follow in this order: `side draw 1..k`, `feed 2..n`, `liquid distillate`
 /// (partial vapor-and-liquid condenser), `stripping steam` (steam bottom)
-/// and the `reboiler duty` energy inlet (reboiled bottom). Existing side
+/// or the `reboiler duty` energy inlet (reboiled bottom), `pump-around
+/// duty 1..p` energy outlets and, per side stripper in list order, `stripper
+/// steam k` or the `stripper reboiler duty k` energy inlet. Existing side
 /// draw connections of a drawn-only fractionator keep their port indices.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PetroleumFractionatorSpec {
@@ -119,6 +206,10 @@ pub struct PetroleumFractionatorSpec {
     pub top: TopSpecification,
     /// Reboiler with its specification, or stripping steam.
     pub bottom: FractionatorBottom,
+    /// Pump-arounds, at most [`MAX_COLUMN_PORTS`].
+    pub pump_arounds: Vec<PumpAround>,
+    /// Side strippers, at most one per side product.
+    pub side_strippers: Vec<SideStripper>,
 }
 
 impl Default for PetroleumFractionatorSpec {
@@ -135,6 +226,8 @@ impl Default for PetroleumFractionatorSpec {
             condenser: DistillationCondenser::Total,
             top: TopSpecification::default(),
             bottom: FractionatorBottom::default(),
+            pump_arounds: Vec::new(),
+            side_strippers: Vec::new(),
         }
     }
 }
@@ -156,12 +249,35 @@ impl PetroleumFractionatorSpec {
         self.products.get(k).copied().unwrap_or_default()
     }
 
+    /// Index in `side_strippers` of the stripper on side product `k`
+    /// (zero-based).
+    fn stripper_of(&self, k: usize) -> Option<usize> {
+        self.side_strippers
+            .iter()
+            .position(|s| usize::from(s.product) == k + 1)
+    }
+
+    /// Whether the column has pump-arounds or side strippers.
+    fn has_sections(&self) -> bool {
+        !(self.pump_arounds.is_empty() && self.side_strippers.is_empty())
+    }
+
     /// The equivalent distillation column. `molar` gives the molar flow of
-    /// each side product; `None` keeps the product's molar specification
-    /// (and marks a volume-specified product as set, its value is checked
-    /// separately).
+    /// each side product, and the column then draws only the products
+    /// without a side stripper (a stripped product is the stripper's
+    /// bottoms; its main-column draw is part of the side sections). `None`
+    /// keeps every product as a draw at its molar specification (and marks
+    /// a volume-specified product as set, its value is checked separately),
+    /// for the specification checks.
     fn column(&self, molar: Option<&[f64]>) -> DistillationColumnSpec {
-        let draws = usize::from(self.side_draws.min(MAX_COLUMN_PORTS));
+        let draws: Vec<usize> = (0..usize::from(self.side_draws.min(MAX_COLUMN_PORTS)))
+            .filter(|&k| molar.is_none() || self.stripper_of(k).is_none())
+            .collect();
+        let side_draws = if molar.is_none() {
+            self.side_draws
+        } else {
+            u16::try_from(draws.len()).expect("at most MAX_COLUMN_PORTS draws")
+        };
         let mut feed_stages: Vec<u16> = (0..usize::from(self.feeds.min(MAX_COLUMN_PORTS)))
             .map(|i| self.feed_stages.get(i).copied().unwrap_or(2))
             .collect();
@@ -173,9 +289,10 @@ impl PetroleumFractionatorSpec {
         }
         DistillationColumnSpec {
             feeds,
-            side_draws: self.side_draws,
+            side_draws,
             feed_stages,
-            liquid_draws: (0..draws)
+            liquid_draws: draws
+                .into_iter()
                 .map(|k| {
                     let product = self.product(k);
                     LiquidSideDraw {
@@ -233,8 +350,195 @@ impl PetroleumFractionatorSpec {
                 );
             }
         }
+        self.section_issues(&mut issues);
         issues
     }
+
+    /// Issues of the pump-arounds and side strippers.
+    fn section_issues(&self, issues: &mut Vec<SpecIssue>) {
+        let mut push = |field, problem| issues.push(SpecIssue { field, problem });
+        if self.pump_arounds.len() > usize::from(MAX_COLUMN_PORTS) {
+            push("pump-arounds", SpecProblem::CountOutOfRange);
+        }
+        if self.side_strippers.len() > usize::from(self.side_draws) {
+            push("side strippers", SpecProblem::CountOutOfRange);
+        }
+        if !issues.is_empty() {
+            return;
+        }
+        let stages = self.internals.resolve().ok().map(|(count, _)| count + 2);
+        for pump in &self.pump_arounds {
+            check_optional(
+                issues,
+                "pump-around molar flow",
+                pump.molar_flow_mol_s,
+                Sign::Positive,
+            );
+            match pump.cooling {
+                PumpAroundCooling::ReturnTemperature(t) => {
+                    check_optional(issues, "pump-around return temperature", t, Sign::Positive)
+                }
+                PumpAroundCooling::Duty(q) => {
+                    check_optional(issues, "pump-around duty", q, Sign::Positive)
+                }
+            }
+            let draw = usize::from(pump.draw_stage);
+            if stages.is_some_and(|n| {
+                !(2..n).contains(&draw) || !(2..=draw).contains(&usize::from(pump.return_stage))
+            }) {
+                issues.push(SpecIssue {
+                    field: "pump-around stage",
+                    problem: SpecProblem::OutOfRange,
+                });
+            }
+        }
+        for (i, stripper) in self.side_strippers.iter().enumerate() {
+            let product = usize::from(stripper.product);
+            let mut push = |field, problem| issues.push(SpecIssue { field, problem });
+            if !(1..=usize::from(self.side_draws)).contains(&product) {
+                push("side-stripper product", SpecProblem::OutOfRange);
+            } else {
+                if self.side_strippers[..i]
+                    .iter()
+                    .any(|s| s.product == stripper.product)
+                {
+                    push("side-stripper product", SpecProblem::Duplicate);
+                }
+                let draw = self.product(product - 1).stage;
+                if !(2..=draw).contains(&stripper.return_stage) {
+                    push("side-stripper return stage", SpecProblem::OutOfRange);
+                }
+            }
+            if !(1..=MAX_COLUMN_STAGES).contains(&stripper.stages) {
+                push("side-stripper stages", SpecProblem::OutOfRange);
+            }
+            match stripper.bottom {
+                SideStripperBottom::Steam => {}
+                SideStripperBottom::ReboilerDuty(q) => {
+                    check_optional(issues, "side-stripper reboiler duty", q, Sign::Positive)
+                }
+                SideStripperBottom::BoilupRatio(r) => {
+                    check_optional(issues, "side-stripper boilup ratio", r, Sign::Positive)
+                }
+            }
+        }
+    }
+
+    /// Pump-arounds and side strippers for the calculation; `molar` is the
+    /// molar flow of every side product and `steam` the `stripper steam`
+    /// inlets in order.
+    fn sections(
+        &self,
+        molar: &[f64],
+        steam: &[MaterialStream],
+        ctx: &CalcContext<'_>,
+    ) -> Result<SideSections, String> {
+        let column = self.column(None);
+        let (stages, _) = column.stage_layout()?;
+        let pressures = column
+            .stage_pressures_pa(stages)
+            .expect("checked column pressure");
+        let pump_arounds = self
+            .pump_arounds
+            .iter()
+            .map(|pump| PumpAroundLoop {
+                draw: usize::from(pump.draw_stage) - 1,
+                ret: usize::from(pump.return_stage) - 1,
+                flow: pump.molar_flow_mol_s.expect("checked pump-around flow"),
+                cooling: match pump.cooling {
+                    PumpAroundCooling::ReturnTemperature(t) => {
+                        Cooling::ReturnTemperature(t.expect("checked return temperature"))
+                    }
+                    PumpAroundCooling::Duty(q) => Cooling::Duty(q.expect("checked duty")),
+                },
+            })
+            .collect();
+        let mut steam = steam.iter();
+        let mut strippers = Vec::with_capacity(self.side_strippers.len());
+        for (i, stripper) in self.side_strippers.iter().enumerate() {
+            let k = usize::from(stripper.product) - 1;
+            let draw = usize::from(self.product(k).stage) - 1;
+            let count = usize::from(stripper.stages);
+            let bottom = match stripper.bottom {
+                SideStripperBottom::Steam => {
+                    let stream = steam
+                        .next()
+                        .expect("one inlet per steam-stripped side stripper");
+                    let feed = StageFeed::from_stream(count, stream, ctx.component_count())?;
+                    if !(feed.molar_flow_mol_s.is_finite() && feed.molar_flow_mol_s > 0.0) {
+                        return Err(format!(
+                            "petroleum fractionator side stripper {} needs a steam flow on stripper steam {}",
+                            i + 1,
+                            i + 1
+                        ));
+                    }
+                    if stream
+                        .state
+                        .as_ref()
+                        .is_some_and(|s| s.pressure_pa < pressures[draw])
+                    {
+                        return Err(format!(
+                            "petroleum fractionator side stripper {} steam pressure is below the stripper (draw-stage) pressure",
+                            i + 1
+                        ));
+                    }
+                    Stripping::Steam(feed)
+                }
+                SideStripperBottom::ReboilerDuty(q) => {
+                    Stripping::ReboilerDuty(q.expect("checked reboiler duty"))
+                }
+                SideStripperBottom::BoilupRatio(r) => {
+                    Stripping::BoilupRatio(r.expect("checked boilup ratio"))
+                }
+            };
+            strippers.push(StripperSection {
+                draw,
+                ret: usize::from(stripper.return_stage) - 1,
+                stages: count,
+                bottoms: molar[k],
+                bottom,
+            });
+        }
+        Ok(SideSections {
+            pump_arounds,
+            strippers,
+        })
+    }
+}
+
+/// Solves the column at the molar flow of every side product, with its
+/// pump-arounds and side strippers, and returns the outlets in port order
+/// (`overhead`, `bottoms`, `side draw 1..k`, `liquid distillate`).
+fn solve(
+    spec: &PetroleumFractionatorSpec,
+    molar: &[f64],
+    main: &[MaterialStream],
+    steam: &[MaterialStream],
+    ctx: &CalcContext<'_>,
+    options: ColumnOptions,
+) -> Result<(UnitOutput, DistillationColumnResult), String> {
+    let column = spec.column(Some(molar));
+    if !spec.has_sections() {
+        return distillation::calculate_with(&column, main, ctx, options);
+    }
+    let sections = spec.sections(molar, steam, ctx)?;
+    let stripped = sections.strippers.len();
+    let (mut output, result) =
+        distillation::calculate_sections(&column, main, ctx, options, sections)?;
+    // Column outlets: overhead, bottoms, unstripped draws, liquid
+    // distillate, then the side-stripper bottoms.
+    let mut rest = output.outlets.split_off(2);
+    let bottoms = rest.split_off(rest.len() - stripped);
+    let liquid_distillate = rest.split_off(usize::from(column.side_draws));
+    let mut unstripped = rest.into_iter();
+    for k in 0..usize::from(spec.side_draws) {
+        output.outlets.push(match spec.stripper_of(k) {
+            Some(i) => bottoms[i].clone(),
+            None => unstripped.next().expect("one outlet per unstripped draw"),
+        });
+    }
+    output.outlets.extend(liquid_distillate);
+    Ok((output, result))
 }
 
 /// Standard liquid molar volume of every package component at 60 °F, m³/mol;
@@ -265,8 +569,9 @@ fn mixture_volume(volumes: &[Option<f64>], x: &[f64]) -> Option<f64> {
         .sum()
 }
 
-/// Calculates the fractionator. Inlets are `feed`, `feed 2..n` and, with a
-/// steam bottom, `stripping steam`, in port order.
+/// Calculates the fractionator. Inlets are `feed`, `feed 2..n`, with a
+/// steam bottom `stripping steam`, and the `stripper steam k` inlets, in
+/// port order.
 pub(super) fn calculate(
     spec: &PetroleumFractionatorSpec,
     inlets: &[MaterialStream],
@@ -315,8 +620,19 @@ pub(super) fn calculate(
         bottom: spec.bottom_end(),
         seed_inlets: spec.steam().then_some(feeds),
     };
+    // Side-stripper steam follows the main-column inlets.
+    let (main, steam) = inlets.split_at(feeds + usize::from(spec.steam()));
     if targets.iter().all(Option::is_none) {
-        return distillation::calculate_with(&spec.column(None), inlets, ctx, options);
+        if !spec.has_sections() {
+            return distillation::calculate_with(&spec.column(None), inlets, ctx, options);
+        }
+        let molar: Vec<f64> = spec
+            .column(None)
+            .liquid_draws
+            .iter()
+            .map(|d| d.molar_flow_mol_s.expect("checked side-product flow"))
+            .collect();
+        return solve(spec, &molar, main, steam, ctx, options);
     }
 
     // Every component that can reach a draw needs a standard liquid volume.
@@ -345,13 +661,9 @@ pub(super) fn calculate(
         })
         .collect();
     for _ in 0..VOLUME_ITERATIONS {
-        let (output, result) =
-            distillation::calculate_with(&spec.column(Some(&molar)), inlets, ctx, options)
-                .map_err(|e| {
-                    format!(
-                        "petroleum fractionator at side-product molar flows {molar:?} mol/s: {e}"
-                    )
-                })?;
+        let (output, result) = solve(spec, &molar, main, steam, ctx, options).map_err(|e| {
+            format!("petroleum fractionator at side-product molar flows {molar:?} mol/s: {e}")
+        })?;
         let mut converged = true;
         for (k, target) in targets.iter().enumerate() {
             let Some(target) = target else { continue };

@@ -388,6 +388,38 @@ pub struct DistillationColumnEstimate {
     /// Boilup `V_N`, mol/s (added behind format version 4).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boilup_mol_s: Option<f64>,
+    /// Heat removed by each petroleum-fractionator pump-around, W (#190,
+    /// added behind format version 4).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pump_around_duties_w: Vec<f64>,
+    /// Profile of each petroleum-fractionator side stripper (#190, added
+    /// behind format version 4).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub side_strippers: Vec<SideStripperResult>,
+}
+
+/// Saved profile of a petroleum-fractionator side stripper (#190).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SideStripperResult {
+    /// Stage temperatures, top first.
+    pub stage_temperatures_k: Vec<f64>,
+    /// Liquid drawn from the main column, mol/s.
+    pub draw_mol_s: f64,
+    /// Top vapor returned to the main column, mol/s.
+    pub vapor_return_mol_s: f64,
+    /// Reboiler duty, W; zero when steam-stripped.
+    pub reboiler_duty_w: f64,
+}
+
+impl SideStripperResult {
+    fn numbers(&self) -> impl Iterator<Item = f64> + '_ {
+        self.stage_temperatures_k.iter().copied().chain([
+            self.draw_mol_s,
+            self.vapor_return_mol_s,
+            self.reboiler_duty_w,
+        ])
+    }
 }
 
 impl From<&flowsheet_core::units::columns::DistillationColumnResult>
@@ -395,6 +427,17 @@ impl From<&flowsheet_core::units::columns::DistillationColumnResult>
 {
     fn from(r: &flowsheet_core::units::columns::DistillationColumnResult) -> Self {
         Self {
+            pump_around_duties_w: r.pump_around_duties_w.clone(),
+            side_strippers: r
+                .side_strippers
+                .iter()
+                .map(|s| SideStripperResult {
+                    stage_temperatures_k: s.stage_temperatures_k.clone(),
+                    draw_mol_s: s.draw_mol_s,
+                    vapor_return_mol_s: s.vapor_return_mol_s,
+                    reboiler_duty_w: s.reboiler_duty_w,
+                })
+                .collect(),
             stage_temperatures_k: r.stage_temperatures_k.clone(),
             condenser_duty_w: r.condenser_duty_w,
             reboiler_duty_w: r.reboiler_duty_w,
@@ -924,6 +967,8 @@ impl ResultSet {
                         || opt(r.packed_height_m)
                         || r.stage_temperatures_k.iter().copied().any(bad)
                         || r.stage_pressures_pa.iter().copied().any(bad)
+                        || r.pump_around_duties_w.iter().copied().any(bad)
+                        || r.side_strippers.iter().flat_map(|s| s.numbers()).any(bad)
                         || [
                             r.distillate_mol_s,
                             r.reflux_mol_s,
