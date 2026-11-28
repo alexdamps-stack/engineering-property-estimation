@@ -39,6 +39,8 @@ scipy 1.16.3, CoolProp 7.2.0, chemicals 1.5.2; on Windows in WSL2):
 
 Pass --coupled-pressure to solve the bottom pressure of each segment as an
 additional Newton unknown and generate the separate coupled-pressure reference.
+Pass --specified-hydraulics to generate the 8 bar case with supplied hydraulic
+inputs and the same independent transfer equations.
 
 Review the difference before replacing rate-based-v1.json; never regenerate
 to make a failing test pass.
@@ -309,6 +311,7 @@ class Column:
         self.c = len(IDS)
         self.p = case["pressure_Pa"]
         self.coupled = case.get("couple_pressure_drop", False)
+        self.rating = case.get("specified_hydraulics")
         self.variant = case["variant"]
         self.pk = PACKINGS[case["packing"]]
         self.area = math.pi * case["diameter_m"] ** 2 / 4
@@ -332,8 +335,10 @@ class Column:
         c = self.c
         out = []
         p_v = self.p
-        for b in values.reshape(self.n, self.size()):
+        for j, b in enumerate(values.reshape(self.n, self.size())):
             p_l = b[-1] * 1e5 if self.coupled else self.p
+            if self.rating:
+                p_l += self.rating["pressure_drop_pa"] * (j + 1) / self.n
             out.append(dict(tv=b[0] * 100, tl=b[1] * 100, ti=b[2] * 100,
                             x=b[3:3 + c], y=b[3 + c:3 + 2 * c], xi=b[3 + 2 * c:3 + 3 * c],
                             yi=b[3 + 3 * c:3 + 4 * c], L=b[3 + 4 * c] * self.flow,
@@ -507,8 +512,13 @@ def reference(case):
                     interfacial_area_m2_m3=[], flooding_fractions=[], pressure_drops_Pa_m=[])
     neglected = 0.0
     for s, pr in zip(segs, props):
-        drop, flood = hydraulics(col.pk, pr["gflux"], pr["bv"]["rho"], pr["lflux"], pr["rho_l"],
-                                 pr["mu_l"], s["p_i"])
+        if col.rating:
+            drop = col.rating["pressure_drop_pa"] / case["packed_height_m"]
+            mass_flow = s["V"] * sum(y * molar_mass(i) for i, y in enumerate(s["y"])) * 1e-3
+            flood = mass_flow / col.rating["flood_gas_flow_kg_s"]
+        else:
+            drop, flood = hydraulics(col.pk, pr["gflux"], pr["bv"]["rho"], pr["lflux"], pr["rho_l"],
+                                     pr["mu_l"], s["p_i"])
         assert flood < 1 and pr["u_l"] * 3600 >= minimum_wetting_m_h(col.pk, pr["sigma"])
         # The interface phases satisfy equal fugacities (residual above) and
         # are each stable by the A4 multi-start TPD search, so the interface
@@ -536,7 +546,7 @@ def reference(case):
                               z=to_float(list(top["y"]))),
                          dict(molar_flow_mol_s=float(bottom["L"]), temperature_K=float(bottom["tl"]),
                               z=to_float(list(bottom["x"])))])
-    if col.coupled:
+    if col.coupled or col.rating:
         result["boundary_pressures_Pa"] = [col.p] + [float(s["p_l"]) for s in segs]
     return result
 
@@ -544,7 +554,9 @@ def reference(case):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--coupled-pressure", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--coupled-pressure", action="store_true")
+    mode.add_argument("--specified-hydraulics", action="store_true")
     args = parser.parse_args()
     watched = [PATH, ROOT / "validation/generate-references.py",
                ROOT / "validation/generate-flash-references.py",
@@ -554,6 +566,13 @@ def main():
                ROOT / "data/source-extracts/transport.provisional.json"]
     schema = "a17-rate-based-coupled-pressure-reference-v1" if args.coupled_pressure else "a17-rate-based-absorber-reference-v1"
     cases = [dict(case, couple_pressure_drop=True) for case in CASES] if args.coupled_pressure else CASES
+    if args.specified_hydraulics:
+        schema = "a17-rate-based-specified-hydraulics-reference-v1"
+        base = CASES[0]
+        cases = [dict(base, id="methanol-scrubbing-specified-hydraulics-8bar-PR",
+                      pressure_Pa=8e5, gas=dict(base["gas"], pressure_Pa=8.1e5),
+                      liquid=dict(base["liquid"], pressure_Pa=8.2e5),
+                      specified_hydraulics=dict(pressure_drop_pa=1200.0, flood_gas_flow_kg_s=0.8))]
     result = dict(
         schema=schema,
         published_examples=published_examples(),

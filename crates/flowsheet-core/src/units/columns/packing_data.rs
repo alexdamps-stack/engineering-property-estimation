@@ -25,14 +25,21 @@
 //!   of thumb of Table 14-16 (p. 14-79): Q_MW = Q_table (200/a_p)^0.5,
 //!   doubled for liquids above 25 mN/m as recommended there for water.
 //!
-//! Billet–Schultes (1999) and Bravo–Rocha–Fair (structured packings) are not
-//! implemented: their packing-specific constants were not verified.
+//! Billet–Schultes pressure drop uses its own Pall-ring constants from Table
+//! 2a of Billet and Schultes (1999), with the pre-loading holdup equation.
+//! The reported pressure-drop gas-density range is 0.06–28 kg/m³; the
+//! separate loading/flooding data reach only 1.37 kg/m³. Capacity therefore
+//! remains the explicit Kister–Gill method unless a vendor rating is supplied.
+//! Bravo–Rocha–Fair (structured packings) is not implemented.
 
 /// Standard acceleration of gravity, m/s².
 pub const GRAVITY_M_S2: f64 = 9.806_65;
 /// Largest absolute pressure of the Robbins correlation, Pa (Perry's 8th ed.
 /// p. 14-61: "not suitable above 3 bar absolute").
 pub const ROBBINS_MAX_PRESSURE_PA: f64 = 3.0e5;
+/// Gas-density limit of the reported Billet–Schultes pressure-drop data,
+/// kg/m³ (1999 paper, Table 1).
+pub const BILLET_SCHULTES_MAX_GAS_DENSITY_KG_M3: f64 = 28.0;
 /// Largest packing factor of the Kister–Gill flood equation, 1/ft (Perry's
 /// 8th ed. p. 14-58).
 pub const KISTER_GILL_MAX_PACKING_FACTOR_FT: f64 = 60.0;
@@ -143,6 +150,17 @@ pub struct PackingData {
     pub source: &'static str,
 }
 
+/// Billet–Schultes pressure-drop parameters for a specific random packing.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BilletSchultesData {
+    /// Geometric surface area, m²/m³.
+    pub specific_area_m2_m3: f64,
+    /// Void fraction.
+    pub void_fraction: f64,
+    /// Dry-bed resistance constant C_P,0.
+    pub dry_resistance: f64,
+}
+
 const PERRY_14_13: &str = "Perry's Chemical Engineers' Handbook, 8th ed. (2008), Table 14-13, p. 14-60 (metal Pall rings)";
 
 impl Packing {
@@ -172,6 +190,24 @@ impl Packing {
             },
         }
     }
+
+    /// Billet–Schultes (1999) Table 2a constants. These are the source's
+    /// geometry values and intentionally remain separate from Perry's
+    /// Onda/Robbins packing data above.
+    pub fn billet_schultes_data(self) -> BilletSchultesData {
+        match self {
+            Self::MetalPallRing25 => BilletSchultesData {
+                specific_area_m2_m3: 223.5,
+                void_fraction: 0.954,
+                dry_resistance: 0.957,
+            },
+            Self::MetalPallRing50 => BilletSchultesData {
+                specific_area_m2_m3: 112.6,
+                void_fraction: 0.951,
+                dry_resistance: 0.763,
+            },
+        }
+    }
 }
 
 /// Mass-transfer correlation of a rate-based packed section.
@@ -180,6 +216,28 @@ pub enum MassTransferCorrelation {
     /// Onda, Takeuchi and Okumoto (1968), random packings.
     #[default]
     Onda1968,
+}
+
+/// Pressure-drop model used independently of the flooding-capacity model.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PressureDropCorrelation {
+    /// Robbins (1991), limited to 3 bar absolute.
+    #[default]
+    Robbins1991,
+    /// Billet and Schultes (1999), random packings with tabulated constants.
+    BilletSchultes1999,
+    /// Measured or vendor-rated total-bed pressure drop.
+    VendorRating,
+}
+
+/// Capacity model used independently of the pressure-drop model.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FloodingCorrelation {
+    /// Kister and Gill flood pressure-drop criterion.
+    #[default]
+    KisterGill,
+    /// Measured or vendor-rated gas flow at flooding.
+    VendorRating,
 }
 
 /// Phase properties the correlations need, SI units.
@@ -309,6 +367,62 @@ pub fn robbins_pressure_drop_pa_m(
     Ok(robbins_inh2o_ft(gf, lf) * PA_M_PER_INH2O_FT)
 }
 
+/// Billet–Schultes (1999) irrigated pressure drop per packed height.
+///
+/// Uses the published pre-loading holdup equation (11), dry resistance
+/// equation (25), wall correction (24), and irrigated pressure-drop
+/// equations (28)–(30). The packing constants are kept distinct from the
+/// Perry data used by the Onda and Robbins methods.
+pub fn billet_schultes_pressure_drop_pa_m(
+    packing: BilletSchultesData,
+    gas: &FilmProperties,
+    liquid: &FilmProperties,
+    column_diameter_m: f64,
+) -> Result<f64, String> {
+    if gas.density_kg_m3 > BILLET_SCHULTES_MAX_GAS_DENSITY_KG_M3 {
+        return Err(format!(
+            "Billet–Schultes pressure-drop gas density {:.3} kg/m³ exceeds the reported data limit of {:.1} kg/m³",
+            gas.density_kg_m3, BILLET_SCHULTES_MAX_GAS_DENSITY_KG_M3
+        ));
+    }
+    let a = packing.specific_area_m2_m3;
+    let eps = packing.void_fraction;
+    let u_g = gas.mass_flux_kg_m2_s / gas.density_kg_m3;
+    let u_l = liquid.mass_flux_kg_m2_s / liquid.density_kg_m3;
+    let d_p = 6.0 * (1.0 - eps) / a;
+    let wall_inverse = 1.0 + (2.0 / 3.0) / (1.0 - eps) * d_p / column_diameter_m;
+    let nu_g = gas.viscosity_pa_s / gas.density_kg_m3;
+    let re_g = u_g * d_p / ((1.0 - eps) * nu_g) / wall_inverse;
+    let h_l =
+        (12.0 * liquid.viscosity_pa_s * u_l * a * a / (GRAVITY_M_S2 * liquid.density_kg_m3)).cbrt();
+    if !(u_g.is_finite()
+        && u_g > 0.0
+        && u_l.is_finite()
+        && u_l > 0.0
+        && re_g.is_finite()
+        && re_g > 0.0
+        && h_l.is_finite()
+        && h_l < eps)
+    {
+        return Err(
+            "Billet–Schultes pressure drop is outside its pre-loading holdup domain".into(),
+        );
+    }
+    let f_v = u_g * gas.density_kg_m3.sqrt();
+    let fr_l = u_l * u_l * a / GRAVITY_M_S2;
+    let c1 = 13_300.0 / a.powf(1.5);
+    let psi_l = packing.dry_resistance
+        * (64.0 / re_g + 1.8 / re_g.powf(0.08))
+        * ((eps - h_l) / eps).powf(1.5)
+        * (c1 * fr_l.sqrt()).exp();
+    let drop = psi_l * a / (eps - h_l).powi(3) * f_v * f_v * wall_inverse / 2.0;
+    if drop.is_finite() && drop >= 0.0 {
+        Ok(drop)
+    } else {
+        Err("Billet–Schultes pressure drop is nonfinite".into())
+    }
+}
+
 /// Kister–Gill flood pressure drop, Pa/m (Perry's eq. 14-142).
 pub fn flood_pressure_drop_pa_m(packing: &PackingData) -> Result<f64, String> {
     let fp = packing.packing_factor_m * FT;
@@ -392,6 +506,38 @@ mod tests {
             density_kg_m3: 1.2,
             viscosity_pa_s: 1.8e-5,
         }
+    }
+
+    #[test]
+    fn billet_schultes_pressure_drop_uses_source_constants_and_density() {
+        let constants = Packing::MetalPallRing25.billet_schultes_data();
+        assert_eq!(
+            (
+                constants.specific_area_m2_m3,
+                constants.void_fraction,
+                constants.dry_resistance,
+            ),
+            (223.5, 0.954, 0.957)
+        );
+        let dense_gas = FilmProperties {
+            density_kg_m3: 8.0,
+            viscosity_pa_s: 2.0e-5,
+            ..air(1.0)
+        };
+        let drop =
+            billet_schultes_pressure_drop_pa_m(constants, &dense_gas, &water(), 1.0).unwrap();
+        let higher_load = billet_schultes_pressure_drop_pa_m(
+            constants,
+            &FilmProperties {
+                mass_flux_kg_m2_s: 1.2,
+                ..dense_gas
+            },
+            &water(),
+            1.0,
+        )
+        .unwrap();
+        assert!(drop.is_finite() && drop > 0.0);
+        assert!(higher_load > drop);
     }
 
     #[test]

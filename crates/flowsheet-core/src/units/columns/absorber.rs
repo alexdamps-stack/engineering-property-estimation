@@ -15,7 +15,8 @@ use crate::units::{CalcContext, UnitOutput};
 /// entering the bottom stage.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AbsorberSpec {
-    /// Column pressure in Pa, or bed top pressure in coupled rate-based mode.
+    /// Column pressure in Pa, or bed top pressure with coupled or specified
+    /// rate-based hydraulics.
     pub pressure_pa: Option<f64>,
     /// Ideal trays or a packed bed sized by HETP.
     pub internals: ColumnInternals,

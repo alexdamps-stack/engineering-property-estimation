@@ -525,6 +525,9 @@ pub struct RateBasedSegmentsProfile {
     /// Whether the boundary pressures were used in the segment equations.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pressure_drop_coupled: bool,
+    /// Whether hydraulic results use a supplied operating-point rating.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hydraulics_specified: bool,
     /// Absolute pressure at segment boundaries, top to bottom.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub estimated_boundary_pressures_pa: Vec<f64>,
@@ -551,6 +554,7 @@ impl From<&flowsheet_core::units::columns::RateBasedProfile> for RateBasedSegmen
             flooding_fractions: r.flooding_fractions.clone(),
             pressure_drops_pa_m: r.pressure_drops_pa_m.clone(),
             pressure_drop_coupled: r.pressure_drop_coupled,
+            hydraulics_specified: r.hydraulics_specified,
             estimated_boundary_pressures_pa: r.estimated_boundary_pressures_pa.clone(),
             pressure_drop_pa: r.pressure_drop_pa,
             max_flooding_fraction: r.max_flooding_fraction,

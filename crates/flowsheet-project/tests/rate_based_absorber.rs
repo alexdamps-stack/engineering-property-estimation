@@ -7,9 +7,10 @@ use flowsheet_core::units::{
     columns::{
         AbsorberSpec, ColumnInternals,
         packing::{
-            PackedCalculation, PackedSectionBasis, PackedSectionSpec, RateBasedSpec, StageRounding,
+            PackedCalculation, PackedSectionBasis, PackedSectionSpec, RateBasedSpec,
+            SpecifiedPackedHydraulics, StageRounding,
         },
-        packing_data::Packing,
+        packing_data::{FloodingCorrelation, Packing, PressureDropCorrelation},
     },
 };
 use flowsheet_core::{PortRef, StreamId, UnitId, UnitKind, UnitSpec};
@@ -21,6 +22,8 @@ use serde_json::Value;
 const FIXTURE: &str = include_str!("../../../validation/columns/rate-based-v1.json");
 const COUPLED_FIXTURE: &str =
     include_str!("../../../validation/columns/rate-based-coupled-pressure-v1.json");
+const SPECIFIED_FIXTURE: &str =
+    include_str!("../../../validation/columns/rate-based-specified-hydraulics-v1.json");
 
 fn number(value: &Value) -> f64 {
     value.as_f64().unwrap()
@@ -222,7 +225,24 @@ fn fixture_rig(case: &Value) -> Rig {
                 other => panic!("unexpected packing {other}"),
             },
             interfacial_area_factor: number(&case["area_factor"]),
-            couple_pressure_drop: case["couple_pressure_drop"].as_bool().unwrap_or(false),
+            couple_pressure_drop: case["couple_pressure_drop"].as_bool().unwrap_or(false)
+                || case["specified_hydraulics"].is_object(),
+            pressure_drop_correlation: if case["specified_hydraulics"].is_object() {
+                PressureDropCorrelation::VendorRating
+            } else {
+                PressureDropCorrelation::Robbins1991
+            },
+            flooding_correlation: if case["specified_hydraulics"].is_object() {
+                FloodingCorrelation::VendorRating
+            } else {
+                FloodingCorrelation::KisterGill
+            },
+            specified_hydraulics: case["specified_hydraulics"].as_object().map(|rating| {
+                SpecifiedPackedHydraulics {
+                    pressure_drop_pa: Some(number(&rating["pressure_drop_pa"])),
+                    flood_gas_flow_kg_s: Some(number(&rating["flood_gas_flow_kg_s"])),
+                }
+            }),
             critical_surface_tension_n_m: Some(number(&case["critical_surface_tension_N_m"])),
             gas_transport_neglected: strings(&case["gas_neglected"]),
             liquid_transport_neglected: strings(&case["liquid_neglected"]),
@@ -253,8 +273,8 @@ fn fixture_rig(case: &Value) -> Rig {
 
 #[test]
 fn segment_profiles_match_independent_references() {
-    let fixtures =
-        [FIXTURE, COUPLED_FIXTURE].map(|source| serde_json::from_str::<Value>(source).unwrap());
+    let fixtures = [FIXTURE, COUPLED_FIXTURE, SPECIFIED_FIXTURE]
+        .map(|source| serde_json::from_str::<Value>(source).unwrap());
     for (fixture, case) in fixtures.iter().flat_map(|fixture| {
         fixture["cases"]
             .as_array()
@@ -344,7 +364,9 @@ fn segment_profiles_match_independent_references() {
         );
         let drops = profiles["pressure_drops_Pa_m"].as_array().unwrap();
         let pressures = &rate.estimated_boundary_pressures_pa;
-        let coupled = case["couple_pressure_drop"].as_bool().unwrap_or(false);
+        let specified = case["specified_hydraulics"].is_object();
+        let coupled = case["couple_pressure_drop"].as_bool().unwrap_or(false) || specified;
+        assert_eq!(rate.hydraulics_specified, specified);
         assert_eq!(rate.pressure_drop_coupled, coupled);
         let top = number(&case["pressure_Pa"]);
         let segment_height = number(&case["packed_height_m"]) / drops.len() as f64;
@@ -446,6 +468,10 @@ fn segment_profiles_match_independent_references() {
             .as_object_mut()
             .unwrap()
             .remove("pressure_drop_coupled");
+        profile
+            .as_object_mut()
+            .unwrap()
+            .remove("hydraulics_specified");
         let legacy_saved = serde_json::to_string(&legacy).unwrap();
         let reopened_legacy = Project::from_json(&legacy_saved).unwrap();
         let rate = reopened_legacy.results.as_ref().unwrap().units[&rig.column]
@@ -457,11 +483,100 @@ fn segment_profiles_match_independent_references() {
             .unwrap();
         assert!(rate.estimated_boundary_pressures_pa.is_empty());
         assert!(!rate.pressure_drop_coupled);
+        assert!(!rate.hydraulics_specified);
         assert_eq!(
             reopened.flowsheet.unit(rig.column).unwrap().spec,
             rig.project.flowsheet.unit(rig.column).unwrap().spec
         );
     }
+}
+
+#[test]
+fn specified_hydraulics_check_the_rating_pressure_and_flood_limits() {
+    let fixture: Value = serde_json::from_str(SPECIFIED_FIXTURE).unwrap();
+    let case = &fixture["cases"][0];
+
+    let mut rig = fixture_rig(case);
+    rig.edit_rate(|rate| rate.specified_hydraulics = Some(SpecifiedPackedHydraulics::default()));
+    assert!(rig.issue_fields().contains(&"specified bed pressure drop"));
+    assert!(rig.issue_fields().contains(&"rated gas flow at flooding"));
+
+    let mut rig = fixture_rig(case);
+    rig.edit_rate(|rate| {
+        rate.pressure_drop_correlation = PressureDropCorrelation::Robbins1991;
+        rate.flooding_correlation = FloodingCorrelation::KisterGill;
+        rate.specified_hydraulics = None;
+    });
+    let error = rig.solve().unwrap_err();
+    assert!(
+        error.message.contains("above 3 bar absolute"),
+        "{}",
+        error.message
+    );
+
+    for (drop, flood, message) in [
+        (20_000.0, 0.8, "exceeds the gas inlet pressure"),
+        (1.3e6, 0.8, "Fuller gas diffusivity ceiling"),
+        (1_200.0, 0.1, "flooding exceeded"),
+    ] {
+        let mut rig = fixture_rig(case);
+        rig.edit_rate(|rate| {
+            rate.specified_hydraulics = Some(SpecifiedPackedHydraulics {
+                pressure_drop_pa: Some(drop),
+                flood_gas_flow_kg_s: Some(flood),
+            });
+        });
+        let error = rig.solve().unwrap_err();
+        assert!(error.message.contains(message), "{}", error.message);
+    }
+}
+
+#[test]
+fn pressure_drop_and_flood_capacity_can_use_different_methods() {
+    let fixture: Value = serde_json::from_str(SPECIFIED_FIXTURE).unwrap();
+    let mut rig = fixture_rig(&fixture["cases"][0]);
+    rig.edit_rate(|rate| {
+        rate.pressure_drop_correlation = PressureDropCorrelation::BilletSchultes1999;
+        rate.specified_hydraulics.as_mut().unwrap().pressure_drop_pa = None;
+    });
+    let result = rig.solve().unwrap();
+    let profile = result.units[&rig.column]
+        .absorber
+        .as_ref()
+        .unwrap()
+        .rate_based
+        .as_ref()
+        .unwrap();
+    assert!(profile.pressure_drop_pa > 0.0);
+    assert!(profile.pressure_drop_coupled);
+    assert!(profile.max_flooding_fraction < 0.70);
+    rig.edit_rate(|rate| rate.flooding_correlation = FloodingCorrelation::KisterGill);
+    let error = rig.solve().unwrap_err();
+    assert!(
+        error.message.contains("3 bar absolute"),
+        "{}",
+        error.message
+    );
+
+    let fixture: Value = serde_json::from_str(FIXTURE).unwrap();
+    let mut rig = fixture_rig(&fixture["cases"][0]);
+    rig.edit_rate(|rate| {
+        rate.pressure_drop_correlation = PressureDropCorrelation::VendorRating;
+        rate.specified_hydraulics = Some(SpecifiedPackedHydraulics {
+            pressure_drop_pa: Some(100.0),
+            flood_gas_flow_kg_s: None,
+        });
+    });
+    let result = rig.solve().unwrap();
+    let profile = result.units[&rig.column]
+        .absorber
+        .as_ref()
+        .unwrap()
+        .rate_based
+        .as_ref()
+        .unwrap();
+    assert!((profile.pressure_drop_pa - 100.0).abs() < 1e-8);
+    assert!(!profile.pressure_drop_coupled);
 }
 
 #[test]

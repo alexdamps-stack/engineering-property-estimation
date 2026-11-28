@@ -6,10 +6,13 @@ for the equilibrium (HETP) path. Code:
 `crates/flowsheet-core/src/units/columns/{packing,packing_data,rate_based,absorber}.rs`
 and `crates/thermo-models/src/diffusivity.rs`.
 
-Status: the **adiabatic absorber / stripper** has a rate-based mode, limited
-to **at most 3 bar absolute** by the stated domain of the Robbins
-pressure-drop correlation. The rigorous distillation column's packed bed is
-not yet rate-based (next step, below).
+Status: the **adiabatic absorber / stripper** has a rate-based mode. Robbins
+pressure drop is limited to **3 bar absolute**. Billet–Schultes pressure drop
+and vendor ratings are available for coupled profiles up to the existing
+**20 bar absolute** Fuller diffusivity ceiling. Billet–Schultes currently
+uses its pre-loading holdup equation, limited to 70% of the selected flood
+capacity. Above 3 bar absolute, use a vendor or measured flood rating. The rigorous
+distillation column's packed bed is not yet rate-based (next step, below).
 
 ## Calculation mode
 
@@ -28,7 +31,10 @@ not yet rate-based (next step, below).
 | `packing` | library entry | see below |
 | `correlation` | mass-transfer correlation | `Onda1968` |
 | `film_model` | film model | `EffectiveDiffusivity` |
-| `couple_pressure_drop` | solve the absolute pressure profile from the specified bed top pressure and the Robbins pressure drop | opt-in, default false |
+| `pressure_drop_correlation` | Robbins (1991), Billet–Schultes (1999), or vendor rating | Robbins default; vendor mode requires total bed drop |
+| `flooding_correlation` | Kister–Gill capacity criterion or vendor-rated flood gas flow | Kister–Gill default; vendor mode requires rated flow |
+| `couple_pressure_drop` | feed the selected calculated pressure profile back into the segment equations | opt-in, default false |
+| `specified_hydraulics` | pressure drop and flood flow supplied independently from measurements/vendor rating | opt-in; each field required only for its selected rating method |
 | `interfacial_area_factor` | multiplier of the correlated area | 0 < f ≤ 1e6, default 1 |
 | `critical_surface_tension_n_m` | σc of the packing material (Onda wetted area), N/m | **required user input**, > 0 |
 | `wetting_surface` | packing surface class of the minimum-wetting rule | Perry's Table 14-16 classes, default bright metal |
@@ -48,14 +54,21 @@ pressure, its bulk liquid uses the lower boundary pressure, and interface
 equilibrium and the Robbins pressure correction use the mean of those
 pressures. Both outlet streams use their corresponding bed boundary pressure.
 Inlet enthalpy flows enter the existing adiabatic energy balances at their
-stream values. The gas feed must supply at least the computed bottom pressure,
-the liquid feed must supply at least the specified top pressure, and the
-whole bed must stay within the 3 bar absolute Robbins limit.
+stream values. The gas feed must supply at least the computed bottom pressure
+and the liquid feed must supply at least the specified top pressure. The
+pressure limit depends on the selected pressure-drop model and the property
+domains.
 
 The solver starts at fixed pressure. It then integrates the segment pressure
 drops from the top down, resolves the transfer equations at those boundary
 pressures, and repeats until each boundary pressure changes by at most
 1e-6 Pa. It reports failure if the profile fails to converge within 30 updates.
+
+Pressure-drop and flooding methods are separate. The pressure profile can
+also be fixed or coupled independently. Vendor pressure drop is distributed
+uniformly over the packed height; vendor flood flow is used only to calculate
+fraction of capacity. Each rating must represent the packing and operating
+conditions.
 
 ## Segment model
 
@@ -166,22 +179,30 @@ available; Onda is checked for implementation agreement only.
 | Pall rings, metal | 25 mm | 205 | 0.94 | 183 | 174 |
 | Pall rings, metal | 50 mm | 105 | 0.96 | 89 | 79 |
 
-Source: Perry's 8th ed. Table 14-13. Not included: ceramic Raschig rings
-(F_p 587 1/m exceeds the Kister–Gill limit of 60 1/ft), structured packings
-(Bravo–Rocha–Fair geometry not verified) and Billet–Schultes (constants not
+Source: Perry's 8th ed. Table 14-13 for Onda and Robbins. Billet–Schultes
+uses separate Pall-ring data from Billet and Schultes (1999), Table 2a.
+Not included: ceramic Raschig rings (F_p 587 1/m exceeds the Kister–Gill
+limit of 60 1/ft) and structured packings (Bravo–Rocha–Fair geometry not
 verified).
 
 ### Hydraulics
 
-Per segment: wetted area, fraction of flood and Robbins pressure drop at the
-segment's loads. Fixed pressure is the default, and coupled pressure applies
-the drop to the segment equations. Specified pressures above 3 bar absolute and
-packings above F_p = 60 1/ft fail before the segment solve.
+Per segment: wetted area, fraction of flood and selected pressure drop at the
+segment's loads. Robbins is limited to 3 bar absolute. Billet–Schultes uses
+the published pre-loading holdup equation and is limited to 70% of the
+selected flood criterion in this implementation. Kister–Gill capacity is
+calculated using Robbins and inherits its 3 bar absolute limit, regardless
+of the selected pressure-drop method. The Billet–Schultes pressure-drop source data cover
+gas density through 28 kg/m³, while loading/flooding tests cover only through
+1.37 kg/m³. Vendor flood-flow ratings can be selected separately. Coupled
+pressure still respects the Fuller gas-diffusivity and property-package
+limits. [Billet and Schultes (1999)](https://doi.org/10.1205/026387699526520).
 
 ## Explicit failures
 
-* column pressure above 3 bar absolute (Robbins domain); F_p > 60 1/ft;
-* in coupled mode, bed bottom pressure above 3 bar absolute or the gas inlet
+* column pressure above 3 bar absolute when using Robbins; F_p > 60 1/ft;
+* Billet–Schultes pre-loading estimate outside its implemented capacity range;
+* in coupled mode, bed bottom pressure above the selected model/property limit or the gas inlet
   pressure, or pressure profile nonconvergence;
 * flooding: a segment at or above the Kister–Gill flood pressure drop;
 * liquid load below the minimum wetting rate;
@@ -232,7 +253,12 @@ the actual phase.
 ## Next steps
 
 * Rate-based packed bed of the rigorous distillation column (#186).
-* A verified σc table (Onda et al. 1967) as library data; Billet–Schultes
-  and Bravo–Rocha–Fair with verified packing constants; structured packings;
+* A verified σc table (Onda et al. 1967) as library data; complete
+  Billet–Schultes loading-region and dense-gas capacity validation; structured
+  packings and Bravo–Rocha–Fair with verified geometry;
   Maxwell–Stefan films;
-  hydraulics above 3 bar (a correlation with a stated high-pressure domain).
+  complete predictive hydraulics above 3 bar. [Billet and Schultes (1999)]
+  (https://doi.org/10.1205/026387699526520)
+* A dense-gas diffusion method, with a qualified reduced-state and mixture
+  basis, to extend the transfer model beyond the existing Fuller envelope.
+  [Takahashi's high-pressure diffusion chart](https://doi.org/10.1252/jcej.7.417)
