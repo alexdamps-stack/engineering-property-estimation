@@ -4,8 +4,10 @@
 
 use flowsheet_core::units::ColumnSpec;
 use flowsheet_core::units::columns::packing::{
-    PackedSectionBasis, PackedSectionSpec, StageRounding,
+    FilmModel, PackedCalculation, PackedSectionBasis, PackedSectionSpec, RateBasedSpec,
+    StageRounding,
 };
+use flowsheet_core::units::columns::packing_data::{MassTransferCorrelation, Packing};
 use flowsheet_core::units::columns::{
     AbsorberSpec, BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget,
     CurveBasis, CutPoint, DistillationColumnSpec, DistillationCondenser, DrawRate,
@@ -19,6 +21,111 @@ use super::count_in;
 
 fn one() -> u16 {
     1
+}
+
+fn unit_factor() -> f64 {
+    1.0
+}
+
+fn is_unit_factor(v: &f64) -> bool {
+    *v == 1.0
+}
+
+/// Packing of a rate-based section (#241).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum PackingTypeRecord {
+    MetalPallRing25,
+    MetalPallRing50,
+}
+
+/// Mass-transfer correlation of a rate-based section (#241).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CorrelationRecord {
+    #[default]
+    Onda1968,
+}
+
+/// Film model of a rate-based section (#241).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum FilmModelRecord {
+    #[default]
+    EffectiveDiffusivity,
+}
+
+/// Rate-based calculation mode of a packed absorber (#241), added behind
+/// format version 4. A record without it is the equilibrium-stage mode.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RateBasedRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    diameter_m: Option<f64>,
+    segments: u16,
+    packing: PackingTypeRecord,
+    #[serde(default)]
+    correlation: CorrelationRecord,
+    #[serde(default)]
+    film_model: FilmModelRecord,
+    #[serde(default = "unit_factor", skip_serializing_if = "is_unit_factor")]
+    interfacial_area_factor: f64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    gas_transport_neglected: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    liquid_transport_neglected: Vec<String>,
+}
+
+impl From<&RateBasedSpec> for RateBasedRecord {
+    fn from(r: &RateBasedSpec) -> Self {
+        Self {
+            diameter_m: r.diameter_m,
+            segments: r.segments,
+            packing: match r.packing {
+                Packing::MetalPallRing25 => PackingTypeRecord::MetalPallRing25,
+                Packing::MetalPallRing50 => PackingTypeRecord::MetalPallRing50,
+            },
+            correlation: match r.correlation {
+                MassTransferCorrelation::Onda1968 => CorrelationRecord::Onda1968,
+            },
+            film_model: match r.film_model {
+                FilmModel::EffectiveDiffusivity => FilmModelRecord::EffectiveDiffusivity,
+            },
+            interfacial_area_factor: r.interfacial_area_factor,
+            gas_transport_neglected: r.gas_transport_neglected.clone(),
+            liquid_transport_neglected: r.liquid_transport_neglected.clone(),
+        }
+    }
+}
+
+impl From<RateBasedRecord> for RateBasedSpec {
+    fn from(r: RateBasedRecord) -> Self {
+        Self {
+            diameter_m: r.diameter_m,
+            segments: r.segments,
+            packing: match r.packing {
+                PackingTypeRecord::MetalPallRing25 => Packing::MetalPallRing25,
+                PackingTypeRecord::MetalPallRing50 => Packing::MetalPallRing50,
+            },
+            correlation: match r.correlation {
+                CorrelationRecord::Onda1968 => MassTransferCorrelation::Onda1968,
+            },
+            film_model: match r.film_model {
+                FilmModelRecord::EffectiveDiffusivity => FilmModel::EffectiveDiffusivity,
+            },
+            interfacial_area_factor: r.interfacial_area_factor,
+            gas_transport_neglected: r.gas_transport_neglected,
+            liquid_transport_neglected: r.liquid_transport_neglected,
+        }
+    }
+}
+
+impl RateBasedRecord {
+    fn numbers(&self) -> impl Iterator<Item = f64> {
+        self.diameter_m
+            .into_iter()
+            .chain([self.interfacial_area_factor])
+    }
 }
 
 fn unset_reflux() -> ShortcutRefluxRecord {
@@ -734,6 +841,9 @@ pub(crate) enum ColumnRecord {
         pressure_pa: Option<f64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         internals: Option<InternalsRecord>,
+        /// Rate-based mode (#241), behind format version 4.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        rate_based: Option<RateBasedRecord>,
     },
     /// The drawn-only fractionator stored only `side_draws`; the other
     /// fields were added behind format version 4 (#190) and load as one
@@ -847,10 +957,12 @@ impl ColumnRecord {
             Self::Absorber {
                 pressure_pa,
                 internals,
+                rate_based,
             } => pressure_pa
                 .iter()
                 .copied()
                 .chain(internals.iter().flat_map(|i| i.numbers()))
+                .chain(rate_based.iter().flat_map(|r| r.numbers()))
                 .collect(),
             Self::PetroleumFractionator {
                 products,
@@ -945,6 +1057,10 @@ impl From<&ColumnSpec> for ColumnRecord {
                 pressure_pa: x.pressure_pa,
                 internals: (x.internals != AbsorberSpec::default().internals)
                     .then(|| x.internals.into()),
+                rate_based: match &x.calculation {
+                    PackedCalculation::Equilibrium => None,
+                    PackedCalculation::RateBased(r) => Some(r.into()),
+                },
             },
             ColumnSpec::PetroleumFractionator(x) => {
                 let (reflux_ratio, top_specification) = top_record(&x.top);
@@ -1070,9 +1186,13 @@ impl TryFrom<ColumnRecord> for ColumnSpec {
             ColumnRecord::Absorber {
                 pressure_pa,
                 internals,
+                rate_based,
             } => Self::Absorber(AbsorberSpec {
                 pressure_pa,
                 internals: internals.map_or_else(|| AbsorberSpec::default().internals, Into::into),
+                calculation: rate_based.map_or(PackedCalculation::Equilibrium, |r| {
+                    PackedCalculation::RateBased(r.into())
+                }),
             }),
             ColumnRecord::PetroleumFractionator {
                 side_draws,

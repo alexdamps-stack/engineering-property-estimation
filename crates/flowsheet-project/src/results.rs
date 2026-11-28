@@ -497,6 +497,58 @@ pub struct AbsorberProfile {
     pub stage_temperatures_k: Vec<f64>,
     pub packed_height_m: Option<f64>,
     pub iterations: usize,
+    /// Rate-based segment profiles and hydraulics (#241); absent for the
+    /// equilibrium-stage mode and for results saved before it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rate_based: Option<RateBasedSegmentsProfile>,
+}
+
+/// Saved rate-based packed-section profile (#241), segments from the top.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RateBasedSegmentsProfile {
+    pub packing: String,
+    pub diameter_m: f64,
+    pub segment_height_m: f64,
+    pub vapor_temperatures_k: Vec<f64>,
+    pub liquid_temperatures_k: Vec<f64>,
+    pub interface_temperatures_k: Vec<f64>,
+    pub vapor_flows_mol_s: Vec<f64>,
+    pub liquid_flows_mol_s: Vec<f64>,
+    pub vapor_mole_fractions: Vec<Vec<f64>>,
+    pub liquid_mole_fractions: Vec<Vec<f64>>,
+    /// Component transfer from vapor to liquid, mol/s.
+    pub fluxes_mol_s: Vec<Vec<f64>>,
+    pub interfacial_area_m2_m3: Vec<f64>,
+    pub flooding_fractions: Vec<f64>,
+    pub pressure_drops_pa_m: Vec<f64>,
+    pub pressure_drop_pa: f64,
+    pub max_flooding_fraction: f64,
+    pub max_neglected_transport_fraction: f64,
+}
+
+impl From<&flowsheet_core::units::columns::RateBasedProfile> for RateBasedSegmentsProfile {
+    fn from(r: &flowsheet_core::units::columns::RateBasedProfile) -> Self {
+        Self {
+            packing: r.packing.data().name.to_owned(),
+            diameter_m: r.diameter_m,
+            segment_height_m: r.segment_height_m,
+            vapor_temperatures_k: r.vapor_temperatures_k.clone(),
+            liquid_temperatures_k: r.liquid_temperatures_k.clone(),
+            interface_temperatures_k: r.interface_temperatures_k.clone(),
+            vapor_flows_mol_s: r.vapor_flows_mol_s.clone(),
+            liquid_flows_mol_s: r.liquid_flows_mol_s.clone(),
+            vapor_mole_fractions: r.vapor_mole_fractions.clone(),
+            liquid_mole_fractions: r.liquid_mole_fractions.clone(),
+            fluxes_mol_s: r.fluxes_mol_s.clone(),
+            interfacial_area_m2_m3: r.interfacial_area_m2_m3.clone(),
+            flooding_fractions: r.flooding_fractions.clone(),
+            pressure_drops_pa_m: r.pressure_drops_pa_m.clone(),
+            pressure_drop_pa: r.pressure_drop_pa,
+            max_flooding_fraction: r.max_flooding_fraction,
+            max_neglected_transport_fraction: r.max_neglected_transport_fraction,
+        }
+    }
 }
 
 impl From<&flowsheet_core::units::columns::AbsorberResult> for AbsorberProfile {
@@ -505,6 +557,7 @@ impl From<&flowsheet_core::units::columns::AbsorberResult> for AbsorberProfile {
             stage_temperatures_k: r.stage_temperatures_k.clone(),
             packed_height_m: r.packed_height_m,
             iterations: r.iterations,
+            rate_based: r.rate_based.as_ref().map(Into::into),
         }
     }
 }

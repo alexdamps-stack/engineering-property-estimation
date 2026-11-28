@@ -238,6 +238,127 @@ impl PackedSectionSpec {
     }
 }
 
+/// Largest number of rate-based segments of one packed section.
+pub const MAX_RATE_SEGMENTS: u16 = 24;
+/// Largest mole fraction a component neglected in a phase's transport
+/// properties may reach in that phase.
+pub const MAX_NEGLECTED_TRANSPORT_FRACTION: f64 = 0.01;
+/// Largest interfacial-area factor.
+pub const MAX_INTERFACIAL_AREA_FACTOR: f64 = 1e6;
+
+/// Calculation mode of a packed section (`docs/a17-columns-rate-based.md`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub enum PackedCalculation {
+    /// Ideal theoretical stages from the packed height and HETP (the path
+    /// above). Legacy records load as this mode.
+    #[default]
+    Equilibrium,
+    /// Rate-based (mass-transfer) segments over the packed height.
+    RateBased(RateBasedSpec),
+}
+
+/// Film model of the rate-based segments.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FilmModel {
+    /// Two-film model with an effective (mixture-averaged) diffusivity per
+    /// component and the total-flux bulk-flow term. Maxwell–Stefan
+    /// multicomponent films are not implemented.
+    #[default]
+    EffectiveDiffusivity,
+}
+
+/// Inputs of a rate-based packed section. The packed height is the
+/// height basis of the section's [`PackedSectionSpec`]; no HETP applies.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RateBasedSpec {
+    /// Column inside diameter, m.
+    pub diameter_m: Option<f64>,
+    /// Number of mixed-flow segments, 1 to [`MAX_RATE_SEGMENTS`].
+    pub segments: u16,
+    /// Packing of the library.
+    pub packing: super::packing_data::Packing,
+    /// Mass-transfer correlation.
+    pub correlation: super::packing_data::MassTransferCorrelation,
+    /// Film model.
+    pub film_model: FilmModel,
+    /// Multiplier of the correlation's interfacial area (1 = as correlated).
+    pub interfacial_area_factor: f64,
+    /// Components (package identifiers) left out of the gas-phase transport
+    /// properties (viscosity, conductivity), each at most
+    /// [`MAX_NEGLECTED_TRANSPORT_FRACTION`] in the gas. An explicit,
+    /// reported approximation for trace components outside the transport
+    /// domain (for example water vapour in a dry gas).
+    pub gas_transport_neglected: Vec<String>,
+    /// Components left out of the liquid transport properties (viscosity,
+    /// conductivity, surface tension), each at most
+    /// [`MAX_NEGLECTED_TRANSPORT_FRACTION`] in the liquid (for example a
+    /// dissolved permanent gas).
+    pub liquid_transport_neglected: Vec<String>,
+}
+
+impl Default for RateBasedSpec {
+    fn default() -> Self {
+        Self {
+            diameter_m: None,
+            segments: 10,
+            packing: Default::default(),
+            correlation: Default::default(),
+            film_model: Default::default(),
+            interfacial_area_factor: 1.0,
+            gas_transport_neglected: Vec::new(),
+            liquid_transport_neglected: Vec::new(),
+        }
+    }
+}
+
+impl RateBasedSpec {
+    /// Missing and invalid fields, in the group-spec convention.
+    pub fn issues(&self) -> Vec<SpecIssue> {
+        let mut out = Vec::new();
+        check_optional(&mut out, "column diameter", self.diameter_m, Sign::Positive);
+        if !(1..=MAX_RATE_SEGMENTS).contains(&self.segments) {
+            out.push(SpecIssue {
+                field: "segments",
+                problem: SpecProblem::CountOutOfRange,
+            });
+        }
+        let factor = self.interfacial_area_factor;
+        if !factor.is_finite() {
+            out.push(SpecIssue {
+                field: "interfacial area factor",
+                problem: SpecProblem::NotFinite,
+            });
+        } else if !(factor > 0.0 && factor <= MAX_INTERFACIAL_AREA_FACTOR) {
+            out.push(SpecIssue {
+                field: "interfacial area factor",
+                problem: SpecProblem::OutOfRange,
+            });
+        }
+        for (field, list) in [
+            (
+                "gas transport neglected components",
+                &self.gas_transport_neglected,
+            ),
+            (
+                "liquid transport neglected components",
+                &self.liquid_transport_neglected,
+            ),
+        ] {
+            if list
+                .iter()
+                .enumerate()
+                .any(|(k, id)| list[..k].contains(id))
+            {
+                out.push(SpecIssue {
+                    field,
+                    problem: SpecProblem::Duplicate,
+                });
+            }
+        }
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

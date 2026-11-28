@@ -224,6 +224,7 @@ fn rig_for(case: &Value) -> Rig {
                 AbsorberSpec {
                     pressure_pa: Some(number(&case["pressure_Pa"])),
                     internals: ColumnInternals::Trays(count(&case["stages"])),
+                    ..Default::default()
                 },
                 Inlet {
                     temperature_k: gt,
@@ -350,6 +351,7 @@ fn nrtl_absorber_solves_through_the_package_interface() {
         AbsorberSpec {
             pressure_pa: Some(101_325.0),
             internals: ColumnInternals::Trays(4),
+            ..Default::default()
         },
         Inlet {
             temperature_k: 360.0,
@@ -443,6 +445,7 @@ fn package_without_column_operations_fails_explicitly() {
         AbsorberSpec {
             pressure_pa: Some(1e6),
             internals: ColumnInternals::Trays(3),
+            ..Default::default()
         },
         gas,
         Inlet {

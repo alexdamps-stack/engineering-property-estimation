@@ -3,8 +3,10 @@
 
 use eframe::egui::{ComboBox, DragValue, Ui};
 use flowsheet_core::units::columns::packing::{
-    PackedSectionBasis, PackedSectionSpec, StageRounding,
+    MAX_RATE_SEGMENTS, PackedCalculation, PackedSectionBasis, PackedSectionSpec, RateBasedSpec,
+    StageRounding,
 };
+use flowsheet_core::units::columns::packing_data::Packing;
 use flowsheet_core::units::columns::{
     BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget, CurveBasis,
     CutPoint, DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom,
@@ -26,7 +28,34 @@ pub(super) fn form(ui: &mut Ui, spec: &mut ColumnSpec, u: DisplayUnits, componen
         ColumnSpec::Distillation(s) => distillation_form(ui, s, u, components),
         ColumnSpec::PetroleumFractionator(s) => petroleum_form(ui, s, u, components),
         ColumnSpec::Absorber(s) => {
-            internals_form(ui, &mut s.internals, u);
+            let rate = matches!(s.calculation, PackedCalculation::RateBased(_)) as usize;
+            match choice(
+                ui,
+                "Calculation",
+                rate,
+                &["Equilibrium stages", "Rate-based (packed)"],
+            ) {
+                Some(0) => s.calculation = PackedCalculation::Equilibrium,
+                Some(_) => {
+                    s.calculation = PackedCalculation::RateBased(RateBasedSpec::default());
+                    if !matches!(
+                        s.internals,
+                        ColumnInternals::Packed(PackedSectionSpec {
+                            basis: PackedSectionBasis::PackedHeight { .. },
+                            ..
+                        })
+                    ) {
+                        s.internals = ColumnInternals::Packed(PackedSectionSpec::default());
+                    }
+                }
+                None => {}
+            }
+            match &mut s.calculation {
+                PackedCalculation::Equilibrium => internals_form(ui, &mut s.internals, u),
+                PackedCalculation::RateBased(rate) => {
+                    rate_based_form(ui, &mut s.internals, rate, u, components)
+                }
+            }
             opt_field(
                 ui,
                 "Column pressure",
@@ -728,6 +757,86 @@ fn packed_form(ui: &mut Ui, spec: &mut PackedSectionSpec, units: DisplayUnits) {
             }
         }
     }
+}
+
+/// Rate-based packed section (#241): packed height, column diameter,
+/// packing, segments, area factor and the trace transport basis.
+fn rate_based_form(
+    ui: &mut Ui,
+    internals: &mut ColumnInternals,
+    rate: &mut RateBasedSpec,
+    units: DisplayUnits,
+    components: &[String],
+) {
+    if let ColumnInternals::Packed(PackedSectionSpec {
+        basis: PackedSectionBasis::PackedHeight { height_m, .. },
+        ..
+    }) = internals
+    {
+        opt_field(ui, "Packed height", height_m, Quantity::Length, units);
+    }
+    opt_field(
+        ui,
+        "Column diameter",
+        &mut rate.diameter_m,
+        Quantity::Length,
+        units,
+    );
+    let names: Vec<&str> = Packing::ALL.iter().map(|p| p.data().name).collect();
+    let current = Packing::ALL
+        .iter()
+        .position(|p| *p == rate.packing)
+        .expect("library packing");
+    if let Some(index) = choice(ui, "Packing", current, &names) {
+        rate.packing = Packing::ALL[index];
+    }
+    let data = rate.packing.data();
+    note_row(
+        ui,
+        &format!(
+            "a = {} m²/m³, ε = {}, Fp = {} 1/m ({})",
+            data.specific_area_m2_m3, data.void_fraction, data.packing_factor_m, data.source
+        ),
+    );
+    count_field(ui, "Segments", &mut rate.segments, 1..=MAX_RATE_SEGMENTS);
+    choice(ui, "Mass transfer", 0, &["Onda (1968)"]);
+    choice(ui, "Film model", 0, &["Effective diffusivity"]);
+    value_field(
+        ui,
+        "Interfacial area factor",
+        &mut rate.interfacial_area_factor,
+        Quantity::Factor,
+        units,
+    );
+    for (label, list) in [
+        (
+            "Neglected in gas transport",
+            &mut rate.gas_transport_neglected,
+        ),
+        (
+            "Neglected in liquid transport",
+            &mut rate.liquid_transport_neglected,
+        ),
+    ] {
+        ui.label(label);
+        ui.horizontal_wrapped(|ui| {
+            for id in components {
+                let mut on = list.contains(id);
+                if ui.checkbox(&mut on, id.as_str()).changed() {
+                    if on {
+                        list.push(id.clone());
+                    } else {
+                        list.retain(|c| c != id);
+                    }
+                }
+            }
+        });
+        ui.end_row();
+    }
+    note_row(
+        ui,
+        "Trace components (at most 1 mol%) may be left out of a phase's transport properties; the result reports it. Pressure drop and flooding are reported; the column is solved at one pressure.",
+    );
 }
 
 fn key_field(ui: &mut Ui, label: &str, key: &mut Option<String>, components: &[String]) {

@@ -440,7 +440,12 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                     product_curve_rows(ui, u, stale, &c.product_curves);
                 }
                 if let Some(c) = &r.absorber {
-                    stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
+                    match &c.rate_based {
+                        None => {
+                            stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m)
+                        }
+                        Some(rate) => rate_based_rows(ui, u, stale, c.packed_height_m, rate),
+                    }
                 }
                 if let Some(c) = &r.liquid_extractor {
                     ui.label("Feed enters");
@@ -651,6 +656,76 @@ fn stage_profile(
             stale,
         ));
         ui.end_row();
+    }
+}
+
+/// Hydraulics and segment profiles of a rate-based packed section (#241),
+/// segments from the top.
+fn rate_based_rows(
+    ui: &mut Ui,
+    units: DisplayUnits,
+    stale: bool,
+    height: Option<f64>,
+    rate: &flowsheet_project::RateBasedSegmentsProfile,
+) {
+    let mut row = |label: String, text: String| {
+        ui.label(label);
+        ui.label(value_text(text, stale));
+        ui.end_row();
+    };
+    if let Some(height) = height {
+        row(
+            "Packed height".into(),
+            format_quantity(units, Quantity::Length, height),
+        );
+    }
+    row("Packing".into(), rate.packing.clone());
+    row(
+        "Column diameter".into(),
+        format_quantity(units, Quantity::Length, rate.diameter_m),
+    );
+    row(
+        "Pressure drop (reported)".into(),
+        format_quantity(units, Quantity::PressureDrop, rate.pressure_drop_pa),
+    );
+    row(
+        "Max. fraction of flood".into(),
+        format_quantity(units, Quantity::Fraction, rate.max_flooding_fraction),
+    );
+    if rate.max_neglected_transport_fraction > 0.0 {
+        row(
+            "Largest neglected transport fraction".into(),
+            format!("{:.2e}", rate.max_neglected_transport_fraction),
+        );
+    }
+    for (j, t) in rate.liquid_temperatures_k.iter().enumerate() {
+        let temperature = |t: f64| format_quantity(units, Quantity::Temperature, t);
+        row(
+            format!("Segment {} T vapor / interface / liquid", j + 1),
+            format!(
+                "{} / {} / {}",
+                temperature(rate.vapor_temperatures_k[j]),
+                temperature(rate.interface_temperatures_k[j]),
+                temperature(*t)
+            ),
+        );
+        row(
+            format!("Segment {} flood / ΔP per m / a_e", j + 1),
+            format!(
+                "{} / {:.1} Pa/m / {:.1} m²/m³",
+                format_quantity(units, Quantity::Fraction, rate.flooding_fractions[j]),
+                rate.pressure_drops_pa_m[j],
+                rate.interfacial_area_m2_m3[j]
+            ),
+        );
+        row(
+            format!("Segment {} transfer to liquid", j + 1),
+            rate.fluxes_mol_s[j]
+                .iter()
+                .map(|n| format_quantity(units, Quantity::MolarFlow, *n))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
     }
 }
 

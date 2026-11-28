@@ -34,6 +34,11 @@ pub use side_sections::SideStripperProfile;
 
 // Packed sections resolved to theoretical stages (#186, #187, #190).
 pub mod packing;
+// Packing library, mass-transfer and hydraulic correlations (#241).
+pub mod packing_data;
+// Rate-based packed absorber / stripper segments (#241).
+mod rate_based;
+pub use rate_based::RateBasedProfile;
 // Equilibrium-stage (MESH) foundation for #186 and #187.
 pub mod stages;
 

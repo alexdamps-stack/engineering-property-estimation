@@ -4,6 +4,8 @@ use thermo_types::Phase;
 
 use super::ColumnInternals;
 use super::mesh::{self, TEMPERATURE_SCALE};
+use super::packing::{PackedCalculation, PackedSectionBasis, PackedSectionSpec};
+use super::rate_based::{RateBasedProfile, RateColumn, RateInputs};
 use super::stages::{ColumnEnds, PlacedPackedSection, Stage, StageCascade, StageFeed};
 use crate::MaterialStream;
 use crate::unit::{Sign, SpecIssue, check_optional};
@@ -17,6 +19,10 @@ pub struct AbsorberSpec {
     pub pressure_pa: Option<f64>,
     /// Ideal trays or a packed bed sized by HETP.
     pub internals: ColumnInternals,
+    /// Equilibrium stages (default) or rate-based segments over the packed
+    /// height (#241). The rate-based mode needs packed internals with a
+    /// height basis; their HETP is not used.
+    pub calculation: PackedCalculation,
 }
 
 impl Default for AbsorberSpec {
@@ -24,6 +30,7 @@ impl Default for AbsorberSpec {
         Self {
             pressure_pa: None,
             internals: ColumnInternals::Trays(5),
+            calculation: PackedCalculation::Equilibrium,
         }
     }
 }
@@ -37,8 +44,31 @@ impl AbsorberSpec {
             self.pressure_pa,
             Sign::Positive,
         );
-        issues.extend(self.internals.issues());
+        match &self.calculation {
+            PackedCalculation::Equilibrium => issues.extend(self.internals.issues()),
+            PackedCalculation::RateBased(rate) => {
+                check_optional(
+                    &mut issues,
+                    "packed height",
+                    self.rate_based_height(),
+                    Sign::Positive,
+                );
+                issues.extend(rate.issues());
+            }
+        }
         issues
+    }
+
+    /// Packed height of the rate-based mode: the height basis of packed
+    /// internals, `None` for trays or a stage basis.
+    fn rate_based_height(&self) -> Option<f64> {
+        match self.internals {
+            ColumnInternals::Packed(PackedSectionSpec {
+                basis: PackedSectionBasis::PackedHeight { height_m, .. },
+                ..
+            }) => height_m,
+            _ => None,
+        }
     }
 }
 
@@ -51,6 +81,10 @@ pub struct AbsorberResult {
     pub packed_height_m: Option<f64>,
     /// Accepted Newton iterations.
     pub iterations: usize,
+    /// Segment profiles and hydraulics of the rate-based mode (#241); the
+    /// stage temperatures above are then the bulk liquid temperatures of the
+    /// segments.
+    pub rate_based: Option<RateBasedProfile>,
 }
 
 struct Absorber<'a, 'p> {
@@ -124,6 +158,14 @@ impl Absorber<'_, '_> {
     }
 
     fn initial(&self) -> Result<Vec<f64>, String> {
+        self.initial_at(None)
+    }
+
+    /// Initial cascade from the feed blend: flashed at the total incoming
+    /// enthalpy, or (`Some(t)`, used only to seed the rate-based mode when
+    /// the PH flash fails) at temperature `t`. The latter is a starting
+    /// point only; the equilibrium-stage equations are solved from it.
+    fn initial_at(&self, temperature_k: Option<f64>) -> Result<Vec<f64>, String> {
         // Flash a blend of both feeds at the total incoming enthalpy.
         // It is the exact one-stage solution and seeds each contact stage.
         let l = self.liquid.molar_flow_mol_s / self.total_flow;
@@ -136,10 +178,11 @@ impl Absorber<'_, '_> {
             .map(|(x, y)| l * x + v * y)
             .collect();
         let h = l * self.liquid.molar_enthalpy_j_mol + v * self.gas.molar_enthalpy_j_mol;
-        let seed = self
-            .ctx
-            .ph(&z, self.pressure, h)
-            .map_err(|e| format!("absorber feed-blend PH initialization: {e}"))?;
+        let seed = match temperature_k {
+            None => self.ctx.ph(&z, self.pressure, h),
+            Some(t) => self.ctx.tp(&z, t, self.pressure),
+        }
+        .map_err(|e| format!("absorber feed-blend PH initialization: {e}"))?;
         let [gas, liquid] = seed.phases.as_slice() else {
             return Err("absorber feed-blend PH initialization requires two phases".into());
         };
@@ -198,7 +241,10 @@ pub(super) fn calculate(
     if let Some(issue) = spec.issues().first() {
         return Err(format!("absorber {} {}", issue.field, issue.problem));
     }
-    let (stage_count, bed) = spec.internals.resolve()?;
+    let (stage_count, bed) = match &spec.calculation {
+        PackedCalculation::Equilibrium => spec.internals.resolve()?,
+        PackedCalculation::RateBased(rate) => (usize::from(rate.segments), None),
+    };
     let pressure = spec.pressure_pa.expect("checked absorber pressure");
     // The column's thermodynamic domain is the package's: stage temperatures
     // stay inside its bubble/dew interval, and the stage equations and checks
@@ -231,6 +277,20 @@ pub(super) fn calculate(
         active,
         total_flow,
     };
+    if let PackedCalculation::RateBased(rate) = &spec.calculation {
+        // Flow-weighted inlet temperature, a fallback starting point of the
+        // seed only.
+        let blend_t = inputs[..2]
+            .iter()
+            .filter_map(|s| {
+                s.state
+                    .as_ref()
+                    .map(|st| s.molar_flow_mol_s * st.temperature_k)
+            })
+            .sum::<f64>()
+            / total_flow;
+        return rate_based(spec, rate, column, blend_t);
+    }
     let (solved, iterations) = mesh::solve(column.initial()?, |v| column.residual(v))?;
     let cascade = column.decode(&solved);
     let warnings = mesh::check_liquid_liquid(ctx, &cascade)?;
@@ -259,6 +319,48 @@ pub(super) fn calculate(
                 .collect(),
             packed_height_m: bed.map(|packed| packed.packed_height_m),
             iterations,
+            rate_based: None,
+        },
+    ))
+}
+
+/// Rate-based mode: the equilibrium cascade with one stage per segment
+/// seeds the segment equations.
+fn rate_based(
+    spec: &AbsorberSpec,
+    rate: &super::packing::RateBasedSpec,
+    column: Absorber<'_, '_>,
+    blend_temperature_k: f64,
+) -> Result<(UnitOutput, AbsorberResult), String> {
+    let solve = |start: Option<f64>| {
+        column
+            .initial_at(start)
+            .and_then(|initial| mesh::solve(initial, |v| column.residual(v)))
+    };
+    let (solved, _) = solve(None)
+        .or_else(|_| solve(Some(blend_temperature_k)))
+        .map_err(|e| format!("rate-based seed (one equilibrium stage per segment): {e}"))?;
+    let seed = column.decode(&solved);
+    let height_m = spec.rate_based_height().expect("checked packed height");
+    let rate_column = RateColumn::new(RateInputs {
+        ctx: column.ctx,
+        spec: rate,
+        pressure: column.pressure,
+        temperature_range: column.temperature_range,
+        height_m,
+        gas: column.gas,
+        liquid: column.liquid,
+        active: column.active,
+        total_flow: column.total_flow,
+    })?;
+    let (outlets, profile, warnings) = rate_column.solve(&seed)?;
+    Ok((
+        UnitOutput::new(outlets, 0.0, warnings),
+        AbsorberResult {
+            stage_temperatures_k: profile.liquid_temperatures_k.clone(),
+            packed_height_m: Some(height_m),
+            iterations: profile.iterations,
+            rate_based: Some(profile),
         },
     ))
 }
