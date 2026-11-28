@@ -684,8 +684,13 @@ fn rate_based_rows(
         "Column diameter".into(),
         format_quantity(units, Quantity::Length, rate.diameter_m),
     );
+    let (drop_label, pressure_label) = if rate.pressure_drop_coupled {
+        ("Pressure drop (coupled)", "pressure")
+    } else {
+        ("Pressure drop (reported)", "estimated pressure")
+    };
     row(
-        "Pressure drop (reported)".into(),
+        drop_label.into(),
         format_quantity(units, Quantity::PressureDrop, rate.pressure_drop_pa),
     );
     row(
@@ -701,7 +706,7 @@ fn rate_based_rows(
     let boundary_pressures = &rate.estimated_boundary_pressures_pa;
     if let Some(&top) = boundary_pressures.first() {
         row(
-            "Bed top estimated pressure".into(),
+            format!("Bed top {pressure_label}"),
             format_quantity(units, Quantity::Pressure, top),
         );
     }
@@ -718,7 +723,7 @@ fn rate_based_rows(
         );
         if let Some(&pressure) = boundary_pressures.get(j + 1) {
             row(
-                format!("Segment {} bottom estimated pressure", j + 1),
+                format!("Segment {} bottom {pressure_label}", j + 1),
                 format_quantity(units, Quantity::Pressure, pressure),
             );
         }

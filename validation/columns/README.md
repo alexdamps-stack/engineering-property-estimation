@@ -299,6 +299,14 @@ Kister–Gill are transcribed separately in the generator. It needs CoolProp
 Budgets are declared in the generator. The fixture checks implementation
 agreement, not the accuracy of the correlations.
 
+`rate-based-coupled-pressure-v1.json` uses the same two cases with coupled
+pressure. The Python generator solves each segment's bottom pressure
+simultaneously with the transfer equations by adding a Robbins pressure-drop
+residual. Rust uses fixed-point pressure updates around its segment solver.
+The comparison covers segment boundary pressures, hydraulics, profiles,
+and outlets, using the same tolerances as the fixed-pressure reference.
+
 ```sh
 python -I validation/columns/generate-rate-based-references.py --output /tmp/rate-based-candidate.json
+python -I validation/columns/generate-rate-based-references.py --coupled-pressure --output /tmp/rate-based-coupled-candidate.json
 ```

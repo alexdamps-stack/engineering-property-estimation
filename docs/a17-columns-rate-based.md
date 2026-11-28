@@ -28,6 +28,7 @@ not yet rate-based (next step, below).
 | `packing` | library entry | see below |
 | `correlation` | mass-transfer correlation | `Onda1968` |
 | `film_model` | film model | `EffectiveDiffusivity` |
+| `couple_pressure_drop` | solve the absolute pressure profile from the specified bed top pressure and the Robbins pressure drop | opt-in, default false |
 | `interfacial_area_factor` | multiplier of the correlated area | 0 < f ≤ 1e6, default 1 |
 | `critical_surface_tension_n_m` | σc of the packing material (Onda wetted area), N/m | **required user input**, > 0 |
 | `wetting_surface` | packing surface class of the minimum-wetting rule | Perry's Table 14-16 classes, default bright metal |
@@ -36,12 +37,25 @@ not yet rate-based (next step, below).
 Project records: `rate_based` on the absorber record (snake-case packing,
 correlation, film-model and surface names), behind format version 4.
 Results: `AbsorberProfile::rate_based` (`RateBasedSegmentsProfile`), absent
-for the equilibrium mode and for older results. New rate-based results include
-estimated absolute pressures at the segment boundaries. The estimate starts at
-the specified column pressure at the top of the bed and adds each segment's
-Robbins pressure drop (Pa/m times segment height) moving downward. The
-thermodynamic and transport calculations use the specified column pressure
-throughout the bed, and both outlet states use that pressure.
+for the equilibrium mode and for older results. Rate-based results include
+absolute pressures at segment boundaries. With fixed pressure, the profile is
+an estimate obtained by adding the correlated pressure drops downward from
+the specified pressure. All thermodynamic and transport calculations and both
+outlet states use the specified pressure in this mode.
+
+With coupled pressure, each segment's bulk vapor uses the upper boundary
+pressure, its bulk liquid uses the lower boundary pressure, and interface
+equilibrium and the Robbins pressure correction use the mean of those
+pressures. Both outlet streams use their corresponding bed boundary pressure.
+Inlet enthalpy flows enter the existing adiabatic energy balances at their
+stream values. The gas feed must supply at least the computed bottom pressure,
+the liquid feed must supply at least the specified top pressure, and the
+whole bed must stay within the 3 bar absolute Robbins limit.
+
+The solver starts at fixed pressure. It then integrates the segment pressure
+drops from the top down, resolves the transfer equations at those boundary
+pressures, and repeats until each boundary pressure changes by at most
+1e-6 Pa. It reports failure if the profile fails to converge within 30 updates.
 
 ## Segment model
 
@@ -165,13 +179,15 @@ verified).
 ### Hydraulics
 
 Per segment: wetted area, fraction of flood and Robbins pressure drop at the
-segment's loads. The column is solved at **one pressure**: the total bed
-pressure drop is reported only. Column pressures above 3 bar absolute and
-packings above F_p = 60 1/ft fail before the solve.
+segment's loads. Fixed pressure is the default, and coupled pressure applies
+the drop to the segment equations. Specified pressures above 3 bar absolute and
+packings above F_p = 60 1/ft fail before the segment solve.
 
 ## Explicit failures
 
 * column pressure above 3 bar absolute (Robbins domain); F_p > 60 1/ft;
+* in coupled mode, bed bottom pressure above 3 bar absolute or the gas inlet
+  pressure, or pressure profile nonconvergence;
 * flooding: a segment at or above the Kister–Gill flood pressure drop;
 * liquid load below the minimum wetting rate;
 * transport properties unavailable through the package (#225 domain) —
@@ -223,5 +239,5 @@ the actual phase.
 * Rate-based packed bed of the rigorous distillation column (#186).
 * A verified σc table (Onda et al. 1967) as library data; Billet–Schultes
   and Bravo–Rocha–Fair with verified packing constants; structured packings;
-  Maxwell–Stefan films; coupling the hydraulic pressure profile to the segment equations;
+  Maxwell–Stefan films;
   hydraulics above 3 bar (a correlation with a stated high-pressure domain).

@@ -37,6 +37,9 @@ scipy 1.16.3, CoolProp 7.2.0, chemicals 1.5.2; on Windows in WSL2):
 
     python -I validation/columns/generate-rate-based-references.py --output <candidate.json>
 
+Pass --coupled-pressure to solve the bottom pressure of each segment as an
+additional Newton unknown and generate the separate coupled-pressure reference.
+
 Review the difference before replacing rate-based-v1.json; never regenerate
 to make a failing test pass.
 """
@@ -305,6 +308,7 @@ class Column:
         self.n = case["segments"]
         self.c = len(IDS)
         self.p = case["pressure_Pa"]
+        self.coupled = case.get("couple_pressure_drop", False)
         self.variant = case["variant"]
         self.pk = PACKINGS[case["packing"]]
         self.area = math.pi * case["diameter_m"] ** 2 / 4
@@ -322,34 +326,38 @@ class Column:
         self.ref_l = int(np.argmax(self.feeds["liquid"][1]))
 
     def size(self):
-        return 5 * self.c + 5
+        return 5 * self.c + 5 + int(self.coupled)
 
     def unpack(self, values):
         c = self.c
         out = []
+        p_v = self.p
         for b in values.reshape(self.n, self.size()):
+            p_l = b[-1] * 1e5 if self.coupled else self.p
             out.append(dict(tv=b[0] * 100, tl=b[1] * 100, ti=b[2] * 100,
                             x=b[3:3 + c], y=b[3 + c:3 + 2 * c], xi=b[3 + 2 * c:3 + 3 * c],
                             yi=b[3 + 3 * c:3 + 4 * c], L=b[3 + 4 * c] * self.flow,
-                            V=b[4 + 4 * c] * self.flow, N=b[5 + 4 * c:5 + 5 * c] * self.flow))
+                            V=b[4 + 4 * c] * self.flow, N=b[5 + 4 * c:5 + 5 * c] * self.flow,
+                            p_v=p_v, p_l=p_l, p_i=(p_v + p_l) / 2))
+            p_v = p_l
         return out
 
     def segment_props(self, s, factor):
-        p, v = self.p, self.variant
-        bv = root_state(s["y"], s["tv"], p, v, "vapor")
-        bl = root_state(s["x"], s["tl"], p, v, "liquid")
-        iv = root_state(s["yi"], s["ti"], p, v, "vapor")
-        il = root_state(s["xi"], s["ti"], p, v, "liquid")
+        pv, pl, pi, v = s["p_v"], s["p_l"], s["p_i"], self.variant
+        bv = root_state(s["y"], s["tv"], pv, v, "vapor")
+        bl = root_state(s["x"], s["tl"], pl, v, "liquid")
+        iv = root_state(s["yi"], s["ti"], pi, v, "vapor")
+        il = root_state(s["xi"], s["ti"], pi, v, "liquid")
         gas_x, gas_drop = basis(s["y"], self.case["gas_neglected"], self.strict)
         liq_x, liq_drop = basis(s["x"], self.case["liquid_neglected"], self.strict)
-        gv = root_state(gas_x, s["tv"], p, v, "vapor")["v"]
+        gv = root_state(gas_x, s["tv"], pv, v, "vapor")["v"]
         gas_t, _ = transport.gas(IDS, list(gas_x), s["tv"], gv, TRANSPORT, BASE)
-        liq_t = transport.liquid(IDS, list(liq_x), s["tl"], p, TRANSPORT, BASE)
+        liq_t = transport.liquid(IDS, list(liq_x), s["tl"], pl, TRANSPORT, BASE)
         mu_v, lam_v = gas_t["viscosity"], gas_t["thermal_conductivity"]
         mu_l, lam_l, sigma = (liq_t["viscosity"], liq_t["thermal_conductivity"],
                               liq_t["surface_tension"])
         assert None not in (mu_v, lam_v, mu_l, lam_l, sigma)
-        vol = density.expected_volume(DENSITY, IDS, list(s["x"]), s["tl"], p)[1]
+        vol = density.expected_volume(DENSITY, IDS, list(s["x"]), s["tl"], pl)[1]
         m_l = sum(xi * molar_mass(i) for i, xi in enumerate(s["x"])) * 1e-3
         rho_l = m_l / vol
         m_v = bv["rho"] * bv["v"]
@@ -357,7 +365,7 @@ class Column:
         lflux = s["L"] * m_l / self.area
         aw, k_liq, k_gas = onda(self.pk, self.case["critical_surface_tension_N_m"], lflux, rho_l,
                                 mu_l, sigma, gflux, bv["rho"], mu_v)
-        d_v = gas_diffusivities(s["y"], s["tv"], p)
+        d_v = gas_diffusivities(s["y"], s["tv"], pv)
         d_l = liquid_diffusivities(self.ref_l, s["tl"], mu_l)
         a_int = factor * aw * self.area * self.dz
         others_v = [i for i in range(self.c) if i != self.ref_v]
@@ -369,8 +377,8 @@ class Column:
         le_l = lam_l / (c_l * bl["cp"] * dl)
         return dict(
             bv=bv, bl=bl, ln_k=il["ln_phi"] - iv["ln_phi"],
-            hbar_v=partial_h(s["yi"], s["ti"], p, v, "vapor"),
-            hbar_l=partial_h(s["xi"], s["ti"], p, v, "liquid"),
+            hbar_v=partial_h(s["yi"], s["ti"], pi, v, "vapor"),
+            hbar_l=partial_h(s["xi"], s["ti"], pi, v, "liquid"),
             c_v=c_v, c_l=c_l, a_int=a_int, area_m2_m3=factor * aw,
             kv=[k_gas(d_v[i]) for i in range(self.c)],
             kl=[k_liq(d_l[i]) for i in range(self.c)],
@@ -419,6 +427,10 @@ class Column:
                     mean = 0.5 * (s["x"][i] + s["xi"][i])
                     g_l = pr["c_l"] * pr["kl"][i] * pr["a_int"]
                     out.append((s["N"][i] - g_l * (s["xi"][i] - s["x"][i]) - mean * n_t) / (f + g_l))
+            if self.coupled:
+                drop = robbins(self.pk, pr["gflux"], pr["bv"]["rho"], pr["lflux"], pr["rho_l"],
+                               pr["mu_l"], s["p_i"]) * PA_PER_INH2O_FT
+                out.append((s["p_l"] - s["p_v"] - self.dz * drop) / 1e5)
         return np.array(out), segs, props
 
     def initial(self):
@@ -434,6 +446,8 @@ class Column:
         beta = fg / self.flow
         block = np.r_[t / 100, t / 100, t / 100, x, y, x, y, (1 - beta), beta,
                       (fg * zg - beta * self.flow * y) / self.flow / self.n]
+        if self.coupled:
+            block = np.r_[block, self.p / 1e5]
         return np.tile(block, self.n)
 
     def newton(self, values, factor):
@@ -494,14 +508,14 @@ def reference(case):
     neglected = 0.0
     for s, pr in zip(segs, props):
         drop, flood = hydraulics(col.pk, pr["gflux"], pr["bv"]["rho"], pr["lflux"], pr["rho_l"],
-                                 pr["mu_l"], col.p)
+                                 pr["mu_l"], s["p_i"])
         assert flood < 1 and pr["u_l"] * 3600 >= minimum_wetting_m_h(col.pk, pr["sigma"])
         # The interface phases satisfy equal fugacities (residual above) and
         # are each stable by the A4 multi-start TPD search, so the interface
         # is a stable vapor-liquid split.
         model, _ = equilibrium.model_at(IDS, s["ti"], col.variant, zero_kij())
         for phase in (s["xi"], s["yi"]):
-            tm = equilibrium.tpd_search(model, IDS, s["ti"], col.p, np.array(phase))[0]
+            tm = equilibrium.tpd_search(model, IDS, s["ti"], s["p_i"], np.array(phase))[0]
             assert tm >= equilibrium.TOLERANCES["stable_tm_floor"], (case["id"], tm)
         neglected = max(neglected, pr["neglected"])
         for key, value in [("vapor_temperatures_K", s["tv"]), ("liquid_temperatures_K", s["tl"]),
@@ -513,7 +527,7 @@ def reference(case):
             profiles[key].append(value)
     top, bottom = segs[0], segs[-1]
     to_float = lambda v: [float(x) for x in v] if isinstance(v, list) else float(v)
-    return dict(case, ids=IDS,
+    result = dict(case, ids=IDS,
                 profiles={k: [to_float(v) for v in vs] for k, vs in profiles.items()},
                 pressure_drop_Pa=float(sum(profiles["pressure_drops_Pa_m"]) * col.dz),
                 max_flooding_fraction=float(max(profiles["flooding_fractions"])),
@@ -522,11 +536,15 @@ def reference(case):
                               z=to_float(list(top["y"]))),
                          dict(molar_flow_mol_s=float(bottom["L"]), temperature_K=float(bottom["tl"]),
                               z=to_float(list(bottom["x"])))])
+    if col.coupled:
+        result["boundary_pressures_Pa"] = [col.p] + [float(s["p_l"]) for s in segs]
+    return result
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--coupled-pressure", action="store_true")
     args = parser.parse_args()
     watched = [PATH, ROOT / "validation/generate-references.py",
                ROOT / "validation/generate-flash-references.py",
@@ -534,14 +552,16 @@ def main():
                ROOT / "validation/generate-liquid-density-references.py",
                ROOT / "data/source-extracts/components.provisional.json",
                ROOT / "data/source-extracts/transport.provisional.json"]
+    schema = "a17-rate-based-coupled-pressure-reference-v1" if args.coupled_pressure else "a17-rate-based-absorber-reference-v1"
+    cases = [dict(case, couple_pressure_drop=True) for case in CASES] if args.coupled_pressure else CASES
     result = dict(
-        schema="a17-rate-based-absorber-reference-v1",
+        schema=schema,
         published_examples=published_examples(),
         packages={name: importlib.metadata.version(name)
                   for name in ("teqp", "cantera", "numpy", "scipy", "CoolProp", "chemicals")},
         sha256={str(path.relative_to(ROOT)).replace("\\", "/"): hashlib.sha256(path.read_bytes()).hexdigest()
                 for path in watched},
-        tolerances=TOLERANCES, cases=[reference(case) for case in CASES],
+        tolerances=TOLERANCES, cases=[reference(case) for case in cases],
     )
     args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")
 

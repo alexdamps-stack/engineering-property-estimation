@@ -2112,7 +2112,11 @@ fn rate_based_absorber_form_and_segment_results() {
     let mut h = harness(app, egui::Theme::Dark);
     h.get_by_label("Column diameter");
     h.get_by_label("Segments");
+    h.get_by_label("Pressure model");
     h.get_by_label("Interfacial area factor");
+    h.get_by_label("Coupled bed pressure drop").click();
+    h.run();
+    h.get_by_label("Bed top pressure");
     key(&mut h, Key::F5);
     finish_solve(&mut h);
     let result = &h.state().editor().results.as_ref().unwrap().units[&column];
@@ -2124,8 +2128,10 @@ fn rate_based_absorber_form_and_segment_results() {
         .as_ref()
         .unwrap();
     assert_eq!(rate.liquid_temperatures_k.len(), 3);
+    assert!(rate.pressure_drop_coupled);
     assert!(rate.max_flooding_fraction > 0.0 && rate.max_flooding_fraction < 1.0);
-    h.get_by_label("Pressure drop (reported)");
+    h.get_by_label("Pressure drop (coupled)");
+    h.get_by_label("Segment 3 bottom pressure");
     h.get_by_label("Max. fraction of flood");
     h.get_by_label("Segment 3 T vapor / interface / liquid");
 }

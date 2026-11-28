@@ -281,6 +281,9 @@ pub struct RateBasedSpec {
     pub correlation: super::packing_data::MassTransferCorrelation,
     /// Film model.
     pub film_model: FilmModel,
+    /// Solve segment pressures from the correlated pressure drop and the
+    /// specified pressure at the top of the bed.
+    pub couple_pressure_drop: bool,
     /// Multiplier of the correlation's interfacial area (1 = as correlated).
     pub interfacial_area_factor: f64,
     /// Critical surface tension σc of the packing material, N/m (Onda 1968
@@ -311,6 +314,7 @@ impl Default for RateBasedSpec {
             packing: Default::default(),
             correlation: Default::default(),
             film_model: Default::default(),
+            couple_pressure_drop: false,
             interfacial_area_factor: 1.0,
             critical_surface_tension_n_m: None,
             wetting_surface: Default::default(),

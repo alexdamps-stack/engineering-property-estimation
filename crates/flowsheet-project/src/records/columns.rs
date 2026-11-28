@@ -122,6 +122,8 @@ pub(crate) struct RateBasedRecord {
     correlation: CorrelationRecord,
     #[serde(default)]
     film_model: FilmModelRecord,
+    #[serde(default, skip_serializing_if = "is_false")]
+    couple_pressure_drop: bool,
     #[serde(default = "unit_factor", skip_serializing_if = "is_unit_factor")]
     interfacial_area_factor: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -150,6 +152,7 @@ impl From<&RateBasedSpec> for RateBasedRecord {
                 FilmModel::EffectiveDiffusivity => FilmModelRecord::EffectiveDiffusivity,
             },
             interfacial_area_factor: r.interfacial_area_factor,
+            couple_pressure_drop: r.couple_pressure_drop,
             critical_surface_tension_n_m: r.critical_surface_tension_n_m,
             wetting_surface: r.wetting_surface.into(),
             gas_transport_neglected: r.gas_transport_neglected.clone(),
@@ -174,6 +177,7 @@ impl From<RateBasedRecord> for RateBasedSpec {
                 FilmModelRecord::EffectiveDiffusivity => FilmModel::EffectiveDiffusivity,
             },
             interfacial_area_factor: r.interfacial_area_factor,
+            couple_pressure_drop: r.couple_pressure_drop,
             critical_surface_tension_n_m: r.critical_surface_tension_n_m,
             wetting_surface: r.wetting_surface.into(),
             gas_transport_neglected: r.gas_transport_neglected,
