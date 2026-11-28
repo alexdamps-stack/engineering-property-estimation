@@ -254,6 +254,7 @@ fn shortcut(
                     heavy_key_recovery: Some(0.95),
                     pressure_pa: Some(p),
                     reflux: units::columns::ShortcutReflux::Ratio(Some(1.1)),
+                    condenser: Default::default(),
                 },
             )),
         )
@@ -389,8 +390,8 @@ fn methanol_water_distillation_under_nrtl_uses_gamma_phi_stage_properties() {
                 feed_stages: vec![5],
                 internals: units::columns::ColumnInternals::Trays(8),
                 pressure_pa: Some(101_325.0),
-                reflux_ratio: Some(1.5),
-                distillate_fraction: Some(0.5),
+                top: units::columns::TopSpecification::RefluxRatio(Some(1.5)),
+                bottom: units::columns::BottomSpecification::DistillateFraction(Some(0.5)),
                 ..Default::default()
             },
         )),

@@ -1,0 +1,240 @@
+{
+  "schema": "a17-extended-column-reference-v1",
+  "packages": {
+    "teqp": "0.23.2",
+    "cantera": "3.2.0",
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "sha256": {
+    "validation/columns/generate-extended-column-references.py": "b2dca8e4e8f7ed54f486c741a199e8bf1f42e14737556e93ff09c478edd72d30",
+    "validation/columns/generate-shortcut-references.py": "987a88e183fe6aeb0ccabcc922c05dedbaad160583c70b792c70136449454d8c",
+    "validation/generate-references.py": "eea4700cf5b1f18d64ed0db77c4c73b7a4ec98052930bf755f3f192bb898d2a6",
+    "validation/generate-flash-references.py": "13dbb9f40fa221ecae9472e15a8b11bc81a98233c83d7d9e298b1b0ec7809e31",
+    "validation/rotating/generate-ps-references.py": "ebf162770f3cd94748c1227190b82dee00edbddb37550a726dad776628748d4c",
+    "data/source-extracts/components.provisional.json": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147"
+  },
+  "tolerances": {
+    "temperature_K": [
+      2e-05,
+      0
+    ],
+    "composition": [
+      2e-07,
+      0
+    ],
+    "molar_flow_mol_s": [
+      2e-05,
+      0
+    ],
+    "duty_W": [
+      0.02,
+      2e-06
+    ]
+  },
+  "cases": [
+    {
+      "id": "methanol-water-trays-PR",
+      "kind": "distillation",
+      "variant": "PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "kij": [
+        [
+          0,
+          -0.075
+        ],
+        [
+          -0.075,
+          0
+        ]
+      ],
+      "kij_note": "methanol/water kij = -0.075 is an explicit approximation for implementation agreement, not a fitted parameter",
+      "pressure_Pa": 101325.0,
+      "internal_stages": 6,
+      "reflux_ratio": 1.5,
+      "distillate_fraction": 0.5,
+      "feeds": [
+        {
+          "temperature_K": 340.0,
+          "pressure_Pa": 120000.0,
+          "molar_flow_mol_s": 100.0,
+          "z": [
+            0.5,
+            0.5
+          ],
+          "stage": 5
+        }
+      ],
+      "draws": [],
+      "stage_temperatures_K": [
+        338.3631225501247,
+        339.31270403703013,
+        340.8015464430205,
+        343.0205459257928,
+        346.1066173068915,
+        348.7429692562988,
+        355.7696073052902,
+        367.60450817994996
+      ],
+      "condenser_duty_W": 4761091.389183149,
+      "reboiler_duty_W": 4836553.42776168,
+      "outlets": [
+        {
+          "molar_flow_mol_s": 50.0,
+          "z": [
+            0.9652772006000253,
+            0.03472279939997477
+          ]
+        },
+        {
+          "molar_flow_mol_s": 50.0,
+          "z": [
+            0.03472279939997501,
+            0.9652772006000251
+          ]
+        }
+      ]
+    },
+    {
+      "id": "propane-methanol-trays-PR",
+      "kind": "distillation",
+      "variant": "PR",
+      "ids": [
+        "propane",
+        "methanol"
+      ],
+      "kij": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "kij_note": "zero kij: an explicit approximation for implementation agreement",
+      "pressure_Pa": 2000000.0,
+      "internal_stages": 4,
+      "reflux_ratio": 1.5,
+      "distillate_fraction": 0.5,
+      "feeds": [
+        {
+          "temperature_K": 300.0,
+          "pressure_Pa": 2200000.0,
+          "molar_flow_mol_s": 100.0,
+          "z": [
+            0.5,
+            0.5
+          ],
+          "stage": 4
+        }
+      ],
+      "draws": [],
+      "stage_temperatures_K": [
+        331.4446721205303,
+        335.207692684534,
+        344.4500250979154,
+        363.5824830341592,
+        406.2654595697638,
+        430.1620617108598
+      ],
+      "condenser_duty_W": 1550885.1425345833,
+      "reboiler_duty_W": 2385058.608778663,
+      "outlets": [
+        {
+          "molar_flow_mol_s": 50.0,
+          "z": [
+            0.9783960677548103,
+            0.021603932245189892
+          ]
+        },
+        {
+          "molar_flow_mol_s": 50.0,
+          "z": [
+            0.021603932245189937,
+            0.9783960677548099
+          ]
+        }
+      ]
+    },
+    {
+      "id": "methanol-solvent-absorber-PR",
+      "kind": "absorber",
+      "variant": "PR",
+      "ids": [
+        "methane",
+        "carbon-dioxide",
+        "methanol"
+      ],
+      "kij": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "kij_note": "zero kij: an explicit approximation for implementation agreement",
+      "pressure_Pa": 3000000.0,
+      "stages": 5,
+      "gas": {
+        "temperature_K": 290.0,
+        "pressure_Pa": 3100000.0,
+        "molar_flow_mol_s": 50.0,
+        "z": [
+          0.85,
+          0.15,
+          0.0
+        ]
+      },
+      "liquid": {
+        "temperature_K": 250.0,
+        "pressure_Pa": 3200000.0,
+        "molar_flow_mol_s": 40.0,
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "stage_temperatures_K": [
+        256.9290784352799,
+        259.89873636424704,
+        261.74085485857114,
+        264.4268071330551,
+        270.6411062888281
+      ],
+      "outlets": [
+        {
+          "molar_flow_mol_s": 46.412207963800334,
+          "z": [
+            0.8995520528835902,
+            0.0997923174118315,
+            0.0006556297045783617
+          ]
+        },
+        {
+          "molar_flow_mol_s": 43.587792036199666,
+          "z": [
+            0.017202134181988047,
+            0.06580783465035997,
+            0.916990031167652
+          ]
+        }
+      ]
+    }
+  ]
+}

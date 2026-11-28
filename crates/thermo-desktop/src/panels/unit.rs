@@ -361,7 +361,7 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         ("Minimum stages (Fenske)", number(c.minimum_stages, 2)),
                         ("Minimum reflux ratio (Underwood)", number(c.minimum_reflux_ratio, 4)),
                         ("Reflux ratio L/D", number(c.reflux_ratio, 4)),
-                        ("Theoretical stages incl. reboiler", number(c.theoretical_stages, 2)),
+                        ("Theoretical stages (Gilliland)", number(c.theoretical_stages, 2)),
                         ("Feed stage from top (Kirkbride)", number(c.rectifying_stages + 1.0, 2)),
                         ("Key relative volatility", number(c.relative_volatility, 4)),
                         ("Feed condition q", number(c.feed_condition_q, 4)),
@@ -386,6 +386,19 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         ui.label(text);
                         ui.end_row();
                     }
+                    // Key and non-key distribution (Fenske, total reflux).
+                    if let Some(package) = &ed.package {
+                        for (name, recovery) in package.components.iter().zip(&c.distillate_recoveries) {
+                            if let Some(recovery) = recovery {
+                                ui.label(format!("{name} to distillate"));
+                                ui.label(value_text(
+                                    format_quantity(u, Quantity::Fraction, *recovery),
+                                    stale,
+                                ));
+                                ui.end_row();
+                            }
+                        }
+                    }
                 }
                 if let Some(c) = &r.distillation_column {
                     for (label, q) in [
@@ -396,9 +409,89 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         ui.label(value_text(format_quantity(u, Quantity::Duty, q), stale));
                         ui.end_row();
                     }
+                    for (label, q) in [
+                        ("Distillate", c.distillate_mol_s),
+                        ("Reflux", c.reflux_mol_s),
+                        ("Bottoms", c.bottoms_mol_s),
+                        ("Boilup", c.boilup_mol_s),
+                    ] {
+                        if let Some(q) = q {
+                            ui.label(label);
+                            ui.label(value_text(format_quantity(u, Quantity::MolarFlow, q), stale));
+                            ui.end_row();
+                        }
+                    }
+                    if let (Some(top), Some(bottom)) =
+                        (c.stage_pressures_pa.first(), c.stage_pressures_pa.last())
+                        && top != bottom
+                    {
+                        ui.label("Condenser / reboiler pressure");
+                        ui.label(value_text(
+                            format!(
+                                "{} / {}",
+                                format_quantity(u, Quantity::Pressure, *top),
+                                format_quantity(u, Quantity::Pressure, *bottom)
+                            ),
+                            stale,
+                        ));
+                        ui.end_row();
+                    }
                     stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
                 }
                 if let Some(c) = &r.absorber {
+                    stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
+                }
+                if let Some(c) = &r.liquid_extractor {
+                    ui.label("Feed enters");
+                    ui.label(value_text(
+                        if c.feed_is_heavy { "top (heavy feed)" } else { "bottom (light feed)" }
+                            .to_owned(),
+                        stale,
+                    ));
+                    ui.end_row();
+                    stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
+                    for (j, (e, f)) in c
+                        .extract_flows_mol_s
+                        .iter()
+                        .zip(&c.raffinate_flows_mol_s)
+                        .enumerate()
+                    {
+                        ui.label(format!("Stage {} extract / raffinate", j + 1));
+                        ui.label(value_text(
+                            format!(
+                                "{} / {}",
+                                format_quantity(u, Quantity::MolarFlow, *e),
+                                format_quantity(u, Quantity::MolarFlow, *f)
+                            ),
+                            stale,
+                        ));
+                        ui.end_row();
+                    }
+                }
+                if let Some(c) = &r.three_phase_column {
+                    for (label, q) in [
+                        ("Condenser duty (+ removed)", c.condenser_duty_w),
+                        ("Reboiler duty (+ supplied)", c.reboiler_duty_w),
+                    ] {
+                        ui.label(label);
+                        ui.label(value_text(format_quantity(u, Quantity::Duty, q), stale));
+                        ui.end_row();
+                    }
+                    for (label, q) in [
+                        ("Decanter light liquid", c.light_liquid_mol_s),
+                        ("Decanter heavy liquid", c.heavy_liquid_mol_s),
+                        ("Reflux", c.liquid_flows_mol_s.first().copied().unwrap_or(0.0)),
+                    ] {
+                        ui.label(label);
+                        ui.label(value_text(format_quantity(u, Quantity::MolarFlow, q), stale));
+                        ui.end_row();
+                    }
+                    ui.label("Reflux liquid");
+                    ui.label(value_text(
+                        if c.light_refluxed { "light" } else { "heavy" }.to_owned(),
+                        stale,
+                    ));
+                    ui.end_row();
                     stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
                 }
                 if let Some(x) = &r.material_exchange {

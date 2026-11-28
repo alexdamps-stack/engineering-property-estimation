@@ -1,0 +1,604 @@
+{
+  "schema": "a17-column-specification-reference-v1",
+  "packages": {
+    "teqp": "0.23.2",
+    "cantera": "3.2.0",
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "sha256": {
+    "validation/columns/generate-column-spec-references.py": "a5189ea23e0892d1f82f417fb4bed51c37c1d3a8971a3077025302a19108e8c7",
+    "validation/columns/generate-extended-column-references.py": "b2dca8e4e8f7ed54f486c741a199e8bf1f42e14737556e93ff09c478edd72d30",
+    "validation/columns/generate-shortcut-references.py": "e2fb50c82c62eac8a6b89a26f57e2f5decb7b51ab4e5bcb3863ca1d0c98be012",
+    "validation/generate-references.py": "eea4700cf5b1f18d64ed0db77c4c73b7a4ec98052930bf755f3f192bb898d2a6",
+    "validation/generate-flash-references.py": "13dbb9f40fa221ecae9472e15a8b11bc81a98233c83d7d9e298b1b0ec7809e31",
+    "validation/rotating/generate-ps-references.py": "ebf162770f3cd94748c1227190b82dee00edbddb37550a726dad776628748d4c",
+    "data/source-extracts/components.provisional.json": "072cc688e5b7bd782df43da63426cb542247c3064ba9a7f65d50308b9472b147"
+  },
+  "tolerances": {
+    "temperature_K": [
+      2e-05,
+      0
+    ],
+    "composition": [
+      2e-07,
+      0
+    ],
+    "molar_flow_mol_s": [
+      2e-05,
+      0
+    ],
+    "duty_W": [
+      0.02,
+      2e-06
+    ]
+  },
+  "cases": [
+    {
+      "kind": "distillation",
+      "variant": "PR",
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "kij": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "kij_note": "zero kij: an explicit approximation for implementation agreement",
+      "condenser": "partial_vapor",
+      "liquid_distillate_mol_s": 0.0,
+      "condenser_pressure_drop_Pa": 0.0,
+      "stage_pressure_drop_Pa": 0.0,
+      "draws": [],
+      "vapor_draws": [],
+      "id": "partial-vapor-PR",
+      "pressure_Pa": 2000000.0,
+      "internal_stages": 4,
+      "feeds": [
+        {
+          "temperature_K": 295.0,
+          "pressure_Pa": 2300000.0,
+          "molar_flow_mol_s": 100.0,
+          "z": [
+            0.45,
+            0.55
+          ],
+          "stage": 4
+        }
+      ],
+      "top": {
+        "reflux_ratio": 2.5
+      },
+      "bottom": {
+        "distillate_fraction": 0.45
+      },
+      "stage_temperatures_K": [
+        280.3483392019069,
+        290.9051649686901,
+        299.5957022569499,
+        305.04302604225165,
+        313.3330903794196,
+        320.3600750854899
+      ],
+      "stage_pressures_Pa": [
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0
+      ],
+      "condenser_duty_W": 1331681.1635676546,
+      "reboiler_duty_W": 1895549.0239461877,
+      "distillate_mol_s": 45.0,
+      "reflux_mol_s": 112.5,
+      "bottoms_mol_s": 55.0,
+      "boilup_mol_s": 151.62140036720027,
+      "outlets": [
+        {
+          "phase": "vapor",
+          "molar_flow_mol_s": 45.0,
+          "z": [
+            0.8654784888085933,
+            0.1345215111914067
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 55.0,
+          "z": [
+            0.1100630546111508,
+            0.8899369453888492
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "distillation",
+      "variant": "PR-BM",
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "kij": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "kij_note": "zero kij: an explicit approximation for implementation agreement",
+      "condenser": "partial_vapor_liquid",
+      "liquid_distillate_mol_s": 20.0,
+      "condenser_pressure_drop_Pa": 0.0,
+      "stage_pressure_drop_Pa": 0.0,
+      "draws": [],
+      "vapor_draws": [
+        {
+          "stage": 5,
+          "molar_flow_mol_s": 8.0
+        }
+      ],
+      "id": "partial-vapor-liquid-vapor-draw-PR-BM",
+      "pressure_Pa": 2000000.0,
+      "internal_stages": 5,
+      "feeds": [
+        {
+          "temperature_K": 290.0,
+          "pressure_Pa": 2300000.0,
+          "molar_flow_mol_s": 100.0,
+          "z": [
+            0.5,
+            0.5
+          ],
+          "stage": 4
+        }
+      ],
+      "top": {
+        "reflux_ratio": 3.0
+      },
+      "bottom": {
+        "distillate_fraction": 0.45
+      },
+      "stage_temperatures_K": [
+        271.08030582629436,
+        278.2375736709305,
+        287.7708104088851,
+        296.65905380604124,
+        305.9866001431492,
+        314.7807341510943,
+        321.5534999702794
+      ],
+      "stage_pressures_Pa": [
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0
+      ],
+      "condenser_duty_W": 1670021.0113885496,
+      "reboiler_duty_W": 2126386.220366655,
+      "distillate_mol_s": 45.0,
+      "reflux_mol_s": 135.0,
+      "bottoms_mol_s": 47.0,
+      "boilup_mol_s": 170.8106738742162,
+      "outlets": [
+        {
+          "phase": "vapor",
+          "molar_flow_mol_s": 25.0,
+          "z": [
+            0.9563917750866617,
+            0.04360822491333819
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 47.0,
+          "z": [
+            0.09628223813305226,
+            0.9037177618669476
+          ]
+        },
+        {
+          "phase": "vapor",
+          "molar_flow_mol_s": 8.0,
+          "z": [
+            0.5035561386480734,
+            0.4964438613519268
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 20.0,
+          "z": [
+            0.8768245660697686,
+            0.12317543393023135
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "distillation",
+      "variant": "PR",
+      "ids": [
+        "methanol",
+        "water"
+      ],
+      "kij": [
+        [
+          0,
+          -0.075
+        ],
+        [
+          -0.075,
+          0
+        ]
+      ],
+      "kij_note": "methanol/water kij = -0.075 is an explicit approximation for implementation agreement, not a fitted parameter",
+      "condenser": "total",
+      "liquid_distillate_mol_s": 0.0,
+      "condenser_pressure_drop_Pa": 5000.0,
+      "stage_pressure_drop_Pa": 700.0,
+      "draws": [],
+      "vapor_draws": [],
+      "id": "pressure-drop-methanol-water-PR",
+      "pressure_Pa": 101325.0,
+      "internal_stages": 6,
+      "feeds": [
+        {
+          "temperature_K": 340.0,
+          "pressure_Pa": 120000.0,
+          "molar_flow_mol_s": 100.0,
+          "z": [
+            0.5,
+            0.5
+          ],
+          "stage": 5
+        }
+      ],
+      "top": {
+        "reflux_ratio": 1.5
+      },
+      "bottom": {
+        "distillate_fraction": 0.5
+      },
+      "stage_temperatures_K": [
+        338.3766631366296,
+        340.5360859239943,
+        342.2111871206471,
+        344.61267198112114,
+        347.86607767643045,
+        350.6987431727565,
+        357.90444626120177,
+        369.8988249667264
+      ],
+      "stage_pressures_Pa": [
+        101325.0,
+        106325.0,
+        107025.0,
+        107725.0,
+        108425.0,
+        109125.0,
+        109825.0,
+        110525.0
+      ],
+      "condenser_duty_W": 4767690.049998449,
+      "reboiler_duty_W": 4853069.610130057,
+      "distillate_mol_s": 50.0,
+      "reflux_mol_s": 75.0,
+      "bottoms_mol_s": 50.0,
+      "boilup_mol_s": 116.39728733541546,
+      "outlets": [
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 50.0,
+          "z": [
+            0.9644404099849939,
+            0.035559590015006144
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 50.0,
+          "z": [
+            0.03555959001500696,
+            0.964440409984993
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "distillation",
+      "variant": "PR",
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "kij": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "kij_note": "zero kij: an explicit approximation for implementation agreement",
+      "condenser": "total",
+      "liquid_distillate_mol_s": 0.0,
+      "condenser_pressure_drop_Pa": 0.0,
+      "stage_pressure_drop_Pa": 0.0,
+      "draws": [],
+      "vapor_draws": [],
+      "id": "reboiler-duty-PR",
+      "pressure_Pa": 2000000.0,
+      "internal_stages": 4,
+      "feeds": [
+        {
+          "temperature_K": 295.0,
+          "pressure_Pa": 2300000.0,
+          "molar_flow_mol_s": 100.0,
+          "z": [
+            0.45,
+            0.55
+          ],
+          "stage": 4
+        }
+      ],
+      "top": {
+        "reflux_ratio": 2.5
+      },
+      "bottom": {
+        "reboiler_duty_W": 1900000.0
+      },
+      "guess": {
+        "distillate": 45.0
+      },
+      "stage_temperatures_K": [
+        273.6988725212488,
+        284.3887133797209,
+        295.33253635827595,
+        303.03546688642854,
+        311.8015904292154,
+        319.40646725397175
+      ],
+      "stage_pressures_Pa": [
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0
+      ],
+      "condenser_duty_W": 1834703.7214466836,
+      "reboiler_duty_W": 1899999.9999999905,
+      "distillate_mol_s": 47.08522320860639,
+      "reflux_mol_s": 117.71305802151599,
+      "bottoms_mol_s": 52.91477679139361,
+      "boilup_mol_s": 151.5413737014214,
+      "outlets": [
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 47.08522320860639,
+          "z": [
+            0.8196610951812288,
+            0.18033890481877118
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 52.91477679139361,
+          "z": [
+            0.12106399698586663,
+            0.8789360030141333
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "distillation",
+      "variant": "PR-BM",
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "kij": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "kij_note": "zero kij: an explicit approximation for implementation agreement",
+      "condenser": "total",
+      "liquid_distillate_mol_s": 0.0,
+      "condenser_pressure_drop_Pa": 0.0,
+      "stage_pressure_drop_Pa": 0.0,
+      "draws": [],
+      "vapor_draws": [],
+      "id": "purity-boilup-PR-BM",
+      "pressure_Pa": 2000000.0,
+      "internal_stages": 6,
+      "feeds": [
+        {
+          "temperature_K": 295.0,
+          "pressure_Pa": 2300000.0,
+          "molar_flow_mol_s": 100.0,
+          "z": [
+            0.45,
+            0.55
+          ],
+          "stage": 4
+        }
+      ],
+      "top": {
+        "distillate_mole_fraction": {
+          "component": 0,
+          "value": 0.95
+        }
+      },
+      "bottom": {
+        "boilup_ratio": 2.0
+      },
+      "guess": {
+        "distillate": 42.0,
+        "reflux": 110.0
+      },
+      "stage_temperatures_K": [
+        267.89594937390655,
+        271.7999720170449,
+        278.7941784767125,
+        288.04245080704544,
+        291.67972596107995,
+        297.52730037626037,
+        305.4901128679424,
+        314.3257887359208
+      ],
+      "stage_pressures_Pa": [
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0
+      ],
+      "condenser_duty_W": 1576762.2164841287,
+      "reboiler_duty_W": 1643606.4402582324,
+      "distillate_mol_s": 34.984116613117436,
+      "reflux_mol_s": 119.17725091634708,
+      "bottoms_mol_s": 65.01588338688256,
+      "boilup_mol_s": 130.0317667737652,
+      "outlets": [
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 34.984116613117436,
+          "z": [
+            0.95,
+            0.05000000000000005
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 65.01588338688256,
+          "z": [
+            0.1809571539238997,
+            0.8190428460761006
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "distillation",
+      "variant": "PR",
+      "ids": [
+        "ethane",
+        "propane"
+      ],
+      "kij": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "kij_note": "zero kij: an explicit approximation for implementation agreement",
+      "condenser": "total",
+      "liquid_distillate_mol_s": 0.0,
+      "condenser_pressure_drop_Pa": 0.0,
+      "stage_pressure_drop_Pa": 0.0,
+      "draws": [],
+      "vapor_draws": [],
+      "id": "condenser-duty-recovery-PR",
+      "pressure_Pa": 2000000.0,
+      "internal_stages": 5,
+      "feeds": [
+        {
+          "temperature_K": 295.0,
+          "pressure_Pa": 2300000.0,
+          "molar_flow_mol_s": 100.0,
+          "z": [
+            0.45,
+            0.55
+          ],
+          "stage": 4
+        }
+      ],
+      "top": {
+        "condenser_duty_W": 1600000.0
+      },
+      "bottom": {
+        "bottoms_recovery": {
+          "component": 1,
+          "value": 0.95
+        }
+      },
+      "guess": {
+        "distillate": 45.0,
+        "reflux": 100.0
+      },
+      "stage_temperatures_K": [
+        268.9123083593211,
+        274.3786564185768,
+        282.9609239757383,
+        292.48368436009105,
+        298.75208812055945,
+        306.8866983037347,
+        315.4836069894754
+      ],
+      "stage_pressures_Pa": [
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0,
+        2000000.0
+      ],
+      "condenser_duty_W": 1599999.9999999995,
+      "reboiler_duty_W": 1668583.5613526884,
+      "distillate_mol_s": 37.26396322277768,
+      "reflux_mol_s": 116.36402357442402,
+      "bottoms_mol_s": 62.73603677722232,
+      "boilup_mol_s": 132.05469677351078,
+      "outlets": [
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 37.26396322277768,
+          "z": [
+            0.9262021598840819,
+            0.07379784011591811
+          ]
+        },
+        {
+          "phase": "liquid",
+          "molar_flow_mol_s": 62.73603677722232,
+          "z": [
+            0.16714534924255045,
+            0.8328546507574496
+          ]
+        }
+      ]
+    }
+  ]
+}

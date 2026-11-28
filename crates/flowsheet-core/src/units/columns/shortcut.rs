@@ -1,6 +1,6 @@
 //! Shortcut distillation column (#185): Fenske–Underwood–Gilliland design
-//! estimate with Kirkbride feed location, a total condenser and a partial
-//! reboiler at one column pressure.
+//! estimate with Kirkbride feed location, a total or partial condenser and a
+//! partial reboiler at one column pressure.
 //!
 //! Method (all relative volatilities are with respect to the heavy key):
 //!
@@ -22,9 +22,18 @@
 //!   which tends to 1 at minimum reflux and to 0 at total reflux.
 //! - Feed location: Kirkbride, C. G. (1944) *Petrol. Refiner* 23(9), 321–336.
 //!
-//! Stage counts include the partial reboiler and exclude the total
-//! condenser. Bubble and dew points use the bounded A13 saturation solver
-//! through the package (`FlowsheetPackage::saturation_temperature`): under
+//! Stage counts include the partial reboiler, include a partial condenser
+//! and exclude a total condenser. Either the operating reflux or the stage
+//! count is specified; for a stage count the Molokanov fit is inverted for X.
+//!
+//! A partial condenser returns a vapour distillate at its dew point. The
+//! reflux is the incipient liquid of that dew point (at its own bubble point,
+//! in equilibrium with the distillate). The vapour entering the condenser has
+//! the composition of the top balance `V y₁ = D x_D + L x_R` (constant molar
+//! overflow) at its dew point, and `Q_C = V h_V(y₁) − D h_D − L h_R`.
+//!
+//! Bubble and dew points use the bounded A13 saturation solver through the
+//! package (`FlowsheetPackage::saturation_temperature`): under
 //! the cubic and GERG-2008 packages every component with feed flow must
 //! belong to the qualified dry methane/ethane/propane/N2/CO2 domain (A13).
 
@@ -37,13 +46,27 @@ use crate::engine::MaterialStream;
 use crate::unit::{Sign, SpecIssue, SpecProblem, check_optional};
 use crate::units::{CalcContext, UnitOutput};
 
-/// Reflux specification of a shortcut column.
+/// Operating specification of a shortcut column: the reflux, or the stage
+/// count from which Gilliland gives the reflux (mutually exclusive).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ShortcutReflux {
     /// Operating reflux ratio L/D, greater than the Underwood minimum.
     Ratio(Option<f64>),
     /// Operating reflux as a multiple of the Underwood minimum, greater than 1.
     MinimumMultiple(Option<f64>),
+    /// Theoretical stages on the reported basis (reboiler and a partial
+    /// condenser included), greater than the Fenske minimum.
+    TheoreticalStages(Option<f64>),
+}
+
+/// Condenser of a shortcut column.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ShortcutCondenser {
+    /// Saturated-liquid distillate at its bubble point; not a stage.
+    #[default]
+    Total,
+    /// Saturated-vapour distillate at its dew point; one equilibrium stage.
+    Partial,
 }
 
 impl Default for ShortcutReflux {
@@ -67,12 +90,14 @@ pub struct ShortcutColumnSpec {
     /// Absolute column pressure in Pa (condenser and reboiler), at most the
     /// feed pressure.
     pub pressure_pa: Option<f64>,
-    /// Operating reflux.
+    /// Operating reflux or stage count.
     pub reflux: ShortcutReflux,
+    /// Total (liquid distillate) or partial (vapour distillate) condenser.
+    pub condenser: ShortcutCondenser,
 }
 
 /// Design estimates of a solved shortcut column.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ShortcutColumnResult {
     /// Light-key/heavy-key relative volatility (geometric mean).
     pub relative_volatility: f64,
@@ -88,7 +113,8 @@ pub struct ShortcutColumnResult {
     pub reflux_ratio: f64,
     /// Gilliland abscissa X = (R − R_min)/(R + 1).
     pub gilliland_x: f64,
-    /// Theoretical stages including the reboiler, excluding the condenser.
+    /// Theoretical stages including the reboiler and a partial condenser,
+    /// excluding a total condenser (the specified value in stage mode).
     pub theoretical_stages: f64,
     /// Kirkbride stages above the feed; the feed stage from the top is this
     /// value plus one.
@@ -101,10 +127,20 @@ pub struct ShortcutColumnResult {
     pub top_vapor_temperature_k: f64,
     /// Relative-volatility fixed-point iterations.
     pub volatility_iterations: usize,
+    /// Fraction of each package component's feed recovered in the
+    /// distillate (key and non-key distribution); `None` for a component
+    /// absent from the feed.
+    pub distillate_recoveries: Vec<Option<f64>>,
 }
 
 impl ShortcutColumnResult {
-    /// Every value, for finiteness checks of stored results.
+    /// Feed stage counted from the top: the Kirkbride stages above it plus
+    /// one (a partial condenser is stage 1).
+    pub fn feed_stage(&self) -> f64 {
+        self.rectifying_stages + 1.0
+    }
+
+    /// Every scalar value, for finiteness checks of stored results.
     pub fn numbers(&self) -> [f64; 13] {
         [
             self.relative_volatility,
@@ -168,6 +204,9 @@ impl ShortcutColumnSpec {
         );
         match self.reflux {
             ShortcutReflux::Ratio(r) => check_optional(&mut out, "reflux ratio", r, Sign::Positive),
+            ShortcutReflux::TheoreticalStages(n) => {
+                check_optional(&mut out, "theoretical stages", n, Sign::Positive)
+            }
             ShortcutReflux::MinimumMultiple(m) => {
                 let before = out.len();
                 check_optional(&mut out, "reflux multiple", m, Sign::Positive);
@@ -293,6 +332,34 @@ fn underwood_root(z: &[f64], alpha: &[f64], alpha_lk: f64, q: f64) -> Result<f64
 /// Molokanov et al. (1972) fit of the Gilliland correlation, X in (0, 1).
 fn gilliland_y(x: f64) -> f64 {
     1.0 - ((1.0 + 54.4 * x) / (11.0 + 117.2 * x) * (x - 1.0) / x.sqrt()).exp()
+}
+
+/// Inverse of [`gilliland_y`] for Y in (0, 1) by bisection: Y decreases
+/// monotonically from 1 as X → 0 to 0 at X = 1.
+fn gilliland_x(y: f64) -> Result<f64, String> {
+    if !(y > 0.0 && y < 1.0) {
+        return Err(format!(
+            "shortcut column Gilliland ordinate {y} is outside (0, 1)"
+        ));
+    }
+    let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+    for _ in 0..2000 {
+        let mid = 0.5 * (lo + hi);
+        if mid <= lo || mid >= hi {
+            break;
+        }
+        if gilliland_y(mid) > y {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    let x = 0.5 * (lo + hi);
+    if x > 0.0 && x < 1.0 {
+        Ok(x)
+    } else {
+        Err("shortcut column Gilliland abscissa is not bracketed in (0, 1)".into())
+    }
 }
 
 fn component_index(ids: &[&str], key: &Option<String>, field: &str) -> Result<usize, String> {
@@ -435,38 +502,81 @@ pub(super) fn calculate(
             "shortcut column Underwood minimum reflux {r_min:.6} is not positive; the specification is outside the shortcut method"
         ));
     }
-    let reflux = match spec.reflux {
-        ShortcutReflux::Ratio(r) => r.unwrap_or_default(),
-        ShortcutReflux::MinimumMultiple(m) => m.unwrap_or_default() * r_min,
-    };
-    if !(reflux > r_min) {
-        return Err(format!(
-            "shortcut column reflux ratio {reflux:.6} must exceed the minimum reflux ratio {r_min:.6}"
-        ));
+    let n_min = split.minimum_stages;
+    enum Operating {
+        Reflux(f64),
+        Stages(f64),
     }
-    let x = (reflux - r_min) / (reflux + 1.0);
-    let y = gilliland_y(x);
-    let stages = finite(
-        "theoretical stage count",
-        (split.minimum_stages + y) / (1.0 - y),
-    )?;
+    let operating = match spec.reflux {
+        ShortcutReflux::Ratio(r) => Operating::Reflux(r.unwrap_or_default()),
+        ShortcutReflux::MinimumMultiple(m) => Operating::Reflux(m.unwrap_or_default() * r_min),
+        ShortcutReflux::TheoreticalStages(n) => Operating::Stages(n.unwrap_or_default()),
+    };
+    let (reflux, x, stages) = match operating {
+        Operating::Reflux(reflux) => {
+            if !(reflux > r_min) {
+                return Err(format!(
+                    "shortcut column reflux ratio {reflux:.6} must exceed the minimum reflux ratio {r_min:.6}"
+                ));
+            }
+            let x = (reflux - r_min) / (reflux + 1.0);
+            let y = gilliland_y(x);
+            let stages = finite("theoretical stage count", (n_min + y) / (1.0 - y))?;
+            (reflux, x, stages)
+        }
+        Operating::Stages(n) => {
+            if !(n > n_min) {
+                return Err(format!(
+                    "shortcut column theoretical stages {n:.6} must exceed the Fenske minimum stages {n_min:.6}"
+                ));
+            }
+            // Gilliland in Molokanov form inverted for X, then R from X.
+            let x = gilliland_x((n - n_min) / (n + 1.0))?;
+            let reflux = finite("reflux ratio", (x + r_min) / (1.0 - x))?;
+            if !(reflux > r_min) {
+                return Err(format!(
+                    "shortcut column reflux ratio {reflux:.6} for {n:.6} stages does not exceed the minimum reflux ratio {r_min:.6}"
+                ));
+            }
+            (reflux, x, n)
+        }
+    };
     let kirkbride = ((b / d) * (z[hk] / z[lk]) * (x_b[lk] / x_d[hk]).powi(2)).powf(0.206);
     let rectifying = finite("feed location", stages * kirkbride / (1.0 + kirkbride))?;
 
-    // Saturated-liquid products and duties.
-    let distillate_bubble =
-        ctx.saturation_t(&x_d, p, SaturationKind::Bubble, "distillate bubble point")?;
-    let distillate_state = ctx.tp(&x_d, distillate_bubble.temperature_k, p)?;
+    // Saturated products and duties.
     let bottoms_state = ctx.tp(&x_b, bottom.temperature_k, p)?;
-    if !(bottom.temperature_k > top.temperature_k) {
+    let (distillate_state, overhead, condenser) = match spec.condenser {
+        ShortcutCondenser::Total => {
+            let bubble =
+                ctx.saturation_t(&x_d, p, SaturationKind::Bubble, "distillate bubble point")?;
+            let distillate_state = ctx.tp(&x_d, bubble.temperature_k, p)?;
+            let condenser = (reflux + 1.0) * d * (top.vapor.enthalpy - distillate_state.enthalpy());
+            (distillate_state, top, condenser)
+        }
+        ShortcutCondenser::Partial => {
+            // `top` is the condenser equilibrium: the vapour distillate at its
+            // dew point, the reflux its incipient liquid at its bubble point.
+            let distillate_state = ctx.tp(&x_d, top.temperature_k, p)?;
+            let y_1: Vec<f64> = x_d
+                .iter()
+                .zip(&top.liquid_composition)
+                .map(|(y_d, x_r)| (y_d + reflux * x_r) / (reflux + 1.0))
+                .collect();
+            let overhead = ctx.saturation_t(&y_1, p, SaturationKind::Dew, "overhead dew point")?;
+            let condenser = d
+                * ((reflux + 1.0) * overhead.vapor.enthalpy
+                    - distillate_state.enthalpy()
+                    - reflux * top.liquid.enthalpy);
+            (distillate_state, overhead, condenser)
+        }
+    };
+    if !(bottom.temperature_k > overhead.temperature_k) {
         return Err(
             "shortcut column bottoms bubble point is not above the overhead dew point".into(),
         );
     }
-    let condenser = finite(
-        "condenser duty",
-        (reflux + 1.0) * d * (top.vapor.enthalpy - distillate_state.enthalpy()),
-    )?;
+    let condenser = finite("condenser duty", condenser)?;
     if !(condenser > 0.0) {
         return Err("shortcut column condenser duty is not positive".into());
     }
@@ -515,8 +625,13 @@ pub(super) fn calculate(
         rectifying_stages: rectifying,
         condenser_duty_w: condenser,
         reboiler_duty_w: reboiler,
-        top_vapor_temperature_k: top.temperature_k,
+        top_vapor_temperature_k: overhead.temperature_k,
         volatility_iterations: iterations,
+        distillate_recoveries: feed_flows
+            .iter()
+            .zip(&split.distillate)
+            .map(|(f, d)| (*f > 0.0).then(|| d / f))
+            .collect(),
     };
     let outlets = vec![
         MaterialStream {
@@ -571,6 +686,7 @@ mod tests {
             heavy_key_recovery: Some(0.97),
             pressure_pa: Some(2.0e6),
             reflux,
+            condenser: ShortcutCondenser::Total,
         }
     }
 
@@ -685,6 +801,81 @@ mod tests {
         critical.pressure_pa = Some(5.5e6);
         let hot = feed(&ctx, &z, 340.0, 6.0e6);
         assert!(fail(&critical, &hot).starts_with("shortcut column"));
+    }
+
+    #[test]
+    fn inverse_molokanov_fit_recovers_the_abscissa() {
+        for x in [1e-3, 0.01, 0.1, 0.35, 0.9, 0.999] {
+            let back = gilliland_x(gilliland_y(x)).unwrap();
+            assert!((back - x).abs() < 1e-12 * (1.0 + 1.0 / x), "{x} -> {back}");
+        }
+        for y in [0.0, 1.0, -0.1, f64::NAN] {
+            assert!(gilliland_x(y).is_err());
+        }
+    }
+
+    #[test]
+    fn stage_specification_reproduces_the_reflux_it_implies() {
+        let z = [0.4, 0.6];
+        let package = package(&["ethane", "propane"], &z);
+        let ctx = CalcContext::new(&package, None);
+        let inlet = feed(&ctx, &z, 280.0, 2.0e6);
+        for condenser in [ShortcutCondenser::Total, ShortcutCondenser::Partial] {
+            let mut s = spec(ShortcutReflux::MinimumMultiple(Some(1.3)));
+            s.condenser = condenser;
+            let (_, by_reflux) = calculate(&s, &inlet, &ctx).unwrap();
+            s.reflux = ShortcutReflux::TheoreticalStages(Some(by_reflux.theoretical_stages));
+            let (_, by_stages) = calculate(&s, &inlet, &ctx).unwrap();
+            assert!((by_stages.reflux_ratio / by_reflux.reflux_ratio - 1.0).abs() < 1e-9);
+            assert_eq!(by_stages.theoretical_stages, by_reflux.theoretical_stages);
+            assert!((by_stages.condenser_duty_w / by_reflux.condenser_duty_w - 1.0).abs() < 1e-8);
+            // At or below the Fenske minimum the stage count is infeasible.
+            for n in [by_reflux.minimum_stages, by_reflux.minimum_stages - 0.5] {
+                s.reflux = ShortcutReflux::TheoreticalStages(Some(n));
+                let err = calculate(&s, &inlet, &ctx).unwrap_err();
+                assert!(err.contains("must exceed the Fenske minimum"), "{err}");
+            }
+        }
+        let mut s = spec(ShortcutReflux::TheoreticalStages(Some(0.0)));
+        let problems: Vec<_> = s.issues().iter().map(|i| (i.field, i.problem)).collect();
+        assert_eq!(problems.len(), 1);
+        assert_eq!(problems[0].0, "theoretical stages");
+        s.reflux = ShortcutReflux::TheoreticalStages(None);
+        assert_eq!(s.issues()[0].problem, SpecProblem::Missing);
+    }
+
+    #[test]
+    fn partial_condenser_returns_dew_point_vapour_and_closes_balances() {
+        let z = [0.4, 0.6];
+        let package = package(&["ethane", "propane"], &z);
+        let ctx = CalcContext::new(&package, None);
+        let inlet = feed(&ctx, &z, 280.0, 2.0e6);
+        let mut s = spec(ShortcutReflux::MinimumMultiple(Some(1.3)));
+        let (total_out, total) = calculate(&s, &inlet, &ctx).unwrap();
+        s.condenser = ShortcutCondenser::Partial;
+        let (out, r) = calculate(&s, &inlet, &ctx).unwrap();
+        let [dist, bot] = out.outlets.as_slice() else {
+            panic!("two products")
+        };
+        let state = dist.state.as_ref().unwrap();
+        // Vapour distillate at its dew point, the condenser temperature.
+        let dew = ctx
+            .saturation_t(&state.mole_fractions, 2.0e6, SaturationKind::Dew, "test")
+            .unwrap();
+        assert!((state.temperature_k - dew.temperature_k).abs() < 1e-9);
+        assert!((state.enthalpy() - dew.vapor.enthalpy).abs() < 1e-6 * dew.vapor.enthalpy.abs());
+        assert!(state.temperature_k < r.top_vapor_temperature_k);
+        // Same split, recoveries and volatility basis as the total condenser.
+        assert_eq!(r.minimum_stages, total.minimum_stages);
+        assert_eq!(r.distillate_recoveries, total.distillate_recoveries);
+        assert!((r.distillate_recoveries[0].unwrap() - 0.98).abs() < 1e-12);
+        assert!((r.distillate_recoveries[1].unwrap() - 0.03).abs() < 1e-12);
+        // A vapour product leaves less heat to remove in the condenser.
+        assert!(r.condenser_duty_w > 0.0 && r.condenser_duty_w < total.condenser_duty_w);
+        let energy = dist.enthalpy_flow_w() + bot.enthalpy_flow_w() - inlet.enthalpy_flow_w();
+        assert!((energy - out.duty_w).abs() < 1e-6 * r.condenser_duty_w);
+        assert!((out.duty_w - (r.reboiler_duty_w - r.condenser_duty_w)).abs() < 1e-9);
+        assert!((total_out.outlets[0].molar_flow_mol_s - dist.molar_flow_mol_s).abs() < 1e-12);
     }
 
     #[test]

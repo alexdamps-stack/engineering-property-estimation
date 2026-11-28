@@ -1,19 +1,40 @@
-//! Constant-pressure MESH solve for a total condenser and partial reboiler.
+//! MESH solve of a rigorous distillation column (#186): total or partial
+//! condenser, partial reboiler, condenser and stage pressure drops, liquid
+//! and vapor side draws, and two column specifications.
+//!
+//! The specification set follows the Aspen Plus RadFrac / HYSYS column
+//! convention of two degrees of freedom once the feeds, draws, pressures and
+//! stages are fixed: one [`TopSpecification`] and one
+//! [`BottomSpecification`]. Specifications that fix the distillate and
+//! reflux flows directly are substituted into the flows; every other
+//! specification adds one residual equation and frees the distillate or the
+//! reflux as an additional Newton unknown.
 
 use property_packages::SaturationKind;
 use thermo_types::Phase;
 
 use super::mesh::{self, TEMPERATURE_SCALE};
-use super::stages::{ColumnEnds, PlacedPackedSection, Stage, StageCascade, StageFeed};
+use super::stages::{ColumnEnds, Condenser, PlacedPackedSection, Stage, StageCascade, StageFeed};
 use super::{ColumnInternals, count_issue};
 use crate::MaterialStream;
-use crate::unit::{Sign, SpecIssue, SpecProblem, check_optional};
+use crate::numerics::solve_dense;
+use crate::unit::{Sign, SpecIssue, SpecProblem, check_optional, check_value};
 use crate::units::{CalcContext, UnitOutput};
+
+/// Same enthalpy scale as the MESH energy residuals.
+const ENTHALPY_SCALE: f64 = 10_000.0;
+/// Scaled specification residual at which the outer flow iteration hands
+/// over to the simultaneous Newton solve.
+const OUTER_TOLERANCE: f64 = 1e-8;
+const OUTER_ITERATIONS: usize = 40;
+/// Starting liquid fraction, relative to its feed fraction, of a component
+/// that is absent from the seed inlets (stripping steam).
+const ABSENT_LIQUID_SEED: f64 = 0.1;
 
 /// Liquid side draw from an internal stage, in port order.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LiquidSideDraw {
-    /// One-based stage number, including the total condenser as stage 1.
+    /// One-based stage number, including the condenser as stage 1.
     pub stage: u16,
     /// Prescribed molar withdrawal in mol/s.
     pub molar_flow_mol_s: Option<f64>,
@@ -28,25 +49,153 @@ impl Default for LiquidSideDraw {
     }
 }
 
+/// Vapor side draw from an internal stage (port `vapor draw k`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VaporSideDraw {
+    /// One-based stage number, including the condenser as stage 1. Only
+    /// internal stages (not the condenser or reboiler) may carry a vapor draw.
+    pub stage: u16,
+    /// Prescribed molar withdrawal in mol/s.
+    pub molar_flow_mol_s: Option<f64>,
+}
+
+impl Default for VaporSideDraw {
+    fn default() -> Self {
+        Self {
+            stage: 2,
+            molar_flow_mol_s: None,
+        }
+    }
+}
+
+/// Condenser type (Aspen Plus RadFrac naming).
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub enum DistillationCondenser {
+    /// All overhead vapor condensed to its bubble point; liquid distillate on
+    /// the `distillate` port.
+    #[default]
+    Total,
+    /// Vapor distillate on the `distillate` port, all condensate refluxed.
+    PartialVapor,
+    /// Vapor distillate on the `distillate` port and a liquid distillate at a
+    /// specified molar rate on the `liquid distillate` port.
+    PartialVaporLiquid {
+        /// Liquid distillate, mol/s; positive.
+        liquid_distillate_mol_s: Option<f64>,
+    },
+}
+
+impl DistillationCondenser {
+    fn stage_condenser(self) -> Condenser {
+        match self {
+            Self::Total => Condenser::Total,
+            _ => Condenser::Partial,
+        }
+    }
+}
+
+/// Pressure drop below the condenser's first tray.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ColumnPressureDrop {
+    /// Drop per stage, Pa, between consecutive stages from the first tray to
+    /// the reboiler.
+    PerStage(f64),
+    /// Drop from the first tray to the reboiler, Pa, distributed uniformly.
+    Column(f64),
+}
+
+impl Default for ColumnPressureDrop {
+    fn default() -> Self {
+        Self::PerStage(0.0)
+    }
+}
+
+/// Mole fraction or recovery target of one component.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ComponentTarget {
+    /// Package component identifier.
+    pub component: Option<String>,
+    /// Mole fraction in the product, or fraction of the component's total
+    /// feed recovered in the product; strictly between 0 and 1.
+    pub value: Option<f64>,
+}
+
+/// First column specification (Aspen "top"/condenser specification).
+#[derive(Debug, Clone, PartialEq)]
+pub enum TopSpecification {
+    /// Molar reflux over total molar distillate, `L_1 / D`.
+    RefluxRatio(Option<f64>),
+    /// Molar reflux `L_1`, mol/s.
+    RefluxRate(Option<f64>),
+    /// Total molar distillate `D` (vapor plus liquid), mol/s.
+    DistillateRate(Option<f64>),
+    /// Heat removed by the condenser, W; positive.
+    CondenserDuty(Option<f64>),
+    /// Mole fraction of a component in the total distillate.
+    DistillatePurity(ComponentTarget),
+    /// Fraction of a component's feed recovered in the total distillate.
+    DistillateRecovery(ComponentTarget),
+}
+
+impl Default for TopSpecification {
+    fn default() -> Self {
+        Self::RefluxRatio(None)
+    }
+}
+
+/// Second column specification (Aspen "bottom"/reboiler specification).
+#[derive(Debug, Clone, PartialEq)]
+pub enum BottomSpecification {
+    /// Total distillate over total feed, strictly between 0 and 1.
+    DistillateFraction(Option<f64>),
+    /// Bottoms molar flow `L_N`, mol/s.
+    BottomsRate(Option<f64>),
+    /// Heat supplied to the reboiler, W; positive.
+    ReboilerDuty(Option<f64>),
+    /// Boilup over bottoms, `V_N / L_N`.
+    BoilupRatio(Option<f64>),
+    /// Mole fraction of a component in the bottoms.
+    BottomsPurity(ComponentTarget),
+    /// Fraction of a component's feed recovered in the bottoms.
+    BottomsRecovery(ComponentTarget),
+}
+
+impl Default for BottomSpecification {
+    fn default() -> Self {
+        Self::DistillateFraction(None)
+    }
+}
+
 /// Rigorous distillation column specification (#186).
 #[derive(Debug, Clone, PartialEq)]
 pub struct DistillationColumnSpec {
     /// Number of material feed ports.
     pub feeds: u16,
-    /// Number of material side-draw ports.
+    /// Number of liquid side-draw ports (`side draw k`).
     pub side_draws: u16,
     /// One-based feed stage per port. Unset entries default to stage 2.
     pub feed_stages: Vec<u16>,
     /// Specification of each side-draw port. Unset entries have no flow specification.
     pub liquid_draws: Vec<LiquidSideDraw>,
+    /// Number of vapor side-draw ports (`vapor draw k`).
+    pub vapor_side_draws: u16,
+    /// Specification of each vapor side-draw port.
+    pub vapor_draws: Vec<VaporSideDraw>,
     /// Ideal trays or ideal packed stages.
     pub internals: ColumnInternals,
-    /// Uniform absolute pressure, Pa.
+    /// Condenser (top stage) absolute pressure, Pa. Without pressure drops
+    /// this is the uniform column pressure.
     pub pressure_pa: Option<f64>,
-    /// Molar reflux divided by molar distillate flow.
-    pub reflux_ratio: Option<f64>,
-    /// Fraction of the total feed withdrawn as distillate, strictly between 0 and 1.
-    pub distillate_fraction: Option<f64>,
+    /// Pressure drop from the condenser to the first tray, Pa.
+    pub condenser_pressure_drop_pa: f64,
+    /// Pressure drop over the trays or packed stages and the reboiler.
+    pub pressure_drop: ColumnPressureDrop,
+    /// Condenser type.
+    pub condenser: DistillationCondenser,
+    /// First specification.
+    pub top: TopSpecification,
+    /// Second specification.
+    pub bottom: BottomSpecification,
 }
 
 impl Default for DistillationColumnSpec {
@@ -56,11 +205,36 @@ impl Default for DistillationColumnSpec {
             side_draws: 0,
             feed_stages: Vec::new(),
             liquid_draws: Vec::new(),
+            vapor_side_draws: 0,
+            vapor_draws: Vec::new(),
             internals: ColumnInternals::Trays(5),
             pressure_pa: None,
-            reflux_ratio: None,
-            distillate_fraction: None,
+            condenser_pressure_drop_pa: 0.0,
+            pressure_drop: ColumnPressureDrop::default(),
+            condenser: DistillationCondenser::Total,
+            top: TopSpecification::default(),
+            bottom: BottomSpecification::default(),
         }
+    }
+}
+
+fn target_issues(out: &mut Vec<SpecIssue>, field: &'static str, target: &ComponentTarget) {
+    if target.component.as_deref().is_none_or(str::is_empty) {
+        out.push(SpecIssue {
+            field,
+            problem: SpecProblem::Missing,
+        });
+    }
+    open_fraction(out, field, target.value);
+}
+
+fn open_fraction(out: &mut Vec<SpecIssue>, field: &'static str, value: Option<f64>) {
+    check_optional(out, field, value, Sign::Fraction);
+    if matches!(value, Some(0.0 | 1.0)) {
+        out.push(SpecIssue {
+            field,
+            problem: SpecProblem::OutOfRange,
+        });
     }
 }
 
@@ -77,10 +251,44 @@ impl DistillationColumnSpec {
         ))
     }
 
+    /// Absolute pressure of every stage, condenser first.
+    pub fn stage_pressures_pa(&self, stages: usize) -> Option<Vec<f64>> {
+        let top = self.pressure_pa?;
+        let first_tray = top + self.condenser_pressure_drop_pa;
+        let per_stage = match self.pressure_drop {
+            ColumnPressureDrop::PerStage(dp) => dp,
+            ColumnPressureDrop::Column(dp) => dp / stages.saturating_sub(2).max(1) as f64,
+        };
+        Some(
+            (0..stages)
+                .map(|j| match j {
+                    0 => top,
+                    _ => first_tray + (j - 1) as f64 * per_stage,
+                })
+                .collect(),
+        )
+    }
+
+    /// Whether the two specifications both fix the distillate flow.
+    fn overspecified(&self) -> bool {
+        matches!(self.top, TopSpecification::DistillateRate(_))
+            && matches!(
+                self.bottom,
+                BottomSpecification::DistillateFraction(_) | BottomSpecification::BottomsRate(_)
+            )
+    }
+
     pub(super) fn issues(&self) -> Vec<SpecIssue> {
+        self.issues_with(BottomEnd::Reboiler)
+    }
+
+    /// Issues of the specification; an adiabatic bottom ignores `bottom`.
+    pub(super) fn issues_with(&self, end: BottomEnd) -> Vec<SpecIssue> {
+        let reboiler = end == BottomEnd::Reboiler;
         let mut issues = Vec::new();
         count_issue(&mut issues, "feeds", self.feeds, 1);
         count_issue(&mut issues, "side draws", self.side_draws, 0);
+        count_issue(&mut issues, "vapor side draws", self.vapor_side_draws, 0);
         if self.feed_stages.len() > usize::from(self.feeds) {
             issues.push(SpecIssue {
                 field: "feed stages",
@@ -93,28 +301,83 @@ impl DistillationColumnSpec {
                 problem: SpecProblem::CountOutOfRange,
             });
         }
+        if self.vapor_draws.len() > usize::from(self.vapor_side_draws) {
+            issues.push(SpecIssue {
+                field: "vapor-draw specifications",
+                problem: SpecProblem::CountOutOfRange,
+            });
+        }
         check_optional(
             &mut issues,
             "column pressure",
             self.pressure_pa,
             Sign::Positive,
         );
-        check_optional(
+        check_value(
             &mut issues,
-            "reflux ratio",
-            self.reflux_ratio,
-            Sign::Positive,
+            "condenser pressure drop",
+            self.condenser_pressure_drop_pa,
+            Sign::NonNegative,
         );
-        check_optional(
-            &mut issues,
-            "distillate fraction",
-            self.distillate_fraction,
-            Sign::Fraction,
-        );
-        if matches!(self.distillate_fraction, Some(0.0 | 1.0)) {
+        let (ColumnPressureDrop::PerStage(dp) | ColumnPressureDrop::Column(dp)) =
+            self.pressure_drop;
+        check_value(&mut issues, "stage pressure drop", dp, Sign::NonNegative);
+        if let DistillationCondenser::PartialVaporLiquid {
+            liquid_distillate_mol_s,
+        } = self.condenser
+        {
+            check_optional(
+                &mut issues,
+                "liquid distillate rate",
+                liquid_distillate_mol_s,
+                Sign::Positive,
+            );
+        }
+        match &self.top {
+            TopSpecification::RefluxRatio(v) => {
+                check_optional(&mut issues, "reflux ratio", *v, Sign::Positive)
+            }
+            TopSpecification::RefluxRate(v) => {
+                check_optional(&mut issues, "reflux rate", *v, Sign::Positive)
+            }
+            TopSpecification::DistillateRate(v) => {
+                check_optional(&mut issues, "distillate rate", *v, Sign::Positive)
+            }
+            TopSpecification::CondenserDuty(v) => {
+                check_optional(&mut issues, "condenser duty", *v, Sign::Positive)
+            }
+            TopSpecification::DistillatePurity(t) => {
+                target_issues(&mut issues, "distillate mole fraction", t)
+            }
+            TopSpecification::DistillateRecovery(t) => {
+                target_issues(&mut issues, "distillate recovery", t)
+            }
+        }
+        match &self.bottom {
+            _ if !reboiler => {}
+            BottomSpecification::DistillateFraction(v) => {
+                open_fraction(&mut issues, "distillate fraction", *v)
+            }
+            BottomSpecification::BottomsRate(v) => {
+                check_optional(&mut issues, "bottoms rate", *v, Sign::Positive)
+            }
+            BottomSpecification::ReboilerDuty(v) => {
+                check_optional(&mut issues, "reboiler duty", *v, Sign::Positive)
+            }
+            BottomSpecification::BoilupRatio(v) => {
+                check_optional(&mut issues, "boilup ratio", *v, Sign::Positive)
+            }
+            BottomSpecification::BottomsPurity(t) => {
+                target_issues(&mut issues, "bottoms mole fraction", t)
+            }
+            BottomSpecification::BottomsRecovery(t) => {
+                target_issues(&mut issues, "bottoms recovery", t)
+            }
+        }
+        if reboiler && self.overspecified() {
             issues.push(SpecIssue {
-                field: "distillate fraction",
-                problem: SpecProblem::OutOfRange,
+                field: "bottom specification",
+                problem: SpecProblem::Duplicate,
             });
         }
         if let Ok((count, _)) = self.stage_layout() {
@@ -140,6 +403,17 @@ impl DistillationColumnSpec {
                     problem: SpecProblem::OutOfRange,
                 });
             }
+            if self
+                .vapor_draws
+                .iter()
+                .take(usize::from(self.vapor_side_draws))
+                .any(|draw| !(2..count).contains(&usize::from(draw.stage)))
+            {
+                issues.push(SpecIssue {
+                    field: "vapor-draw stage",
+                    problem: SpecProblem::OutOfRange,
+                });
+            }
         }
         issues.extend(self.internals.issues());
         if self.side_draws <= super::MAX_COLUMN_PORTS {
@@ -154,6 +428,18 @@ impl DistillationColumnSpec {
                 );
             }
         }
+        if self.vapor_side_draws <= super::MAX_COLUMN_PORTS {
+            for i in 0..usize::from(self.vapor_side_draws) {
+                check_optional(
+                    &mut issues,
+                    "vapor-draw molar flow",
+                    self.vapor_draws
+                        .get(i)
+                        .and_then(|draw| draw.molar_flow_mol_s),
+                    Sign::Positive,
+                );
+            }
+        }
         issues
     }
 }
@@ -161,47 +447,206 @@ impl DistillationColumnSpec {
 /// Accepted solution evidence for a rigorous distillation column.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DistillationColumnResult {
-    /// Stage temperatures from the total condenser to the reboiler.
+    /// Stage temperatures from the condenser to the reboiler.
     pub stage_temperatures_k: Vec<f64>,
+    /// Stage pressures from the condenser to the reboiler, Pa.
+    pub stage_pressures_pa: Vec<f64>,
     /// Heat removed by the condenser, W.
     pub condenser_duty_w: f64,
     /// Heat supplied to the reboiler, W.
     pub reboiler_duty_w: f64,
+    /// Total distillate (vapor plus liquid), mol/s.
+    pub distillate_mol_s: f64,
+    /// Reflux `L_1`, mol/s.
+    pub reflux_mol_s: f64,
+    /// Bottoms `L_N`, mol/s.
+    pub bottoms_mol_s: f64,
+    /// Boilup `V_N`, mol/s.
+    pub boilup_mol_s: f64,
     /// Bed height supplied or derived from the specified HETP.
     pub packed_height_m: Option<f64>,
-    /// Accepted Newton iterations.
+    /// Accepted Newton iterations of the final solve.
     pub iterations: usize,
 }
 
-struct Column<'a, 'p> {
-    ctx: &'a CalcContext<'p>,
-    pressure: f64,
-    temperature_range: [f64; 2],
-    feeds: Vec<StageFeed>,
-    draws_by_stage: Vec<f64>,
-    active_components: Vec<usize>,
-    flow: f64,
+/// Bottom end of a column solved by [`calculate_with`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) enum BottomEnd {
+    /// Partial reboiler with the specification's bottom specification.
+    #[default]
+    Reboiler,
+    /// Adiabatic bottom stage without a reboiler, for example stripped by
+    /// steam entering as a bottom feed (#190). The bottom specification is
+    /// not used: the zero bottom duty takes its place, so the distillate
+    /// becomes a Newton unknown.
+    Adiabatic,
+}
+
+/// Options of [`calculate_with`] beyond the specification.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct ColumnOptions {
+    pub(super) bottom: BottomEnd,
+    /// Number of leading inlets whose blend sets the bubble-point start of
+    /// the profile; all inlets when `None`. A stripping-steam inlet is left
+    /// out so that the start is the hydrocarbon feed's bubble point.
+    pub(super) seed_inlets: Option<usize>,
+}
+
+/// How the solve obtains the total distillate.
+#[derive(Debug, Clone, Copy)]
+enum DistillateFlow {
+    Fixed(f64),
+    /// Newton unknown `u`, `D = A / (1 + e^−u)` with `A` the feed less draws.
+    Free,
+}
+
+/// How the solve obtains the reflux.
+#[derive(Debug, Clone, Copy)]
+enum RefluxFlow {
+    Fixed(f64),
+    Ratio(f64),
+    /// Newton unknown `v`, `L_1 = F e^v`.
+    Free,
+}
+
+/// A specification that is a residual equation rather than a flow.
+#[derive(Debug, Clone, Copy)]
+enum SpecEquation {
+    CondenserDuty(f64),
+    ReboilerDuty(f64),
+    BoilupRatio(f64),
+    DistillatePurity(usize, f64),
+    DistillateRecovery(usize, f64),
+    BottomsPurity(usize, f64),
+    BottomsRecovery(usize, f64),
+}
+
+struct Decoded {
+    cascade: StageCascade,
     distillate: f64,
     reflux: f64,
-    /// Cumulative feed less draw and distillate through each stage.
-    liquid_offset: Vec<f64>,
+    bottoms: f64,
+}
+
+#[derive(Clone)]
+struct Column<'a, 'p> {
+    ctx: &'a CalcContext<'p>,
+    pressures: Vec<f64>,
+    temperature_range: [f64; 2],
+    feeds: Vec<StageFeed>,
+    /// Total feed per stage.
+    feed_by_stage: Vec<f64>,
+    /// Component feed flows, mol/s.
+    feed_components: Vec<f64>,
+    liquid_draws: Vec<f64>,
+    vapor_draws: Vec<f64>,
+    active_components: Vec<usize>,
+    flow: f64,
+    /// Feed less side draws: the upper bound of the distillate.
+    available: f64,
+    condenser: Condenser,
+    liquid_distillate: f64,
+    distillate: DistillateFlow,
+    reflux: RefluxFlow,
+    equations: Vec<SpecEquation>,
 }
 
 impl Column<'_, '_> {
-    fn decode(&self, values: &[f64]) -> StageCascade {
-        let n = self.liquid_offset.len();
+    fn ends(&self) -> ColumnEnds {
+        ColumnEnds {
+            condenser: Some(self.condenser),
+            reboiler: true,
+        }
+    }
+
+    fn partial(&self) -> bool {
+        self.condenser == Condenser::Partial
+    }
+
+    /// Number of profile variables, before any free flow.
+    fn profile_len(&self) -> usize {
+        let n = self.pressures.len();
+        let m = self.active_components.len() - 1;
+        let condenser = 1 + m + if self.partial() { m } else { 0 };
+        condenser + (n - 1) * (1 + 2 * m) + (n - 2)
+    }
+
+    fn flows(&self, extra: &[f64]) -> (f64, f64) {
+        let mut extra = extra.iter();
+        let distillate = match self.distillate {
+            DistillateFlow::Fixed(d) => d,
+            DistillateFlow::Free => {
+                let u = *extra.next().expect("free distillate variable");
+                self.available / (1.0 + (-u).exp())
+            }
+        };
+        let reflux = match self.reflux {
+            RefluxFlow::Fixed(l) => l,
+            RefluxFlow::Ratio(r) => distillate * r,
+            RefluxFlow::Free => self.flow * extra.next().expect("free reflux variable").exp(),
+        };
+        (distillate, reflux)
+    }
+
+    /// Free-flow variables for the given flows.
+    fn flow_variables(&self, distillate: f64, reflux: f64) -> Vec<f64> {
+        let mut out = Vec::new();
+        if matches!(self.distillate, DistillateFlow::Free) {
+            let s = distillate / self.available;
+            out.push((s / (1.0 - s)).ln());
+        }
+        if matches!(self.reflux, RefluxFlow::Free) {
+            out.push((reflux / self.flow).ln());
+        }
+        out
+    }
+
+    /// The same column with both flows fixed.
+    fn with_fixed_flows(&self, distillate: f64, reflux: f64) -> Self {
+        let mut fixed = self.clone();
+        fixed.distillate = DistillateFlow::Fixed(distillate);
+        fixed.reflux = RefluxFlow::Fixed(reflux);
+        fixed.equations.clear();
+        fixed
+    }
+
+    fn decode(&self, values: &[f64]) -> Result<Decoded, String> {
+        let n = self.pressures.len();
         let c = self.ctx.component_count();
         let m = self.active_components.len() - 1;
+        let (profile, extra) = values.split_at(self.profile_len());
+        let (distillate, reflux) = self.flows(extra);
+        if !(distillate.is_finite() && reflux.is_finite() && distillate > 0.0 && reflux > 0.0) {
+            return Err("column distillate and reflux must be positive and finite".into());
+        }
+        let vapor_distillate = distillate - self.liquid_distillate;
+        if self.partial() && vapor_distillate <= 0.0 {
+            return Err(
+                "column vapor distillate must be positive; the liquid distillate takes the whole distillate"
+                    .into(),
+            );
+        }
+        let mut remaining = -distillate;
+        let liquid_offset: Vec<_> = (0..n)
+            .map(|j| {
+                remaining += self.feed_by_stage[j] - self.liquid_draws[j] - self.vapor_draws[j];
+                remaining
+            })
+            .collect();
+        let bottoms = liquid_offset[n - 1];
+        if !bottoms.is_finite() || bottoms <= 0.0 {
+            return Err("column withdrawals must leave positive bottoms flow".into());
+        }
         let expand = |v| mesh::fractions(v, &self.active_components, c);
-        let mut tail = values;
+        let mut tail = profile;
         let mut liquid = vec![0.0; n];
         let mut stages: Vec<Stage> = Vec::with_capacity(n);
-        liquid[0] = self.reflux;
-        liquid[n - 1] = self.liquid_offset[n - 1];
+        liquid[0] = reflux;
+        liquid[n - 1] = bottoms;
         for j in 0..n {
             let t = tail[0] * TEMPERATURE_SCALE;
             tail = &tail[1..];
-            let x = if j == 0 {
+            let x = if j == 0 && !self.partial() {
                 Vec::new()
             } else {
                 let (x, rest) = tail.split_at(m);
@@ -211,46 +656,199 @@ impl Column<'_, '_> {
             let (y, rest) = tail.split_at(m);
             tail = rest;
             let vapor = match j {
+                0 if self.partial() => vapor_distillate,
                 0 => 0.0,
-                1 => self.reflux + self.distillate,
+                1 => reflux + distillate,
                 _ => {
                     let extra = self.flow * tail[0].exp();
                     tail = &tail[1..];
-                    let offset = self.liquid_offset[j - 1];
+                    let offset = liquid_offset[j - 1];
                     liquid[j - 1] = extra + offset.max(0.0);
                     extra + (-offset).max(0.0)
                 }
             };
-            let mut stage = Stage::equilibrium(t, self.pressure, 0.0, vapor, x, expand(y));
-            stage.liquid_draw_mol_s = if j == 0 {
-                self.distillate
-            } else {
-                self.draws_by_stage[j]
+            let mut stage = Stage::equilibrium(t, self.pressures[j], 0.0, vapor, x, expand(y));
+            stage.liquid_draw_mol_s = match j {
+                0 if self.partial() => self.liquid_distillate,
+                0 => distillate,
+                _ => self.liquid_draws[j],
             };
+            stage.vapor_draw_mol_s = self.vapor_draws[j];
             stages.push(stage);
         }
-        stages[0].x = stages[1].y.clone();
+        if !self.partial() {
+            stages[0].x = stages[1].y.clone();
+        }
         for (s, l) in stages.iter_mut().zip(liquid) {
             s.liquid_mol_s = l;
         }
-        StageCascade {
-            stages,
-            feeds: self.feeds.clone(),
+        Ok(Decoded {
+            cascade: StageCascade {
+                stages,
+                feeds: self.feeds.clone(),
+            },
+            distillate,
+            reflux,
+            bottoms,
+        })
+    }
+
+    /// Component `i` mole fraction of the total distillate.
+    fn distillate_fraction(&self, decoded: &Decoded, i: usize) -> f64 {
+        let top = &decoded.cascade.stages[0];
+        if self.partial() {
+            (top.vapor_mol_s * top.y[i] + top.liquid_draw_mol_s * top.x[i]) / decoded.distillate
+        } else {
+            top.x[i]
         }
     }
 
     fn residual(&self, values: &[f64]) -> Result<Vec<f64>, String> {
-        let cascade = self.decode(values);
-        let ends = ColumnEnds::DISTILLATION;
-        let properties = mesh::properties(self.ctx, &cascade, ends, self.temperature_range)?;
-        mesh::residuals(
-            &cascade,
+        let decoded = self.decode(values)?;
+        let cascade = &decoded.cascade;
+        let ends = self.ends();
+        let properties = mesh::properties(self.ctx, cascade, ends, self.temperature_range)?;
+        let mut out = mesh::residuals(
+            cascade,
             &properties,
             ends,
             &self.active_components,
             self.flow,
-        )
+        )?;
+        if self.equations.is_empty() {
+            return Ok(out);
+        }
+        let balances = cascade.residuals(&properties)?;
+        let n = cascade.len();
+        let (f, b) = (self.flow, decoded.bottoms);
+        for equation in &self.equations {
+            out.push(match *equation {
+                // The stage duty that closes the condenser energy balance is
+                // minus its residual without duty; the condenser removes it.
+                SpecEquation::CondenserDuty(q) => (balances[0].energy_w - q) / f / ENTHALPY_SCALE,
+                SpecEquation::ReboilerDuty(q) => {
+                    (-balances[n - 1].energy_w - q) / f / ENTHALPY_SCALE
+                }
+                SpecEquation::BoilupRatio(r) => (cascade.stages[n - 1].vapor_mol_s - r * b) / f,
+                SpecEquation::DistillatePurity(i, v) => self.distillate_fraction(&decoded, i) - v,
+                SpecEquation::DistillateRecovery(i, v) => {
+                    (decoded.distillate * self.distillate_fraction(&decoded, i)
+                        - v * self.feed_components[i])
+                        / f
+                }
+                SpecEquation::BottomsPurity(i, v) => cascade.stages[n - 1].x[i] - v,
+                SpecEquation::BottomsRecovery(i, v) => {
+                    (b * cascade.stages[n - 1].x[i] - v * self.feed_components[i]) / f
+                }
+            });
+        }
+        if out.iter().any(|value| !value.is_finite()) {
+            return Err("column has a nonfinite specification residual".into());
+        }
+        Ok(out)
     }
+
+    /// Specification residuals of a column solved at fixed flows.
+    fn spec_residuals(&self, profile: &[f64], flows: &[f64]) -> Result<Vec<f64>, String> {
+        let values: Vec<f64> = profile.iter().chain(flows).copied().collect();
+        let r = self.residual(&values)?;
+        Ok(r[r.len() - self.equations.len()..].to_vec())
+    }
+
+    /// Solves the profile at the flows of `flows`, starting from `profile`.
+    fn solve_profile(&self, profile: &[f64], flows: &[f64]) -> Result<Vec<f64>, String> {
+        let (distillate, reflux) = self.flows(flows);
+        let fixed = self.with_fixed_flows(distillate, reflux);
+        fixed.decode(profile)?;
+        Ok(mesh::solve(profile.to_vec(), |v| fixed.residual(v))?.0)
+    }
+
+    /// Outer Newton iteration on the free flows: every evaluation solves the
+    /// profile at fixed flows, so the specification residuals become a
+    /// function of the one or two free flows alone. It supplies the start of
+    /// the simultaneous Newton solve.
+    fn converge_flows(
+        &self,
+        mut profile: Vec<f64>,
+        mut flows: Vec<f64>,
+    ) -> Result<(Vec<f64>, Vec<f64>), String> {
+        let norm = |r: &[f64]| r.iter().map(|v| v.abs()).fold(0.0, f64::max);
+        profile = self.solve_profile(&profile, &flows)?;
+        let mut g = self.spec_residuals(&profile, &flows)?;
+        for _ in 0..OUTER_ITERATIONS {
+            let error = norm(&g);
+            if error <= OUTER_TOLERANCE {
+                return Ok((profile, flows));
+            }
+            let k = flows.len();
+            let mut jacobian = vec![vec![0.0; k]; k];
+            for col in 0..k {
+                let mut shifted = flows.clone();
+                let h = 1e-5 * flows[col].abs().max(1.0);
+                shifted[col] += h;
+                let solved = self.solve_profile(&profile, &shifted)?;
+                let gs = self.spec_residuals(&solved, &shifted)?;
+                for (row, (new, old)) in jacobian.iter_mut().zip(gs.iter().zip(&g)) {
+                    row[col] = (new - old) / h;
+                }
+            }
+            let step = solve_dense(jacobian, g.iter().map(|v| -v).collect())
+                .ok_or("the specifications do not change with the free flows")?;
+            let mut accepted = None;
+            for backtrack in 0..20 {
+                // Limit each step to a factor e in the free flows.
+                let scale = 0.5_f64.powi(backtrack)
+                    * (1.0 / step.iter().map(|s| s.abs()).fold(0.0, f64::max)).min(1.0);
+                let trial: Vec<f64> = flows
+                    .iter()
+                    .zip(&step)
+                    .map(|(f, s)| f + scale * s)
+                    .collect();
+                let Ok(solved) = self.solve_profile(&profile, &trial) else {
+                    continue;
+                };
+                if let Ok(gt) = self.spec_residuals(&solved, &trial)
+                    && norm(&gt) < error
+                {
+                    accepted = Some((solved, trial, gt));
+                    break;
+                }
+            }
+            let Some((solved, trial, gt)) = accepted else {
+                return Err(format!(
+                    "no column profile approaches the specifications (scaled residual {error:.3e})"
+                ));
+            };
+            profile = solved;
+            flows = trial;
+            g = gt;
+        }
+        Err(format!(
+            "specification iteration did not converge in {OUTER_ITERATIONS} iterations \
+             (scaled residual {:.3e})",
+            norm(&g)
+        ))
+    }
+}
+
+fn component(
+    ctx: &CalcContext<'_>,
+    active: &[usize],
+    target: &ComponentTarget,
+    field: &str,
+) -> Result<(usize, f64), String> {
+    let id = target.component.as_deref().unwrap_or_default();
+    let index = ctx
+        .component_ids()
+        .iter()
+        .position(|c| *c == id)
+        .ok_or_else(|| format!("column {field} component '{id}' is not a package component"))?;
+    if !active.contains(&index) {
+        return Err(format!(
+            "column {field} component '{id}' is not in the column feed"
+        ));
+    }
+    Ok((index, target.value.expect("checked component target")))
 }
 
 pub(super) fn calculate(
@@ -258,15 +856,36 @@ pub(super) fn calculate(
     inlets: &[MaterialStream],
     ctx: &CalcContext<'_>,
 ) -> Result<(UnitOutput, DistillationColumnResult), String> {
-    if let Some(issue) = spec.issues().first() {
+    calculate_with(spec, inlets, ctx, ColumnOptions::default())
+}
+
+/// [`calculate`] with a choice of bottom end and initialization. With an
+/// adiabatic bottom the energy result holds the condenser port only and the
+/// unit duty is the condenser duty.
+pub(super) fn calculate_with(
+    spec: &DistillationColumnSpec,
+    inlets: &[MaterialStream],
+    ctx: &CalcContext<'_>,
+    options: ColumnOptions,
+) -> Result<(UnitOutput, DistillationColumnResult), String> {
+    let reboiled = options.bottom == BottomEnd::Reboiler;
+    if reboiled && spec.overspecified() {
+        return Err(
+            "column distillate rate and the bottom specification both fix the \
+             distillate; choose a reboiler duty, boilup ratio, purity or recovery"
+                .into(),
+        );
+    }
+    if let Some(issue) = spec.issues_with(options.bottom).first() {
         return Err(format!("column {} {}", issue.field, issue.problem));
     }
     let (n, packed) = spec.stage_layout()?;
-    let pressure = spec.pressure_pa.expect("checked column pressure");
+    let pressures = spec.stage_pressures_pa(n).expect("checked column pressure");
     let temperature_range = mesh::temperature_range(ctx)?;
-    let mut totals = vec![0.0; n];
-    let mut feed_composition = vec![0.0; ctx.component_count()];
+    let mut feed_by_stage = vec![0.0; n];
+    let mut feed_components = vec![0.0; ctx.component_count()];
     let mut feeds = Vec::with_capacity(inlets.len());
+    let mut seed_components = vec![0.0; ctx.component_count()];
     for (i, inlet) in inlets.iter().enumerate() {
         let stage = usize::from(spec.feed_stages.get(i).copied().unwrap_or(2));
         let feed = StageFeed::from_stream(stage, inlet, ctx.component_count())?;
@@ -274,104 +893,261 @@ pub(super) fn calculate(
             && inlet
                 .state
                 .as_ref()
-                .is_some_and(|state| state.pressure_pa < pressure)
+                .is_some_and(|state| state.pressure_pa < pressures[stage - 1])
         {
             return Err(format!(
                 "column pressure exceeds feed {} pressure; pressurize the feed upstream",
                 i + 1
             ));
         }
-        totals[stage - 1] += feed.molar_flow_mol_s;
-        for (total, z) in feed_composition.iter_mut().zip(&feed.z) {
+        feed_by_stage[stage - 1] += feed.molar_flow_mol_s;
+        for (total, z) in feed_components.iter_mut().zip(&feed.z) {
             *total += feed.molar_flow_mol_s * z;
+        }
+        if options.seed_inlets.is_none_or(|count| i < count) {
+            for (total, z) in seed_components.iter_mut().zip(&feed.z) {
+                *total += feed.molar_flow_mol_s * z;
+            }
         }
         feeds.push(feed);
     }
-    let flow: f64 = totals.iter().sum();
+    let flow: f64 = feed_by_stage.iter().sum();
     if !flow.is_finite() || flow <= 0.0 {
         return Err("column requires a positive, finite total feed flow".into());
     }
-    feed_composition.iter_mut().for_each(|z| *z /= flow);
+    let feed_composition: Vec<f64> = feed_components.iter().map(|z| z / flow).collect();
     let active_components = mesh::active_components(&feed_composition)?;
-    let draws = &spec.liquid_draws[..usize::from(spec.side_draws)];
-    let mut draws_by_stage = vec![0.0; n];
-    for draw in draws {
-        draws_by_stage[usize::from(draw.stage) - 1] +=
+    let liquid = &spec.liquid_draws[..usize::from(spec.side_draws)];
+    let vapor = &spec.vapor_draws[..usize::from(spec.vapor_side_draws)];
+    let mut liquid_draws = vec![0.0; n];
+    for draw in liquid {
+        liquid_draws[usize::from(draw.stage) - 1] +=
             draw.molar_flow_mol_s.expect("checked side-draw flow");
     }
-    let distillate = flow
-        * spec
-            .distillate_fraction
-            .expect("checked distillate fraction");
-    let reflux = distillate * spec.reflux_ratio.expect("checked reflux ratio");
-    let mut remaining = -distillate;
-    let liquid_offset: Vec<_> = totals
-        .iter()
-        .zip(&draws_by_stage)
-        .map(|(f, d)| {
-            remaining += f - d;
-            remaining
-        })
-        .collect();
-    if !remaining.is_finite() || remaining <= 0.0 || !reflux.is_finite() || reflux <= 0.0 {
-        return Err("column withdrawals must leave positive bottoms flow and finite reflux".into());
+    let mut vapor_draws = vec![0.0; n];
+    for draw in vapor {
+        vapor_draws[usize::from(draw.stage) - 1] +=
+            draw.molar_flow_mol_s.expect("checked vapor-draw flow");
     }
+    let available = flow - liquid_draws.iter().sum::<f64>() - vapor_draws.iter().sum::<f64>();
+    if !available.is_finite() || available <= 0.0 {
+        return Err("column side draws must leave positive bottoms flow and distillate".into());
+    }
+    let liquid_distillate = match spec.condenser {
+        DistillationCondenser::PartialVaporLiquid {
+            liquid_distillate_mol_s,
+        } => liquid_distillate_mol_s.expect("checked liquid distillate"),
+        _ => 0.0,
+    };
+
+    // Resolve the two specifications into fixed flows and equations.
+    let mut equations = Vec::new();
+    let mut distillate = match &spec.bottom {
+        // The zero duty of an adiabatic bottom stage replaces the bottom
+        // specification; its residual is the reboiler-duty residual at zero.
+        _ if !reboiled => {
+            equations.push(SpecEquation::ReboilerDuty(0.0));
+            None
+        }
+        BottomSpecification::DistillateFraction(f) => Some(flow * f.expect("checked")),
+        BottomSpecification::BottomsRate(b) => Some(available - b.expect("checked")),
+        BottomSpecification::ReboilerDuty(q) => {
+            equations.push(SpecEquation::ReboilerDuty(q.expect("checked")));
+            None
+        }
+        BottomSpecification::BoilupRatio(r) => {
+            equations.push(SpecEquation::BoilupRatio(r.expect("checked")));
+            None
+        }
+        BottomSpecification::BottomsPurity(t) => {
+            let (i, v) = component(ctx, &active_components, t, "bottoms mole fraction")?;
+            equations.push(SpecEquation::BottomsPurity(i, v));
+            None
+        }
+        BottomSpecification::BottomsRecovery(t) => {
+            let (i, v) = component(ctx, &active_components, t, "bottoms recovery")?;
+            equations.push(SpecEquation::BottomsRecovery(i, v));
+            None
+        }
+    };
+    let reflux = match &spec.top {
+        TopSpecification::RefluxRatio(r) => RefluxFlow::Ratio(r.expect("checked")),
+        TopSpecification::RefluxRate(l) => RefluxFlow::Fixed(l.expect("checked")),
+        TopSpecification::DistillateRate(d) => {
+            distillate = Some(d.expect("checked"));
+            RefluxFlow::Free
+        }
+        TopSpecification::CondenserDuty(q) => {
+            equations.insert(0, SpecEquation::CondenserDuty(q.expect("checked")));
+            RefluxFlow::Free
+        }
+        TopSpecification::DistillatePurity(t) => {
+            let (i, v) = component(ctx, &active_components, t, "distillate mole fraction")?;
+            equations.insert(0, SpecEquation::DistillatePurity(i, v));
+            RefluxFlow::Free
+        }
+        TopSpecification::DistillateRecovery(t) => {
+            let (i, v) = component(ctx, &active_components, t, "distillate recovery")?;
+            equations.insert(0, SpecEquation::DistillateRecovery(i, v));
+            RefluxFlow::Free
+        }
+    };
+    if let Some(d) = distillate {
+        if !d.is_finite() || d <= 0.0 || d >= available {
+            return Err(
+                "column withdrawals must leave positive bottoms flow and distillate".into(),
+            );
+        }
+        if d <= liquid_distillate {
+            return Err(
+                "column liquid distillate must be smaller than the total distillate".into(),
+            );
+        }
+        if let RefluxFlow::Ratio(r) = reflux
+            && !(d * r).is_finite()
+        {
+            return Err("column reflux must be finite".into());
+        }
+    }
+
+    let seed_pressure = pressures[1];
+    let seed_total: f64 = seed_components.iter().sum();
+    let seed_composition: Vec<f64> = if options.seed_inlets.is_some() && seed_total > 0.0 {
+        seed_components.iter().map(|z| z / seed_total).collect()
+    } else {
+        feed_composition.clone()
+    };
     let seed = ctx
-        .saturation_temperature(&feed_composition, pressure, SaturationKind::Bubble)
+        .saturation_temperature(&seed_composition, seed_pressure, SaturationKind::Bubble)
         .map_err(|e| format!("column feed bubble-point initialization: {e}"))?;
     // The condenser liquid starts at the composition of the vapor leaving
     // the first tray. Its own bubble point can be much colder than the tray.
-    let condenser_seed = ctx
-        .saturation_temperature(&seed.vapor_composition, pressure, SaturationKind::Bubble)
-        .map_err(|e| format!("column condenser bubble-point initialization: {e}"))?;
+    // When that liquid has no single-liquid bubble point (it splits into two
+    // liquids), the condenser starts at the feed bubble point instead; the
+    // converged column is then rejected by the stage liquid–liquid check.
+    let condenser_seed = match ctx.saturation_temperature(
+        &seed.vapor_composition,
+        pressures[0],
+        SaturationKind::Bubble,
+    ) {
+        Ok(state) => state,
+        Err(e) if is_liquid_split(&e) => seed.clone(),
+        Err(e) => return Err(format!("column condenser bubble-point initialization: {e}")),
+    };
     let column = Column {
         ctx,
-        pressure,
+        pressures: pressures.clone(),
         temperature_range,
         feeds,
-        draws_by_stage,
+        feed_by_stage,
+        feed_components,
+        liquid_draws,
+        vapor_draws,
         active_components,
         flow,
-        distillate,
+        available,
+        condenser: spec.condenser.stage_condenser(),
+        liquid_distillate,
+        distillate: distillate.map_or(DistillateFlow::Free, DistillateFlow::Fixed),
         reflux,
-        liquid_offset,
+        equations,
     };
-    let ratios = |phase: &[f64]| mesh::log_ratios(phase, &column.active_components);
-    let x = ratios(&seed.liquid_composition);
+    // Starting flows: a free distillate starts at half the available
+    // product (or above the liquid distillate), a free reflux at L/D = 2.
+    let d0 = distillate.unwrap_or_else(|| {
+        let half = 0.5 * available;
+        if half > liquid_distillate {
+            half
+        } else {
+            0.5 * (liquid_distillate + available)
+        }
+    });
+    let l0 = match reflux {
+        RefluxFlow::Fixed(l) => l,
+        RefluxFlow::Ratio(r) => r * d0,
+        RefluxFlow::Free => 2.0 * d0,
+    };
+    // A component absent from the seed inlets (stripping steam) starts at
+    // its overall feed fraction in the vapor and at a tenth of it in the
+    // liquid; with every inlet in the seed this changes nothing. (Started
+    // at the full fraction in the liquid, water/pseudo-component columns
+    // under PR either stalled or converged to a condenser liquid that splits.)
+    let fill = |phase: &[f64], scale: f64| {
+        let phase: Vec<f64> = phase
+            .iter()
+            .zip(&feed_composition)
+            .map(|(&p, &z)| if p > 0.0 { p } else { z * scale })
+            .collect();
+        mesh::log_ratios(&phase, &column.active_components)
+    };
+    let ratios = |phase: &[f64]| fill(phase, 1.0);
+    let x = fill(&seed.liquid_composition, ABSENT_LIQUID_SEED);
     let y = ratios(&seed.vapor_composition);
     let mut initial = vec![condenser_seed.temperature_k / TEMPERATURE_SCALE];
+    if column.partial() {
+        initial.extend(ratios(&seed.vapor_composition));
+    }
     initial.extend(ratios(&condenser_seed.vapor_composition));
     for j in 1..n {
         initial.push(seed.temperature_k / TEMPERATURE_SCALE);
         initial.extend(&x);
         initial.extend(&y);
         if j > 1 {
-            initial.push(((reflux + distillate) / flow).ln());
+            initial.push(((l0 + d0) / flow).ln());
         }
     }
-    let (solved, iterations) = mesh::solve(initial, |values| column.residual(values))?;
-    let mut cascade = column.decode(&solved);
-    let properties = mesh::properties(ctx, &cascade, ColumnEnds::DISTILLATION, temperature_range)?;
+    let (solved, iterations) = if column.equations.is_empty() {
+        mesh::solve(initial, |values| column.residual(values))?
+    } else {
+        let flows = column.flow_variables(d0, l0);
+        let (profile, flows) = column
+            .converge_flows(initial, flows)
+            .map_err(|e| format!("column specifications cannot be met: {e}"))?;
+        let start: Vec<f64> = profile.into_iter().chain(flows).collect();
+        mesh::solve(start, |values| column.residual(values))
+            .map_err(|e| format!("column specifications cannot be met: {e}"))?
+    };
+    let decoded = column.decode(&solved)?;
+    let ends = column.ends();
+    let mut cascade = decoded.cascade;
+    let properties = mesh::properties(ctx, &cascade, ends, temperature_range)?;
+    let warnings = mesh::check_liquid_liquid(ctx, &cascade)?;
     mesh::verify_phases(ctx, &cascade)?;
     let residuals = cascade.residuals(&properties)?;
     cascade.stages[0].duty_w = -residuals[0].energy_w;
-    cascade.stages[n - 1].duty_w = -residuals[n - 1].energy_w;
+    // An adiabatic bottom stage has no duty; its energy residual is within
+    // the solve tolerance and stays in the unit's energy balance.
+    cascade.stages[n - 1].duty_w = if reboiled {
+        -residuals[n - 1].energy_w
+    } else {
+        0.0
+    };
     if let Some(section) = &packed {
-        section.check(&cascade, ColumnEnds::DISTILLATION)?;
+        section.check(&cascade, ends)?;
     }
-    let energy = ColumnEnds::DISTILLATION.port_duties(&cascade)?;
+    let mut energy = ends.port_duties(&cascade)?;
     let condenser = -cascade.stages[0].duty_w;
     let reboiler = cascade.stages[n - 1].duty_w;
-    if condenser <= 0.0 || reboiler <= 0.0 {
+    if !reboiled {
+        energy.truncate(1);
+        if condenser <= 0.0 {
+            return Err("column requires heat removal at the condenser".into());
+        }
+    } else if condenser <= 0.0 || reboiler <= 0.0 {
         return Err(
             "column requires heat removal at the condenser and heat input at the reboiler".into(),
         );
     }
+    let top = &cascade.stages[0];
     let mut outlets = vec![
-        mesh::product(ctx, &cascade.stages[0], distillate, Phase::Liquid)?,
-        mesh::product(ctx, &cascade.stages[n - 1], remaining, Phase::Liquid)?,
+        if column.partial() {
+            mesh::product(ctx, top, top.vapor_mol_s, Phase::Vapor)?
+        } else {
+            mesh::product(ctx, top, decoded.distillate, Phase::Liquid)?
+        },
+        mesh::product(ctx, &cascade.stages[n - 1], decoded.bottoms, Phase::Liquid)?,
     ];
-    for draw in draws {
+    for draw in liquid {
         outlets.push(mesh::product(
             ctx,
             &cascade.stages[usize::from(draw.stage) - 1],
@@ -379,16 +1155,39 @@ pub(super) fn calculate(
             Phase::Liquid,
         )?);
     }
-    let mut output = UnitOutput::new(outlets, reboiler - condenser, Vec::new());
+    for draw in vapor {
+        outlets.push(mesh::product(
+            ctx,
+            &cascade.stages[usize::from(draw.stage) - 1],
+            draw.molar_flow_mol_s.expect("checked vapor-draw flow"),
+            Phase::Vapor,
+        )?);
+    }
+    if liquid_distillate > 0.0 {
+        outlets.push(mesh::product(ctx, top, liquid_distillate, Phase::Liquid)?);
+    }
+    let mut output = UnitOutput::new(outlets, reboiler - condenser, warnings);
     output.energy = energy;
     Ok((
         output,
         DistillationColumnResult {
             stage_temperatures_k: cascade.stages.iter().map(|s| s.temperature_k).collect(),
+            stage_pressures_pa: pressures,
             condenser_duty_w: condenser,
             reboiler_duty_w: reboiler,
+            distillate_mol_s: decoded.distillate,
+            reflux_mol_s: decoded.reflux,
+            bottoms_mol_s: decoded.bottoms,
+            boilup_mol_s: cascade.stages[n - 1].vapor_mol_s,
             packed_height_m: packed.map(|section| section.packed.packed_height_m),
             iterations,
         },
     ))
+}
+
+/// Saturation failures caused by a liquid that splits into two liquids: a
+/// three-phase bubble point (cubic) or a saturation liquid that fails the
+/// NRTL tangent-plane trials.
+fn is_liquid_split(message: &str) -> bool {
+    message.contains("splits into two liquids") || message.contains("liquid-liquid split")
 }

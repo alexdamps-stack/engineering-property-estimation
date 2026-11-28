@@ -20,6 +20,12 @@ validation/columns/README.md):
 - Kirkbride, C. G. (1944). Process design procedure for multicomponent
   fractionators. Petrol. Refiner 23, 321-336 (feed-stage location).
 
+Cases d-f (added later; cases a-c are unchanged) cover a partial condenser
+(vapor distillate at its dew point, reflux = the incipient liquid of that dew
+point, condenser vapor y_1 from the constant-molar-overflow top balance at its
+own dew point) and a specified stage count (the Molokanov fit solved for X by
+SciPy brentq, then R = (X + R_min)/(1 - X)).
+
 Thermodynamics reuse the reviewed adapters, as the A14 PS generator does:
 the A3 teqp AD + Cantera NASA7 caloric adapter (validation/generate-references.py)
 for saturated-phase and feed enthalpies, the A4 SciPy/teqp equilibrium adapter
@@ -234,22 +240,51 @@ def shortcut(case):
     r_min = float(np.sum(alpha*x_d/(alpha-theta))-1)
     assert r_min > 0
     spec = case["reflux"]
-    reflux = spec["value"]*r_min if spec["kind"] == "multiple_of_minimum" else spec["value"]
+    if spec["kind"] == "stages":
+        # Stage count given: Y = (N - N_min)/(N + 1), Molokanov fit solved for X
+        # by brentq (independent of the engine's bisection), R = (X + R_min)/(1 - X).
+        n = spec["value"]
+        assert n > n_min
+        y_target = (n-n_min)/(n+1)
+        x_g = brentq(lambda xg: molokanov(xg)-y_target, 1e-300, 1.0, xtol=1e-300, rtol=4*np.finfo(float).eps, maxiter=2000)
+        y_g = molokanov(x_g)
+        reflux = (x_g+r_min)/(1-x_g)
+    else:
+        reflux = spec["value"]*r_min if spec["kind"] == "multiple_of_minimum" else spec["value"]
+        x_g = (reflux-r_min)/(reflux+1)
+        y_g = molokanov(x_g)
+        n = (n_min+y_g)/(1-y_g)
     assert reflux > r_min
-    x_g = (reflux-r_min)/(reflux+1)
-    y_g = 1-math.exp((1+54.4*x_g)/(11+117.2*x_g)*(x_g-1)/math.sqrt(x_g))
-    n = (n_min+y_g)/(1-y_g)
     ratio = (bb/dd*z[hk]/z[lk]*(x_b[lk]/x_d[hk])**2)**0.206
     n_r = n*ratio/(1+ratio)
     # Products and duties at the final splits.
+    partial = case.get("condenser", "total") == "partial"
     top = sat_point(ids, x_d, p, variant, kij, "dew")
-    dist = sat_point(ids, x_d, p, variant, kij, "bubble")
     bot = sat_point(ids, x_b, p, variant, kij, "bubble")
-    assert bot["T"] > top["T"]
-    h_vtop = phase_h(ids, x_d, top["T"], p, variant, kij, "vapor")
-    h_d = phase_h(ids, x_d, dist["T"], p, variant, kij, "liquid")
     h_b = phase_h(ids, x_b, bot["T"], p, variant, kij, "liquid")
-    q_c = (reflux+1)*dd*(h_vtop-h_d)
+    extra = {}
+    if partial:
+        # Vapor distillate at its dew point; reflux = incipient liquid x_R at the
+        # same T (its bubble point); vapor to the condenser y_1 from the CMO top
+        # balance V y_1 = D x_D + L x_R, at its own dew point.
+        dist = top
+        x_r = top["liquid"]
+        h_d = phase_h(ids, x_d, top["T"], p, variant, kij, "vapor")
+        h_r = phase_h(ids, x_r, top["T"], p, variant, kij, "liquid")
+        y_1 = (x_d+reflux*x_r)/(reflux+1)
+        over = sat_point(ids, y_1, p, variant, kij, "dew")
+        h_vtop = phase_h(ids, y_1, over["T"], p, variant, kij, "vapor")
+        q_c = dd*((reflux+1)*h_vtop-h_d-reflux*h_r)
+        saturations = (bub_z, dew_z, top, over, bot)
+        extra = {"T_condenser": top["T"], "x_R": x_r.tolist(), "h_R": h_r, "y_1": y_1.tolist()}
+    else:
+        dist = sat_point(ids, x_d, p, variant, kij, "bubble")
+        over = top
+        h_vtop = phase_h(ids, x_d, top["T"], p, variant, kij, "vapor")
+        h_d = phase_h(ids, x_d, dist["T"], p, variant, kij, "liquid")
+        q_c = (reflux+1)*dd*(h_vtop-h_d)
+        saturations = (bub_z, dew_z, top, dist, bot)
+    assert bot["T"] > over["T"]
     q_r = dd*h_d+bb*h_b+q_c-flow*h_f
     assert q_c > 0 and q_r > 0
     out = {
@@ -267,12 +302,18 @@ def shortcut(case):
         "N_min": n_min, "theta": theta, "R_min": r_min, "R": reflux, "X": x_g, "Y": y_g, "N": n,
         "kirkbride_NR_over_NS": ratio, "N_R": n_r, "N_S": n-n_r, "feed_stage_from_top": n_r+1,
         "D": dd, "B": bb, "d": d.tolist(), "b": b.tolist(), "x_D": x_d.tolist(), "x_B": x_b.tolist(),
-        "T_top": top["T"], "top_liquid": top["liquid"].tolist(), "T_D": dist["T"],
+        "T_top": over["T"], "top_liquid": over["liquid"].tolist(), "T_D": dist["T"],
         "T_bot": bot["T"], "bottom_vapor": bot["vapor"].tolist(),
         "h_D": h_d, "h_B": h_b, "h_V_top": h_vtop, "Q_C": q_c, "Q_R": q_r, "net_duty_W": q_r-q_c,
-        "max_fugacity_residual": max(s["fugacity_residual"] for s in (bub_z, dew_z, top, dist, bot)),
+        "max_fugacity_residual": max(s["fugacity_residual"] for s in saturations),
+        **extra,
     }
     return out
+
+
+def molokanov(x_g):
+    """Molokanov et al. (1972) fit of Gilliland: Y(X)."""
+    return 1-math.exp((1+54.4*x_g)/(11+117.2*x_g)*(x_g-1)/math.sqrt(x_g))
 
 
 F = 100.0
@@ -294,6 +335,21 @@ CASES = [
      "F_mol_s": F, "feed_T": 270.0, "feed_p": 4.0e6, "variant": "PR-BM", "light_key": "ethane",
      "heavy_key": "propane", "r_LK": 0.97, "r_HK": 0.96, "p": 2.5e6,
      "reflux": {"kind": "multiple_of_minimum", "value": 1.4}},
+    # d. Partial condenser (vapor distillate at its dew point), binary of case a.
+    {"id": "c2c3-partial-PR-BM", "ids": ["ethane", "propane"], "z": [0.4, 0.6], "F_mol_s": F,
+     "feed_T": 295.0, "feed_p": 2.0e6, "variant": "PR-BM", "light_key": "ethane", "heavy_key": "propane",
+     "r_LK": 0.98, "r_HK": 0.97, "p": 2.0e6, "reflux": {"kind": "multiple_of_minimum", "value": 1.3},
+     "condenser": "partial"},
+    # e. Stage count given (R from the inverted Gilliland fit), let-down feed of case c.
+    {"id": "c1c2c3-stages-PR-BM", "ids": ["methane", "ethane", "propane"], "z": [0.1, 0.5, 0.4],
+     "F_mol_s": F, "feed_T": 270.0, "feed_p": 4.0e6, "variant": "PR-BM", "light_key": "ethane",
+     "heavy_key": "propane", "r_LK": 0.97, "r_HK": 0.96, "p": 2.5e6,
+     "reflux": {"kind": "stages", "value": 25.0}},
+    # f. Partial condenser and stage count together, two-phase ternary of case b.
+    {"id": "c1c2c3-partial-stages-PR", "ids": ["methane", "ethane", "propane"], "z": [0.2, 0.45, 0.35],
+     "F_mol_s": F, "feed_T": 260.0, "feed_p": 2.5e6, "variant": "PR", "light_key": "ethane",
+     "heavy_key": "propane", "r_LK": 0.95, "r_HK": 0.95, "p": 2.5e6, "reflux": {"kind": "stages", "value": 18.0},
+     "condenser": "partial"},
 ]
 
 
@@ -312,7 +368,11 @@ def main():
                                               "columns/generate-shortcut-references.py"]},
               "method": "Fenske-Underwood-Gilliland(Molokanov)-Kirkbride, A17 #185 contract: alpha by successive "
                         "substitution (geometric mean of top dew and bottom bubble), Hengstebeck-Geddes Fenske "
-                        "distribution, total condenser, partial reboiler counted in N, Q_R by overall balance",
+                        "distribution, total condenser, partial reboiler counted in N, Q_R by overall balance; "
+                        "cases with condenser=partial: vapor distillate at its dew point (a stage counted in N), "
+                        "reflux = incipient liquid x_R of that dew point, Q_C = D[(R+1)h_V(y_1) - h_D - R h_R] with "
+                        "y_1 = (x_D + R x_R)/(R+1) at its dew point (T_top); reflux kind 'stages': N given, X from "
+                        "Y = (N - N_min)/(N + 1) on the Molokanov fit, R = (X + R_min)/(1 - X)",
               "units": {"T": "K", "p": "Pa", "h": "J/mol", "flow": "mol/s", "duty": "W (Q_C leaves, Q_R enters)"},
               "alpha_iterations_counting": "number of top-dew/bottom-bubble alpha updates until max |d ln alpha| < 1e-10, starting from alpha at the feed bubble point",
               "independence": "teqp residual AD fugacities and Cantera NASA7 caloric adapter, SciPy brentq bubble/dew "

@@ -1571,7 +1571,7 @@ fn snapshot_solved_kinetic_reactors() {
 #[test]
 fn shortcut_column_form_solves_and_reports_design_estimates() {
     use flowsheet_core::units::ColumnSpec;
-    use flowsheet_core::units::columns::{ShortcutColumnSpec, ShortcutReflux};
+    use flowsheet_core::units::columns::{ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux};
     use flowsheet_project::{CubicVariantChoice, PackageSelection};
 
     let mut app = FlowsheetApp::default();
@@ -1611,6 +1611,7 @@ fn shortcut_column_form_solves_and_reports_design_estimates() {
         heavy_key_recovery: Some(0.97),
         pressure_pa: Some(2.0e6),
         reflux: ShortcutReflux::Ratio(Some(1.75)),
+        condenser: ShortcutCondenser::Total,
     };
     ed.fs.set_spec(
         column,
@@ -1622,6 +1623,22 @@ fn shortcut_column_form_solves_and_reports_design_estimates() {
     h.get_by_label("Light key");
     h.get_by_label("Heavy key");
     h.get_by_label("Reflux ratio L/D");
+    // The stage-count specification and the partial condenser are choices.
+    h.get_by_label("Theoretical stages").click();
+    h.run();
+    h.get_by_label("Theoretical stages (> N_min)");
+    h.get_by_label("Partial (vapour distillate)").click();
+    h.run();
+    assert_eq!(
+        h.state().editor().fs.unit(column).unwrap().spec,
+        UnitSpec::Columns(ColumnSpec::Shortcut(ShortcutColumnSpec {
+            reflux: ShortcutReflux::TheoreticalStages(None),
+            condenser: ShortcutCondenser::Partial,
+            ..spec.clone()
+        })),
+    );
+    h.get_by_label("Total (liquid distillate)").click();
+    h.run();
     // Switching the reflux choice clears the value until it is entered.
     h.get_by_label("Multiple of minimum").click();
     h.run();
@@ -1641,7 +1658,9 @@ fn shortcut_column_form_solves_and_reports_design_estimates() {
     key(&mut h, Key::F5);
     finish_solve(&mut h);
     h.get_by_label("Minimum stages (Fenske)");
-    h.get_by_label("Theoretical stages incl. reboiler");
+    h.get_by_label("Theoretical stages (Gilliland)");
+    h.get_by_label("ethane to distillate");
+    h.get_by_label("propane to distillate");
     h.get_by_label("Feed stage from top (Kirkbride)");
     h.get_by_label("Condenser duty (+ removed)");
     h.get_by_label("Reboiler duty (+ supplied)");
@@ -1656,7 +1675,7 @@ fn distillation_form_selects_packing_and_displays_solved_stages() {
     use flowsheet_core::units::{
         ColumnSpec,
         columns::{
-            ColumnInternals, DistillationColumnSpec,
+            BottomSpecification, ColumnInternals, DistillationColumnSpec, TopSpecification,
             packing::{PackedSectionBasis, PackedSectionSpec},
         },
     };
@@ -1692,8 +1711,8 @@ fn distillation_form_selects_packing_and_displays_solved_stages() {
     let mut spec = DistillationColumnSpec {
         internals: ColumnInternals::Trays(4),
         pressure_pa: Some(2.0e6),
-        reflux_ratio: Some(2.5),
-        distillate_fraction: Some(0.45),
+        top: TopSpecification::RefluxRatio(Some(2.5)),
+        bottom: BottomSpecification::DistillateFraction(Some(0.45)),
         feed_stages: vec![4],
         ..Default::default()
     };
@@ -1728,6 +1747,114 @@ fn distillation_form_selects_packing_and_displays_solved_stages() {
     assert_eq!(column.stage_temperatures_k.len(), 6);
     h.get_by_label("Stage 1 temperature");
     h.get_by_label("Reboiler duty (+ supplied)");
+}
+
+#[test]
+fn distillation_form_offers_condenser_pressure_drop_and_specification_choices() {
+    use flowsheet_core::units::{
+        ColumnSpec,
+        columns::{
+            BottomSpecification, ColumnPressureDrop, DistillationColumnSpec, DistillationCondenser,
+            TopSpecification,
+        },
+    };
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["ethane".into(), "propane".into()],
+        "rigorous distillation specification form test",
+    ));
+    let column = ed.add_unit_at(UnitKind::DistillationColumn, egui::pos2(220.0, 150.0));
+    ed.selection = Some(Selection::Unit(column));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Vapor side draws");
+    h.get_by_label("Condenser pressure drop");
+    h.get_by_label("Drop per stage");
+    h.get_by_label("Partial (vapor and liquid)").click();
+    h.run();
+    h.get_by_label("Liquid distillate");
+    h.get_by_label("Whole column").click();
+    h.run();
+    h.get_by_label("Drop first tray to reboiler");
+    h.get_by_label("Condenser duty").click();
+    h.run();
+    h.get_by_label("Condenser duty (removed)");
+    h.get_by_label("Bottoms purity").click();
+    h.run();
+    h.get_by_label("Bottoms mole fraction component");
+    h.get_by_label("Bottoms mole fraction");
+    let spec = |h: &Harness<FlowsheetApp>| match &h.state().editor().fs.unit(column).unwrap().spec {
+        UnitSpec::Columns(ColumnSpec::Distillation(s)) => s.clone(),
+        other => panic!("{other:?}"),
+    };
+    let s: DistillationColumnSpec = spec(&h);
+    assert_eq!(
+        s.condenser,
+        DistillationCondenser::PartialVaporLiquid {
+            liquid_distillate_mol_s: None
+        }
+    );
+    assert_eq!(s.pressure_drop, ColumnPressureDrop::Column(0.0));
+    assert_eq!(s.top, TopSpecification::CondenserDuty(None));
+    assert!(matches!(s.bottom, BottomSpecification::BottomsPurity(_)));
+    // The partial vapor-liquid condenser adds the liquid distillate port.
+    let ports = h.state().editor().fs.unit(column).unwrap().ports();
+    assert_eq!(ports.last().unwrap().label(), "liquid distillate");
+    h.get_by_label("Reboiler duty").click();
+    h.run();
+    h.get_by_label("Reboiler duty (supplied)");
+    assert_eq!(spec(&h).bottom, BottomSpecification::ReboilerDuty(None));
+}
+
+#[test]
+fn petroleum_fractionator_form_offers_steam_and_volume_products() {
+    use flowsheet_core::units::{
+        ColumnSpec,
+        columns::{DrawRate, FractionatorBottom, PetroleumFractionatorSpec},
+    };
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["ethane".into(), "propane".into()],
+        "petroleum fractionator form test",
+    ));
+    let column = ed.add_unit_at(UnitKind::PetroleumFractionator, egui::pos2(220.0, 150.0));
+    let mut spec = PetroleumFractionatorSpec {
+        side_draws: 2,
+        ..Default::default()
+    };
+    spec.products.push(Default::default());
+    spec.products
+        .push(flowsheet_core::units::columns::SideProduct {
+            stage: 5,
+            rate: DrawRate::StandardLiquidVolume(None),
+        });
+    ed.fs
+        .try_set_spec(
+            column,
+            UnitSpec::Columns(ColumnSpec::PetroleumFractionator(spec)),
+        )
+        .unwrap();
+    ed.selection = Some(Selection::Unit(column));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Side products");
+    h.get_by_label("Product 1 molar flow");
+    h.get_by_label("Product 2 volume flow");
+    h.get_by_label("Stripping steam (no reboiler)").click();
+    h.run();
+    let unit = h.state().editor().fs.unit(column).unwrap();
+    let UnitSpec::Columns(ColumnSpec::PetroleumFractionator(s)) = &unit.spec else {
+        panic!("{:?}", unit.spec)
+    };
+    assert_eq!(s.bottom, FractionatorBottom::StrippingSteam);
+    assert_eq!(s.products[1].rate, DrawRate::StandardLiquidVolume(None));
+    assert_eq!(unit.ports().last().unwrap().label(), "stripping steam");
 }
 
 #[test]

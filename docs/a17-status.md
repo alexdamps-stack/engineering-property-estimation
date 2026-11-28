@@ -227,24 +227,35 @@ formation-basis balances, kinetic rate bases and supported limits.
 
 | Kind | Issue | Status | Specification | Validation / reference | Notes |
 |---|---|---|---|---|---|
-| Shortcut column | #185 | calculated (partial) | Light and heavy key, light-key recovery to distillate and heavy-key recovery to bottoms (each strictly 0–1, sum above 1), column pressure, and either reflux ratio or multiple of minimum reflux. | Four PR/PR-BM cases from the independent teqp/Cantera/SciPy generator `validation/columns/` (binary, ternary with distributing methane, high-pressure let-down feed), checked within the fixture's declared tolerances by `flowsheet-core/tests/shortcut_column.rs`. Project round trip, legacy reload and a headless desktop test. | Fenske–Underwood–Gilliland (Molokanov fit) with Kirkbride feed location. One feed, total condenser, partial reboiler. Retains ISO asset `s1-x8100-column-general`. |
+| Shortcut column | #185 | calculated | Light and heavy key, light-key recovery to distillate and heavy-key recovery to bottoms (each strictly 0–1, sum above 1), column pressure, total or partial condenser, and one of reflux ratio, multiple of minimum reflux or theoretical stages. | Seven PR/PR-BM cases from the independent teqp/Cantera/SciPy generator `validation/columns/` (binary, ternary with distributing methane, high-pressure let-down feed, partial condenser, specified stage count, both together), checked within the fixture's declared tolerances by `flowsheet-core/tests/shortcut_column.rs`. Project round trip, legacy reload and a headless desktop test. | Fenske–Underwood–Gilliland (Molokanov fit) with Kirkbride feed location. One feed, total or partial condenser, partial reboiler. Reports $N_{min}$, $R_{min}$, $R$, $N$, feed stage and the distillate recovery of every component. Retains ISO asset `s1-x8100-column-general`. |
 
 The [rigorous distillation column](a17-columns-stages.md) (#186) solves
-an equilibrium-stage cascade with a total condenser and partial reboiler
-at one uniform pressure. Choose ideal trays or one
+an equilibrium-stage cascade with a total or partial condenser and a partial
+reboiler, a condenser and stage pressure-drop profile, and two Aspen-style
+column specifications. Choose ideal trays or one
 [ideal packed bed sized by HETP](a17-columns-packing.md), with numbered
-feeds and liquid side draws. The [absorber or stripper](a17-columns-stages.md#absorber-and-stripper)
+feeds and liquid and vapor side draws. The [absorber or stripper](a17-columns-stages.md#absorber-and-stripper)
 (#187) solves countercurrent adiabatic contact with ideal trays or one HETP
 bed, yielding the outlet phase flows and the stage temperature profile.
+
+| Kind | Issue | Status | Specification | Validation / reference | Notes |
+|---|---|---|---|---|---|
+| Rigorous distillation column | #186 | calculated (partial) | Condenser pressure plus condenser drop and a per-stage or whole-column drop; total, partial-vapor or partial vapor-and-liquid condenser; top specification (reflux ratio, reflux rate, distillate rate, condenser duty, distillate mole fraction or recovery) and bottom specification (distillate fraction, bottoms rate, reboiler duty, boilup ratio, bottoms mole fraction or recovery); 1–24 ideal trays or one HETP bed; numbered feeds, liquid and vapor side draws. | `distillation-v1.json` (PR/PR-BM ethane/propane), `extended-v1.json` (PR methanol/water at 1 atm, PR propane/methanol to 430 K) and `specs-v1.json` (partial condensers, vapor draw, pressure drop, reboiler duty, purity/boilup, condenser duty/recovery) from independent teqp/Cantera/SciPy generators; `flowsheet-project/tests/{distillation_column,columns_domain,column_specifications}.rs`. NRTL-IG methanol/water and GERG-2008 behaviour tests; liquid–liquid split, unsupported-package and infeasible-specification failures; headless desktop form test. | Any package component; package bubble/dew domain. Stage liquid–liquid check with the package VLLE flash. No tray efficiency, side heaters, subcooling or stage-temperature specifications. Specification fields added behind format version 4. |
+| Absorber / stripper | #187 | calculated (partial) | Column pressure; 1–24 ideal trays or one HETP bed. | `absorber-v1.json` (PR/PR-BM ethane/propane) and the methane/CO2/methanol-solvent case of `extended-v1.json`; `flowsheet-project/tests/{absorber,columns_domain}.rs`, NRTL-IG behaviour test. | Any package component; stage temperatures in the package bubble/dew interval, pressure bounded by the package's TP/PH operations. Same liquid–liquid check. |
+| Petroleum fractionator | #190 | calculated (partial) | One main column composed on the rigorous MESH solve: numbered feeds carrying characterised pseudo-components, total / partial-vapor / partial vapor-and-liquid condenser, the distillation top specification, a reboiler (with a distillation bottom specification) or stripping steam to an adiabatic bottom stage, liquid side products by molar flow or standard liquid volume flow at 60 °F (M/(SG ρw)), pressure profile, 1–24 trays or one HETP bed. | `petroleum-v1.json` from the independent teqp/NumPy/SciPy generator (8-cut crude-like TBP curve; two molar draws with reboiler; two volume draws plus a molar draw with partial condenser and pressure drop; steam-stripped with water kij = 0.5 approximation); `flowsheet-project/tests/petroleum_fractionator.rs` (reference agreement, balance closure, infeasible draws, missing characterisation, unsupported packages, round trip, drawn-only legacy record). | [a17-columns-petroleum.md](a17-columns-petroleum.md). **Not yet modelled:** side strippers and pump-arounds (need coupled cascades / stage energy ports in the MESH solve), ASTM D86/TBP cut-point specifications (no product distillation-curve calculation exists), three-phase condenser with free-water decant (realistic steam stripping with a cold drum fails as a condenser liquid split), MultiFrac/SCFrac multi-column coupling, furnace/overflash specifications and refinery correlations beyond the pseudo-component characterisation. Pseudo-components exist in the cubic packages only (250–600 K). Fields added behind format version 4. |
 
 ### Shortcut column
 
 The column takes one feed and produces a distillate and a bottoms product.
-It has one uniform pressure with no pressure drop. The total condenser and
-partial reboiler both operate at that pressure, and both products leave as
-saturated liquid at their bubble points. The column pressure may not exceed
-the feed pressure: the feed is let down isenthalpically and keeps its own
-enthalpy. The four inputs are independent. The keys must be two different
+It has one uniform pressure with no pressure drop. The condenser and
+partial reboiler both operate at that pressure. The bottoms leave as
+saturated liquid at their bubble point. A total condenser (the default)
+returns the distillate as saturated liquid at its bubble point. A partial
+condenser returns it as saturated vapour at its dew point. The column
+pressure may not exceed the feed pressure: the feed is let down
+isenthalpically and keeps its own enthalpy. The inputs are independent. The
+operating specification is one of reflux ratio, multiple of minimum reflux
+or number of theoretical stages. The keys must be two different
 package components, and both must be present in the feed. The light key must
 be more volatile than the heavy key at column conditions.
 
@@ -265,13 +276,30 @@ be more volatile than the heavy key at column conditions.
 - **Stages and feed location.** Gilliland (1940) gives the stage count in the
   Molokanov et al. (1972) form
   $Y=1-\exp[(1+54.4X)/(11+117.2X)\cdot(X-1)/\sqrt X]$, with
-  $N=(N_{min}+Y)/(1-Y)$. Stage counts include the reboiler and exclude the
-  total condenser. Kirkbride (1944) gives the number of rectifying stages.
-- **Duties.** The condenser duty is $Q_C=(R+1)D(h_{V,top}-h_D)$, where the
-  overhead vapour is at the dew point of the distillate. The reboiler duty
-  $Q_R$ closes the overall enthalpy balance. Both must be positive. The
-  condenser-duty port reports $Q_C$ and the reboiler-duty port reports $Q_R$
-  to a calculated source or a sink. The net external duty is $Q_R-Q_C$.
+  $N=(N_{min}+Y)/(1-Y)$, where $X=(R-R_{min})/(R+1)$. When the stage count
+  is specified instead, $Y=(N-N_{min})/(N+1)$, the fit is inverted for $X$
+  by bisection and $R=(X+R_{min})/(1-X)$. Stage counts include the reboiler
+  and a partial condenser, and exclude a total condenser. Kirkbride (1944)
+  gives the number of rectifying stages. The feed stage, counted from the
+  top, is that number plus one; a partial condenser is stage 1.
+- **Duties.** With a total condenser, $Q_C=(R+1)D(h_{V,top}-h_D)$, where the
+  overhead vapour is at the dew point of the distillate. With a partial
+  condenser, the condenser equilibrium is the dew point of the distillate
+  composition $x_D$. The reflux is the incipient liquid $x_R$ of that dew
+  point, so it sits at its own bubble point in equilibrium with the vapour
+  distillate. The vapour entering the condenser has the composition
+  $y_1=(x_D+Rx_R)/(R+1)$ from the constant-molar-overflow top balance, at
+  its dew point. Then $Q_C=D[(R+1)h_V(y_1)-h_D-Rh_R]$. The relative
+  volatilities, split and $R_{min}$ are the same for both condensers. The
+  reboiler duty $Q_R$ closes the overall enthalpy balance. Both duties must
+  be positive. The condenser-duty port reports $Q_C$ and the reboiler-duty
+  port reports $Q_R$ to a calculated source or a sink. The net external duty
+  is $Q_R-Q_C$.
+- **Reported estimates.** $N_{min}$, the Underwood root, $R_{min}$, $R$,
+  Gilliland $X$, $N$, the rectifying stages and feed stage, $q$, the key
+  relative volatility, both duties, the temperature of the vapour entering
+  the condenser, and the fraction of each feed component recovered in the
+  distillate (the key and non-key distribution).
 
 The solver fails explicitly when:
 
@@ -282,6 +310,7 @@ The solver fails explicitly when:
 - the keys are inverted or not adjacent;
 - the volatilities do not converge;
 - $R_{min}\le 0$, $R\le R_{min}$ or the multiple of minimum reflux is at most 1;
+- a specified stage count is missing, not positive, or at most $N_{min}$;
 - either duty is not positive or the bottoms are not hotter than the overhead;
 - any result is not finite.
 
@@ -298,7 +327,8 @@ systems remain outside the validated scope. The results are design estimates.
 Several things are not modelled:
 
 - tray hydraulics, column diameter and efficiencies;
-- partial condensers, side draws and multiple feeds;
+- side draws and multiple feeds;
+- a mixed (vapour and liquid) distillate, or a subcooled reflux;
 - non-adjacent keys, or more than one Underwood root;
 - liquid–liquid phases;
 - temperature approaches at the condenser and reboiler utilities.
@@ -306,26 +336,36 @@ Several things are not modelled:
 Constant relative volatility and constant molar overflow are inherent
 assumptions of the method.
 
-**Persistence.** Version 4 records store the keys, recoveries, pressure and
-reflux choice. These fields were added behind format version 4 without a
-version bump. An earlier empty `shortcut_column` record loads with every
-input unset. Unit results carry the optional `shortcut_column` estimate.
-Unknown fields are refused.
+**Persistence.** Version 4 records store the keys, recoveries, pressure,
+operating choice (`ratio`, `minimum_multiple` or `theoretical_stages`) and
+condenser. These fields were added behind format version 4 without a
+version bump. A record without `condenser` loads as a total condenser, and a
+total condenser is not written. An earlier empty `shortcut_column` record
+loads with every input unset. Unit results carry the optional
+`shortcut_column` estimate. Its `distillate_recoveries` list is empty for
+results saved before it was added. Unknown fields and choices are refused.
 
 **Rigorous columns.** The shortcut estimates for $N$, feed stage, $R$ and
 $D$ can guide specifications for the [equilibrium-stage distillation
 column](a17-columns-stages.md). That column and the absorber both support
-ideal trays and HETP beds. Rate-based packing, three-phase columns,
-extraction and petroleum fractionation are later batches. Other mixtures
-need stage-level liquid–liquid checks before they are validated; the absorber
-still restricts its active components to the dry hydrocarbon/N2/CO2 set.
-A detailed condenser or reboiler heat-transfer model should expose a fixed
+ideal trays and HETP beds. Rate-based packing is a later batch; the
+[petroleum fractionator](a17-columns-petroleum.md) (#190) reuses the
+rigorous column with pseudo-component feeds, side products and stripping steam. Both rigorous
+columns take their domain from the package: any package component and the
+package's bubble/dew temperature interval, with stage properties from the
+package's homogeneous-phase operation (PR/PR-BM/SRK, NRTL-IG and GERG-2008;
+EOS-CG-2021 fails explicitly). After convergence every stage is tested for a
+second liquid with the package's VLLE flash; a split fails the column, and a
+package without VLLE (GERG-2008) publishes a warning that the check was
+skipped. A detailed condenser or reboiler heat-transfer model should expose a fixed
 temperature approach to a defined utility reference.
 
 ## Multiphase
 
 | Kind | Issue | Status | Specification | Validation / reference | Notes |
 |---|---|---|---|---|---|
+| Liquid-liquid extractor | #189 | Calculated (PR, PR-BM, NRTL-IG; GERG-2008 and EOS-CG-2021 fail with `UnsupportedCapability`) | 1–50 ideal stages or a packed section (HETP, height or stage basis); column pressure; isothermal (temperature) or adiabatic; feed phase detect/heavy/light | `validation/multiphase/extractor-v1.json` (Python standard library, NRTL water/methanol/1-butanol, 1, 3 and 8 stages); single stage = VLLE TP flash; adiabatic single stage = VLLE PH flash; balances; project round trip | [a17-multiphase-extractor.md](a17-multiphase-extractor.md). Records added behind format version 4. |
+| Three-phase distillation | #188 | Calculated (PR, PR-BM, NRTL-IG; GERG-2008 and EOS-CG-2021 fail explicitly) | 1–24 ideal trays or one packed bed (HETP); feed stage 2..N; column pressure; decanter temperature; reflux liquid light / heavy (whole liquid or reflux ratio) or fractions of both; feed-to-bottoms fraction | `validation/multiphase/three-phase-column-v1.json` (Python standard library, NRTL-IG water/1-butanol, four cases covering all reflux modes); decanter = VLLE TP flash of the condensate; balances; energy ports; failure paths; project round trip and drawn-only record | [a17-multiphase-three-phase-column.md](a17-multiphase-three-phase-column.md). Two liquids only in the decanter: a second liquid on a tray or in the reboiler fails explicitly. Records added behind format version 4. |
 
 ## Solids
 

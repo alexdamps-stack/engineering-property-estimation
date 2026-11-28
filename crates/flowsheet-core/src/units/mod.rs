@@ -93,6 +93,10 @@ pub struct UnitOutput {
     pub distillation_column: Option<columns::DistillationColumnResult>,
     /// Stage temperatures of an adiabatic absorber or stripper.
     pub absorber: Option<columns::AbsorberResult>,
+    /// Stage profile of a liquid–liquid extractor (#189).
+    pub liquid_extractor: Option<multiphase::LiquidExtractorResult>,
+    /// Stage profile and decanter of a three-phase column (#188).
+    pub three_phase_column: Option<multiphase::ThreePhaseColumnResult>,
     /// Stages, isentropic states and power of a rotating machine.
     pub rotating: Option<rotating::RotatingResult>,
     /// Material crossing the flowsheet boundary at this unit.
@@ -119,6 +123,8 @@ impl UnitOutput {
             shortcut_column: None,
             distillation_column: None,
             absorber: None,
+            liquid_extractor: None,
+            three_phase_column: None,
             rotating: None,
             material_exchange: None,
             reaction: None,

@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 
 use flowsheet_core::units::ColumnSpec;
 use flowsheet_core::units::columns::{
-    ColumnInternals, DistillationColumnSpec, LiquidSideDraw,
+    BottomSpecification, ColumnInternals, DistillationColumnSpec, LiquidSideDraw, TopSpecification,
     packing::{PackedSectionBasis, PackedSectionSpec, StageRounding},
 };
 use flowsheet_core::{EnergySourceDuty, PortRef, StreamId, UnitId, UnitKind, UnitSpec};
@@ -74,8 +74,11 @@ impl ColumnCase {
                 }),
             },
             pressure_pa: Some(number(&case["pressure_Pa"])),
-            reflux_ratio: Some(number(&case["reflux_ratio"])),
-            distillate_fraction: Some(number(&case["distillate_fraction"])),
+            top: TopSpecification::RefluxRatio(Some(number(&case["reflux_ratio"]))),
+            bottom: BottomSpecification::DistillateFraction(Some(number(
+                &case["distillate_fraction"],
+            ))),
+            ..Default::default()
         };
         fs.set_spec(column, UnitSpec::Columns(ColumnSpec::Distillation(spec)));
         for (i, f) in feeds.iter().enumerate() {
