@@ -171,6 +171,9 @@ the same column, and the explicit failures.
   absorber opens with five ideal trays and unset column pressure. The
   desktop reports stage temperatures, bed height when applicable, and
   the gas and liquid outlet states.
+- A packed bed with a height basis can instead be calculated
+  [rate-based](a17-columns-rate-based.md) (#241): mass-transfer segments
+  seeded by this equilibrium cascade with one stage per segment.
 
 Independent [absorber references](../validation/columns/README.md) cover
 propane uptake in a PR tray column, ethane stripping in a PR-BM packed

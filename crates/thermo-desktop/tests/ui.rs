@@ -2000,6 +2000,7 @@ fn absorber_runs_from_the_desktop_and_displays_contact_stages() {
         UnitSpec::Columns(ColumnSpec::Absorber(AbsorberSpec {
             pressure_pa: Some(2.0e6),
             internals: ColumnInternals::Trays(4),
+            ..Default::default()
         })),
     );
     for (port, temperature, pressure, flow, z_ethane) in
@@ -2037,4 +2038,94 @@ fn absorber_runs_from_the_desktop_and_displays_contact_stages() {
     );
     h.get_by_label("Stage 1 temperature");
     h.get_by_label("Stage 4 temperature");
+}
+
+#[test]
+fn rate_based_absorber_form_and_segment_results() {
+    use flowsheet_core::units::{
+        ColumnSpec,
+        columns::{
+            AbsorberSpec, ColumnInternals,
+            packing::{
+                PackedCalculation, PackedSectionBasis, PackedSectionSpec, RateBasedSpec,
+                StageRounding,
+            },
+            packing_data::Packing,
+        },
+    };
+    use flowsheet_project::{CubicVariantChoice, PackageSelection};
+
+    let mut app = FlowsheetApp::default();
+    let ed = app.editor_mut();
+    ed.new_project(PackageSelection::zero_interactions(
+        CubicVariantChoice::PengRobinson,
+        vec!["nitrogen".into(), "methanol".into(), "water".into()],
+        "rate-based absorber UI test",
+    ));
+    let column = ed.add_unit_at(UnitKind::Absorber, egui::pos2(220.0, 150.0));
+    ed.fs.set_spec(
+        column,
+        UnitSpec::Columns(ColumnSpec::Absorber(AbsorberSpec {
+            pressure_pa: Some(2.5e5),
+            internals: ColumnInternals::Packed(PackedSectionSpec {
+                hetp_m: None,
+                basis: PackedSectionBasis::PackedHeight {
+                    height_m: Some(2.0),
+                    rounding: StageRounding::Nearest,
+                },
+            }),
+            calculation: PackedCalculation::RateBased(RateBasedSpec {
+                diameter_m: Some(0.4),
+                segments: 3,
+                packing: Packing::MetalPallRing50,
+                critical_surface_tension_n_m: Some(0.075),
+                gas_transport_neglected: vec!["methanol".into(), "water".into()],
+                liquid_transport_neglected: vec!["nitrogen".into()],
+                ..Default::default()
+            }),
+        })),
+    );
+    for (port, temperature, pressure, flow, z) in [
+        (0, 298.0, 2.6e5, 15.0, vec![0.995, 0.005, 0.0]),
+        (1, 288.0, 2.7e5, 30.0, vec![0.0, 0.0, 1.0]),
+    ] {
+        let y = 100.0 + 110.0 * port as f32;
+        let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(40.0, y));
+        let product = ed.add_unit_at(UnitKind::Product, egui::pos2(420.0, y));
+        ed.fs.set_spec(
+            feed,
+            UnitSpec::Feed {
+                temperature_k: Some(temperature),
+                pressure_pa: Some(pressure),
+                molar_flow_mol_s: Some(flow),
+            },
+        );
+        ed.feeds.insert(feed, z);
+        ed.fs
+            .connect(PortRef::new(feed, 0), PortRef::new(column, port))
+            .unwrap();
+        ed.fs
+            .connect(PortRef::new(column, port + 2), PortRef::new(product, 0))
+            .unwrap();
+    }
+    ed.selection = Some(Selection::Unit(column));
+    let mut h = harness(app, egui::Theme::Dark);
+    h.get_by_label("Column diameter");
+    h.get_by_label("Segments");
+    h.get_by_label("Interfacial area factor");
+    key(&mut h, Key::F5);
+    finish_solve(&mut h);
+    let result = &h.state().editor().results.as_ref().unwrap().units[&column];
+    let rate = result
+        .absorber
+        .as_ref()
+        .unwrap()
+        .rate_based
+        .as_ref()
+        .unwrap();
+    assert_eq!(rate.liquid_temperatures_k.len(), 3);
+    assert!(rate.max_flooding_fraction > 0.0 && rate.max_flooding_fraction < 1.0);
+    h.get_by_label("Pressure drop (reported)");
+    h.get_by_label("Max. fraction of flood");
+    h.get_by_label("Segment 3 T vapor / interface / liquid");
 }

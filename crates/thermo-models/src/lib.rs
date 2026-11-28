@@ -25,3 +25,5 @@ mod liquid_density;
 pub use liquid_density::*;
 mod transport;
 pub use transport::*;
+mod diffusivity;
+pub use diffusivity::*;

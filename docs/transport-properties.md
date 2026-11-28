@@ -141,4 +141,8 @@ domain ends at 0.75 Tc = 228 K.
   monoxide data (hydrogen needs a quantum-corrected method).
 * Liquid mixing rules have no binary parameters; mixture accuracy is not
   qualified.
-* Binary diffusivities are not implemented.
+* Binary diffusivities are not part of the transport interface. The
+  rate-based columns (#241) use package-independent correlations in
+  `thermo_models::DiffusivityModel` (Fuller–Schettler–Giddings gas binaries
+  with Blanc mixing, Wilke–Chang liquids with Tyn–Calus volumes from the
+  ChemSep critical volume); see [a17-columns-rate-based.md](a17-columns-rate-based.md).

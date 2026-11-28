@@ -59,17 +59,21 @@ efficiency.
 - Condenser and reboiler are separate equilibrium stages and are not part of
   a packed section's count.
 
-## Pairing with a later rate-based model
+## Pairing with the rate-based model (#241)
 
-The rate-based batch adds a calculation-mode choice alongside this path.
-It reuses the same packed height, adds column diameter, packing data (specific
-area, void fraction, nominal size, packing factor), the mass-transfer
-correlation (Onda 1968, Billet–Schultes 1999, Bravo–Rocha–Fair), film model and
-segment count, and reports hydraulics (pressure drop, flooding fraction). Rate-based
-segments are not theoretical stages, and no HETP applies there. An HETP
-correlation would be a further `hetp_m` source in this module. It belongs to
-that batch because it needs the same packing data. None of these correlations
-are implemented here.
+`PackedCalculation` (this module) chooses between this path (`Equilibrium`,
+the default and the mode of every older record) and `RateBased(RateBasedSpec)`,
+described in [a17-columns-rate-based.md](a17-columns-rate-based.md). The
+rate-based mode reuses the section's packed height (height basis only; HETP
+is not used) and adds column diameter, a packing from the cited library in
+`packing_data.rs` (specific area, void fraction, nominal size, packing
+factor), the mass-transfer correlation (Onda 1968), film model, segment count
+and an interfacial-area factor, and reports hydraulics (pressure drop,
+flooding fraction). Rate-based segments are not theoretical stages, and no
+HETP applies there. It is implemented for the absorber / stripper; the
+distillation column's bed remains on this path. Billet–Schultes and
+Bravo–Rocha–Fair, and an HETP correlation as a further `hetp_m` source, are
+not implemented.
 
 ## Integration needs
 

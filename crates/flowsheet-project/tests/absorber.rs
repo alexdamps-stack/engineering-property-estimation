@@ -64,6 +64,7 @@ impl AbsorberCase {
                         },
                     }),
                 },
+                ..Default::default()
             })),
         );
         let [gas, _liquid] = ["gas", "liquid"].map(|port| {

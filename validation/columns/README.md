@@ -270,3 +270,35 @@ be generated separately with `--case` and merged.
 ```sh
 python validation/columns/generate-petroleum-side-section-references.py --output /tmp/petroleum-v2-candidate.json
 ```
+
+## Rate-based packed absorber references (#241)
+
+`rate-based-v1.json` holds two nitrogen/methanol/water scrubbing columns in
+rate-based mode (PR, 50 mm metal Pall rings, 2.5 bar, 2 m, 0.4 m diameter,
+6 segments; PR-BM, 25 mm metal Pall rings, 2 bar, 1.5 m, 0.3 m, 5 segments;
+packing σc 0.075 N/m as a case input; methanol and water neglected in the
+gas transport properties, nitrogen in the liquid). It also records the
+correlation functions' reproduction of published worked examples (Fuller:
+Cussler Example 5.1-2 and n-butanol/air; Wilke–Chang: ethylbenzene/water;
+Robbins: Perry's 8th ed. Example 13). Each case records every segment's vapor, liquid and interface
+temperatures, flows, bulk compositions, fluxes, wetted area, fraction of
+flood and pressure drop, the bed pressure drop and both outlets. The model
+contract is [docs/a17-columns-rate-based.md](../../docs/a17-columns-rate-based.md).
+
+The generator solves the segment equations in a different formulation from
+the engine (bulk mole fractions and total flows closed by summations;
+partial molar enthalpies from the temperature derivative of teqp ln φ plus
+Cantera NASA7 ideal-gas enthalpies) by Newton's method with continuation in
+the interfacial-area factor, and checks both phases of each interface with
+the A4 multi-start TPD stability search. Transport properties come from the #225 reference evaluator
+(`validation/transport/generate-transport-references.py`) and the liquid
+density from the #228 evaluator (`validation/generate-liquid-density-references.py`,
+chemicals 1.5.2); Fuller/Blanc/Wilke–Chang/Tyn–Calus, Onda, Robbins and
+Kister–Gill are transcribed separately in the generator. It needs CoolProp
+7.2.0 and chemicals 1.5.2 in addition to `validation/reference-requirements.txt`.
+Budgets are declared in the generator. The fixture checks implementation
+agreement, not the accuracy of the correlations.
+
+```sh
+python -I validation/columns/generate-rate-based-references.py --output /tmp/rate-based-candidate.json
+```
