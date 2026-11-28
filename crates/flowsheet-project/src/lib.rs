@@ -64,4 +64,4 @@ pub use time::format_utc;
 /// It also names the stream transport-property methods and data (#225),
 /// `thermo_models::TRANSPORT_MODEL_VERSION` and
 /// `thermo_data::TRANSPORT_DATA_VERSION`, which stored phase results carry.
-pub const ENGINE_REVISION: &str = "flowsheet-core a17-integrated-v4; transport-v1 2026-11-24.1";
+pub const ENGINE_REVISION: &str = "flowsheet-core a17-integrated-v6; transport-v1 2026-11-24.1";

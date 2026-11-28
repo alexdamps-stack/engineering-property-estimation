@@ -28,12 +28,14 @@
 //! with a finite-difference Jacobian assembled segment by segment.
 
 use property_packages::{EquilibriumPhase, PhaseProperties};
-use thermo_models::{DiffusivityModel, RootSelection};
+use thermo_models::{DiffusivityModel, FULLER_MAX_PRESSURE_PA, RootSelection};
 use thermo_types::Phase;
 
 use super::mesh::{self, TEMPERATURE_SCALE};
 use super::packing::{MAX_NEGLECTED_TRANSPORT_FRACTION, RateBasedSpec};
-use super::packing_data::{self as pd, FilmProperties, Packing, PackingData};
+use super::packing_data::{
+    self as pd, FilmProperties, Packing, PackingData, PressureDropCorrelation,
+};
 use super::stages::{Stage, StageCascade, StageFeed};
 use crate::MaterialStream;
 use crate::numerics::solve_dense;
@@ -77,6 +79,8 @@ pub struct RateBasedProfile {
     pub pressure_drops_pa_m: Vec<f64>,
     /// Whether the boundary pressures were used in the segment equations.
     pub pressure_drop_coupled: bool,
+    /// Whether hydraulic results use a supplied operating-point rating.
+    pub hydraulics_specified: bool,
     /// Estimated absolute pressure at each segment boundary, from the top to
     /// the bottom. The top is anchored at the specified column pressure.
     pub estimated_boundary_pressures_pa: Vec<f64>,
@@ -747,16 +751,50 @@ impl RateColumn<'_, '_> {
         seed: &StageCascade,
         gas_inlet_pressure_pa: f64,
     ) -> Result<Solved, String> {
-        // Hydraulic correlations outside their stated domain fail before
-        // the solve (Robbins: at most 3 bar; Kister-Gill: Fp <= 60 1/ft).
-        if self.pressure > pd::ROBBINS_MAX_PRESSURE_PA {
+        let robbins_drop =
+            self.spec.pressure_drop_correlation == PressureDropCorrelation::Robbins1991;
+        let kister_gill = self.spec.flooding_correlation == pd::FloodingCorrelation::KisterGill;
+        let pressure_limit = if robbins_drop || kister_gill {
+            pd::ROBBINS_MAX_PRESSURE_PA
+        } else {
+            FULLER_MAX_PRESSURE_PA
+        };
+        let limit_name = if robbins_drop || kister_gill {
+            "Robbins limit of 3 bar absolute (pressure drop or Kister-Gill capacity)"
+        } else {
+            "Fuller gas diffusivity ceiling of 20 bar absolute"
+        };
+        if self.pressure > pressure_limit {
             return Err(format!(
-                "rate-based hydraulics: the Robbins pressure-drop correlation is not suitable above 3 bar absolute (column pressure {} Pa)",
+                "rate-based hydraulics: selected methods are not suitable above {} bar absolute (column pressure {} Pa; {limit_name})",
+                pressure_limit / 1e5,
                 self.pressure
             ));
         }
-        pd::flood_pressure_drop_pa_m(&self.packing())
-            .map_err(|e| format!("rate-based hydraulics: {e}"))?;
+        if kister_gill {
+            pd::flood_pressure_drop_pa_m(&self.packing())
+                .map_err(|e| format!("rate-based hydraulics: {e}"))?;
+        }
+        let vendor_drop =
+            self.spec.pressure_drop_correlation == PressureDropCorrelation::VendorRating;
+        if vendor_drop && self.spec.couple_pressure_drop {
+            let drop = self
+                .spec
+                .specified_hydraulics
+                .and_then(|r| r.pressure_drop_pa)
+                .expect("specified pressure drop checked");
+            let bottom = self.pressure + drop;
+            if bottom > pressure_limit {
+                return Err(format!(
+                    "rate-based bed bottom pressure {bottom:.2} Pa exceeds the {limit_name}"
+                ));
+            }
+            check_gas_inlet_pressure(bottom, gas_inlet_pressure_pa)?;
+            let n = self.segments();
+            for (j, pressure) in self.boundary_pressures_pa.iter_mut().enumerate() {
+                *pressure = self.pressure + drop * (j as f64 / n as f64);
+            }
+        }
         let target = self.spec.interfacial_area_factor;
         let initial = self.seed(seed);
         let (mut values, mut iterations) = match self.solve_at(initial.clone(), target) {
@@ -778,6 +816,16 @@ impl RateColumn<'_, '_> {
         loop {
             let (segments, props, _) = self.evaluate(&values, target)?;
             let (flooding, drops) = self.hydraulics(&props)?;
+            if vendor_drop && self.spec.couple_pressure_drop {
+                return self.finish(
+                    &segments,
+                    &props,
+                    flooding,
+                    drops,
+                    self.boundary_pressures_pa.clone(),
+                    iterations,
+                );
+            }
             let mut pressures = Vec::with_capacity(segments.len() + 1);
             pressures.push(self.pressure);
             let dz = self.height_m / segments.len() as f64;
@@ -793,7 +841,7 @@ impl RateColumn<'_, '_> {
             // Keep trial pressures in the correlation's domain. A capped
             // fixed point is admissible only if the uncapped drop agrees.
             for pressure in &mut pressures {
-                *pressure = pressure.min(pd::ROBBINS_MAX_PRESSURE_PA);
+                *pressure = pressure.min(pressure_limit);
             }
             let change = pressures
                 .iter()
@@ -801,16 +849,12 @@ impl RateColumn<'_, '_> {
                 .map(|(next, current)| (next - current).abs())
                 .fold(0.0, f64::max);
             if change <= PRESSURE_TOLERANCE_PA {
-                if bottom > pd::ROBBINS_MAX_PRESSURE_PA + PRESSURE_TOLERANCE_PA {
+                if bottom > pressure_limit + PRESSURE_TOLERANCE_PA {
                     return Err(format!(
-                        "rate-based hydraulics: bed bottom pressure {bottom:.2} Pa exceeds the Robbins limit of 3 bar absolute"
+                        "rate-based hydraulics: bed bottom pressure {bottom:.2} Pa exceeds the {limit_name}"
                     ));
                 }
-                if bottom > gas_inlet_pressure_pa + PRESSURE_TOLERANCE_PA {
-                    return Err(format!(
-                        "rate-based bed bottom pressure {bottom:.2} Pa exceeds the gas inlet pressure {gas_inlet_pressure_pa:.2} Pa"
-                    ));
-                }
+                check_gas_inlet_pressure(bottom, gas_inlet_pressure_pa)?;
                 return self.finish(
                     &segments,
                     &props,
@@ -840,11 +884,57 @@ impl RateColumn<'_, '_> {
         let mut flooding = Vec::with_capacity(props.len());
         let mut drops = Vec::with_capacity(props.len());
         for (j, pr) in props.iter().enumerate() {
-            let p = self.boundary_pressures_pa[j].midpoint(self.boundary_pressures_pa[j + 1]);
-            let fraction = pd::flooding_fraction(&packing, &pr.gas_film, &pr.liquid_film, p)?;
+            let fraction = if self.spec.flooding_correlation
+                == pd::FloodingCorrelation::VendorRating
+            {
+                let rating = self
+                    .spec
+                    .specified_hydraulics
+                    .expect("flood rating checked");
+                let gas_flow = pr.gas_film.mass_flux_kg_m2_s * self.cross_section_m2();
+                gas_flow
+                    / rating
+                        .flood_gas_flow_kg_s
+                        .expect("checked gas flow at flooding")
+            } else {
+                let p = self.boundary_pressures_pa[j].midpoint(self.boundary_pressures_pa[j + 1]);
+                pd::flooding_fraction(&packing, &pr.gas_film, &pr.liquid_film, p)?
+            };
+            let drop_per_m = match self.spec.pressure_drop_correlation {
+                PressureDropCorrelation::Robbins1991 => pd::robbins_pressure_drop_pa_m(
+                    &packing,
+                    &pr.gas_film,
+                    &pr.liquid_film,
+                    self.boundary_pressures_pa[j].midpoint(self.boundary_pressures_pa[j + 1]),
+                )?,
+                PressureDropCorrelation::BilletSchultes1999 => {
+                    pd::billet_schultes_pressure_drop_pa_m(
+                        self.spec.packing.billet_schultes_data(),
+                        &pr.gas_film,
+                        &pr.liquid_film,
+                        self.spec.diameter_m.expect("diameter checked"),
+                    )?
+                }
+                PressureDropCorrelation::VendorRating => {
+                    self.spec
+                        .specified_hydraulics
+                        .expect("specified pressure drop rating checked")
+                        .pressure_drop_pa
+                        .expect("specified pressure drop checked")
+                        / self.height_m
+                }
+            };
             if !(fraction.is_finite() && fraction < 1.0) {
                 return Err(format!(
                     "rate-based segment {}: flooding exceeded (fraction of flood {fraction:.3})",
+                    j + 1
+                ));
+            }
+            if self.spec.pressure_drop_correlation == PressureDropCorrelation::BilletSchultes1999
+                && fraction > 0.70
+            {
+                return Err(format!(
+                    "rate-based segment {}: Billet–Schultes pressure-drop implementation uses its pre-loading holdup equation and is limited here to 70% of the selected flood criterion (calculated {fraction:.3})",
                     j + 1
                 ));
             }
@@ -863,12 +953,13 @@ impl RateColumn<'_, '_> {
                 ));
             }
             flooding.push(fraction);
-            drops.push(pd::robbins_pressure_drop_pa_m(
-                &packing,
-                &pr.gas_film,
-                &pr.liquid_film,
-                p,
-            )?);
+            if !drop_per_m.is_finite() {
+                return Err(format!(
+                    "rate-based segment {}: nonfinite pressure drop per metre",
+                    j + 1
+                ));
+            }
+            drops.push(drop_per_m);
         }
         Ok((flooding, drops))
     }
@@ -905,6 +996,17 @@ impl RateColumn<'_, '_> {
         };
         let mut warnings = mesh::check_liquid_liquid(ctx, &interfaces)?;
         mesh::verify_phases(ctx, &interfaces).map_err(|e| format!("rate-based interface: {e}"))?;
+        let hydraulics_specified = self.spec.pressure_drop_correlation
+            == PressureDropCorrelation::VendorRating
+            || self.spec.flooding_correlation == pd::FloodingCorrelation::VendorRating;
+        if hydraulics_specified {
+            warnings.push(
+                "rate-based hydraulics include at least one specified vendor or measured rating for this operating point".into(),
+            );
+        }
+        if self.spec.pressure_drop_correlation == PressureDropCorrelation::BilletSchultes1999 {
+            warnings.push("Billet-Schultes pressure drop uses pre-loading holdup (up to 70% of the selected flood capacity)".into());
+        }
         let top = &segments[0];
         let bottom = &segments[n - 1];
         let gas_out = Stage::equilibrium(
@@ -936,7 +1038,11 @@ impl RateColumn<'_, '_> {
                 self.spec.gas_transport_neglected, self.spec.liquid_transport_neglected
             ));
         }
-        let pressure_drop_pa = drops.iter().sum::<f64>() * dz;
+        let pressure_drop_pa = self
+            .spec
+            .specified_hydraulics
+            .and_then(|rating| rating.pressure_drop_pa)
+            .unwrap_or_else(|| drops.iter().sum::<f64>() * dz);
         let max_flooding_fraction = flooding.iter().copied().fold(0.0, f64::max);
         let profile = RateBasedProfile {
             packing: self.spec.packing,
@@ -954,6 +1060,7 @@ impl RateColumn<'_, '_> {
             flooding_fractions: flooding,
             pressure_drops_pa_m: drops,
             pressure_drop_coupled: self.spec.couple_pressure_drop,
+            hydraulics_specified,
             estimated_boundary_pressures_pa: boundary_pressures,
             pressure_drop_pa,
             max_flooding_fraction,
@@ -962,6 +1069,15 @@ impl RateColumn<'_, '_> {
         };
         Ok((outlets, profile, warnings))
     }
+}
+
+fn check_gas_inlet_pressure(bottom: f64, gas_inlet: f64) -> Result<(), String> {
+    if bottom > gas_inlet + PRESSURE_TOLERANCE_PA {
+        return Err(format!(
+            "rate-based bed bottom pressure {bottom:.2} Pa exceeds the gas inlet pressure {gas_inlet:.2} Pa"
+        ));
+    }
+    Ok(())
 }
 
 fn norm(values: &[f64]) -> f64 {

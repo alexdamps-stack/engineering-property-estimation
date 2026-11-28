@@ -306,7 +306,14 @@ residual. Rust uses fixed-point pressure updates around its segment solver.
 The comparison covers segment boundary pressures, hydraulics, profiles,
 and outlets, using the same tolerances as the fixed-pressure reference.
 
+`rate-based-specified-hydraulics-v1.json` fixes the hydraulic inputs in a
+synthetic PR case at 8 bar top pressure and 8.012 bar bottom pressure. It
+checks the transfer equations at the prescribed segment pressures and the
+ratio of local gas mass flow to the supplied flood rating. The pressure
+drop and capacity are case inputs.
+
 ```sh
 python -I validation/columns/generate-rate-based-references.py --output /tmp/rate-based-candidate.json
 python -I validation/columns/generate-rate-based-references.py --coupled-pressure --output /tmp/rate-based-coupled-candidate.json
+python -I validation/columns/generate-rate-based-references.py --specified-hydraulics --output /tmp/rate-based-specified-candidate.json
 ```

@@ -6,7 +6,9 @@ use flowsheet_core::units::columns::packing::{
     MAX_RATE_SEGMENTS, PackedCalculation, PackedSectionBasis, PackedSectionSpec, RateBasedSpec,
     StageRounding,
 };
-use flowsheet_core::units::columns::packing_data::{Packing, WettingSurface};
+use flowsheet_core::units::columns::packing_data::{
+    Packing, PressureDropCorrelation, WettingSurface,
+};
 use flowsheet_core::units::columns::{
     BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget, CurveBasis,
     CutPoint, DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom,
@@ -844,11 +846,83 @@ fn rate_based_form(
     count_field(ui, "Segments", &mut rate.segments, 1..=MAX_RATE_SEGMENTS);
     if let Some(index) = choice(
         ui,
-        "Pressure model",
+        "Pressure profile",
         usize::from(rate.couple_pressure_drop),
         &["Fixed column pressure", "Coupled bed pressure drop"],
     ) {
         rate.couple_pressure_drop = index == 1;
+    }
+    let pressure_models = [
+        "Robbins (1991)",
+        "Billet–Schultes (1999)",
+        "Vendor or measured rating",
+    ];
+    let current_pressure_model = match rate.pressure_drop_correlation {
+        PressureDropCorrelation::Robbins1991 => 0,
+        PressureDropCorrelation::BilletSchultes1999 => 1,
+        PressureDropCorrelation::VendorRating => 2,
+    };
+    if let Some(index) = choice(
+        ui,
+        "Pressure-drop method",
+        current_pressure_model,
+        &pressure_models,
+    ) {
+        rate.pressure_drop_correlation = match index {
+            0 => PressureDropCorrelation::Robbins1991,
+            1 => PressureDropCorrelation::BilletSchultes1999,
+            _ => PressureDropCorrelation::VendorRating,
+        };
+        if rate.pressure_drop_correlation == PressureDropCorrelation::VendorRating {
+            rate.specified_hydraulics.get_or_insert(Default::default());
+        }
+    }
+    let flood_models = ["Kister–Gill", "Vendor-rated capacity"];
+    let current_flood_model = match rate.flooding_correlation {
+        flowsheet_core::units::columns::packing_data::FloodingCorrelation::KisterGill => 0,
+        flowsheet_core::units::columns::packing_data::FloodingCorrelation::VendorRating => 1,
+    };
+    if let Some(index) = choice(ui, "Flooding capacity", current_flood_model, &flood_models) {
+        rate.flooding_correlation = if index == 0 {
+            flowsheet_core::units::columns::packing_data::FloodingCorrelation::KisterGill
+        } else {
+            flowsheet_core::units::columns::packing_data::FloodingCorrelation::VendorRating
+        };
+        if index == 1 {
+            rate.specified_hydraulics.get_or_insert(Default::default());
+        }
+    }
+    if let Some(rating) = &mut rate.specified_hydraulics {
+        if rate.pressure_drop_correlation == PressureDropCorrelation::VendorRating {
+            opt_field(
+                ui,
+                "Bed pressure drop",
+                &mut rating.pressure_drop_pa,
+                Quantity::PressureDrop,
+                units,
+            );
+        }
+        if rate.flooding_correlation
+            == flowsheet_core::units::columns::packing_data::FloodingCorrelation::VendorRating
+        {
+            opt_field(
+                ui,
+                "Rated gas flow at flooding",
+                &mut rating.flood_gas_flow_kg_s,
+                Quantity::MassFlow,
+                units,
+            );
+        }
+        note_row(
+            ui,
+            "Use ratings for this packing, pressure, and liquid load.",
+        );
+    }
+    if rate.pressure_drop_correlation == PressureDropCorrelation::BilletSchultes1999 {
+        note_row(
+            ui,
+            "Billet–Schultes Pall-ring data. The current pressure-drop holdup equation is pre-loading; flooding uses the separate Kister–Gill criterion.",
+        );
     }
     choice(ui, "Mass transfer", 0, &["Onda (1968)"]);
     choice(ui, "Film model", 0, &["Effective diffusivity"]);

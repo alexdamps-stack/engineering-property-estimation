@@ -5,10 +5,10 @@
 use flowsheet_core::units::ColumnSpec;
 use flowsheet_core::units::columns::packing::{
     FilmModel, PackedCalculation, PackedSectionBasis, PackedSectionSpec, RateBasedSpec,
-    StageRounding,
+    SpecifiedPackedHydraulics, StageRounding,
 };
 use flowsheet_core::units::columns::packing_data::{
-    MassTransferCorrelation, Packing, WettingSurface,
+    FloodingCorrelation, MassTransferCorrelation, Packing, PressureDropCorrelation, WettingSurface,
 };
 use flowsheet_core::units::columns::{
     AbsorberSpec, BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget,
@@ -101,6 +101,61 @@ pub(crate) enum CorrelationRecord {
     Onda1968,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum PressureDropCorrelationRecord {
+    #[default]
+    Robbins1991,
+    BilletSchultes1999,
+    VendorRating,
+}
+
+impl From<PressureDropCorrelation> for PressureDropCorrelationRecord {
+    fn from(value: PressureDropCorrelation) -> Self {
+        match value {
+            PressureDropCorrelation::Robbins1991 => Self::Robbins1991,
+            PressureDropCorrelation::BilletSchultes1999 => Self::BilletSchultes1999,
+            PressureDropCorrelation::VendorRating => Self::VendorRating,
+        }
+    }
+}
+
+impl From<PressureDropCorrelationRecord> for PressureDropCorrelation {
+    fn from(value: PressureDropCorrelationRecord) -> Self {
+        match value {
+            PressureDropCorrelationRecord::Robbins1991 => Self::Robbins1991,
+            PressureDropCorrelationRecord::BilletSchultes1999 => Self::BilletSchultes1999,
+            PressureDropCorrelationRecord::VendorRating => Self::VendorRating,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum FloodingCorrelationRecord {
+    #[default]
+    KisterGill,
+    VendorRating,
+}
+
+impl From<FloodingCorrelation> for FloodingCorrelationRecord {
+    fn from(value: FloodingCorrelation) -> Self {
+        match value {
+            FloodingCorrelation::KisterGill => Self::KisterGill,
+            FloodingCorrelation::VendorRating => Self::VendorRating,
+        }
+    }
+}
+
+impl From<FloodingCorrelationRecord> for FloodingCorrelation {
+    fn from(value: FloodingCorrelationRecord) -> Self {
+        match value {
+            FloodingCorrelationRecord::KisterGill => Self::KisterGill,
+            FloodingCorrelationRecord::VendorRating => Self::VendorRating,
+        }
+    }
+}
+
 /// Film model of a rate-based section (#241).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -120,10 +175,16 @@ pub(crate) struct RateBasedRecord {
     packing: PackingTypeRecord,
     #[serde(default)]
     correlation: CorrelationRecord,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pressure_drop_correlation: Option<PressureDropCorrelationRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    flooding_correlation: Option<FloodingCorrelationRecord>,
     #[serde(default)]
     film_model: FilmModelRecord,
     #[serde(default, skip_serializing_if = "is_false")]
     couple_pressure_drop: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    specified_hydraulics: Option<SpecifiedPackedHydraulicsRecord>,
     #[serde(default = "unit_factor", skip_serializing_if = "is_unit_factor")]
     interfacial_area_factor: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -134,6 +195,13 @@ pub(crate) struct RateBasedRecord {
     gas_transport_neglected: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     liquid_transport_neglected: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SpecifiedPackedHydraulicsRecord {
+    pressure_drop_pa: Option<f64>,
+    flood_gas_flow_kg_s: Option<f64>,
 }
 
 impl From<&RateBasedSpec> for RateBasedRecord {
@@ -148,11 +216,19 @@ impl From<&RateBasedSpec> for RateBasedRecord {
             correlation: match r.correlation {
                 MassTransferCorrelation::Onda1968 => CorrelationRecord::Onda1968,
             },
+            pressure_drop_correlation: Some(r.pressure_drop_correlation.into()),
+            flooding_correlation: Some(r.flooding_correlation.into()),
             film_model: match r.film_model {
                 FilmModel::EffectiveDiffusivity => FilmModelRecord::EffectiveDiffusivity,
             },
             interfacial_area_factor: r.interfacial_area_factor,
             couple_pressure_drop: r.couple_pressure_drop,
+            specified_hydraulics: r.specified_hydraulics.map(|rating| {
+                SpecifiedPackedHydraulicsRecord {
+                    pressure_drop_pa: rating.pressure_drop_pa,
+                    flood_gas_flow_kg_s: rating.flood_gas_flow_kg_s,
+                }
+            }),
             critical_surface_tension_n_m: r.critical_surface_tension_n_m,
             wetting_surface: r.wetting_surface.into(),
             gas_transport_neglected: r.gas_transport_neglected.clone(),
@@ -173,11 +249,34 @@ impl From<RateBasedRecord> for RateBasedSpec {
             correlation: match r.correlation {
                 CorrelationRecord::Onda1968 => MassTransferCorrelation::Onda1968,
             },
+            pressure_drop_correlation: r.pressure_drop_correlation.map(Into::into).unwrap_or_else(
+                || {
+                    if r.specified_hydraulics.is_some() {
+                        PressureDropCorrelation::VendorRating
+                    } else {
+                        PressureDropCorrelation::Robbins1991
+                    }
+                },
+            ),
+            flooding_correlation: r.flooding_correlation.map(Into::into).unwrap_or_else(|| {
+                if r.specified_hydraulics.is_some() {
+                    FloodingCorrelation::VendorRating
+                } else {
+                    FloodingCorrelation::KisterGill
+                }
+            }),
             film_model: match r.film_model {
                 FilmModelRecord::EffectiveDiffusivity => FilmModel::EffectiveDiffusivity,
             },
             interfacial_area_factor: r.interfacial_area_factor,
-            couple_pressure_drop: r.couple_pressure_drop,
+            couple_pressure_drop: r.couple_pressure_drop
+                || (r.pressure_drop_correlation.is_none() && r.specified_hydraulics.is_some()),
+            specified_hydraulics: r
+                .specified_hydraulics
+                .map(|rating| SpecifiedPackedHydraulics {
+                    pressure_drop_pa: rating.pressure_drop_pa,
+                    flood_gas_flow_kg_s: rating.flood_gas_flow_kg_s,
+                }),
             critical_surface_tension_n_m: r.critical_surface_tension_n_m,
             wetting_surface: r.wetting_surface.into(),
             gas_transport_neglected: r.gas_transport_neglected,
@@ -192,6 +291,11 @@ impl RateBasedRecord {
             .into_iter()
             .chain(self.critical_surface_tension_n_m)
             .chain([self.interfacial_area_factor])
+            .chain(self.specified_hydraulics.into_iter().flat_map(|rating| {
+                [rating.pressure_drop_pa, rating.flood_gas_flow_kg_s]
+                    .into_iter()
+                    .flatten()
+            }))
     }
 }
 

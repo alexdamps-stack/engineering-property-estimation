@@ -267,6 +267,15 @@ pub enum FilmModel {
     EffectiveDiffusivity,
 }
 
+/// Operating-point hydraulics supplied from measurements or a vendor rating.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct SpecifiedPackedHydraulics {
+    /// Total pressure loss across the packing, Pa, distributed over the height.
+    pub pressure_drop_pa: Option<f64>,
+    /// Rated gas mass flow at flooding, kg/s, for this bed and liquid load.
+    pub flood_gas_flow_kg_s: Option<f64>,
+}
+
 /// Inputs of a rate-based packed section. The packed height is the
 /// height basis of the section's [`PackedSectionSpec`]; no HETP applies.
 #[derive(Debug, Clone, PartialEq)]
@@ -279,11 +288,17 @@ pub struct RateBasedSpec {
     pub packing: super::packing_data::Packing,
     /// Mass-transfer correlation.
     pub correlation: super::packing_data::MassTransferCorrelation,
+    /// Pressure-drop correlation, independent of flooding capacity.
+    pub pressure_drop_correlation: super::packing_data::PressureDropCorrelation,
+    /// Flooding/capacity correlation, independent of pressure drop.
+    pub flooding_correlation: super::packing_data::FloodingCorrelation,
     /// Film model.
     pub film_model: FilmModel,
     /// Solve segment pressures from the correlated pressure drop and the
     /// specified pressure at the top of the bed.
     pub couple_pressure_drop: bool,
+    /// When supplied, use the rated pressure drop and flooding capacity.
+    pub specified_hydraulics: Option<SpecifiedPackedHydraulics>,
     /// Multiplier of the correlation's interfacial area (1 = as correlated).
     pub interfacial_area_factor: f64,
     /// Critical surface tension σc of the packing material, N/m (Onda 1968
@@ -313,8 +328,11 @@ impl Default for RateBasedSpec {
             segments: 10,
             packing: Default::default(),
             correlation: Default::default(),
+            pressure_drop_correlation: Default::default(),
+            flooding_correlation: Default::default(),
             film_model: Default::default(),
             couple_pressure_drop: false,
+            specified_hydraulics: None,
             interfacial_area_factor: 1.0,
             critical_surface_tension_n_m: None,
             wetting_surface: Default::default(),
@@ -329,6 +347,25 @@ impl RateBasedSpec {
     pub fn issues(&self) -> Vec<SpecIssue> {
         let mut out = Vec::new();
         check_optional(&mut out, "column diameter", self.diameter_m, Sign::Positive);
+        if self.pressure_drop_correlation
+            == super::packing_data::PressureDropCorrelation::VendorRating
+        {
+            check_optional(
+                &mut out,
+                "specified bed pressure drop",
+                self.specified_hydraulics.and_then(|r| r.pressure_drop_pa),
+                Sign::NonNegative,
+            );
+        }
+        if self.flooding_correlation == super::packing_data::FloodingCorrelation::VendorRating {
+            check_optional(
+                &mut out,
+                "rated gas flow at flooding",
+                self.specified_hydraulics
+                    .and_then(|r| r.flood_gas_flow_kg_s),
+                Sign::Positive,
+            );
+        }
         check_optional(
             &mut out,
             "packing critical surface tension",
