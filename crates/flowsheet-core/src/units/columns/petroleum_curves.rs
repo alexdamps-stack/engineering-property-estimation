@@ -432,12 +432,14 @@ fn unattained(
             )
         })
         .collect();
+    // Neither ending proves the target physically unattainable: the column
+    // solve may fail numerically, and a stalled residual is a local minimum.
     let reason = failure.map_or_else(
         || "the residual no longer decreases".to_owned(),
         |e| format!("the column solve fails beyond these flows: {e}"),
     );
     format!(
-        "petroleum fractionator cut-point specification is not attainable: {}; {reason}",
+        "petroleum fractionator cut-point specification could not be met: {}; {reason}",
         parts.join(", ")
     )
 }

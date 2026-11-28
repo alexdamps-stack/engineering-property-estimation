@@ -100,6 +100,8 @@ fn spec_for(case: &Value) -> PetroleumFractionatorSpec {
                 },
             })
             .collect(),
+        pump_arounds: Vec::new(),
+        side_strippers: Vec::new(),
         internals: ColumnInternals::Trays(count(&case["internal_stages"])),
         pressure_pa: Some(number(&case["pressure_Pa"])),
         condenser_pressure_drop_pa: number(&case["condenser_pressure_drop_Pa"]),
@@ -419,7 +421,7 @@ fn unattainable_or_invalid_cut_points_fail_explicitly() {
     rig.set(spec);
     let message = rig.error();
     assert!(
-        message.contains("cut-point specification is not attainable"),
+        message.contains("cut-point specification could not be met"),
         "{message}"
     );
 

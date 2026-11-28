@@ -52,8 +52,9 @@ pub use results::{
     AbsorberProfile, Currency, DistillationColumnEstimate, EnergyStreamResult,
     EngineeringDensityResult, LiquidExtractorProfile, MaterialExchangeResult, PhaseResult,
     ProductCurveEstimate, PumpHydraulicsResult, ReactionResult, RecycleResult, ResultSet,
-    RotatingPerformance, RotatingStageResult, ShortcutColumnEstimate, StageLiquidSplitProfile,
-    StateResult, StreamResult, ThreePhaseColumnProfile, TransportResult, UnitResult,
+    RotatingPerformance, RotatingStageResult, ShortcutColumnEstimate, SideStripperResult,
+    StageLiquidSplitProfile, StateResult, StreamResult, ThreePhaseColumnProfile, TransportResult,
+    UnitResult,
 };
 pub use time::format_utc;
 

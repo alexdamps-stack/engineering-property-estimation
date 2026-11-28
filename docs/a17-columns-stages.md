@@ -218,7 +218,10 @@ Rigorous distillation now has pressure profiles, partial condensers, the
 two-specification set (including purity and recovery) and vapor side draws.
 Still open: Murphree/overall tray efficiency, side heaters and coolers
 (need energy ports), condenser subcooling or a specified condenser or
-reboiler temperature, pump-arounds, multiple feeds of one stream split over
+reboiler temperature, pump-arounds on the plain distillation column (the
+petroleum fractionator has pump-arounds and side strippers through
+`distillation::calculate_sections`, see
+[a17-columns-petroleum.md](a17-columns-petroleum.md)), multiple feeds of one stream split over
 stages, specifications on side-draw streams or stage temperatures, and
 component ratio specifications. Fixed-approach ends require a utility inlet
 temperature. The absorber keeps one uniform pressure. Stacked sections,

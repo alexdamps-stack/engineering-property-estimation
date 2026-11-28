@@ -1,10 +1,12 @@
 # A17 columns: petroleum fractionator (#190)
 
 The petroleum fractionator (`UnitKind::PetroleumFractionator`, Aspen PetroFrac
-/ HYSYS crude column equivalent) is calculated since #190. This first scope is
-one main column for feeds characterised as petroleum pseudo-components
-([pseudo-component status](pseudo-components-status.md), #229). Code:
-`crates/flowsheet-core/src/units/columns/petroleum.rs`.
+/ HYSYS crude column equivalent) is calculated since #190: one main column for
+feeds characterised as petroleum pseudo-components
+([pseudo-component status](pseudo-components-status.md), #229), with
+pump-arounds and side strippers solved simultaneously with it. Code:
+`crates/flowsheet-core/src/units/columns/petroleum.rs` and
+`side_sections.rs`.
 
 ## Model
 
@@ -112,6 +114,68 @@ interdependent cut points (singular Jacobian); no convergence. Cut points
 on the distillate or bottoms, gap/overlap specifications and light ends in
 the curves are not implemented.
 
+## Pump-arounds and side strippers
+
+Both are solved **simultaneously** with the main column in one Newton system
+(`crates/flowsheet-core/src/units/columns/side_sections.rs`, hooked into
+`distillation::calculate_sections`; the plain distillation column passes no
+side sections and is unchanged). The unknowns of each side stripper follow
+the main-column profile, and its MESH residuals follow the main-column
+residuals; the coupling streams are feeds and draws whose flows,
+compositions and enthalpies are functions of the unknowns, so the Jacobian
+is block-structured (main block, one diagonal block per stripper, coupling
+blocks through the draw and return stages). The dense finite-difference
+Newton of the column solves it as a whole.
+
+- **Pump-around** (`PumpAround`): a molar flow P of liquid leaves internal
+  stage i at the stage liquid state and returns to stage j, 2 ≤ j ≤ i, as a
+  feed of the same composition at the return-stage pressure. The cooling is
+  either a **return temperature** (enthalpy of the liquid root at that
+  temperature) or a **duty** Q removed (h_return = h_L,i − Q/P). The duty
+  leaves on the energy outlet `pump-around duty k`; with a return
+  temperature it is P (h_L,i − h_return) of the converged column. After
+  convergence a return temperature must lie below the draw-stage temperature
+  and the returned liquid must be a single liquid at the return pressure (TP
+  flash); a duty must be positive.
+- **Side stripper** (`SideStripper`, one per side product): 1–24 equilibrium
+  stages at the pressure of the product's draw stage. The draw S from main
+  stage i enters its top stage with the main stage's liquid enthalpy, its top
+  vapor returns to main stage r, 2 ≤ r ≤ i, with its own enthalpy, and its
+  bottom liquid is the side product on that product's `side draw` port at
+  the product's flow specification (molar or standard liquid volume, the
+  latter through the same outer substitution as unstripped products). It is
+  stripped by **steam** (port `stripper steam k`, to its adiabatic bottom
+  stage; at or above the stripper pressure, positive flow) or by a partial
+  **reboiler** (energy inlet `stripper reboiler duty k`) with a **duty** or a
+  **boilup ratio** V_N/B. The stripper's total balance gives
+  S = B + V_1 − F_steam, so the stripper adds only its stage unknowns
+  (temperature, log ratios, log vapor flow per stage) and, with a reboiler,
+  its specification residual. Every stripper stage passes the same
+  liquid–liquid and phase-split checks as the main column.
+- **Start.** A column with side strippers first solves a precursor: the main
+  column with each stripper replaced by its bottoms drawn at the draw stage
+  and its steam fed to the return stage (the same external balance), with
+  the pump-arounds. The coupled system starts from that profile, each
+  stripper stage at the draw-stage state, and goes straight to the
+  simultaneous Newton solve (free distillate and reflux included); the outer
+  flow iteration is only the fallback. Infeasible specifications show up as
+  a failed coupled solve, typically a main stage running dry below a draw
+  (singular Jacobian) or a stripper whose vapor vanishes.
+- **Balances.** The unit balance includes every stripper steam inlet and
+  every duty: `duty_w` = reboiler − condenser − Σ pump-around duties +
+  Σ stripper reboiler duties. The result reports the pump-around duties and
+  each stripper's stage temperatures, draw, vapor return and reboiler duty
+  (`DistillationColumnResult::pump_around_duties_w`, `side_strippers`).
+
+**General coupled columns.** The coupling is general in the solver: any
+cascade whose top vapor returns to, and whose liquid feed is drawn from,
+main-column stages fits the same block structure. It is exposed only as
+side strippers of the fractionator. A general MultiFrac-style interface
+(several columns with arbitrary interconnecting liquid and vapor streams,
+a column's condenser or reboiler feeding another, crude/vacuum or preflash
+trains) is not implemented: it needs a column-network specification and
+cascades with their own condensers and reboilers.
+
 ## Ports
 
 | Index | Port | Present |
@@ -125,6 +189,8 @@ the curves are not implemented.
 | | `liquid distillate` (outlet) | partial vapor-and-liquid condenser |
 | | `stripping steam` (inlet) | steam bottom |
 | | `reboiler duty` (energy inlet) | reboiled bottom |
+| | `pump-around duty 1..p` (energy outlets) | p pump-arounds |
+| | `stripper steam k` (inlet) or `stripper reboiler duty k` (energy inlet) | side stripper k (list order), by stripping agent |
 
 Side draws come first among the variable ports, so a drawn-only fractionator
 saved before #190 keeps its side-draw connections at the same indices.
@@ -141,6 +207,20 @@ the condenser or bottom stage; every failure of the distillation solve
 (infeasible specifications, loss of two-phase behaviour, a stage liquid that
 splits into two liquids, nonconvergence). A selected pseudo-component without
 its characterisation input fails when the package is prepared.
+
+Pump-arounds and side strippers add: a pump-around drawn from the condenser
+or bottom stage or returned below its draw, a missing flow, return
+temperature or duty, or a non-positive duty (specification issues); a return
+temperature not below the converged draw-stage temperature, or a returned
+liquid that is not a single liquid at the return pressure; a side stripper on
+a product that does not exist or a second stripper on one product, a vapor
+return below the draw stage, 0 or more than 24 stages, a missing reboiler
+duty or boilup ratio (specification issues); a stripper steam inlet without
+flow or below the stripper pressure; a stripper reboiler that would remove
+heat; a stripper whose top vapor and bottoms are below its steam (no liquid
+drawn); and a coupled solve that does not converge (for example a boilup too
+small to carry vapor back up the stripper, which runs the main column dry
+below the draw).
 
 ## Validation
 
@@ -188,6 +268,28 @@ curves.
 This is implementation agreement for the stated equilibrium-stage model, not
 accuracy against plant data or a commercial simulator.
 
+Pump-arounds and side strippers are checked against `petroleum-v2.json`
+from `validation/columns/generate-petroleum-side-section-references.py`,
+which reuses the property, feed and start pieces of the first generator and
+solves its own network MESH formulation (every stage of every cascade with
+explicit summations and both flows as unknowns, the stripper draws and
+volume-specified product rates as unknowns with residual specifications,
+pump-arounds by continuation in their circulation):
+
+| id | Column | Side sections |
+|---|---|---|
+| `crude-pump-arounds-reboiled-PR` | total / reboiler (R = 2, D/F = 0.3) | pump-arounds 7 → 5 (30 mol/s, return 400 K) and 4 → 2 (20 mol/s, 300 kW) |
+| `crude-reboiled-side-strippers-volume-PR` | total / reboiler (R = 3, D/F = 0.3) | reboiled strippers on both products: 2 stages at 150 kW, and 3 stages at boilup ratio 0.5 on a 3.0 L/s volume-specified product |
+| `crude-steam-side-stripper-pump-around-PR` | partial vapor / steam bottom | a 3-stage stripper with 2 mol/s steam and a 200 kW pump-around 7 → 6 |
+
+`crates/flowsheet-project/tests/petroleum_side_sections.rs` checks main and
+stripper stage temperatures, duties (condenser, reboiler, each pump-around
+and stripper reboiler, also on their energy streams), internal and stripper
+flows and every product within the same budgets, unit component and energy
+balance closure below 1e-9 including all steam inlets, the volume
+specification to 1e-10, the failures above, ports, record and result round
+trips, and that fractionator records without side sections load unchanged.
+
 ## Persistence
 
 `records/columns.rs` adds the fractionator fields behind format version 4
@@ -203,14 +305,34 @@ a reboiler specification is refused. A cut-point side product is stored as
 "temperature_k": …, "estimate_mol_s": …}}}` (estimate omitted when unset),
 also behind format version 4.
 
+Pump-arounds and side strippers are two further optional lists behind format
+version 4 (no bump), omitted when empty, so every earlier fractionator record
+loads without them and is written back unchanged:
+
+```json
+"pump_arounds": [{"draw_stage": 7, "return_stage": 6, "molar_flow_mol_s": 25.0,
+                  "cooling": {"duty_w": 200000.0}}],
+"side_strippers": [{"product": 1, "stages": 3, "return_stage": 3, "bottom": "steam"}]
+```
+
+`cooling` is `{"return_temperature_k": T}` or `{"duty_w": Q}`; `bottom` is
+`"steam"`, `{"reboiler_duty_w": Q}` or `{"boilup_ratio": r}`. More than 20
+pump-arounds or more side strippers than side products are refused on load.
+The saved results add `pump_around_duties_w` and `side_strippers` (stage
+temperatures, draw, vapor return, reboiler duty) to the column estimate, also
+omitted when empty.
+
 ## Not yet modelled
 
-- **Side strippers** (small columns on side draws returning vapor to the main
-  column) and **pump-arounds** (side cooling loops). Both need coupled
-  cascades or side heat removal (stage energy ports) in the MESH solve; the
-  distillation solver has neither. A side stripper can be drawn today as a
-  separate absorber/stripper unit with a recycle, but that is a sequential
-  approximation, not a simultaneous solution.
+- **General multi-column coupling.** Side strippers are solved with the main
+  column; other coupled columns (MultiFrac/SCFrac networks, crude/vacuum or
+  preflash trains, a column's condenser or reboiler feeding another) are not
+  (see [General coupled columns](#pump-arounds-and-side-strippers)). Side
+  strippers have no pressure of their own (they run at the draw-stage
+  pressure), no condenser and no efficiencies; pump-arounds return liquid
+  only (no partial vaporisation on return is checked for a duty
+  specification) and have no temperature-drop or return-flow-ratio
+  specifications.
 - **Further curve specifications.** Cut points on the distillate or bottoms
   (they would replace a top or bottom specification), 5–95 % gap and overlap
   specifications between products, and light ends in the curves (database
@@ -218,8 +340,7 @@ also behind format version 4.
   points are implemented (above).
 - **Three-phase condenser / free-water decant**, needed for realistic steam
   stripping with a cold reflux drum.
-- **Multi-column systems** (MultiFrac, SCFrac, coupled crude/vacuum or
-  preflash columns), tray efficiencies, overflash and heater (furnace)
+- Tray efficiencies, overflash and heater (furnace)
   specifications, refinery correlations beyond the pseudo-component
   characterisation (for example cold properties, RVP, flash point).
 - **Package domain.** Pseudo-components are available in the cubic packages

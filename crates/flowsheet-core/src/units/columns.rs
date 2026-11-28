@@ -17,6 +17,7 @@ mod mesh;
 mod petroleum;
 mod petroleum_curves;
 mod shortcut;
+mod side_sections;
 
 pub use absorber::{AbsorberResult, AbsorberSpec};
 pub use distillation::{
@@ -24,10 +25,12 @@ pub use distillation::{
     DistillationColumnSpec, DistillationCondenser, LiquidSideDraw, TopSpecification, VaporSideDraw,
 };
 pub use petroleum::{
-    DrawRate, FractionatorBottom, PetroleumFractionatorSpec, SideProduct, WATER_DENSITY_60F_KG_M3,
+    DrawRate, FractionatorBottom, PetroleumFractionatorSpec, PumpAround, PumpAroundCooling,
+    SideProduct, SideStripper, SideStripperBottom, WATER_DENSITY_60F_KG_M3,
 };
 pub use petroleum_curves::{CUT_POINT_TOLERANCE_K, CurveBasis, CutPoint, ProductCurve};
 pub use shortcut::{ShortcutColumnResult, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux};
+pub use side_sections::SideStripperProfile;
 
 // Packed sections resolved to theoretical stages (#186, #187, #190).
 pub mod packing;
@@ -180,6 +183,11 @@ pub(crate) fn default_spec(kind: UnitKind) -> ColumnSpec {
     }
 }
 
+/// Port number of the `k`-th pump-around or side stripper.
+fn port_number(k: usize) -> u16 {
+    u16::try_from(k).unwrap_or(u16::MAX)
+}
+
 fn count_issue(out: &mut Vec<SpecIssue>, field: &'static str, n: u16, min: u16) {
     if !(min..=MAX_COLUMN_PORTS).contains(&n) {
         out.push(SpecIssue {
@@ -224,20 +232,34 @@ impl GroupSpec for ColumnSpec {
                 .collect(),
             // Side draws first, so drawn-only fractionators keep their
             // side-draw connections; the fixed `feed` is feed 1.
-            ColumnSpec::PetroleumFractionator(s) => side_draws(s.side_draws)
-                .chain((2..=s.feeds).map(|n| PortSpec::inlet("feed").numbered(n)))
-                .chain(
-                    matches!(
-                        s.condenser,
-                        DistillationCondenser::PartialVaporLiquid { .. }
+            ColumnSpec::PetroleumFractionator(s) => {
+                side_draws(s.side_draws)
+                    .chain((2..=s.feeds).map(|n| PortSpec::inlet("feed").numbered(n)))
+                    .chain(
+                        matches!(
+                            s.condenser,
+                            DistillationCondenser::PartialVaporLiquid { .. }
+                        )
+                        .then_some(PortSpec::outlet("liquid distillate")),
                     )
-                    .then_some(PortSpec::outlet("liquid distillate")),
-                )
-                .chain([match s.bottom {
-                    FractionatorBottom::StrippingSteam => PortSpec::inlet("stripping steam"),
-                    FractionatorBottom::Reboiler(_) => PortSpec::energy_inlet("reboiler duty"),
-                }])
-                .collect(),
+                    .chain([match s.bottom {
+                        FractionatorBottom::StrippingSteam => PortSpec::inlet("stripping steam"),
+                        FractionatorBottom::Reboiler(_) => PortSpec::energy_inlet("reboiler duty"),
+                    }])
+                    // Pump-arounds and side strippers (#190) follow, so existing
+                    // connections keep their indices.
+                    .chain((1..=s.pump_arounds.len()).map(|k| {
+                        PortSpec::energy_outlet("pump-around duty").numbered(port_number(k))
+                    }))
+                    .chain(s.side_strippers.iter().enumerate().map(|(k, stripper)| {
+                        match stripper.bottom {
+                            SideStripperBottom::Steam => PortSpec::inlet("stripper steam"),
+                            _ => PortSpec::energy_inlet("stripper reboiler duty"),
+                        }
+                        .numbered(port_number(k + 1))
+                    }))
+                    .collect()
+            }
             _ => Vec::new(),
         }
     }
