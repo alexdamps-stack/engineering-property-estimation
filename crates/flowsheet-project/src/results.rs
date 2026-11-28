@@ -488,6 +488,25 @@ pub struct ThreePhaseColumnProfile {
     pub reboiler_duty_w: f64,
     pub packed_height_m: Option<f64>,
     pub iterations: usize,
+    /// Phases on each stage (decanter 2, vapor–liquid 2, vapor–liquid–liquid
+    /// 3). Empty in results saved before three-phase stages existed.
+    #[serde(default)]
+    pub stage_phase_counts: Vec<u8>,
+    /// Both liquids of each stage that carries two (stage 1: the decanter),
+    /// `null` on single-liquid stages; on a three-phase stage
+    /// `liquid_compositions` holds the total liquid. Empty in older results.
+    #[serde(default)]
+    pub stage_liquid_splits: Vec<Option<StageLiquidSplitProfile>>,
+}
+
+/// Saved two-liquid split of one three-phase column stage.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StageLiquidSplitProfile {
+    pub light_mol_s: f64,
+    pub light_composition: Vec<f64>,
+    pub heavy_mol_s: f64,
+    pub heavy_composition: Vec<f64>,
 }
 
 impl ThreePhaseColumnProfile {
@@ -508,6 +527,13 @@ impl ThreePhaseColumnProfile {
                 self.reboiler_duty_w,
             ])
             .chain(self.packed_height_m)
+            .chain(self.stage_liquid_splits.iter().flatten().flat_map(|s| {
+                s.light_composition
+                    .iter()
+                    .chain(&s.heavy_composition)
+                    .copied()
+                    .chain([s.light_mol_s, s.heavy_mol_s])
+            }))
     }
 }
 
@@ -528,6 +554,19 @@ impl From<&flowsheet_core::units::multiphase::ThreePhaseColumnResult> for ThreeP
             reboiler_duty_w: r.reboiler_duty_w,
             packed_height_m: r.packed_height_m,
             iterations: r.iterations,
+            stage_phase_counts: r.stage_phase_counts.clone(),
+            stage_liquid_splits: r
+                .stage_liquid_splits
+                .iter()
+                .map(|s| {
+                    s.as_ref().map(|s| StageLiquidSplitProfile {
+                        light_mol_s: s.light_mol_s,
+                        light_composition: s.light_composition.clone(),
+                        heavy_mol_s: s.heavy_mol_s,
+                        heavy_composition: s.heavy_composition.clone(),
+                    })
+                })
+                .collect(),
         }
     }
 }

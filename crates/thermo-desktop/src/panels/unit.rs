@@ -494,6 +494,7 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                     ));
                     ui.end_row();
                     stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
+                    three_phase_stage_rows(ui, u, stale, c);
                 }
                 if let Some(x) = &r.material_exchange {
                     ui.label("External material (+ into unit)");
@@ -649,6 +650,59 @@ fn stage_profile(
             format_quantity(units, Quantity::Temperature, t),
             stale,
         ));
+        ui.end_row();
+    }
+}
+
+/// Phase counts and both liquids of every two-liquid stage of a three-phase
+/// column (#188); stage 1 is the decanter.
+fn three_phase_stage_rows(
+    ui: &mut Ui,
+    units: DisplayUnits,
+    stale: bool,
+    c: &flowsheet_project::ThreePhaseColumnProfile,
+) {
+    if !c.stage_phase_counts.is_empty() {
+        ui.label("Phases per stage");
+        ui.label(value_text(
+            c.stage_phase_counts
+                .iter()
+                .map(u8::to_string)
+                .collect::<Vec<_>>()
+                .join(" "),
+            stale,
+        ));
+        ui.end_row();
+    }
+    let fractions = |x: &[f64]| {
+        x.iter()
+            .map(|v| {
+                if *v != 0.0 && v.abs() < 1e-3 {
+                    format!("{v:.3e}")
+                } else {
+                    format!("{v:.4}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    for (j, split) in c.stage_liquid_splits.iter().enumerate().skip(1) {
+        let Some(s) = split else { continue };
+        ui.label(format!("Stage {} light / heavy liquid", j + 1));
+        ui.label(value_text(
+            format!(
+                "{} / {}",
+                format_quantity(units, Quantity::MolarFlow, s.light_mol_s),
+                format_quantity(units, Quantity::MolarFlow, s.heavy_mol_s)
+            ),
+            stale,
+        ));
+        ui.end_row();
+        ui.label(format!("Stage {} light liquid x", j + 1));
+        ui.label(value_text(fractions(&s.light_composition), stale));
+        ui.end_row();
+        ui.label(format!("Stage {} heavy liquid x", j + 1));
+        ui.label(value_text(fractions(&s.heavy_composition), stale));
         ui.end_row();
     }
 }
