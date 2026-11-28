@@ -182,6 +182,7 @@ fn fixture_rig(case: &Value) -> Rig {
                 other => panic!("unexpected packing {other}"),
             },
             interfacial_area_factor: number(&case["area_factor"]),
+            critical_surface_tension_n_m: Some(number(&case["critical_surface_tension_N_m"])),
             gas_transport_neglected: strings(&case["gas_neglected"]),
             liquid_transport_neglected: strings(&case["liquid_neglected"]),
             ..Default::default()
@@ -360,12 +361,14 @@ fn co2_wash(rate_based: bool) -> Rig {
             diameter_m: Some(0.8),
             segments: 4,
             packing: Packing::MetalPallRing50,
+            // Case input of the Onda wetted area (no library value).
+            critical_surface_tension_n_m: Some(0.075),
             gas_transport_neglected: vec!["water".into()],
             liquid_transport_neglected: vec!["nitrogen".into(), "carbon-dioxide".into()],
             ..Default::default()
         },
     );
-    spec.pressure_pa = Some(1e6);
+    spec.pressure_pa = Some(3e5);
     if !rate_based {
         spec.calculation = PackedCalculation::Equilibrium;
     }
@@ -375,13 +378,13 @@ fn co2_wash(rate_based: bool) -> Rig {
         spec,
         Inlet {
             temperature_k: 300.0,
-            pressure_pa: 1e6,
+            pressure_pa: 3e5,
             molar_flow_mol_s: 10.0,
             z: &[0.8, 0.2, 0.0],
         },
         Inlet {
-            temperature_k: 293.0,
-            pressure_pa: 1.1e6,
+            temperature_k: 288.0,
+            pressure_pa: 3.1e5,
             molar_flow_mol_s: 200.0,
             z: &[0.0, 0.0, 1.0],
         },
@@ -471,9 +474,9 @@ fn hydraulic_and_transport_limits_fail_explicitly() {
     rig.project.flowsheet.set_spec(
         rig.gas,
         UnitSpec::Feed {
-            temperature_k: Some(320.0),
-            pressure_pa: Some(1.05e6),
-            molar_flow_mol_s: Some(36.0),
+            temperature_k: Some(300.0),
+            pressure_pa: Some(2.6e5),
+            molar_flow_mol_s: Some(15.0),
         },
     );
     rig.project.feeds.insert(rig.gas, vec![0.975, 0.025, 0.0]);
@@ -488,6 +491,23 @@ fn hydraulic_and_transport_limits_fail_explicitly() {
     rig.edit_rate(|rate| rate.gas_transport_neglected.push("argon".into()));
     let error = rig.solve().unwrap_err();
     assert!(error.message.contains("argon"), "{}", error.message);
+    // Above 3 bar absolute the Robbins correlation is not applicable.
+    let mut rig = co2_wash(true);
+    rig.edit(|spec| spec.pressure_pa = Some(3.05e5));
+    rig.project.flowsheet.set_spec(
+        rig.gas,
+        UnitSpec::Feed {
+            temperature_k: Some(300.0),
+            pressure_pa: Some(3.1e5),
+            molar_flow_mol_s: Some(10.0),
+        },
+    );
+    let error = rig.solve().unwrap_err();
+    assert!(
+        error.message.contains("not suitable above 3 bar"),
+        "{}",
+        error.message
+    );
 }
 
 #[test]
@@ -498,6 +518,7 @@ fn rate_based_mode_needs_a_packed_height_and_valid_inputs() {
     assert_eq!(rig.issue_fields(), ["packed height"]);
     rig.edit_rate(|rate| {
         rate.diameter_m = None;
+        rate.critical_surface_tension_n_m = None;
         rate.segments = 0;
         rate.interfacial_area_factor = 0.0;
         rate.gas_transport_neglected = vec!["water".into(), "water".into()];
@@ -507,6 +528,7 @@ fn rate_based_mode_needs_a_packed_height_and_valid_inputs() {
         [
             "packed height",
             "column diameter",
+            "packing critical surface tension",
             "segments",
             "interfacial area factor",
             "gas transport neglected components"

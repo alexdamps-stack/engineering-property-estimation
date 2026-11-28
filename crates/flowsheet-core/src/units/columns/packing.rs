@@ -283,6 +283,13 @@ pub struct RateBasedSpec {
     pub film_model: FilmModel,
     /// Multiplier of the correlation's interfacial area (1 = as correlated).
     pub interfacial_area_factor: f64,
+    /// Critical surface tension σc of the packing material, N/m (Onda 1968
+    /// wetted area). A required user input: the library carries no σc
+    /// because no σc table could be verified.
+    pub critical_surface_tension_n_m: Option<f64>,
+    /// Packing surface class of the minimum-wetting rule (Perry's Table
+    /// 14-16).
+    pub wetting_surface: super::packing_data::WettingSurface,
     /// Components (package identifiers) left out of the gas-phase transport
     /// properties (viscosity, conductivity), each at most
     /// [`MAX_NEGLECTED_TRANSPORT_FRACTION`] in the gas. An explicit,
@@ -305,6 +312,8 @@ impl Default for RateBasedSpec {
             correlation: Default::default(),
             film_model: Default::default(),
             interfacial_area_factor: 1.0,
+            critical_surface_tension_n_m: None,
+            wetting_surface: Default::default(),
             gas_transport_neglected: Vec::new(),
             liquid_transport_neglected: Vec::new(),
         }
@@ -316,6 +325,12 @@ impl RateBasedSpec {
     pub fn issues(&self) -> Vec<SpecIssue> {
         let mut out = Vec::new();
         check_optional(&mut out, "column diameter", self.diameter_m, Sign::Positive);
+        check_optional(
+            &mut out,
+            "packing critical surface tension",
+            self.critical_surface_tension_n_m,
+            Sign::Positive,
+        );
         if !(1..=MAX_RATE_SEGMENTS).contains(&self.segments) {
             out.push(SpecIssue {
                 field: "segments",

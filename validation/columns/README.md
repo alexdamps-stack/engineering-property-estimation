@@ -274,10 +274,13 @@ python validation/columns/generate-petroleum-side-section-references.py --output
 ## Rate-based packed absorber references (#241)
 
 `rate-based-v1.json` holds two nitrogen/methanol/water scrubbing columns in
-rate-based mode (PR, 50 mm metal Pall rings, 2 m, 0.4 m diameter, 6
-segments; PR-BM, 25 mm metal Pall rings, 1.5 m, 0.3 m, 5 segments; methanol
-and water neglected in the gas transport properties, nitrogen in the
-liquid). Each case records every segment's vapor, liquid and interface
+rate-based mode (PR, 50 mm metal Pall rings, 2.5 bar, 2 m, 0.4 m diameter,
+6 segments; PR-BM, 25 mm metal Pall rings, 2 bar, 1.5 m, 0.3 m, 5 segments;
+packing σc 0.075 N/m as a case input; methanol and water neglected in the
+gas transport properties, nitrogen in the liquid). It also records the
+correlation functions' reproduction of published worked examples (Fuller:
+Cussler Example 5.1-2 and n-butanol/air; Wilke–Chang: ethylbenzene/water;
+Robbins: Perry's 8th ed. Example 13). Each case records every segment's vapor, liquid and interface
 temperatures, flows, bulk compositions, fluxes, wetted area, fraction of
 flood and pressure drop, the bed pressure drop and both outlets. The model
 contract is [docs/a17-columns-rate-based.md](../../docs/a17-columns-rate-based.md).

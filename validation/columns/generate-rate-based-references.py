@@ -2,9 +2,10 @@
 
 The documented segment model of docs/a17-columns-rate-based.md (mixed-flow
 segments, two-film effective-diffusivity model with interface equilibrium,
-Chilton-Colburn/penetration heat transfer, Onda 1968 coefficients, Robbins
-1991 pressure drop, Kister-Gill flood pressure drop) is solved here in a
-separate formulation:
+Chilton-Colburn heat transfer in both phases, Onda 1968 coefficients,
+Robbins 1991 pressure drop and Kister-Gill flood pressure drop as given in
+Perry's 8th ed., Glitsch minimum wetting) is solved here in a separate
+formulation:
 
 * unknowns per segment are T_V, T_L, T_I, bulk x and y, interface x_I and
   y_I, total flows L and V and the component fluxes N, closed with the
@@ -14,7 +15,9 @@ separate formulation:
   NASA7 ideal-gas enthalpies (the engine differentiates the phase enthalpy
   numerically in mole numbers);
 * Newton's method on the whole column with a dense forward-difference
-  Jacobian, started from a TP flash of the feed blend and continued in the
+  Jacobian (relative steps) and a sum-of-squares line search, started from
+  the feed compositions (with traces) at the flow-weighted inlet
+  temperature and continued in the
   interfacial-area factor from 1e3 times the specified value.
 
 Shared with the engine (not independent): the component constants, NASA7
@@ -25,7 +28,9 @@ validation/transport/generate-transport-references.py), the engineering
 liquid density (validation/generate-liquid-density-references.py, chemicals
 1.5.2), the packing data and the correlation set itself. The fixture
 therefore checks implementation agreement of the segment model, not the
-accuracy of the correlations against experiment.
+accuracy of the correlations against experiment. The correlation functions
+transcribed here are checked against published worked examples first
+(`published_examples`), recorded in the fixture.
 
 Usage (Python 3.14 with teqp 0.23.2, cantera 3.2.0, numpy 2.3.4,
 scipy 1.16.3, CoolProp 7.2.0, chemicals 1.5.2; on Windows in WSL2):
@@ -83,19 +88,23 @@ TOLERANCES = {
     "hydraulics": [0.0, 1e-5],
 }
 
-# Raschig GmbH, RASCHIG PALL-Ring brochure 350 (v2025010): metal PALL-Rings.
+# Perry's Chemical Engineers' Handbook, 8th ed., Table 14-13 (p. 14-60),
+# metal Pall rings: area m2/m3, voids, Fp (Kister) and Fpd (Robbins), 1/m.
 PACKINGS = {
-    "metal_pall_ring_25": dict(size=0.025, a=215.0, eps=0.95, fp=157.0, sigma_c=0.075),
-    "metal_pall_ring_50": dict(size=0.050, a=105.0, eps=0.96, fp=66.0, sigma_c=0.075),
+    "metal_pall_ring_25": dict(size=0.025, a=205.0, eps=0.94, fp=183.0, fpd=174.0),
+    "metal_pall_ring_50": dict(size=0.050, a=105.0, eps=0.96, fp=89.0, fpd=79.0),
 }
-# Poling, Prausnitz and O'Connell (2001), Table 11-1.
-FULLER = {"nitrogen": 18.5, "oxygen": 16.3, "carbon-dioxide": 26.7, "water": 13.1,
-          "methane": 15.9 + 4 * 2.31, "ethane": 2 * 15.9 + 6 * 2.31,
-          "propane": 3 * 15.9 + 8 * 2.31, "methanol": 15.9 + 4 * 2.31 + 6.11}
-# Wilke and Chang (1955).
+# Fuller, Schettler and Giddings (1966) diffusion volumes (Cussler,
+# Diffusion, Table 5.1-4): molecules and atomic increments C, H, O.
+FULLER = {"nitrogen": 17.9, "oxygen": 16.6, "carbon-dioxide": 26.9, "water": 12.7,
+          "methane": 16.5 + 4 * 1.98, "ethane": 2 * 16.5 + 6 * 1.98,
+          "propane": 3 * 16.5 + 8 * 1.98, "methanol": 16.5 + 4 * 1.98 + 5.48}
+# Wilke and Chang (1955) association factors.
 PHI = {"water": 2.6, "methanol": 1.9}
-MWR = 0.08 / 3600.0  # Morris and Jackson (1953), m3/(m s)
+# Perry's 8th ed. Table 14-16 (Glitsch), bright metal, m3/(m2 h).
+GLITSCH_BRIGHT_METAL = 3.0
 MAX_NEGLECTED = 0.01
+ATM = 101325.0
 
 
 def inlet(t, p, flow, z):
@@ -103,17 +112,22 @@ def inlet(t, p, flow, z):
 
 
 IDS = ["nitrogen", "methanol", "water"]
+# critical_surface_tension_N_m is a case input of the Onda wetted area (the
+# engine has no sigma_c library value; 0.075 N/m is the value commonly quoted
+# for steel and is not verified here).
 CASES = [
-    dict(id="methanol-scrubbing-pall50-PR", variant="PR", pressure_Pa=1e6,
+    dict(id="methanol-scrubbing-pall50-PR", variant="PR", pressure_Pa=2.5e5,
          packed_height_m=2.0, diameter_m=0.4, segments=6, packing="metal_pall_ring_50",
-         area_factor=1.0, gas_neglected=["methanol", "water"], liquid_neglected=["nitrogen"],
-         gas=inlet(300.0, 1.05e6, 36.0, [0.995, 0.005, 0.0]),
-         liquid=inlet(295.0, 1.1e6, 21.0, [0.0, 0.0, 1.0])),
-    dict(id="methanol-scrubbing-pall25-PR-BM", variant="PR-BM", pressure_Pa=8e5,
+         critical_surface_tension_N_m=0.075, area_factor=1.0,
+         gas_neglected=["methanol", "water"], liquid_neglected=["nitrogen"],
+         gas=inlet(298.0, 2.6e5, 15.0, [0.995, 0.005, 0.0]),
+         liquid=inlet(288.0, 2.7e5, 30.0, [0.0, 0.0, 1.0])),
+    dict(id="methanol-scrubbing-pall25-PR-BM", variant="PR-BM", pressure_Pa=2e5,
          packed_height_m=1.5, diameter_m=0.3, segments=5, packing="metal_pall_ring_25",
-         area_factor=1.0, gas_neglected=["methanol", "water"], liquid_neglected=["nitrogen"],
-         gas=inlet(305.0, 8.5e5, 14.0, [0.996, 0.004, 0.0]),
-         liquid=inlet(298.0, 9e5, 25.0, [0.0, 0.0, 1.0])),
+         critical_surface_tension_N_m=0.075, area_factor=1.0,
+         gas_neglected=["methanol", "water"], liquid_neglected=["nitrogen"],
+         gas=inlet(295.0, 2.1e5, 6.0, [0.996, 0.004, 0.0]),
+         liquid=inlet(288.0, 2.2e5, 25.0, [0.0, 0.0, 1.0])),
 ]
 
 
@@ -137,12 +151,12 @@ def partial_h(x, t, p, variant, phase):
     return ideal - R * t * t * (hi - lo) / (2 * dt)
 
 
-def basis(x, neglected):
+def basis(x, neglected, strict=True):
     w = np.array(x, dtype=float)
     dropped = 0.0
     for name in neglected:
         i = IDS.index(name)
-        assert w[i] <= MAX_NEGLECTED, (name, w[i])
+        assert not strict or w[i] <= MAX_NEGLECTED, (name, w[i])
         dropped = max(dropped, w[i])
         w[i] = 0.0
     return w / w.sum(), dropped
@@ -152,10 +166,17 @@ def molar_mass(i):
     return BASE[IDS[i]]["constants"]["molar_mass_kg_per_mol"] * 1e3
 
 
+def fuller_cm2_s(t, p_atm, m_a, m_b, v_a, v_b):
+    """Fuller, Schettler and Giddings (1966), cm2/s, P in atm."""
+    return 1e-3 * t ** 1.75 * math.sqrt(1 / m_a + 1 / m_b) / (p_atm * (v_a ** (1 / 3) + v_b ** (1 / 3)) ** 2)
+
+
 def fuller(i, j, t, p):
-    mab = 2 / (1 / molar_mass(i) + 1 / molar_mass(j))
-    s = FULLER[IDS[i]] ** (1 / 3) + FULLER[IDS[j]] ** (1 / 3)
-    return 1.43e-3 * t ** 1.75 / (p / 1e5 * math.sqrt(mab) * s * s) * 1e-4
+    return fuller_cm2_s(t, p / ATM, molar_mass(i), molar_mass(j), FULLER[IDS[i]], FULLER[IDS[j]]) * 1e-4
+
+
+def wilke_chang_cm2_s(t, phi, m_solvent, mu_cp, v_solute):
+    return 7.4e-8 * math.sqrt(phi * m_solvent) * t / (mu_cp * v_solute ** 0.6)
 
 
 def gas_diffusivities(y, t, p):
@@ -166,20 +187,22 @@ def gas_diffusivities(y, t, p):
     return out
 
 
-def liquid_diffusivities(x, t, mu):
+def liquid_diffusivities(solvent, t, mu):
+    """Wilke-Chang, each component dilute in the solvent; Tyn-Calus V_b."""
     out = []
     for i in range(len(IDS)):
-        weight = sum(x[j] for j in range(len(IDS)) if j != i)
-        phi_m = sum(x[j] * PHI.get(IDS[j], 1.0) * molar_mass(j)
-                    for j in range(len(IDS)) if j != i) / weight
+        if i == solvent:
+            out.append(0.0)
+            continue
         vb = 0.285 * (TRANSPORT[IDS[i]]["critical_volume_m3_per_mol"] * 1e6) ** 1.048
-        out.append(7.4e-8 * math.sqrt(phi_m) * t / (mu * 1e3 * vb ** 0.6) * 1e-4)
+        out.append(wilke_chang_cm2_s(t, PHI.get(IDS[solvent], 1.0), molar_mass(solvent),
+                                     mu * 1e3, vb) * 1e-4)
     return out
 
 
-def onda(pk, lflux, rho_l, mu_l, sigma, gflux, rho_g, mu_g):
+def onda(pk, sigma_c, lflux, rho_l, mu_l, sigma, gflux, rho_g, mu_g):
     a, dp = pk["a"], pk["size"]
-    aw = a * (1 - math.exp(-1.45 * (pk["sigma_c"] / sigma) ** 0.75 * (lflux / (a * mu_l)) ** 0.1
+    aw = a * (1 - math.exp(-1.45 * (sigma_c / sigma) ** 0.75 * (lflux / (a * mu_l)) ** 0.1
                            * (lflux ** 2 * a / (rho_l ** 2 * G)) ** -0.05
                            * (lflux ** 2 / (rho_l * sigma * a)) ** 0.2))
 
@@ -188,7 +211,7 @@ def onda(pk, lflux, rho_l, mu_l, sigma, gflux, rho_g, mu_g):
                 * (a * dp) ** 0.4 / (rho_l / (mu_l * G)) ** (1 / 3))
 
     def k_gas(d):
-        c = 5.23 if dp > 0.015 else 2.0
+        c = 2.0 if dp < 0.015 else 5.23
         return c * a * d * (gflux / (a * mu_g)) ** 0.7 * (mu_g / (rho_g * d)) ** (1 / 3) * (a * dp) ** -2
 
     return aw, k_liquid, k_gas
@@ -199,29 +222,86 @@ FT = 0.3048
 PA_PER_INH2O_FT = 249.088908333 / FT
 
 
-def robbins(pk, gflux, rho_g, lflux, rho_l, mu_l):
-    """Robbins (1991) GPDC, inH2O/ft, from SI inputs."""
-    fpd = pk["fp"] * FT
-    g = gflux * 3600 / LB * FT * FT
-    l = lflux * 3600 / LB * FT * FT
-    rg, rl = rho_g * FT ** 3 / LB, rho_l * FT ** 3 / LB
-    gf = g * math.sqrt(0.075 / rg) * math.sqrt(fpd / 20)
-    lf = l * (62.4 / rl) * (math.sqrt(fpd / 20) if fpd > 15 else math.sqrt(20 / fpd)) * (mu_l * 1e3) ** 0.1
+def robbins_factors(fpd_ft, g_lb, rho_g_lb, l_lb, rho_l_lb, mu_cp, p):
+    """Robbins Gf, Lf (lb/ft2 h), Perry's 8th ed. eqs. 14-148 to 14-151."""
+    fs = g_lb / 3600 / math.sqrt(rho_g_lb)
+    gf = 986 * fs * math.sqrt(fpd_ft / 20)
+    if p > ATM:
+        gf *= 10 ** (0.3 * rho_g_lb)
+    if fpd_ft > 200:
+        lf = l_lb * (62.4 / rho_l_lb) * math.sqrt(fpd_ft / 20) * mu_cp ** 0.2
+    elif fpd_ft < 15:
+        lf = l_lb * (62.4 / rho_l_lb) * math.sqrt(20 / fpd_ft) * mu_cp ** 0.1
+    else:
+        lf = l_lb * (62.4 / rho_l_lb) * math.sqrt(fpd_ft / 20) * mu_cp ** 0.1
+    return gf, lf
+
+
+def robbins_inh2o_ft(gf, lf):
+    """Perry's eqs. 14-145 to 14-147, C3 = 7.4e-8, C4 = 2.7e-5."""
     dry = 7.4e-8 * gf * gf * 10 ** (2.7e-5 * lf)
     return dry + 0.4 * (lf / 20000) ** 0.1 * dry ** 4
 
 
-def hydraulics(pk, gflux, rho_g, lflux, rho_l, mu_l):
-    drop = robbins(pk, gflux, rho_g, lflux, rho_l, mu_l)
-    flood = 0.115 * (pk["fp"] * FT) ** 0.7
-    g_flood = brentq(lambda g: robbins(pk, g, rho_g, lflux, rho_l, mu_l) - flood,
+def robbins(pk, gflux, rho_g, lflux, rho_l, mu_l, p):
+    """Robbins (1991) pressure drop, inH2O/ft, from SI inputs."""
+    assert p <= 3e5, "Robbins is not suitable above 3 bar absolute"
+    lb_flux = 3600 / LB * FT * FT
+    gf, lf = robbins_factors(pk["fpd"] * FT, gflux * lb_flux, rho_g * FT ** 3 / LB,
+                             lflux * lb_flux, rho_l * FT ** 3 / LB, mu_l * 1e3, p)
+    return robbins_inh2o_ft(gf, lf)
+
+
+def hydraulics(pk, gflux, rho_g, lflux, rho_l, mu_l, p):
+    drop = robbins(pk, gflux, rho_g, lflux, rho_l, mu_l, p)
+    fp_ft = pk["fp"] * FT
+    assert fp_ft <= 60, "Kister-Gill flood equation not for Fp > 60 1/ft"
+    flood = 0.12 * fp_ft ** 0.7
+    g_flood = brentq(lambda g: robbins(pk, g, rho_g, lflux, rho_l, mu_l, p) - flood,
                      1e-9, 1e3, xtol=1e-15, rtol=1e-15)
     return drop * PA_PER_INH2O_FT, gflux / g_flood
+
+
+def minimum_wetting_m_h(pk, sigma):
+    """Perry's eq. 14-166 with Table 14-16, doubled above 25 mN/m."""
+    base = GLITSCH_BRIGHT_METAL * math.sqrt(200 / pk["a"])
+    return 2 * base if sigma > 0.025 else base
+
+
+def published_examples():
+    """Correlation functions above against published worked examples."""
+    out = []
+    # Cussler, Diffusion, 3rd ed., Example 5.1-2: H2-N2, 294 K, 2 atm -> 0.37 cm2/s.
+    d = fuller_cm2_s(294.0, 2.0, 2.02, 28.0, 7.07, 17.9)
+    assert abs(d - 0.37) < 0.005, d
+    out.append(dict(example="Cussler Example 5.1-2 (Fuller, H2-N2)", published=0.37, computed=d,
+                    unit="cm2/s"))
+    # n-butanol in air, 273 K, 1 atm -> 7.73e-6 m2/s (U. Jordan notes).
+    d = fuller_cm2_s(273.0, 1.0, 74.1, 29.0, 4 * 16.5 + 10 * 1.98 + 5.48, 20.1) * 1e-4
+    assert abs(d / 7.73e-6 - 1) < 0.005, d
+    out.append(dict(example="Fuller n-butanol-air (U. Jordan notes)", published=7.73e-6,
+                    computed=d, unit="m2/s"))
+    # Wilke-Chang ethylbenzene in water, 293 K, 1.0 cP, V 139.5 -> 0.77e-5 cm2/s.
+    d = wilke_chang_cm2_s(293.0, 2.6, 18.0, 1.0, 139.5)
+    assert abs(d - 0.77e-5) < 0.005e-5, d
+    out.append(dict(example="Wilke-Chang ethylbenzene-water (U. Jordan notes)", published=0.77e-5,
+                    computed=d, unit="cm2/s"))
+    # Perry's 8th ed. Example 13: Gf = 1653, Lf = 9859, dP = 0.40 inH2O/ft (chart).
+    gf, lf = robbins_factors(24.0, 1500.0, 0.074, 9000.0, 62.4, 1.0, ATM)
+    dp = robbins_inh2o_ft(gf, lf)
+    # The example rounds Fs to 1.53 (exact 1.5317), so Gf is 1654.4 here.
+    assert abs(gf - 1653) < 2 and abs(lf - 9859) < 2 and abs(dp - 0.40) < 0.03, (gf, lf, dp)
+    out.append(dict(example="Perry's 8th ed. Example 13 (Robbins)", published=[1653, 9859, 0.40],
+                    computed=[gf, lf, dp], unit="lb/(ft2 h), lb/(ft2 h), inH2O/ft"))
+    return out
 
 
 class Column:
     def __init__(self, case):
         self.case = case
+        # The 1 mol% limit of neglected components is checked on the solution,
+        # not on Newton iterates (which may pass through larger fractions).
+        self.strict = False
         self.n = case["segments"]
         self.c = len(IDS)
         self.p = case["pressure_Pa"]
@@ -260,8 +340,8 @@ class Column:
         bl = root_state(s["x"], s["tl"], p, v, "liquid")
         iv = root_state(s["yi"], s["ti"], p, v, "vapor")
         il = root_state(s["xi"], s["ti"], p, v, "liquid")
-        gas_x, gas_drop = basis(s["y"], self.case["gas_neglected"])
-        liq_x, liq_drop = basis(s["x"], self.case["liquid_neglected"])
+        gas_x, gas_drop = basis(s["y"], self.case["gas_neglected"], self.strict)
+        liq_x, liq_drop = basis(s["x"], self.case["liquid_neglected"], self.strict)
         gv = root_state(gas_x, s["tv"], p, v, "vapor")["v"]
         gas_t, _ = transport.gas(IDS, list(gas_x), s["tv"], gv, TRANSPORT, BASE)
         liq_t = transport.liquid(IDS, list(liq_x), s["tl"], p, TRANSPORT, BASE)
@@ -275,9 +355,10 @@ class Column:
         m_v = bv["rho"] * bv["v"]
         gflux = s["V"] * m_v / self.area
         lflux = s["L"] * m_l / self.area
-        aw, k_liq, k_gas = onda(self.pk, lflux, rho_l, mu_l, sigma, gflux, bv["rho"], mu_v)
+        aw, k_liq, k_gas = onda(self.pk, self.case["critical_surface_tension_N_m"], lflux, rho_l,
+                                mu_l, sigma, gflux, bv["rho"], mu_v)
         d_v = gas_diffusivities(s["y"], s["tv"], p)
-        d_l = liquid_diffusivities(s["x"], s["tl"], mu_l)
+        d_l = liquid_diffusivities(self.ref_l, s["tl"], mu_l)
         a_int = factor * aw * self.area * self.dz
         others_v = [i for i in range(self.c) if i != self.ref_v]
         others_l = [i for i in range(self.c) if i != self.ref_l]
@@ -294,8 +375,8 @@ class Column:
             kv=[k_gas(d_v[i]) for i in range(self.c)],
             kl=[k_liq(d_l[i]) for i in range(self.c)],
             ha_v=k_gas(dv) * c_v * bv["cp"] * le_v ** (2 / 3) * a_int,
-            ha_l=k_liq(dl) * c_l * bl["cp"] * math.sqrt(le_l) * a_int,
-            gflux=gflux, lflux=lflux, rho_l=rho_l, mu_l=mu_l, u_l=lflux / rho_l,
+            ha_l=k_liq(dl) * c_l * bl["cp"] * le_l ** (2 / 3) * a_int,
+            gflux=gflux, lflux=lflux, rho_l=rho_l, mu_l=mu_l, u_l=lflux / rho_l, sigma=sigma,
             neglected=max(gas_drop, liq_drop))
 
     def residual(self, values, factor):
@@ -322,19 +403,22 @@ class Column:
             out += [s["x"].sum() - 1, s["y"].sum() - 1]
             e_v = pr["ha_v"] * (s["tv"] - s["ti"]) + float(np.dot(s["N"], pr["hbar_v"]))
             e_l = pr["ha_l"] * (s["ti"] - s["tl"]) + float(np.dot(s["N"], pr["hbar_l"]))
-            out += [(hv_in - s["V"] * pr["bv"]["h"] - e_v) / scale,
-                    (hl_in - s["L"] * pr["bl"]["h"] + e_l) / scale, (e_v - e_l) / scale]
+            # Equations scaled by their film conductances as well (row scaling
+            # only; it keeps the large-area continuation steps well scaled).
+            sv, sl = scale + 100 * pr["ha_v"], scale + 100 * pr["ha_l"]
+            out += [(hv_in - s["V"] * pr["bv"]["h"] - e_v) / sv,
+                    (hl_in - s["L"] * pr["bl"]["h"] + e_l) / sl, (e_v - e_l) / (sv + sl - scale)]
             out += list(np.log(s["yi"]) - np.log(s["xi"]) - pr["ln_k"])
             out += [s["xi"].sum() - 1, s["yi"].sum() - 1]
             for i in range(self.c):
                 if i != self.ref_v:
                     mean = 0.5 * (s["y"][i] + s["yi"][i])
-                    out.append((s["N"][i] - pr["c_v"] * pr["kv"][i] * pr["a_int"]
-                                * (s["y"][i] - s["yi"][i]) - mean * n_t) / f)
+                    g_v = pr["c_v"] * pr["kv"][i] * pr["a_int"]
+                    out.append((s["N"][i] - g_v * (s["y"][i] - s["yi"][i]) - mean * n_t) / (f + g_v))
                 if i != self.ref_l:
                     mean = 0.5 * (s["x"][i] + s["xi"][i])
-                    out.append((s["N"][i] - pr["c_l"] * pr["kl"][i] * pr["a_int"]
-                                * (s["xi"][i] - s["x"][i]) - mean * n_t) / f)
+                    g_l = pr["c_l"] * pr["kl"][i] * pr["a_int"]
+                    out.append((s["N"][i] - g_l * (s["xi"][i] - s["x"][i]) - mean * n_t) / (f + g_l))
         return np.array(out), segs, props
 
     def initial(self):
@@ -342,9 +426,12 @@ class Column:
         fl, zl, _ = self.feeds["liquid"]
         z = (fg * zg + fl * zl) / self.flow
         t = (fg * self.case["gas"]["temperature_K"] + fl * self.case["liquid"]["temperature_K"]) / self.flow
-        flash = equilibrium.flash_case("blend", IDS, list(z), t, self.p, self.variant)
-        x, y = np.array(flash["liquid"]), np.array(flash["vapor"])
-        beta = flash["vapor_fraction"]
+        # Starting point only: each phase at its feed composition with traces
+        # of the absent components, at the flow-weighted inlet temperature.
+        del z
+        x = (zl + 1e-6) / (zl + 1e-6).sum()
+        y = (zg + 1e-6) / (zg + 1e-6).sum()
+        beta = fg / self.flow
         block = np.r_[t / 100, t / 100, t / 100, x, y, x, y, (1 - beta), beta,
                       (fg * zg - beta * self.flow * y) / self.flow / self.n]
         return np.tile(block, self.n)
@@ -361,18 +448,21 @@ class Column:
                 return values
             jac = np.empty((len(r), len(values)))
             for k in range(len(values)):
-                h = 1e-7 * max(abs(values[k]), 1.0)
+                # Relative steps: trace mole fractions are ~1e-7.
+                h = 1e-7 * max(abs(values[k]), 1e-9)
                 trial = values.copy()
                 trial[k] += h
                 jac[:, k] = (self.residual(trial, factor)[0] - r) / h
             step = np.linalg.solve(jac, -r)
+            # Backtracking on the sum of squares (the engine uses the max norm).
+            merit = float(np.dot(r, r))
             for back in range(30):
                 trial = values + 0.5 ** back * step
                 try:
                     rt = self.residual(trial, factor)[0]
                 except (AssertionError, ValueError, ZeroDivisionError, TypeError):
                     continue
-                if np.all(np.isfinite(rt)) and np.max(np.abs(rt)) < err:
+                if np.all(np.isfinite(rt)) and float(np.dot(rt, rt)) < merit:
                     values, r = trial, rt
                     break
             else:
@@ -386,6 +476,7 @@ class Column:
     def solve(self):
         values = self.initial()
         target = self.case["area_factor"]
+        # Newton along the area-factor continuation from the blend-flash guess.
         for multiple in (1e3, 1e2, 1e1, 1.0):
             values = self.newton(values, target * multiple)
         return values
@@ -394,6 +485,7 @@ class Column:
 def reference(case):
     col = Column(case)
     values = col.solve()
+    col.strict = True
     r, segs, props = col.residual(values, case["area_factor"])
     assert np.max(np.abs(r)) < 1e-10
     profiles = dict(vapor_temperatures_K=[], liquid_temperatures_K=[], interface_temperatures_K=[],
@@ -401,8 +493,9 @@ def reference(case):
                     interfacial_area_m2_m3=[], flooding_fractions=[], pressure_drops_Pa_m=[])
     neglected = 0.0
     for s, pr in zip(segs, props):
-        drop, flood = hydraulics(col.pk, pr["gflux"], pr["bv"]["rho"], pr["lflux"], pr["rho_l"], pr["mu_l"])
-        assert flood < 1 and pr["u_l"] / col.pk["a"] >= MWR
+        drop, flood = hydraulics(col.pk, pr["gflux"], pr["bv"]["rho"], pr["lflux"], pr["rho_l"],
+                                 pr["mu_l"], col.p)
+        assert flood < 1 and pr["u_l"] * 3600 >= minimum_wetting_m_h(col.pk, pr["sigma"])
         # The interface phases satisfy equal fugacities (residual above) and
         # are each stable by the A4 multi-start TPD search, so the interface
         # is a stable vapor-liquid split.
@@ -443,6 +536,7 @@ def main():
                ROOT / "data/source-extracts/transport.provisional.json"]
     result = dict(
         schema="a17-rate-based-absorber-reference-v1",
+        published_examples=published_examples(),
         packages={name: importlib.metadata.version(name)
                   for name in ("teqp", "cantera", "numpy", "scipy", "CoolProp", "chemicals")},
         sha256={str(path.relative_to(ROOT)).replace("\\", "/"): hashlib.sha256(path.read_bytes()).hexdigest()

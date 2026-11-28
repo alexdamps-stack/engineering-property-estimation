@@ -2066,7 +2066,7 @@ fn rate_based_absorber_form_and_segment_results() {
     ed.fs.set_spec(
         column,
         UnitSpec::Columns(ColumnSpec::Absorber(AbsorberSpec {
-            pressure_pa: Some(1.0e6),
+            pressure_pa: Some(2.5e5),
             internals: ColumnInternals::Packed(PackedSectionSpec {
                 hetp_m: None,
                 basis: PackedSectionBasis::PackedHeight {
@@ -2078,6 +2078,7 @@ fn rate_based_absorber_form_and_segment_results() {
                 diameter_m: Some(0.4),
                 segments: 3,
                 packing: Packing::MetalPallRing50,
+                critical_surface_tension_n_m: Some(0.075),
                 gas_transport_neglected: vec!["methanol".into(), "water".into()],
                 liquid_transport_neglected: vec!["nitrogen".into()],
                 ..Default::default()
@@ -2085,8 +2086,8 @@ fn rate_based_absorber_form_and_segment_results() {
         })),
     );
     for (port, temperature, pressure, flow, z) in [
-        (0, 300.0, 1.05e6, 36.0, vec![0.995, 0.005, 0.0]),
-        (1, 295.0, 1.1e6, 21.0, vec![0.0, 0.0, 1.0]),
+        (0, 298.0, 2.6e5, 15.0, vec![0.995, 0.005, 0.0]),
+        (1, 288.0, 2.7e5, 30.0, vec![0.0, 0.0, 1.0]),
     ] {
         let y = 100.0 + 110.0 * port as f32;
         let feed = ed.add_unit_at(UnitKind::Feed, egui::pos2(40.0, y));

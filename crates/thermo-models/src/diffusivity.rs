@@ -1,61 +1,63 @@
 //! Molecular diffusivities for rate-based mass transfer (#241).
 //!
 //! Package-independent side properties, like the transport properties of
-//! #225: nothing here feeds back into equilibrium or caloric results.
+//! #225: nothing here feeds back into equilibrium or caloric results. Every
+//! constant was checked against a readable reproduction of the original;
+//! see `docs/a17-columns-rate-based.md` § "Verification of constants".
 //!
 //! * **Gas binaries**: Fuller, Schettler and Giddings (1966), Ind. Eng. Chem.
-//!   58(5), 18–27, with the atomic and molecular diffusion volumes of Fuller,
-//!   Ensley and Giddings (1969), J. Phys. Chem. 73, 3679–3685, in the form of
-//!   Poling, Prausnitz and O'Connell, *The Properties of Gases and Liquids*,
-//!   5th ed. (2001), eq. 11-4.4 and Table 11-1:
-//!   \(D_{AB} = 0.00143\,T^{1.75} / (P\,M_{AB}^{1/2}[\Sigma_v{}_A^{1/3} + \Sigma_v{}_B^{1/3}]^2)\)
-//!   in cm²/s with T in K, P in bar and \(M_{AB} = 2/(1/M_A + 1/M_B)\) in g/mol.
-//! * **Gas mixtures**: Blanc's law for a component diffusing through the
-//!   rest of the mixture (Poling et al. 2001, eq. 11-7.2),
-//!   \(D_{i,m} = (1 - y_i) / \sum_{j \ne i} y_j / D_{ij}\).
-//! * **Liquids**: Wilke and Chang (1955), AIChE J. 1, 264–270 (Poling et al.
-//!   2001, eq. 11-9.1), \(D = 7.4\times10^{-8} (\phi M)^{1/2} T / (\eta V_A^{0.6})\)
-//!   in cm²/s with η in cP and \(V_A\) the solute molar volume at its normal
-//!   boiling point in cm³/mol. For a mixed solvent \(\phi M\) is the
-//!   solvent-fraction-weighted \(\sum_{j\ne A} x_j \phi_j M_j / \sum_{j \ne A} x_j\)
-//!   (Poling et al. 2001, §11-10) and η is the liquid-mixture viscosity.
-//!   Association factors φ: water 2.6, methanol 1.9, unassociated 1.0
-//!   (Wilke and Chang 1955).
-//! * **Normal-boiling molar volume**: Tyn and Calus (1975), Processing 21(4),
-//!   16–17 (recommended with Wilke–Chang in Poling et al. 2001, §11-9),
-//!   \(V_b = 0.285\,V_c^{1.048}\), cm³/mol, from the ChemSep critical volume
-//!   of the transport extract.
+//!   58(5), 18–27, in the original form
+//!   \(D_{AB} = 10^{-3}\,T^{1.75}(1/M_A + 1/M_B)^{1/2} / (P[\Sigma_{vA}^{1/3} + \Sigma_{vB}^{1/3}]^2)\),
+//!   cm²/s with T in K, P in atm and M in g/mol, and the 1966 atomic and
+//!   molecular diffusion volumes (reproduced in Cussler, *Diffusion*, 3rd ed.
+//!   2009, Eq. 5.1-9 and Table 5.1-4).
+//! * **Gas mixtures**: Wilke (1950) for a component diffusing through the
+//!   other (stagnant) components, \(D_{i,m} = (1 - y_i) / \sum_{j \ne i} y_j / D_{ij}\)
+//!   (as given, citing Wilke, in eq. 13 of Getzinger, LBNL report
+//!   "Steady-state diffusion in ternary gas mixtures", 1962,
+//!   <https://escholarship.org/uc/item/0w40t47j>).
+//! * **Liquids**: Wilke and Chang (1955), AIChE J. 1, 264–270,
+//!   \(D = 7.4\times10^{-8} (\phi_B M_B)^{1/2} T / (\mu_B V_A^{0.6})\) in cm²/s
+//!   with μ in cP and \(V_A\) the solute molar volume at its normal boiling
+//!   point in cm³/mol, for a solute A dilute in a solvent B; association
+//!   factors φ: water 2.6, methanol 1.9, unassociated solvents 1.0.
+//! * **Normal-boiling molar volume**: Tyn and Calus (1975),
+//!   \(V_b = 0.285\,V_c^{1.048}\) (cm³/mol), from the ChemSep critical
+//!   volume of the transport extract.
 //!
-//! Declared domain: components with a Fuller volume in [`fuller_volume`]
+//! Declared domain: components with a diffusion volume in [`fuller_volume`]
 //! (the eight transport components), gas 200–600 K and at most
-//! [`FULLER_MAX_PRESSURE_PA`] (the Fuller method is a low-pressure
-//! correlation; no Takahashi dense-gas correction is applied), liquid
+//! [`FULLER_MAX_PRESSURE_PA`] (a declared limit: the Fuller method is a
+//! low-pressure correlation and no dense-gas correction is applied), liquid
 //! 250–500 K. Outside it the result is `OutsideValidityDomain`.
 use thermo_data::{ComponentDatabase, TransportDatabase};
 use thermo_types::{CalculationError, InputError};
 
 /// Implementation version of the diffusivity formulations; bump on any change.
-pub const DIFFUSIVITY_MODEL_VERSION: &str = "diffusivity-v1";
-/// Largest pressure of the Fuller gas diffusivity, Pa.
+pub const DIFFUSIVITY_MODEL_VERSION: &str = "diffusivity-v2";
+/// Largest pressure of the Fuller gas diffusivity, Pa (declared, not a
+/// literature constant).
 pub const FULLER_MAX_PRESSURE_PA: f64 = 2.0e6;
 /// Temperature domain of the gas diffusivity, K.
 pub const GAS_DIFFUSIVITY_TEMPERATURE_RANGE_K: [f64; 2] = [200.0, 600.0];
 /// Temperature domain of the liquid diffusivity, K.
 pub const LIQUID_DIFFUSIVITY_TEMPERATURE_RANGE_K: [f64; 2] = [250.0, 500.0];
+/// Standard atmosphere, Pa.
+const ATMOSPHERE_PA: f64 = 101_325.0;
 
-/// Fuller diffusion volume Σv of a component, cm³/mol (Poling et al. 2001,
-/// Table 11-1). Simple molecules use their tabulated molecular volume; the
-/// hydrocarbons and methanol are sums of the atomic increments
-/// C 15.9, H 2.31 and O 6.11.
+/// Fuller–Schettler–Giddings (1966) diffusion volume Σv of a component,
+/// cm³/mol. Simple molecules use their tabulated molecular volume (N2 17.9,
+/// O2 16.6, CO2 26.9, H2O 12.7); hydrocarbons and methanol are sums of the
+/// atomic increments C 16.5, H 1.98, O 5.48.
 pub fn fuller_volume(id: &str) -> Option<f64> {
-    const C: f64 = 15.9;
-    const H: f64 = 2.31;
-    const O: f64 = 6.11;
+    const C: f64 = 16.5;
+    const H: f64 = 1.98;
+    const O: f64 = 5.48;
     Some(match id {
-        "nitrogen" => 18.5,
-        "oxygen" => 16.3,
-        "carbon-dioxide" => 26.7,
-        "water" => 13.1,
+        "nitrogen" => 17.9,
+        "oxygen" => 16.6,
+        "carbon-dioxide" => 26.9,
+        "water" => 12.7,
         "methane" => C + 4.0 * H,
         "ethane" => 2.0 * C + 6.0 * H,
         "propane" => 3.0 * C + 8.0 * H,
@@ -64,8 +66,8 @@ pub fn fuller_volume(id: &str) -> Option<f64> {
     })
 }
 
-/// Wilke–Chang association factor φ of a solvent component (Wilke and
-/// Chang 1955): water 2.6, methanol 1.9, unassociated solvents 1.0.
+/// Wilke–Chang association factor φ of a solvent (Wilke and Chang 1955):
+/// water 2.6, methanol 1.9, unassociated solvents 1.0.
 pub fn wilke_chang_association(id: &str) -> f64 {
     match id {
         "water" => 2.6,
@@ -74,19 +76,27 @@ pub fn wilke_chang_association(id: &str) -> f64 {
     }
 }
 
-/// Fuller binary gas diffusivity, m²/s, at `t_k` and `p_pa` for molar masses
-/// in g/mol and diffusion volumes in cm³/mol.
+/// Fuller–Schettler–Giddings binary gas diffusivity, m²/s, at `t_k` and
+/// `p_pa` for molar masses in g/mol and diffusion volumes in cm³/mol.
 pub fn fuller_binary(t_k: f64, p_pa: f64, m_a: f64, m_b: f64, v_a: f64, v_b: f64) -> f64 {
-    let m_ab = 2.0 / (1.0 / m_a + 1.0 / m_b);
     let sum = v_a.cbrt() + v_b.cbrt();
-    0.00143 * t_k.powf(1.75) / (p_pa * 1e-5 * m_ab.sqrt() * sum * sum) * 1e-4
+    1e-3 * t_k.powf(1.75) * (1.0 / m_a + 1.0 / m_b).sqrt() / (p_pa / ATMOSPHERE_PA * sum * sum)
+        * 1e-4
 }
 
-/// Wilke–Chang liquid diffusivity, m²/s, for the solvent group `phi_m`
-/// (φM in g/mol), solvent viscosity in Pa s and solute normal-boiling
-/// molar volume in cm³/mol.
-pub fn wilke_chang(t_k: f64, phi_m: f64, viscosity_pa_s: f64, solute_volume_cm3: f64) -> f64 {
-    7.4e-8 * phi_m.sqrt() * t_k / (viscosity_pa_s * 1e3 * solute_volume_cm3.powf(0.6)) * 1e-4
+/// Wilke–Chang liquid diffusivity, m²/s, of a dilute solute (normal-boiling
+/// molar volume in cm³/mol) in a solvent with association factor `phi`,
+/// molar mass in g/mol and viscosity in Pa s.
+pub fn wilke_chang(
+    t_k: f64,
+    phi: f64,
+    solvent_molar_mass: f64,
+    viscosity_pa_s: f64,
+    solute_volume_cm3: f64,
+) -> f64 {
+    7.4e-8 * (phi * solvent_molar_mass).sqrt() * t_k
+        / (viscosity_pa_s * 1e3 * solute_volume_cm3.powf(0.6))
+        * 1e-4
 }
 
 /// Tyn–Calus molar volume at the normal boiling point, cm³/mol, from the
@@ -183,8 +193,8 @@ impl DiffusivityModel {
         Ok(())
     }
 
-    /// Effective (Blanc) gas diffusivity of every component in the mixture
-    /// `y`, m²/s. A component without another component present fails.
+    /// Effective (Wilke 1950) gas diffusivity of every component in the
+    /// mixture `y`, m²/s. A component without another component present fails.
     pub fn gas_effective(
         &self,
         y: &[f64],
@@ -221,15 +231,16 @@ impl DiffusivityModel {
             .collect()
     }
 
-    /// Wilke–Chang diffusivity of every component of the liquid `x` through
-    /// the other components, m²/s, with the liquid-mixture viscosity in Pa s.
-    pub fn liquid_effective(
+    /// Wilke–Chang diffusivity of every component other than `solvent`,
+    /// treated as a dilute solute in that solvent, m²/s, with the liquid's
+    /// viscosity (Pa s) as the solvent viscosity. The solvent's own entry is
+    /// zero.
+    pub fn liquid_in_solvent(
         &self,
-        x: &[f64],
+        solvent: usize,
         t_k: f64,
         viscosity_pa_s: f64,
     ) -> Result<Vec<f64>, CalculationError> {
-        self.check(x)?;
         let [lo, hi] = LIQUID_DIFFUSIVITY_TEMPERATURE_RANGE_K;
         if !(lo..=hi).contains(&t_k) {
             return Err(outside(format!(
@@ -241,28 +252,30 @@ impl DiffusivityModel {
                 "liquid diffusivity viscosity",
             )));
         }
-        (0..x.len())
-            .map(|i| {
-                let (mut weight, mut phi_m) = (0.0, 0.0);
-                for (j, s) in self.species.iter().enumerate() {
-                    if j != i {
-                        weight += x[j];
-                        phi_m += x[j] * s.association * s.molar_mass_g_mol;
-                    }
+        let b = self
+            .species
+            .get(solvent)
+            .ok_or(CalculationError::InvalidInput(
+                InputError::ComponentMismatch,
+            ))?;
+        Ok(self
+            .species
+            .iter()
+            .enumerate()
+            .map(|(i, a)| {
+                if i == solvent {
+                    0.0
+                } else {
+                    wilke_chang(
+                        t_k,
+                        b.association,
+                        b.molar_mass_g_mol,
+                        viscosity_pa_s,
+                        a.boiling_volume_cm3,
+                    )
                 }
-                if weight <= 0.0 {
-                    return Err(CalculationError::InvalidInput(InputError::NotPositive(
-                        "liquid diffusivity needs a solvent",
-                    )));
-                }
-                Ok(wilke_chang(
-                    t_k,
-                    phi_m / weight,
-                    viscosity_pa_s,
-                    self.species[i].boiling_volume_cm3,
-                ))
             })
-            .collect()
+            .collect())
     }
 
     /// Component identifiers in model order.
@@ -276,45 +289,44 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fuller_co2_nitrogen_agrees_with_measurement() {
-        // CO2–N2 at 298.2 K and 1 atm: measured 0.167 cm²/s (Cussler,
-        // Diffusion, 3rd ed. 2009, Table 5.1-1). Fuller's method has a
-        // typical error of a few per cent (Poling et al. 2001, Table 11-2).
-        let d = fuller_binary(298.2, 101_325.0, 44.0095, 28.0134, 26.7, 18.5);
-        assert!((d / 0.167e-4 - 1.0).abs() < 0.05, "{d}");
-        // Hand evaluation of eq. 11-4.4 for the same inputs.
-        let m_ab: f64 = 2.0 / (1.0 / 44.0095 + 1.0 / 28.0134);
-        let s: f64 = 26.7_f64.cbrt() + 18.5_f64.cbrt();
-        let hand = 0.00143 * 298.2_f64.powf(1.75) / (1.01325 * m_ab.sqrt() * s * s);
-        assert!((d * 1e4 / hand - 1.0).abs() < 1e-14);
+    fn fuller_reproduces_published_worked_examples() {
+        // Cussler, Diffusion, 3rd ed. (2009), Example 5.1-2: H2 in N2 at
+        // 21 °C (294 K) and 2 atm with V(H2) = 7.07, V(N2) = 17.9 and
+        // M = 2.02, 28.0: D = 0.37 cm²/s (measured 0.38).
+        let d = fuller_binary(294.0, 2.0 * ATMOSPHERE_PA, 2.02, 28.0, 7.07, 17.9) * 1e4;
+        assert!((d - 0.37).abs() < 0.005, "{d}");
+        // n-butanol in air at 273 K and 1 atm, Σv = 4(16.5) + 10(1.98) +
+        // 5.48 = 91.28 and 20.1, M = 74.1 and 29: D = 7.73e-6 m²/s (worked
+        // example of the University of Jordan Transport Phenomena II notes,
+        // "03- Diffusion coefficients", after Geankoplis).
+        let v_butanol: f64 = 4.0 * 16.5 + 10.0 * 1.98 + 5.48;
+        assert!((v_butanol - 91.28).abs() < 1e-12);
+        // The printed result carries the example's intermediate rounding:
+        // the same inputs give 7.701e-6 m²/s (0.4 % below the printed value).
+        let d = fuller_binary(273.0, ATMOSPHERE_PA, 74.1, 29.0, v_butanol, 20.1);
+        assert!((d / 7.73e-6 - 1.0).abs() < 0.005, "{d}");
         // D ∝ 1/p.
-        assert!(
-            (fuller_binary(298.2, 2.0 * 101_325.0, 44.0095, 28.0134, 26.7, 18.5) * 2.0 / d - 1.0)
-                .abs()
-                < 1e-14
-        );
+        let half = fuller_binary(273.0, 2.0 * ATMOSPHERE_PA, 74.1, 29.0, v_butanol, 20.1);
+        assert!((half * 2.0 / d - 1.0).abs() < 1e-14);
     }
 
     #[test]
-    fn wilke_chang_co2_in_water_is_near_measurement() {
-        // CO2 in water at 298 K: measured about 1.9e-9 m²/s (Cussler 2009,
-        // Table 5.2-1); Wilke–Chang's typical error is 10–20 %.
-        let model = DiffusivityModel::new(&["carbon-dioxide", "water"]).unwrap();
-        let d = model
-            .liquid_effective(&[1e-4, 1.0 - 1e-4], 298.15, 0.89e-3)
-            .unwrap()[0];
-        assert!((d / 1.92e-9 - 1.0).abs() < 0.2, "{d}");
-        // A pure liquid has no solvent for its only component.
-        assert!(
-            model
-                .liquid_effective(&[0.0, 1.0], 298.15, 0.89e-3)
-                .is_err()
-        );
+    fn wilke_chang_reproduces_a_published_worked_example() {
+        // Ethylbenzene in water at 293 K: φ = 2.6, M = 18.0, μ = 1.0 cP,
+        // V_A = 139.5 cm³/mol gives 0.77e-5 cm²/s (University of Jordan
+        // Transport Phenomena II notes, after Wilke and Chang 1955).
+        let d = wilke_chang(293.0, 2.6, 18.0, 1.0e-3, 139.5) * 1e4;
+        assert!((d - 0.77e-5).abs() < 0.005e-5, "{d}");
         assert!((tyn_calus_volume(94.0) - 0.285 * 94.0_f64.powf(1.048)).abs() < 1e-12);
+        let model = DiffusivityModel::new(&["carbon-dioxide", "water"]).unwrap();
+        let d = model.liquid_in_solvent(1, 298.15, 0.89e-3).unwrap();
+        assert_eq!(d[1], 0.0);
+        assert!(d[0] > 1e-9 && d[0] < 3e-9, "{d:?}");
+        assert!(model.liquid_in_solvent(1, 600.0, 0.89e-3).is_err());
     }
 
     #[test]
-    fn blanc_reduces_to_the_binary_and_domain_is_explicit() {
+    fn wilke_mixture_rule_reduces_to_the_binary_and_domain_is_explicit() {
         let model = DiffusivityModel::new(&["methanol", "nitrogen", "water"]).unwrap();
         let d = model.gas_effective(&[0.2, 0.8, 0.0], 300.0, 1e5).unwrap();
         let binary = model.gas_binary(0, 1, 300.0, 1e5);

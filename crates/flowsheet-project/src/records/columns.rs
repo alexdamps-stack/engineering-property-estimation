@@ -7,7 +7,9 @@ use flowsheet_core::units::columns::packing::{
     FilmModel, PackedCalculation, PackedSectionBasis, PackedSectionSpec, RateBasedSpec,
     StageRounding,
 };
-use flowsheet_core::units::columns::packing_data::{MassTransferCorrelation, Packing};
+use flowsheet_core::units::columns::packing_data::{
+    MassTransferCorrelation, Packing, WettingSurface,
+};
 use flowsheet_core::units::columns::{
     AbsorberSpec, BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget,
     CurveBasis, CutPoint, DistillationColumnSpec, DistillationCondenser, DrawRate,
@@ -37,6 +39,58 @@ fn is_unit_factor(v: &f64) -> bool {
 pub(crate) enum PackingTypeRecord {
     MetalPallRing25,
     MetalPallRing50,
+}
+
+/// Packing surface of the minimum-wetting rule (#241).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum WettingSurfaceRecord {
+    UnglazedCeramic,
+    OxidizedMetal,
+    SurfaceTreatedMetal,
+    GlazedCeramic,
+    Glass,
+    #[default]
+    BrightMetal,
+    PvcCpvc,
+    Polypropylene,
+    Fluoropolymer,
+}
+
+impl From<WettingSurface> for WettingSurfaceRecord {
+    fn from(s: WettingSurface) -> Self {
+        match s {
+            WettingSurface::UnglazedCeramic => Self::UnglazedCeramic,
+            WettingSurface::OxidizedMetal => Self::OxidizedMetal,
+            WettingSurface::SurfaceTreatedMetal => Self::SurfaceTreatedMetal,
+            WettingSurface::GlazedCeramic => Self::GlazedCeramic,
+            WettingSurface::Glass => Self::Glass,
+            WettingSurface::BrightMetal => Self::BrightMetal,
+            WettingSurface::PvcCpvc => Self::PvcCpvc,
+            WettingSurface::Polypropylene => Self::Polypropylene,
+            WettingSurface::Fluoropolymer => Self::Fluoropolymer,
+        }
+    }
+}
+
+impl From<WettingSurfaceRecord> for WettingSurface {
+    fn from(s: WettingSurfaceRecord) -> Self {
+        match s {
+            WettingSurfaceRecord::UnglazedCeramic => Self::UnglazedCeramic,
+            WettingSurfaceRecord::OxidizedMetal => Self::OxidizedMetal,
+            WettingSurfaceRecord::SurfaceTreatedMetal => Self::SurfaceTreatedMetal,
+            WettingSurfaceRecord::GlazedCeramic => Self::GlazedCeramic,
+            WettingSurfaceRecord::Glass => Self::Glass,
+            WettingSurfaceRecord::BrightMetal => Self::BrightMetal,
+            WettingSurfaceRecord::PvcCpvc => Self::PvcCpvc,
+            WettingSurfaceRecord::Polypropylene => Self::Polypropylene,
+            WettingSurfaceRecord::Fluoropolymer => Self::Fluoropolymer,
+        }
+    }
+}
+
+fn is_default_surface(s: &WettingSurfaceRecord) -> bool {
+    *s == WettingSurfaceRecord::default()
 }
 
 /// Mass-transfer correlation of a rate-based section (#241).
@@ -70,6 +124,10 @@ pub(crate) struct RateBasedRecord {
     film_model: FilmModelRecord,
     #[serde(default = "unit_factor", skip_serializing_if = "is_unit_factor")]
     interfacial_area_factor: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    critical_surface_tension_n_m: Option<f64>,
+    #[serde(default, skip_serializing_if = "is_default_surface")]
+    wetting_surface: WettingSurfaceRecord,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     gas_transport_neglected: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -92,6 +150,8 @@ impl From<&RateBasedSpec> for RateBasedRecord {
                 FilmModel::EffectiveDiffusivity => FilmModelRecord::EffectiveDiffusivity,
             },
             interfacial_area_factor: r.interfacial_area_factor,
+            critical_surface_tension_n_m: r.critical_surface_tension_n_m,
+            wetting_surface: r.wetting_surface.into(),
             gas_transport_neglected: r.gas_transport_neglected.clone(),
             liquid_transport_neglected: r.liquid_transport_neglected.clone(),
         }
@@ -114,6 +174,8 @@ impl From<RateBasedRecord> for RateBasedSpec {
                 FilmModelRecord::EffectiveDiffusivity => FilmModel::EffectiveDiffusivity,
             },
             interfacial_area_factor: r.interfacial_area_factor,
+            critical_surface_tension_n_m: r.critical_surface_tension_n_m,
+            wetting_surface: r.wetting_surface.into(),
             gas_transport_neglected: r.gas_transport_neglected,
             liquid_transport_neglected: r.liquid_transport_neglected,
         }
@@ -124,6 +186,7 @@ impl RateBasedRecord {
     fn numbers(&self) -> impl Iterator<Item = f64> {
         self.diameter_m
             .into_iter()
+            .chain(self.critical_surface_tension_n_m)
             .chain([self.interfacial_area_factor])
     }
 }

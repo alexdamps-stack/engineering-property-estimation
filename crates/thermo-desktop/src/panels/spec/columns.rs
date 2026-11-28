@@ -6,7 +6,7 @@ use flowsheet_core::units::columns::packing::{
     MAX_RATE_SEGMENTS, PackedCalculation, PackedSectionBasis, PackedSectionSpec, RateBasedSpec,
     StageRounding,
 };
-use flowsheet_core::units::columns::packing_data::Packing;
+use flowsheet_core::units::columns::packing_data::{Packing, WettingSurface};
 use flowsheet_core::units::columns::{
     BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget, CurveBasis,
     CutPoint, DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom,
@@ -794,10 +794,47 @@ fn rate_based_form(
     note_row(
         ui,
         &format!(
-            "a = {} m²/m³, ε = {}, Fp = {} 1/m ({})",
-            data.specific_area_m2_m3, data.void_fraction, data.packing_factor_m, data.source
+            "a = {} m²/m³, ε = {}, Fp = {} 1/m, Fpd = {} 1/m ({})",
+            data.specific_area_m2_m3,
+            data.void_fraction,
+            data.packing_factor_m,
+            data.dry_packing_factor_m,
+            data.source
         ),
     );
+    let label = ui.label("Packing critical surface tension (N/m)");
+    ui.horizontal(|ui| match &mut rate.critical_surface_tension_n_m {
+        Some(value) => {
+            ui.add(DragValue::new(value).speed(0.001).range(0.001..=0.5))
+                .labelled_by(label.id);
+            if ui.small_button("×").on_hover_text("Clear").clicked() {
+                rate.critical_surface_tension_n_m = None;
+            }
+        }
+        None => {
+            ui.label("required (σc of the packing material, Onda 1968)");
+            if ui.small_button("Enter value").clicked() {
+                rate.critical_surface_tension_n_m = Some(0.05);
+            }
+        }
+    });
+    ui.end_row();
+    let surfaces: Vec<&str> = WettingSurface::ALL.iter().map(|s| s.name()).collect();
+    let current = WettingSurface::ALL
+        .iter()
+        .position(|s| *s == rate.wetting_surface)
+        .expect("listed surface");
+    let text = ui.label("Packing surface (minimum wetting)");
+    ComboBox::from_id_salt("rate-based wetting surface")
+        .selected_text(surfaces[current])
+        .show_ui(ui, |ui| {
+            for (surface, name) in WettingSurface::ALL.iter().zip(&surfaces) {
+                ui.selectable_value(&mut rate.wetting_surface, *surface, *name);
+            }
+        })
+        .response
+        .labelled_by(text.id);
+    ui.end_row();
     count_field(ui, "Segments", &mut rate.segments, 1..=MAX_RATE_SEGMENTS);
     choice(ui, "Mass transfer", 0, &["Onda (1968)"]);
     choice(ui, "Film model", 0, &["Effective diffusivity"]);

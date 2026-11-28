@@ -1,49 +1,115 @@
 //! Packing library, mass-transfer and hydraulic correlations of rate-based
-//! packed sections (#241). See `docs/a17-columns-rate-based.md`.
+//! packed sections (#241). Every constant here was checked against a
+//! readable source; see `docs/a17-columns-rate-based.md` § "Verification
+//! of constants".
 //!
-//! * **Packing data**: geometry (specific area, void fraction) and the
-//!   tower packing factor of metal Pall rings from the manufacturer's
-//!   published data, Raschig GmbH, *RASCHIG PALL-Ring* brochure 350
-//!   (edition v2025010), "Operational data for PALL-Rings made of metal"
-//!   and "Tower packing factor", Table 1.
+//! * **Packing data**: Perry's Chemical Engineers' Handbook, 8th ed. (2008),
+//!   Table 14-13 "Characteristics of random packings" (p. 14-60): specific
+//!   area, void fraction, packing factor F_p (from Kister, *Distillation
+//!   Design*, 1992) and dry packing factor F_pd (from Robbins 1991).
 //! * **Mass transfer**: Onda, Takeuchi and Okumoto (1968), J. Chem. Eng.
-//!   Japan 1, 56–62, for random packings (wetted area, liquid- and gas-side
-//!   coefficients), with the critical surface tensions of the packing
-//!   materials given there.
-//! * **Pressure drop**: Robbins (1991), Chem. Eng. Prog. 87(5), 87–90, the
-//!   analytic form of the generalized pressure-drop correlation (GPDC).
-//! * **Flooding**: the flood pressure drop of Kister and Gill (1991), Chem.
-//!   Eng. Prog. 87(2), 32–42, \(\Delta P_\text{flood} = 0.115 F_p^{0.7}\)
-//!   inH2O/ft with \(F_p\) in ft⁻¹; the flooding fraction is the gas load
-//!   divided by the gas load at which the Robbins pressure drop reaches it
-//!   at the same liquid load.
-//! * **Minimum wetting**: Morris and Jackson (1953), *Absorption Towers*
-//!   (Butterworths), minimum wetting rate 0.08 m³/(m h) for rings up to
-//!   75 mm, as recommended in Sinnott, *Coulson & Richardson's Chemical
-//!   Engineering* Vol. 6, 4th ed. (2005), §11.14.
+//!   Japan 1(1), 56–62, eqs. (1)–(3): wetted area, liquid- and gas-side
+//!   coefficients; constant 5.23, or 2.00 for packings smaller than 15 mm.
+//!   The critical surface tension σc of the packing material is a user
+//!   input: no σc table could be verified (the paper takes it from Onda,
+//!   Takeuchi and Koyama, Kagaku Kōgaku 31 (1967) 126, not available here).
+//! * **Pressure drop**: Robbins (1991), Chem. Eng. Prog. 87(5), 87–90, as
+//!   given in Perry's 8th ed., eqs. 14-145 to 14-151 (p. 14-59), with
+//!   C3 = 7.4e-8 and C4 = 2.7e-5; "not suitable above 3 bar absolute"
+//!   (p. 14-61), which is enforced.
+//! * **Flooding**: Kister and Gill flood pressure drop, Perry's 8th ed.
+//!   eq. 14-142, \(\Delta P_\text{flood} = 0.12 F_p^{0.7}\) inH2O/ft with
+//!   F_p in ft⁻¹, used with the Robbins pressure drop as Perry's recommends
+//!   (p. 14-61); not for F_p > 60 ft⁻¹ (p. 14-58), which is enforced.
+//! * **Minimum wetting**: Perry's 8th ed. eq. 14-166 with the Glitsch rules
+//!   of thumb of Table 14-16 (p. 14-79): Q_MW = Q_table (200/a_p)^0.5,
+//!   doubled for liquids above 25 mN/m as recommended there for water.
 //!
 //! Billet–Schultes (1999) and Bravo–Rocha–Fair (structured packings) are not
-//! implemented: their packing-specific constants have not been taken from a
-//! verified source in this batch.
+//! implemented: their packing-specific constants were not verified.
 
 /// Standard acceleration of gravity, m/s².
 pub const GRAVITY_M_S2: f64 = 9.806_65;
-/// Morris–Jackson minimum wetting rate for rings up to 75 mm, m³/(m s)
-/// (0.08 m³/(m h)).
-pub const MINIMUM_WETTING_RATE_M2_S: f64 = 0.08 / 3600.0;
+/// Largest absolute pressure of the Robbins correlation, Pa (Perry's 8th ed.
+/// p. 14-61: "not suitable above 3 bar absolute").
+pub const ROBBINS_MAX_PRESSURE_PA: f64 = 3.0e5;
+/// Largest packing factor of the Kister–Gill flood equation, 1/ft (Perry's
+/// 8th ed. p. 14-58).
+pub const KISTER_GILL_MAX_PACKING_FACTOR_FT: f64 = 60.0;
+/// Surface tension above which the minimum wetting rate of Table 14-16 is
+/// doubled (Perry's 8th ed. p. 14-79), N/m.
+pub const MINIMUM_WETTING_LOW_TENSION_N_M: f64 = 0.025;
+const FT: f64 = 0.3048;
+const LB: f64 = 0.453_592_37;
+const ATMOSPHERE_PA: f64 = 101_325.0;
 
-/// Packing material with its Onda (1968) critical surface tension.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PackingMaterial {
-    /// Steel, σc = 0.075 N/m (Onda et al. 1968).
-    Steel,
+/// Packing surface of the Glitsch minimum-wetting rules (Perry's 8th ed.
+/// Table 14-16).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WettingSurface {
+    /// Unglazed ceramic (chemical stoneware), 0.5 m³/(m² h).
+    UnglazedCeramic,
+    /// Oxidized metal (carbon steel, copper), 0.7 m³/(m² h).
+    OxidizedMetal,
+    /// Surface-treated metal (etched stainless steel), 1.0 m³/(m² h).
+    SurfaceTreatedMetal,
+    /// Glazed ceramic, 2.0 m³/(m² h).
+    GlazedCeramic,
+    /// Glass, 2.5 m³/(m² h).
+    Glass,
+    /// Bright metal (stainless steel, tantalum, other alloys), 3.0 m³/(m² h).
+    #[default]
+    BrightMetal,
+    /// PVC-CPVC, 3.5 m³/(m² h).
+    PvcCpvc,
+    /// Polypropylene, 4.0 m³/(m² h).
+    Polypropylene,
+    /// Fluoropolymers (PTFE type), 5.0 m³/(m² h).
+    Fluoropolymer,
 }
 
-impl PackingMaterial {
-    /// Critical surface tension σc of the material, N/m.
-    pub fn critical_surface_tension_n_m(self) -> f64 {
+impl WettingSurface {
+    /// Every surface, in table order.
+    pub const ALL: [WettingSurface; 9] = [
+        Self::UnglazedCeramic,
+        Self::OxidizedMetal,
+        Self::SurfaceTreatedMetal,
+        Self::GlazedCeramic,
+        Self::Glass,
+        Self::BrightMetal,
+        Self::PvcCpvc,
+        Self::Polypropylene,
+        Self::Fluoropolymer,
+    ];
+
+    /// Table 14-16 minimum wetting rate for CMR packings with a > 150
+    /// m²/m³, m³/(m² h).
+    pub fn table_rate_m_h(self) -> f64 {
         match self {
-            Self::Steel => 0.075,
+            Self::UnglazedCeramic => 0.5,
+            Self::OxidizedMetal => 0.7,
+            Self::SurfaceTreatedMetal => 1.0,
+            Self::GlazedCeramic => 2.0,
+            Self::Glass => 2.5,
+            Self::BrightMetal => 3.0,
+            Self::PvcCpvc => 3.5,
+            Self::Polypropylene => 4.0,
+            Self::Fluoropolymer => 5.0,
+        }
+    }
+
+    /// Display name.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::UnglazedCeramic => "Unglazed ceramic",
+            Self::OxidizedMetal => "Oxidized metal",
+            Self::SurfaceTreatedMetal => "Surface-treated metal",
+            Self::GlazedCeramic => "Glazed ceramic",
+            Self::Glass => "Glass",
+            Self::BrightMetal => "Bright metal (stainless steel)",
+            Self::PvcCpvc => "PVC-CPVC",
+            Self::Polypropylene => "Polypropylene",
+            Self::Fluoropolymer => "Fluoropolymer",
         }
     }
 }
@@ -51,10 +117,10 @@ impl PackingMaterial {
 /// Packings of the library.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Packing {
-    /// Metal Pall rings, 25 mm (25 × 0.5/0.6 mm wall).
+    /// Metal Pall rings, 25 mm.
     #[default]
     MetalPallRing25,
-    /// Metal Pall rings, 50 mm (50 × 0.8 mm wall).
+    /// Metal Pall rings, 50 mm.
     MetalPallRing50,
 }
 
@@ -63,23 +129,21 @@ pub enum Packing {
 pub struct PackingData {
     /// Display name.
     pub name: &'static str,
-    /// Random (dumped) packing.
-    pub random: bool,
     /// Nominal size, m (the Onda characteristic length d_p).
     pub nominal_size_m: f64,
     /// Specific surface area a, m²/m³.
     pub specific_area_m2_m3: f64,
     /// Void fraction ε.
     pub void_fraction: f64,
-    /// Tower packing factor F_p, 1/m.
+    /// Packing factor F_p, 1/m (Kister).
     pub packing_factor_m: f64,
-    /// Material of the packing surface.
-    pub material: PackingMaterial,
+    /// Dry packing factor F_pd, 1/m (Robbins).
+    pub dry_packing_factor_m: f64,
     /// Source of the values.
     pub source: &'static str,
 }
 
-const RASCHIG_PALL: &str = "Raschig GmbH, RASCHIG PALL-Ring brochure 350 (v2025010): operational data for metal PALL-Rings and tower packing factor Table 1";
+const PERRY_14_13: &str = "Perry's Chemical Engineers' Handbook, 8th ed. (2008), Table 14-13, p. 14-60 (metal Pall rings)";
 
 impl Packing {
     /// Every packing of the library.
@@ -90,23 +154,21 @@ impl Packing {
         match self {
             Self::MetalPallRing25 => PackingData {
                 name: "Pall rings, metal, 25 mm",
-                random: true,
                 nominal_size_m: 0.025,
-                specific_area_m2_m3: 215.0,
-                void_fraction: 0.95,
-                packing_factor_m: 157.0,
-                material: PackingMaterial::Steel,
-                source: RASCHIG_PALL,
+                specific_area_m2_m3: 205.0,
+                void_fraction: 0.94,
+                packing_factor_m: 183.0,
+                dry_packing_factor_m: 174.0,
+                source: PERRY_14_13,
             },
             Self::MetalPallRing50 => PackingData {
                 name: "Pall rings, metal, 50 mm",
-                random: true,
                 nominal_size_m: 0.050,
                 specific_area_m2_m3: 105.0,
                 void_fraction: 0.96,
-                packing_factor_m: 66.0,
-                material: PackingMaterial::Steel,
-                source: RASCHIG_PALL,
+                packing_factor_m: 89.0,
+                dry_packing_factor_m: 79.0,
+                source: PERRY_14_13,
             },
         }
     }
@@ -131,12 +193,13 @@ pub struct FilmProperties {
     pub viscosity_pa_s: f64,
 }
 
-/// Onda wetted (effective interfacial) area a_w, m²/m³, for the liquid
-/// properties and surface tension σ_L in N/m.
+/// Onda eq. (1) wetted area a_w, m²/m³, for the liquid properties, its
+/// surface tension σ_L and the packing's critical surface tension σc (N/m).
 pub fn onda_wetted_area(
     packing: &PackingData,
     liquid: &FilmProperties,
     surface_tension_n_m: f64,
+    critical_surface_tension_n_m: f64,
 ) -> f64 {
     let a = packing.specific_area_m2_m3;
     let l = liquid.mass_flux_kg_m2_s;
@@ -144,12 +207,12 @@ pub fn onda_wetted_area(
     let re = l / (a * liquid.viscosity_pa_s);
     let fr = l * l * a / (rho * rho * GRAVITY_M_S2);
     let we = l * l / (rho * surface_tension_n_m * a);
-    let ratio = packing.material.critical_surface_tension_n_m() / surface_tension_n_m;
+    let ratio = critical_surface_tension_n_m / surface_tension_n_m;
     a * (1.0 - (-1.45 * ratio.powf(0.75) * re.powf(0.1) * fr.powf(-0.05) * we.powf(0.2)).exp())
 }
 
-/// Onda liquid-side coefficient k_L, m/s, for diffusivity `d_m2_s` and the
-/// wetted area a_w.
+/// Onda eq. (2) liquid-side coefficient k_L, m/s, for diffusivity `d_m2_s`
+/// and the wetted area a_w.
 pub fn onda_liquid_coefficient(
     packing: &PackingData,
     liquid: &FilmProperties,
@@ -167,57 +230,95 @@ pub fn onda_liquid_coefficient(
         * (mu * GRAVITY_M_S2 / rho).cbrt()
 }
 
-/// Onda gas-side coefficient k_G, m/s (k_G·RT of the original pressure
-/// basis), for diffusivity `d_m2_s`. The constant is 5.23 for packings
-/// larger than 15 mm and 2.00 otherwise.
+/// Onda eq. (3) gas-side coefficient, m/s (k_G·RT of the original pressure
+/// basis), for diffusivity `d_m2_s`: constant 5.23, or 2.00 for packings
+/// smaller than 15 mm.
 pub fn onda_gas_coefficient(packing: &PackingData, gas: &FilmProperties, d_m2_s: f64) -> f64 {
     let a = packing.specific_area_m2_m3;
-    let constant = if packing.nominal_size_m > 0.015 {
-        5.23
-    } else {
+    let constant = if packing.nominal_size_m < 0.015 {
         2.00
+    } else {
+        5.23
     };
     let re = gas.mass_flux_kg_m2_s / (a * gas.viscosity_pa_s);
     let sc = gas.viscosity_pa_s / (gas.density_kg_m3 * d_m2_s);
     constant * a * d_m2_s * re.powf(0.7) * sc.cbrt() * (a * packing.nominal_size_m).powi(-2)
 }
 
-// Robbins (1991) works in US customary units.
-const LB_FT2_H_PER_KG_M2_S: f64 = 3600.0 / 0.453_592_37 * 0.3048 * 0.3048;
-const LB_FT3_PER_KG_M3: f64 = 0.3048 * 0.3048 * 0.3048 / 0.453_592_37;
+/// lb/(ft² h) per kg/(m² s).
+const LB_FT2_H_PER_KG_M2_S: f64 = 3600.0 / LB * FT * FT;
+/// lb/ft³ per kg/m³.
+const LB_FT3_PER_KG_M3: f64 = FT * FT * FT / LB;
 /// Pa/m per inH2O/ft.
-const PA_M_PER_INH2O_FT: f64 = 249.088_908_333 / 0.3048;
+const PA_M_PER_INH2O_FT: f64 = 249.088_908_333 / FT;
 
-fn robbins_inh2o_ft(packing: &PackingData, gas: &FilmProperties, liquid: &FilmProperties) -> f64 {
-    let fpd = packing.packing_factor_m * 0.3048;
-    let g = gas.mass_flux_kg_m2_s * LB_FT2_H_PER_KG_M2_S;
-    let l = liquid.mass_flux_kg_m2_s * LB_FT2_H_PER_KG_M2_S;
+/// Robbins loading factors (G_f, L_f) in lb/(ft² h), Perry's eqs. 14-148 to
+/// 14-151.
+pub fn robbins_loading_factors(
+    packing: &PackingData,
+    gas: &FilmProperties,
+    liquid: &FilmProperties,
+    pressure_pa: f64,
+) -> (f64, f64) {
+    let fpd = packing.dry_packing_factor_m * FT;
     let rho_g = gas.density_kg_m3 * LB_FT3_PER_KG_M3;
     let rho_l = liquid.density_kg_m3 * LB_FT3_PER_KG_M3;
     let mu_cp = liquid.viscosity_pa_s * 1e3;
-    let gf = g * (0.075 / rho_g).sqrt() * (fpd / 20.0).sqrt();
-    let size = if fpd > 15.0 {
-        (fpd / 20.0).sqrt()
+    // F_s = U ρ_G^0.5 in ft/s (lb/ft³)^0.5.
+    let fs = gas.mass_flux_kg_m2_s * LB_FT2_H_PER_KG_M2_S / 3600.0 / rho_g.sqrt();
+    let mut gf = 986.0 * fs * (fpd / 20.0).sqrt();
+    if pressure_pa > ATMOSPHERE_PA {
+        // Eq. 14-150, operating pressures above atmospheric.
+        gf *= 10f64.powf(0.3 * rho_g);
+    }
+    let l = liquid.mass_flux_kg_m2_s * LB_FT2_H_PER_KG_M2_S;
+    let lf = if fpd > 200.0 {
+        l * (62.4 / rho_l) * (fpd / 20.0).sqrt() * mu_cp.powf(0.2)
+    } else if fpd < 15.0 {
+        l * (62.4 / rho_l) * (20.0 / fpd).sqrt() * mu_cp.powf(0.1)
     } else {
-        (20.0 / fpd).sqrt()
+        l * (62.4 / rho_l) * (fpd / 20.0).sqrt() * mu_cp.powf(0.1)
     };
-    let lf = l * (62.4 / rho_l) * size * mu_cp.powf(0.1);
+    (gf, lf)
+}
+
+fn robbins_inh2o_ft(gf: f64, lf: f64) -> f64 {
     let dry = 7.4e-8 * gf * gf * 10f64.powf(2.7e-5 * lf);
     dry + 0.4 * (lf / 20_000.0).powf(0.1) * dry.powi(4)
 }
 
-/// Robbins (1991) GPDC pressure drop per height of packing, Pa/m.
+fn check_robbins(pressure_pa: f64) -> Result<(), String> {
+    if pressure_pa > ROBBINS_MAX_PRESSURE_PA {
+        Err(format!(
+            "Robbins pressure-drop correlation is not suitable above 3 bar absolute (column pressure {pressure_pa} Pa)"
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+/// Robbins (1991) pressure drop per height of packing, Pa/m.
 pub fn robbins_pressure_drop_pa_m(
     packing: &PackingData,
     gas: &FilmProperties,
     liquid: &FilmProperties,
-) -> f64 {
-    robbins_inh2o_ft(packing, gas, liquid) * PA_M_PER_INH2O_FT
+    pressure_pa: f64,
+) -> Result<f64, String> {
+    check_robbins(pressure_pa)?;
+    let (gf, lf) = robbins_loading_factors(packing, gas, liquid, pressure_pa);
+    Ok(robbins_inh2o_ft(gf, lf) * PA_M_PER_INH2O_FT)
 }
 
-/// Kister–Gill flood pressure drop, Pa/m.
-pub fn flood_pressure_drop_pa_m(packing: &PackingData) -> f64 {
-    0.115 * (packing.packing_factor_m * 0.3048).powf(0.7) * PA_M_PER_INH2O_FT
+/// Kister–Gill flood pressure drop, Pa/m (Perry's eq. 14-142).
+pub fn flood_pressure_drop_pa_m(packing: &PackingData) -> Result<f64, String> {
+    let fp = packing.packing_factor_m * FT;
+    if fp > KISTER_GILL_MAX_PACKING_FACTOR_FT {
+        return Err(format!(
+            "Kister–Gill flood pressure drop is not suitable for packing factors above 60 1/ft ({} has {fp:.0} 1/ft)",
+            packing.name
+        ));
+    }
+    Ok(0.12 * fp.powf(0.7) * PA_M_PER_INH2O_FT)
 }
 
 /// Fraction of flooding: the gas mass flux divided by the gas mass flux at
@@ -227,14 +328,17 @@ pub fn flooding_fraction(
     packing: &PackingData,
     gas: &FilmProperties,
     liquid: &FilmProperties,
-) -> f64 {
-    let target = flood_pressure_drop_pa_m(packing);
+    pressure_pa: f64,
+) -> Result<f64, String> {
+    check_robbins(pressure_pa)?;
+    let target = flood_pressure_drop_pa_m(packing)?;
     let at = |flux: f64| {
         let trial = FilmProperties {
             mass_flux_kg_m2_s: flux,
             ..*gas
         };
-        robbins_pressure_drop_pa_m(packing, &trial, liquid)
+        let (gf, lf) = robbins_loading_factors(packing, &trial, liquid, pressure_pa);
+        robbins_inh2o_ft(gf, lf) * PA_M_PER_INH2O_FT
     };
     let (mut lo, mut hi) = (0.0, gas.mass_flux_kg_m2_s.max(1e-6));
     while at(hi) < target {
@@ -252,13 +356,22 @@ pub fn flooding_fraction(
             break;
         }
     }
-    gas.mass_flux_kg_m2_s / (0.5 * (lo + hi))
+    Ok(gas.mass_flux_kg_m2_s / (0.5 * (lo + hi)))
 }
 
-/// Liquid wetting rate u_L / a, m³/(m s), for superficial liquid velocity
-/// `u_l_m_s`.
-pub fn wetting_rate_m2_s(packing: &PackingData, u_l_m_s: f64) -> f64 {
-    u_l_m_s / packing.specific_area_m2_m3
+/// Minimum wetting rate, m³/(m² h) of superficial liquid velocity (Perry's
+/// eq. 14-166 and Table 14-16), doubled above 25 mN/m.
+pub fn minimum_wetting_rate_m_h(
+    packing: &PackingData,
+    surface: WettingSurface,
+    surface_tension_n_m: f64,
+) -> f64 {
+    let base = surface.table_rate_m_h() * (200.0 / packing.specific_area_m2_m3).sqrt();
+    if surface_tension_n_m > MINIMUM_WETTING_LOW_TENSION_N_M {
+        2.0 * base
+    } else {
+        base
+    }
 }
 
 #[cfg(test)]
@@ -282,48 +395,101 @@ mod tests {
     }
 
     #[test]
-    fn library_entries_are_physical_and_cited() {
+    fn library_entries_match_perrys_table() {
+        let p25 = Packing::MetalPallRing25.data();
+        assert_eq!(
+            (
+                p25.specific_area_m2_m3,
+                p25.void_fraction,
+                p25.packing_factor_m
+            ),
+            (205.0, 0.94, 183.0)
+        );
+        assert_eq!(p25.dry_packing_factor_m, 174.0);
+        let p50 = Packing::MetalPallRing50.data();
+        assert_eq!(
+            (
+                p50.specific_area_m2_m3,
+                p50.void_fraction,
+                p50.packing_factor_m
+            ),
+            (105.0, 0.96, 89.0)
+        );
+        assert_eq!(p50.dry_packing_factor_m, 79.0);
         for packing in Packing::ALL {
-            let d = packing.data();
-            assert!(d.specific_area_m2_m3 > 0.0 && d.void_fraction < 1.0);
-            assert!(d.packing_factor_m > 0.0 && d.nominal_size_m > 0.015);
-            assert!(d.source.contains("RASCHIG"));
+            assert!(packing.data().source.contains("Table 14-13"));
         }
     }
 
     #[test]
-    fn onda_area_is_a_fraction_of_the_packing_area() {
+    fn robbins_reproduces_perrys_example_13() {
+        // Perry's 8th ed. Example 13 (p. 14-62/63): air/water on 2-in metal
+        // Pall rings, G = 1500 and L = 9000 lb/(ft² h), ρG = 0.074 and
+        // ρL = 62.4 lb/ft³, μL = 1.0 cP, Fpd = 24 1/ft: Gf = 1653,
+        // Lf = 9859 and ΔP = 0.40 inH2O/ft read from the Robbins chart.
+        let packing = PackingData {
+            dry_packing_factor_m: 24.0 / FT,
+            ..Packing::MetalPallRing50.data()
+        };
+        let gas = FilmProperties {
+            mass_flux_kg_m2_s: 1500.0 / LB_FT2_H_PER_KG_M2_S,
+            density_kg_m3: 0.074 / LB_FT3_PER_KG_M3,
+            viscosity_pa_s: 1.8e-5,
+        };
+        let liquid = FilmProperties {
+            mass_flux_kg_m2_s: 9000.0 / LB_FT2_H_PER_KG_M2_S,
+            density_kg_m3: 62.4 / LB_FT3_PER_KG_M3,
+            viscosity_pa_s: 1.0e-3,
+        };
+        let (gf, lf) = robbins_loading_factors(&packing, &gas, &liquid, ATMOSPHERE_PA);
+        // The example rounds Fs to 1.53 (exact 1.5317): Gf = 1654.4 here.
+        assert!((gf - 1653.0).abs() < 2.0, "{gf}");
+        assert!((lf - 9859.0).abs() < 2.0, "{lf}");
+        let dp = robbins_pressure_drop_pa_m(&packing, &gas, &liquid, ATMOSPHERE_PA).unwrap()
+            / PA_M_PER_INH2O_FT;
+        // The equations give 0.38; the example reads 0.40 from the chart.
+        assert!((dp - 0.40).abs() < 0.03, "{dp}");
+        assert!(robbins_pressure_drop_pa_m(&packing, &gas, &liquid, 3.5e5).is_err());
+    }
+
+    #[test]
+    fn kister_gill_flood_and_flooding_fraction() {
+        let d = Packing::MetalPallRing50.data();
+        let flood = flood_pressure_drop_pa_m(&d).unwrap() / PA_M_PER_INH2O_FT;
+        assert!((flood - 0.12 * (89.0 * FT).powf(0.7)).abs() < 1e-12);
+        let f = flooding_fraction(&d, &air(1.0), &water(), ATMOSPHERE_PA).unwrap();
+        assert!(f > 0.0 && f < 1.0, "{f}");
+        let at_flood =
+            robbins_pressure_drop_pa_m(&d, &air(1.0 / f), &water(), ATMOSPHERE_PA).unwrap();
+        assert!((at_flood / flood_pressure_drop_pa_m(&d).unwrap() - 1.0).abs() < 1e-9);
+        let coarse = PackingData {
+            packing_factor_m: 61.0 / FT,
+            ..d
+        };
+        assert!(flood_pressure_drop_pa_m(&coarse).is_err());
+    }
+
+    #[test]
+    fn onda_area_and_coefficients() {
         let d = Packing::MetalPallRing25.data();
-        let aw = onda_wetted_area(&d, &water(), 0.072);
+        let aw = onda_wetted_area(&d, &water(), 0.072, 0.075);
         assert!(aw > 0.0 && aw < d.specific_area_m2_m3);
-        // Lower surface tension relative to σc wets more of the packing.
-        assert!(onda_wetted_area(&d, &water(), 0.03) > aw);
+        // A better-wetting packing (higher σc) wets more area.
+        assert!(onda_wetted_area(&d, &water(), 0.072, 0.09) > aw);
         let kl = onda_liquid_coefficient(&d, &water(), aw, 2e-9);
         let kg = onda_gas_coefficient(&d, &air(1.0), 2e-5);
-        // Typical magnitudes: k_L ~ 1e-4 m/s, k_G ~ 1e-2 m/s.
         assert!((1e-5..1e-3).contains(&kl), "{kl}");
         assert!((1e-3..1e-1).contains(&kg), "{kg}");
     }
 
     #[test]
-    fn robbins_dry_pressure_drop_and_flooding() {
+    fn minimum_wetting_follows_the_glitsch_rule() {
         let d = Packing::MetalPallRing50.data();
-        let dry = FilmProperties {
-            mass_flux_kg_m2_s: 0.0,
-            ..water()
-        };
-        // Dry bed: ΔP = 7.4e-8 Gf² inH2O/ft.
-        let g = 1.0 * LB_FT2_H_PER_KG_M2_S * (0.075 / (1.2 * LB_FT3_PER_KG_M3)).sqrt();
-        let gf2 = g * g * (66.0 * 0.3048 / 20.0);
-        let expected = 7.4e-8 * gf2 * (1.0 + 0.0) * PA_M_PER_INH2O_FT;
-        let got = robbins_pressure_drop_pa_m(&d, &air(1.0), &dry);
-        assert!((got / expected - 1.0).abs() < 1e-9, "{got} {expected}");
-        let wet = robbins_pressure_drop_pa_m(&d, &air(1.0), &water());
-        assert!(wet > got);
-        let f = flooding_fraction(&d, &air(1.0), &water());
-        assert!(f > 0.0 && f < 1.0, "{f}");
-        let flood_flux = 1.0 / f;
-        let at_flood = robbins_pressure_drop_pa_m(&d, &air(flood_flux), &water());
-        assert!((at_flood / flood_pressure_drop_pa_m(&d) - 1.0).abs() < 1e-9);
+        let low = minimum_wetting_rate_m_h(&d, WettingSurface::BrightMetal, 0.02);
+        assert!((low - 3.0 * (200.0_f64 / 105.0).sqrt()).abs() < 1e-12);
+        assert_eq!(
+            minimum_wetting_rate_m_h(&d, WettingSurface::BrightMetal, 0.07),
+            2.0 * low
+        );
     }
 }

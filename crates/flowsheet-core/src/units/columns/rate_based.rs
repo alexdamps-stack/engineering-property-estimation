@@ -15,10 +15,11 @@
 //! \(E_V = h_V A (T_V - T_I) + \sum N_i \bar H^V_i\) and
 //! \(E_L = h_L A (T_I - T_L) + \sum N_i \bar H^L_i\) with partial molar
 //! enthalpies at the interface; \(E_V = E_L\) there. Heat-transfer
-//! coefficients follow the Chilton–Colburn analogy,
-//! \(h_V = \bar k_V c_V c_{p,V} \mathrm{Le}_V^{2/3}\), and the penetration
-//! analogy for the liquid, \(h_L = \bar k_L c_L c_{p,L} \mathrm{Le}_L^{1/2}\)
-//! (Taylor and Krishna, *Multicomponent Mass Transfer*, 1993). Component and
+//! coefficients follow the Chilton–Colburn analogy \(j_H = j_D\) in both
+//! phases, \(h = \bar k\,c\,c_p\,\mathrm{Le}^{2/3}\) with
+//! \(\mathrm{Le} = \lambda/(c\,c_p \bar D)\) (Chilton and Colburn, Ind.
+//! Eng. Chem. 26 (1934) 1183; Geankoplis, *Transport Processes*, 4th ed.,
+//! p. 475). Component and
 //! energy balances of each phase close every segment. With very large
 //! transfer rates every segment becomes an ideal stage, so the seed is the
 //! equilibrium-stage absorber with one stage per segment.
@@ -186,6 +187,7 @@ struct Props {
     gas_film: FilmProperties,
     liquid_film: FilmProperties,
     liquid_velocity_m_s: f64,
+    surface_tension_n_m: f64,
     neglected: f64,
 }
 
@@ -435,7 +437,7 @@ impl RateColumn<'_, '_> {
             .map_err(|e| context(e.to_string()))?;
         let d_l = self
             .diffusivity
-            .liquid_effective(&x, s.t_l, mu_l)
+            .liquid_in_solvent(self.reference(&self.liquid.z), s.t_l, mu_l)
             .map_err(|e| context(e.to_string()))?;
 
         // Hydraulic loads.
@@ -453,7 +455,11 @@ impl RateColumn<'_, '_> {
             viscosity_pa_s: mu_l,
         };
         let packing = self.packing();
-        let wetted = pd::onda_wetted_area(&packing, &liquid_film, sigma);
+        let sigma_c = self
+            .spec
+            .critical_surface_tension_n_m
+            .expect("checked critical surface tension");
+        let wetted = pd::onda_wetted_area(&packing, &liquid_film, sigma, sigma_c);
         let area_m2_m3 = factor * wetted;
         let interface_m2 = area_m2_m3 * area * self.height_m / self.segments() as f64;
         let ref_v = self.reference(&self.gas.z);
@@ -481,7 +487,7 @@ impl RateColumn<'_, '_> {
         let le_v = lambda_v / (c_v * bulk_v.cp * dv_mean);
         let le_l = lambda_l / (c_l * bulk_l.cp * dl_mean);
         let ha_v = k_v * c_v * bulk_v.cp * le_v.powf(2.0 / 3.0) * interface_m2;
-        let ha_l = k_l * c_l * bulk_l.cp * le_l.sqrt() * interface_m2;
+        let ha_l = k_l * c_l * bulk_l.cp * le_l.powf(2.0 / 3.0) * interface_m2;
         let values = [ha_v, ha_l, area_m2_m3, gas_film.mass_flux_kg_m2_s];
         if values.iter().any(|v| !v.is_finite() || *v <= 0.0) {
             return Err(context("nonfinite transfer coefficient".into()));
@@ -504,6 +510,7 @@ impl RateColumn<'_, '_> {
             gas_film,
             liquid_film,
             liquid_velocity_m_s: liquid * density.molar_volume / area,
+            surface_tension_n_m: sigma,
             neglected: gas_dropped.max(liquid_dropped),
         })
     }
@@ -580,11 +587,7 @@ impl RateColumn<'_, '_> {
         out
     }
 
-    fn evaluate(
-        &self,
-        values: &[f64],
-        factor: f64,
-    ) -> Result<Evaluation, String> {
+    fn evaluate(&self, values: &[f64], factor: f64) -> Result<Evaluation, String> {
         let size = self.unknowns().size();
         let segments: Vec<Segment> = values.chunks_exact(size).map(|b| self.decode(b)).collect();
         let props = segments
@@ -729,10 +732,17 @@ impl RateColumn<'_, '_> {
         out
     }
 
-    pub(super) fn solve(
-        &self,
-        seed: &StageCascade,
-    ) -> Result<Solved, String> {
+    pub(super) fn solve(&self, seed: &StageCascade) -> Result<Solved, String> {
+        // Hydraulic correlations outside their stated domain fail before
+        // the solve (Robbins: at most 3 bar; Kister-Gill: Fp <= 60 1/ft).
+        if self.pressure > pd::ROBBINS_MAX_PRESSURE_PA {
+            return Err(format!(
+                "rate-based hydraulics: the Robbins pressure-drop correlation is not suitable above 3 bar absolute (column pressure {} Pa)",
+                self.pressure
+            ));
+        }
+        pd::flood_pressure_drop_pa_m(&self.packing())
+            .map_err(|e| format!("rate-based hydraulics: {e}"))?;
         let target = self.spec.interfacial_area_factor;
         let initial = self.seed(seed);
         let (values, iterations) = match self.solve_at(initial.clone(), target) {
@@ -767,21 +777,26 @@ impl RateColumn<'_, '_> {
         let mut flooding = Vec::with_capacity(n);
         let mut drops = Vec::with_capacity(n);
         for (j, pr) in props.iter().enumerate() {
-            let fraction = pd::flooding_fraction(&packing, &pr.gas_film, &pr.liquid_film);
+            let fraction =
+                pd::flooding_fraction(&packing, &pr.gas_film, &pr.liquid_film, self.pressure)?;
             if !(fraction.is_finite() && fraction < 1.0) {
                 return Err(format!(
                     "rate-based segment {}: flooding exceeded (fraction of flood {fraction:.3})",
                     j + 1
                 ));
             }
-            let wetting = pd::wetting_rate_m2_s(&packing, pr.liquid_velocity_m_s);
-            if wetting < pd::MINIMUM_WETTING_RATE_M2_S {
+            let load = pr.liquid_velocity_m_s * 3600.0;
+            let minimum = pd::minimum_wetting_rate_m_h(
+                &packing,
+                self.spec.wetting_surface,
+                pr.surface_tension_n_m,
+            );
+            if load < minimum {
                 return Err(format!(
-                    "rate-based segment {}: liquid wetting rate {:.3} m³/(m h) is below the minimum {:.2} m³/(m h) for {}",
+                    "rate-based segment {}: liquid load {load:.2} m³/(m² h) is below the minimum wetting rate {minimum:.2} m³/(m² h) for {} ({})",
                     j + 1,
-                    wetting * 3600.0,
-                    pd::MINIMUM_WETTING_RATE_M2_S * 3600.0,
-                    packing.name
+                    packing.name,
+                    self.spec.wetting_surface.name()
                 ));
             }
             flooding.push(fraction);
@@ -789,7 +804,8 @@ impl RateColumn<'_, '_> {
                 &packing,
                 &pr.gas_film,
                 &pr.liquid_film,
-            ));
+                self.pressure,
+            )?);
         }
         // The interface of every segment must be a stable vapor–liquid split.
         let interfaces = StageCascade {
