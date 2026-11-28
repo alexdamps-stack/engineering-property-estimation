@@ -154,6 +154,44 @@ fn packed(height_m: f64, rate: RateBasedSpec) -> AbsorberSpec {
     }
 }
 
+#[test]
+fn equilibrium_absorber_solves_the_nitrogen_methanol_water_feed() {
+    for variant in [
+        CubicVariantChoice::PengRobinson,
+        CubicVariantChoice::PengRobinsonBostonMathias,
+    ] {
+        let rig = Rig::new(
+            variant,
+            &["nitrogen", "methanol", "water"],
+            AbsorberSpec {
+                pressure_pa: Some(1e6),
+                internals: ColumnInternals::Trays(5),
+                calculation: PackedCalculation::Equilibrium,
+            },
+            Inlet {
+                temperature_k: 300.0,
+                pressure_pa: 1e6,
+                molar_flow_mol_s: 60.0,
+                z: &[0.995, 0.005, 0.0],
+            },
+            Inlet {
+                temperature_k: 300.0,
+                pressure_pa: 1e6,
+                molar_flow_mol_s: 35.0,
+                z: &[0.0, 0.0, 1.0],
+            },
+        );
+        let result = rig.solve().unwrap();
+        let column = &result.units[&rig.column];
+        assert!(column.max_scaled_component_residual.unwrap() < 1e-9);
+        assert!(column.scaled_energy_residual.unwrap().abs() < 1e-9);
+        assert_eq!(
+            column.absorber.as_ref().unwrap().stage_temperatures_k.len(),
+            5
+        );
+    }
+}
+
 fn inlet(value: &Value) -> (Vec<f64>, [f64; 3]) {
     (
         value["z"].as_array().unwrap().iter().map(number).collect(),

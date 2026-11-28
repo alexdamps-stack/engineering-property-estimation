@@ -108,13 +108,8 @@ stays well scaled). Seed: the equilibrium-stage absorber with one ideal
 stage per segment (the infinite-rate limit of the segment equations). If the
 package's PH flash of the feed blend fails, the seed cascade starts from a
 TP flash of the blend at the flow-weighted inlet temperature instead (a
-starting point only; the equilibrium mode is unchanged). Known PH failure
-(to be filed against the flash, not fixed here): PR or PR-BM with zero kij,
-nitrogen/methanol/water z = (0.628421052631579, 0.003157894736842105,
-0.3684210526315789), p = 1 MPa, h = −16750.0136449885 J/mol (the TP
-enthalpy at 300 K, where TP gives a two-phase split): `ph` returns
-"post-split stability indicates an additional phase"; the same holds for
-the TP enthalpies at 280–330 K. If the direct solve
+starting point only). The nitrogen/methanol/water case in #243 now solves
+in equilibrium mode using the corrected cubic PH flash. If the direct solve
 fails, a continuation in the area factor (10⁴ … 1 times the specified value)
 is used. Nonconvergence is an explicit error. After convergence every
 interface is checked with the package TP flash of its tie-line midpoint and

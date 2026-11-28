@@ -47,6 +47,49 @@ fn close(actual: f64, expected: f64, atol: f64) {
 }
 
 #[test]
+fn nitrogen_methanol_water_ph_recovers_two_phase_tp_states() {
+    for variant in variants() {
+        let model = model(
+            &["nitrogen", "methanol", "water"],
+            &[0.628421052631579, 0.003157894736842105, 0.3684210526315789],
+            variant,
+        );
+        let pressure = p(1e6);
+        // The default cold bracket endpoint is outside the two-phase domain.
+        assert!(matches!(
+            tp_flash(&model, t(200.0), pressure, FlashOptions::default()),
+            Err(CalculationError::UnsupportedCapability(_))
+        ));
+        for temperature in [280.0, 300.0, 330.0] {
+            let tp = tp_flash(&model, t(temperature), pressure, FlashOptions::default()).unwrap();
+            assert_eq!(tp.phases.len(), 2);
+            let ph = ph_flash(&model, pressure, tp.enthalpy(), PhFlashOptions::default()).unwrap();
+            close(ph.temperature_k, temperature, 2e-7);
+            assert_eq!(ph.phases.len(), 2);
+            assert!(ph.scaled_energy_residual.abs() <= 1e-10);
+            for (actual, expected) in ph.phases.iter().zip(&tp.phases) {
+                close(actual.phase_fraction, expected.phase_fraction, 1e-8);
+                for (&x, &y) in actual.composition.iter().zip(&expected.composition) {
+                    close(x, y, 1e-8);
+                }
+            }
+        }
+        // A target inside the three-phase region must use the VLLE operation.
+        let cold = vlle_tp_flash(&model, t(225.0), pressure, MultiphaseOptions::default()).unwrap();
+        assert_eq!(cold.phases.len(), 3);
+        let h = cold
+            .phases
+            .iter()
+            .map(|p| p.phase_fraction * p.state.enthalpy)
+            .sum();
+        assert!(matches!(
+            ph_flash(&model, pressure, h, PhFlashOptions::default()),
+            Err(CalculationError::UnsupportedCapability(message)) if message.contains("vlle_ph")
+        ));
+    }
+}
+
+#[test]
 fn unique_tp_ph_round_trips_including_zero_enthalpy() {
     for v in variants() {
         for (ids, x, temperature, pressure) in [
