@@ -8,9 +8,10 @@ use flowsheet_core::units::columns::packing::{
 };
 use flowsheet_core::units::columns::{
     AbsorberSpec, BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget,
-    DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom, LiquidSideDraw,
-    MAX_COLUMN_PORTS, PetroleumFractionatorSpec, ShortcutColumnSpec, ShortcutCondenser,
-    ShortcutReflux, SideProduct, TopSpecification, VaporSideDraw,
+    CurveBasis, CutPoint, DistillationColumnSpec, DistillationCondenser, DrawRate,
+    FractionatorBottom, LiquidSideDraw, MAX_COLUMN_PORTS, PetroleumFractionatorSpec,
+    ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux, SideProduct, TopSpecification,
+    VaporSideDraw,
 };
 use serde::{Deserialize, Serialize};
 
@@ -161,12 +162,67 @@ fn is_false(v: &bool) -> bool {
 pub(crate) enum DrawRateRecord {
     MolarFlowMolS(Option<f64>),
     StandardLiquidVolumeFlowM3S(Option<f64>),
+    /// TBP or ASTM D86 cut point (#190, added behind format version 4).
+    CutPoint(CutPointRecord),
 }
 
 impl DrawRateRecord {
-    fn number(self) -> Option<f64> {
+    fn numbers(self) -> Vec<f64> {
         match self {
-            Self::MolarFlowMolS(v) | Self::StandardLiquidVolumeFlowM3S(v) => v,
+            Self::MolarFlowMolS(v) | Self::StandardLiquidVolumeFlowM3S(v) => {
+                v.into_iter().collect()
+            }
+            Self::CutPoint(c) => [Some(c.volume_percent), c.temperature_k, c.estimate_mol_s]
+                .into_iter()
+                .flatten()
+                .collect(),
+        }
+    }
+}
+
+/// Distillation curve of a cut-point specification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CurveBasisRecord {
+    Tbp,
+    AstmD86,
+}
+
+/// Cut-point specification of a side product (#190).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CutPointRecord {
+    basis: CurveBasisRecord,
+    volume_percent: f64,
+    temperature_k: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    estimate_mol_s: Option<f64>,
+}
+
+impl From<CutPoint> for CutPointRecord {
+    fn from(c: CutPoint) -> Self {
+        Self {
+            basis: match c.basis {
+                CurveBasis::Tbp => CurveBasisRecord::Tbp,
+                CurveBasis::AstmD86 => CurveBasisRecord::AstmD86,
+            },
+            volume_percent: c.volume_percent,
+            temperature_k: c.temperature_k,
+            estimate_mol_s: c.estimate_mol_s,
+        }
+    }
+}
+
+impl From<CutPointRecord> for CutPoint {
+    fn from(c: CutPointRecord) -> Self {
+        Self {
+            basis: match c.basis {
+                CurveBasisRecord::Tbp => CurveBasis::Tbp,
+                CurveBasisRecord::AstmD86 => CurveBasis::AstmD86,
+            },
+            volume_percent: c.volume_percent,
+            temperature_k: c.temperature_k,
+            estimate_mol_s: c.estimate_mol_s,
         }
     }
 }
@@ -186,6 +242,7 @@ impl From<SideProduct> for SideProductRecord {
             rate: match p.rate {
                 DrawRate::Molar(v) => DrawRateRecord::MolarFlowMolS(v),
                 DrawRate::StandardLiquidVolume(v) => DrawRateRecord::StandardLiquidVolumeFlowM3S(v),
+                DrawRate::CutPoint(c) => DrawRateRecord::CutPoint(c.into()),
             },
         }
     }
@@ -198,6 +255,7 @@ impl From<SideProductRecord> for SideProduct {
             rate: match p.rate {
                 DrawRateRecord::MolarFlowMolS(v) => DrawRate::Molar(v),
                 DrawRateRecord::StandardLiquidVolumeFlowM3S(v) => DrawRate::StandardLiquidVolume(v),
+                DrawRateRecord::CutPoint(c) => DrawRate::CutPoint(c.into()),
             },
         }
     }
@@ -694,7 +752,7 @@ impl ColumnRecord {
                 .into_iter()
                 .flatten()
                 .collect();
-                values.extend(products.iter().filter_map(|p| p.rate.number()));
+                values.extend(products.iter().flat_map(|p| p.rate.numbers()));
                 values.extend(internals.iter().flat_map(|i| i.numbers()));
                 values
             }

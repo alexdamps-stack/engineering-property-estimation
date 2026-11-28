@@ -49,7 +49,68 @@ the project results and the desktop panel show them unchanged.
   a converged column, until the molar flow changes by less than 1e-11
   relative (at most 30 passes). Every component that can reach a draw must
   then be a pseudo-component; database components (water, light ends) have
-  no specific gravity and fail explicitly.
+  no specific gravity and fail explicitly. A side product may instead be
+  specified by a **cut point** (next section).
+
+## Distillation curves and cut-point specifications
+
+Code: `crates/thermo-data/src/distillation_curves.rs` (pure functions) and
+`crates/flowsheet-core/src/units/columns/petroleum_curves.rs` (results and
+the cut-point iteration).
+
+**TBP curve of a product.** The curve is built from the product composition
+and the package's pseudo-components (normal boiling point Tbᵢ, standard
+liquid molar volume vᵢ = Mᵢ/(SGᵢ ρw)):
+
+- the components are ordered by Tb; component i boils over the interval
+  between the midpoints to its neighbours, [(Tbᵢ₋₁ + Tbᵢ)/2, (Tbᵢ + Tbᵢ₊₁)/2],
+  and the end intervals extend half the neighbouring spacing beyond the end
+  components (a single component boils at its Tb);
+- its share of the curve is its standard liquid volume share xᵢvᵢ/Σxⱼvⱼ, and
+  the temperature rises linearly with cumulative volume within the interval.
+
+The intervals are fixed by every pseudo-component of the package, including
+those absent from the product, so the curve changes continuously with the
+composition. 0 % and 100 % are the lower end of the lightest and the upper
+end of the heaviest component present. This is the inverse of the assay
+cutting: a product made of equal-temperature cuts in their assay proportions
+returns the assay curve at every cut boundary (unit test). Curves are on a
+**pseudo-component basis**: database components (water from steam, light
+ends) have no boiling-point or standard-density data in the package, are left
+out, and their mole fraction is reported with the curve.
+
+**ASTM D86.** D86 = (TBP/a)^(1/b) (°R), the exact inverse of the API
+(Riazi–Daubert) correlation TBP = a·D86^b already used for assay input
+(M. R. Riazi, T. E. Daubert, Hydrocarbon Processing 59(3), 1980, and Ind.
+Eng. Chem. Process Des. Dev. 25, 1986; constants of Fahim, Al-Sahhaf and
+Elkilani 2010, Eq. (3.3) and Table 3.2), applied at the tabulated 0, 10, 30,
+50, 70, 90 and 95 vol% points of the TBP curve. Between those points D86 is
+linear in volume percent; above 95 vol% it is not defined. The correlation was
+developed for whole fractions; for narrow cuts the converted D86 points need
+not increase with volume and are reported as calculated.
+
+**Results.** Every product with pseudo-components (overhead, bottoms, side
+draws, liquid distillate) reports TBP and D86 temperatures at 5, 10, 30, 50,
+70, 90 and 95 vol% in `DistillationColumnResult::product_curves`, saved as
+`distillation_column.product_curves` behind format version 4 (results
+saved before it load with no curves) and shown in the desktop results.
+
+**Cut-point side products.** `DrawRate::CutPoint` specifies the TBP (0–100
+vol%) or D86 (0–95 vol%) temperature of a side product at a volume percent,
+with an optional starting molar flow (default: hydrocarbon feed flow divided
+by twice the number of side products plus one). The molar flows of all
+cut-point products are the unknowns of an outer Broyden iteration on their
+logarithms, started from a forward-difference Jacobian; each evaluation is a
+converged column, including any standard-volume products. Steps are limited
+to a factor e^0.5 and halved (at most four times) until the residual norm
+decreases. Converged when every cut point is met within 1e-6 K
+(`CUT_POINT_TOLERANCE_K`), at most 25 iterations. Explicit failures: a TBP
+target outside the pseudo-components' TBP span; a column solve that fails on
+two consecutive steps ("not attainable", with the closest temperature and
+flow); a residual that no longer decreases after a Jacobian refresh;
+interdependent cut points (singular Jacobian); no convergence. Cut points
+on the distillate or bottoms, gap/overlap specifications and light ends in
+the curves are not implemented.
 
 ## Ports
 
@@ -105,6 +166,25 @@ within the declared budgets (temperature 2e-5 K, composition 2e-7, flow
 2e-5 mol/s, duty 0.02 W + 2e-6 relative), component and energy balance
 closure below 1e-9, the volume specifications to 1e-10, the energy streams,
 the failures above, project round trips, and the drawn-only legacy record.
+
+`validation/columns/generate-petroleum-curve-references.py` (Python standard
+library, no Rust code) gives `petroleum-curves-v1.json`: its own TBP and
+inverse-D86 implementation on four synthetic component sets, on every
+product of `petroleum-v1.json` at the reference composition, and on example
+E3.1 of Fahim et al. read backwards (printed TBP gives the printed D86 within
+0.105 °C, the propagated print rounding). The cut-point case replaces the two
+molar side products of `crude-two-draws-reboiled-PR` by cut points read from
+its reference products (side draw 1 TBP 95 %, side draw 2 D86 50 %), so the
+expected answer is the reference column. `thermo-data/tests/distillation_curves.rs`
+checks the curve functions against the fixture (1e-9 K) and E3.1;
+`flowsheet-project/tests/petroleum_curves.rs` checks the reported curves of
+the solved two-draw and steam columns within the composition budget
+propagated per point (Σ|∂T/∂xᵢ|·2e-7, recorded in the fixture), the cut-point
+column against the petroleum-v1 budgets (the recovered draw flows agree to
+7e-7 mol/s), the cut points met to 1e-6 K, unattainable and invalid cut
+points, the stored record, a save/reload round trip and results without
+curves.
+
 This is implementation agreement for the stated equilibrium-stage model, not
 accuracy against plant data or a commercial simulator.
 
@@ -118,7 +198,10 @@ without a version bump (`feeds`, `feed_stages`, `products`, `internals`,
 `{"kind": "petroleum_fractionator", "side_draws": k}` loads as one feed, ten
 trays, a total condenser and a reboiler with unset pressure and
 specifications, and is written back unchanged. Stripping steam together with
-a reboiler specification is refused.
+a reboiler specification is refused. A cut-point side product is stored as
+`{"rate": {"cut_point": {"basis": "tbp" | "astm_d86", "volume_percent": …,
+"temperature_k": …, "estimate_mol_s": …}}}` (estimate omitted when unset),
+also behind format version 4.
 
 ## Not yet modelled
 
@@ -128,10 +211,11 @@ a reboiler specification is refused.
   distillation solver has neither. A side stripper can be drawn today as a
   separate absorber/stripper unit with a recycle, but that is a sequential
   approximation, not a simultaneous solution.
-- **Cut-point specifications** (ASTM D86 or TBP 5/95 % points, gaps and
-  overlaps). The repository converts D86 to TBP for assay input only; it has
-  no product distillation-curve calculation from a composition. Products are
-  specified by molar or standard liquid volume flow only.
+- **Further curve specifications.** Cut points on the distillate or bottoms
+  (they would replace a top or bottom specification), 5–95 % gap and overlap
+  specifications between products, and light ends in the curves (database
+  components lack boiling-point and standard-density data). Side-product cut
+  points are implemented (above).
 - **Three-phase condenser / free-water decant**, needed for realistic steam
   stripping with a cold reflux drum.
 - **Multi-column systems** (MultiFrac, SCFrac, coupled crude/vacuum or

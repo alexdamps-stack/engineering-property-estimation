@@ -11,11 +11,12 @@
 //! and is adiabatic ([`BottomEnd::Adiabatic`]). A side product specified by
 //! standard liquid volume is converted to its molar flow by successive
 //! substitution on the product's own composition, each pass a converged
-//! column. Side strippers, pump-arounds, ASTM D86/TBP cut-point
-//! specifications and coupled multi-column systems are not modelled
-//! (`docs/a17-columns-petroleum.md`).
+//! column. Product TBP/D86 curves and cut-point side products are in
+//! [`super::petroleum_curves`]. Side strippers, pump-arounds and coupled
+//! multi-column systems are not modelled (`docs/a17-columns-petroleum.md`).
 
 use super::distillation::{self, BottomEnd, ColumnOptions};
+use super::petroleum_curves::{self, CutPoint};
 use super::{
     BottomSpecification, ColumnInternals, ColumnPressureDrop, DistillationColumnResult,
     DistillationColumnSpec, DistillationCondenser, LiquidSideDraw, MAX_COLUMN_PORTS,
@@ -44,6 +45,9 @@ pub enum DrawRate {
     /// the pseudo-components' standard liquid volumes. Every component of
     /// the column feed must then be a pseudo-component.
     StandardLiquidVolume(Option<f64>),
+    /// TBP or ASTM D86 temperature at a liquid volume percent; the molar
+    /// flow is found by an outer iteration (`petroleum_curves`).
+    CutPoint(CutPoint),
 }
 
 impl Default for DrawRate {
@@ -183,7 +187,9 @@ impl PetroleumFractionatorSpec {
                         molar_flow_mol_s: match (molar, product.rate) {
                             (Some(flows), _) => Some(flows[k]),
                             (None, DrawRate::Molar(v)) => v,
-                            (None, DrawRate::StandardLiquidVolume(_)) => Some(1.0),
+                            (None, DrawRate::StandardLiquidVolume(_) | DrawRate::CutPoint(_)) => {
+                                Some(1.0)
+                            }
                         },
                     }
                 })
@@ -224,13 +230,15 @@ impl PetroleumFractionatorSpec {
         }
         issues.extend(self.column(None).issues_with(self.bottom_end()));
         for k in 0..usize::from(self.side_draws) {
-            if let DrawRate::StandardLiquidVolume(v) = self.product(k).rate {
-                check_optional(
+            match self.product(k).rate {
+                DrawRate::StandardLiquidVolume(v) => check_optional(
                     &mut issues,
                     "side-product standard liquid volume flow",
                     v,
                     Sign::Positive,
-                );
+                ),
+                DrawRate::CutPoint(cut) => cut.issues(&mut issues),
+                DrawRate::Molar(_) => {}
             }
         }
         issues
@@ -240,7 +248,7 @@ impl PetroleumFractionatorSpec {
 /// Standard liquid molar volume of every package component at 60 °F, m³/mol;
 /// `None` for a component without a specific gravity (not a
 /// pseudo-component).
-fn standard_volumes(ctx: &CalcContext<'_>) -> Result<Vec<Option<f64>>, String> {
+pub(super) fn standard_volumes(ctx: &CalcContext<'_>) -> Result<Vec<Option<f64>>, String> {
     let components = ctx.package().formation_components().map_err(|e| {
         format!(
             "petroleum fractionator needs a cubic package with characterised pseudo-components: {e}"
@@ -265,9 +273,32 @@ fn mixture_volume(volumes: &[Option<f64>], x: &[f64]) -> Option<f64> {
         .sum()
 }
 
-/// Calculates the fractionator. Inlets are `feed`, `feed 2..n` and, with a
-/// steam bottom, `stripping steam`, in port order.
+/// Calculates the fractionator and its product curves. Inlets are `feed`,
+/// `feed 2..n` and, with a steam bottom, `stripping steam`, in port order.
 pub(super) fn calculate(
+    spec: &PetroleumFractionatorSpec,
+    inlets: &[MaterialStream],
+    ctx: &CalcContext<'_>,
+) -> Result<(UnitOutput, DistillationColumnResult), String> {
+    if let Some(issue) = spec.issues().first() {
+        return Err(format!(
+            "petroleum fractionator {} {}",
+            issue.field, issue.problem
+        ));
+    }
+    let cut_points = (0..usize::from(spec.side_draws))
+        .any(|k| matches!(spec.product(k).rate, DrawRate::CutPoint(_)));
+    let (mut output, mut result) = if cut_points {
+        petroleum_curves::solve(spec, inlets, ctx, calculate_rates)?
+    } else {
+        calculate_rates(spec, inlets, ctx)?
+    };
+    result.product_curves = petroleum_curves::product_curves(spec, &mut output, ctx)?;
+    Ok((output, result))
+}
+
+/// Calculates the fractionator at fixed molar or standard-volume products.
+fn calculate_rates(
     spec: &PetroleumFractionatorSpec,
     inlets: &[MaterialStream],
     ctx: &CalcContext<'_>,
@@ -307,7 +338,7 @@ pub(super) fn calculate(
     let draws = usize::from(spec.side_draws);
     let targets: Vec<Option<f64>> = (0..draws)
         .map(|k| match spec.product(k).rate {
-            DrawRate::Molar(_) => None,
+            DrawRate::Molar(_) | DrawRate::CutPoint(_) => None,
             DrawRate::StandardLiquidVolume(v) => v,
         })
         .collect();
@@ -340,8 +371,11 @@ pub(super) fn calculate(
     let feed_volume = mixture_volume(&volumes, &feed_x).expect("checked standard volumes");
     let mut molar: Vec<f64> = (0..draws)
         .map(|k| match (spec.product(k).rate, targets[k]) {
+            (DrawRate::StandardLiquidVolume(_), target) => {
+                target.expect("checked side-product volume") / feed_volume
+            }
             (DrawRate::Molar(v), _) => v.expect("checked side-product flow"),
-            (_, target) => target.expect("checked side-product volume") / feed_volume,
+            (DrawRate::CutPoint(_), _) => unreachable!("cut points are solved at molar flows"),
         })
         .collect();
     for _ in 0..VOLUME_ITERATIONS {

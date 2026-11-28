@@ -15,6 +15,7 @@ mod absorber;
 mod distillation;
 mod mesh;
 mod petroleum;
+mod petroleum_curves;
 mod shortcut;
 
 pub use absorber::{AbsorberResult, AbsorberSpec};
@@ -25,6 +26,7 @@ pub use distillation::{
 pub use petroleum::{
     DrawRate, FractionatorBottom, PetroleumFractionatorSpec, SideProduct, WATER_DENSITY_60F_KG_M3,
 };
+pub use petroleum_curves::{CUT_POINT_TOLERANCE_K, CurveBasis, CutPoint, ProductCurve};
 pub use shortcut::{ShortcutColumnResult, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux};
 
 // Packed sections resolved to theoretical stages (#186, #187, #190).

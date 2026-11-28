@@ -467,6 +467,9 @@ pub struct DistillationColumnResult {
     pub packed_height_m: Option<f64>,
     /// Accepted Newton iterations of the final solve.
     pub iterations: usize,
+    /// TBP/D86 curves of the products (petroleum fractionator, #190);
+    /// empty for other columns.
+    pub product_curves: Vec<super::ProductCurve>,
 }
 
 /// Bottom end of a column solved by [`calculate_with`].
@@ -1181,6 +1184,7 @@ pub(super) fn calculate_with(
             boilup_mol_s: cascade.stages[n - 1].vapor_mol_s,
             packed_height_m: packed.map(|section| section.packed.packed_height_m),
             iterations,
+            product_curves: Vec::new(),
         },
     ))
 }

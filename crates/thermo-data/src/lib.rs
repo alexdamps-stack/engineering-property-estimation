@@ -10,6 +10,8 @@ mod transport;
 pub use transport::*;
 mod assay;
 pub use assay::*;
+mod distillation_curves;
+pub use distillation_curves::*;
 mod pseudo;
 pub use pseudo::*;
 

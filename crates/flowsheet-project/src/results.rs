@@ -388,6 +388,43 @@ pub struct DistillationColumnEstimate {
     /// Boilup `V_N`, mol/s (added behind format version 4).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boilup_mol_s: Option<f64>,
+    /// TBP/D86 curves of petroleum fractionator products (#190, added
+    /// behind format version 4; empty for other columns and older results).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub product_curves: Vec<ProductCurveEstimate>,
+}
+
+/// Saved TBP and ASTM D86 points of one fractionator product (#190).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductCurveEstimate {
+    /// Outlet port label.
+    pub product: String,
+    /// Mole fraction left out of the pseudo-component curve.
+    pub excluded_mole_fraction: f64,
+    /// `[volume %, K]` TBP points.
+    pub tbp_k: Vec<[f64; 2]>,
+    /// `[volume %, K]` ASTM D86 points.
+    pub d86_k: Vec<[f64; 2]>,
+}
+
+impl ProductCurveEstimate {
+    fn numbers(&self) -> impl Iterator<Item = f64> + '_ {
+        std::iter::once(self.excluded_mole_fraction)
+            .chain(self.tbp_k.iter().flatten().copied())
+            .chain(self.d86_k.iter().flatten().copied())
+    }
+}
+
+impl From<&flowsheet_core::units::columns::ProductCurve> for ProductCurveEstimate {
+    fn from(c: &flowsheet_core::units::columns::ProductCurve) -> Self {
+        Self {
+            product: c.product.clone(),
+            excluded_mole_fraction: c.excluded_mole_fraction,
+            tbp_k: c.tbp_k.iter().map(|&(v, t)| [v, t]).collect(),
+            d86_k: c.d86_k.iter().map(|&(v, t)| [v, t]).collect(),
+        }
+    }
 }
 
 impl From<&flowsheet_core::units::columns::DistillationColumnResult>
@@ -395,6 +432,7 @@ impl From<&flowsheet_core::units::columns::DistillationColumnResult>
 {
     fn from(r: &flowsheet_core::units::columns::DistillationColumnResult) -> Self {
         Self {
+            product_curves: r.product_curves.iter().map(Into::into).collect(),
             stage_temperatures_k: r.stage_temperatures_k.clone(),
             condenser_duty_w: r.condenser_duty_w,
             reboiler_duty_w: r.reboiler_duty_w,
@@ -932,6 +970,7 @@ impl ResultSet {
                         ]
                         .into_iter()
                         .any(opt)
+                        || r.product_curves.iter().any(|c| c.numbers().any(bad))
                 })
                 || u.absorber.as_ref().is_some_and(|r| {
                     opt(r.packed_height_m) || r.stage_temperatures_k.iter().copied().any(bad)

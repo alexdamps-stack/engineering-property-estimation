@@ -1,20 +1,21 @@
 //! Specification forms of the columns group; owned by the columns work
 //! package.
 
-use eframe::egui::{ComboBox, Ui};
+use eframe::egui::{ComboBox, DragValue, Ui};
 use flowsheet_core::units::columns::packing::{
     PackedSectionBasis, PackedSectionSpec, StageRounding,
 };
 use flowsheet_core::units::columns::{
-    BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget,
-    DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom, MAX_COLUMN_PORTS,
-    MAX_COLUMN_STAGES, MAX_DISTILLATION_INTERNAL_STAGES, PetroleumFractionatorSpec,
-    ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux, TopSpecification,
+    BottomSpecification, ColumnInternals, ColumnPressureDrop, ComponentTarget, CurveBasis,
+    CutPoint, DistillationColumnSpec, DistillationCondenser, DrawRate, FractionatorBottom,
+    MAX_COLUMN_PORTS, MAX_COLUMN_STAGES, MAX_DISTILLATION_INTERNAL_STAGES,
+    PetroleumFractionatorSpec, ShortcutColumnSpec, ShortcutCondenser, ShortcutReflux,
+    TopSpecification,
 };
 use flowsheet_core::units::{ColumnSpec, GroupSpec};
 
 use super::{choice, count_field, drawn_only_note, note_row, opt_field, value_field};
-use crate::units::{DisplayUnits, Quantity};
+use crate::units::{DisplayUnits, DisplayUnitsExt, Quantity};
 
 /// Form of a [`ColumnSpec`]. Feeds and side draws are numbered ports; a
 /// connected port cannot be removed (disconnect it first).
@@ -215,16 +216,25 @@ fn petroleum_form(
             stage_range.clone(),
         );
         ui.push_id(("side product", i), |ui| {
-            let volume = matches!(product.rate, DrawRate::StandardLiquidVolume(_)) as usize;
+            let basis = match product.rate {
+                DrawRate::Molar(_) => 0,
+                DrawRate::StandardLiquidVolume(_) => 1,
+                DrawRate::CutPoint(_) => 2,
+            };
             match choice(
                 ui,
                 &format!("Product {} basis", i + 1),
-                volume,
-                &["Molar flow", "Standard liquid volume (60 °F)"],
+                basis,
+                &[
+                    "Molar flow",
+                    "Standard liquid volume (60 °F)",
+                    "Cut point (TBP / D86)",
+                ],
             ) {
-                Some(0) if volume != 0 => product.rate = DrawRate::Molar(None),
-                Some(1) if volume != 1 => product.rate = DrawRate::StandardLiquidVolume(None),
-                _ => {}
+                Some(0) => product.rate = DrawRate::Molar(None),
+                Some(1) => product.rate = DrawRate::StandardLiquidVolume(None),
+                Some(_) => product.rate = DrawRate::CutPoint(CutPoint::default()),
+                None => {}
             }
             match &mut product.rate {
                 DrawRate::Molar(v) => opt_field(
@@ -241,6 +251,7 @@ fn petroleum_form(
                     Quantity::VolumeFlow,
                     units,
                 ),
+                DrawRate::CutPoint(cut) => cut_point_form(ui, i + 1, cut, units),
             }
         });
         if product != original {
@@ -249,6 +260,84 @@ fn petroleum_form(
             s.products[i] = product;
         }
     }
+}
+
+/// Cut-point specification of side product `n`: TBP or ASTM D86 temperature
+/// at a liquid volume percent, with an optional starting molar flow.
+fn cut_point_form(ui: &mut Ui, n: usize, cut: &mut CutPoint, units: DisplayUnits) {
+    let current = (cut.basis == CurveBasis::AstmD86) as usize;
+    match choice(
+        ui,
+        &format!("Product {n} curve"),
+        current,
+        &["TBP", "ASTM D86 (from TBP)"],
+    ) {
+        Some(0) => cut.basis = CurveBasis::Tbp,
+        Some(_) => {
+            cut.basis = CurveBasis::AstmD86;
+            cut.volume_percent = cut.volume_percent.min(95.0);
+        }
+        None => {}
+    }
+    let max = if cut.basis == CurveBasis::Tbp {
+        100.0
+    } else {
+        95.0
+    };
+    let label = ui.label(format!("Product {n} volume distilled"));
+    ui.add(
+        DragValue::new(&mut cut.volume_percent)
+            .range(0.0..=max)
+            .speed(0.5)
+            .max_decimals(3)
+            .suffix(" vol%"),
+    )
+    .labelled_by(label.id);
+    ui.end_row();
+    opt_field(
+        ui,
+        &format!("Product {n} cut-point temperature"),
+        &mut cut.temperature_k,
+        Quantity::Temperature,
+        units,
+    );
+    ui.label(format!("Product {n} flow estimate"));
+    ui.horizontal(|ui| match &mut cut.estimate_mol_s {
+        Some(v) => {
+            let mut shown = units.si_to_display(Quantity::MolarFlow, *v);
+            if ui
+                .add(
+                    DragValue::new(&mut shown)
+                        .range(0.0..=f64::MAX)
+                        .speed(units.drag_speed(Quantity::MolarFlow))
+                        .suffix(format!(" {}", units.symbol(Quantity::MolarFlow))),
+                )
+                .changed()
+            {
+                *v = units.display_to_si(Quantity::MolarFlow, shown);
+            }
+            if ui
+                .small_button("×")
+                .on_hover_text("Use the default")
+                .clicked()
+            {
+                cut.estimate_mol_s = None;
+            }
+        }
+        None => {
+            ui.label("automatic");
+            if ui.small_button("Set").clicked() {
+                cut.estimate_mol_s = Some(1.0);
+            }
+        }
+    });
+    ui.end_row();
+    note_row(
+        ui,
+        "The product's molar flow is iterated until its curve meets the cut point. Curves are \
+         on a pseudo-component basis (TBP by component boiling intervals; D86 by the inverse \
+         API Riazi–Daubert method, 0–95 vol%).",
+    );
 }
 
 fn condenser_form(ui: &mut Ui, condenser: &mut DistillationCondenser, units: DisplayUnits) {

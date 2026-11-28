@@ -210,3 +210,26 @@ No Rust code or output is used.
 ```sh
 python validation/columns/generate-petroleum-references.py --output /tmp/petroleum-candidate.json
 ```
+
+### Product curves and cut points (#190)
+
+`petroleum-curves-v1.json` comes from
+`generate-petroleum-curve-references.py`, Python standard library only and
+independent of the Rust engine. It writes its own TBP construction (component
+boiling intervals between neighbouring Tb midpoints, linear in cumulative
+standard liquid volume) and the inverse API D86 conversion with the Fahim et
+al. Table 3.2 constants typed independently, and evaluates them on four
+synthetic component sets, on every product of `petroleum-v1.json` at its
+reference composition, and on example E3.1 of
+`validation/pseudo-components/fahim-2010-worked-examples.json` read backwards
+(printed TBP to printed D86 within 0.105 °C). The cut-point case replaces the
+side-product flows of `crude-two-draws-reboiled-PR` by the TBP 95 % point of
+side draw 1 and the D86 50 % point of side draw 2 read from the reference
+products, so the expected column is the reference column. Budgets, fixed
+before any Rust comparison: 1e-9 K for the curve functions at given
+compositions, and for curves of Rust-solved products the composition budget
+2e-7 propagated through Σ|∂T/∂xᵢ| by central differences (recorded per point).
+
+```sh
+python validation/columns/generate-petroleum-curve-references.py --output /tmp/petroleum-curves-candidate.json
+```

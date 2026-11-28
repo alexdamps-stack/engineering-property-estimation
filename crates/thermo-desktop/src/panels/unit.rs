@@ -437,6 +437,7 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
                         ui.end_row();
                     }
                     stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
+                    product_curve_rows(ui, u, stale, &c.product_curves);
                 }
                 if let Some(c) = &r.absorber {
                     stage_profile(ui, u, stale, &c.stage_temperatures_k, c.packed_height_m);
@@ -588,6 +589,43 @@ fn unit_results(ui: &mut Ui, ed: &mut Editor, id: UnitId, status: ItemStatus, fp
             ui.colored_label(theme.warning, format!("⚠ {w}"));
         }
     });
+}
+
+/// TBP and ASTM D86 points of petroleum fractionator products (#190), one
+/// row per product and curve: "T5 / T10 / T30 / T50 / T70 / T90 / T95".
+fn product_curve_rows(
+    ui: &mut Ui,
+    units: DisplayUnits,
+    stale: bool,
+    curves: &[flowsheet_project::ProductCurveEstimate],
+) {
+    for curve in curves {
+        for (name, points) in [("TBP", &curve.tbp_k), ("D86", &curve.d86_k)] {
+            let percents: Vec<String> = points.iter().map(|p| format!("{}", p[0])).collect();
+            ui.label(format!(
+                "{} {name} {} vol%",
+                curve.product,
+                percents.join("/")
+            ));
+            let values: Vec<String> = points
+                .iter()
+                .map(|p| format_quantity(units, Quantity::Temperature, p[1]))
+                .collect();
+            ui.label(value_text(values.join(" / "), stale));
+            ui.end_row();
+        }
+        if curve.excluded_mole_fraction > 0.0 {
+            ui.label(format!("{} left out of the curves", curve.product));
+            ui.label(value_text(
+                format!(
+                    "{} (non-pseudo-components)",
+                    format_quantity(units, Quantity::Fraction, curve.excluded_mole_fraction)
+                ),
+                stale,
+            ));
+            ui.end_row();
+        }
+    }
 }
 
 fn stage_profile(
