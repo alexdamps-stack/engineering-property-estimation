@@ -272,7 +272,8 @@ pub struct MultiphasePhFlash<S> {
     pub max_ln_fugacity_residual: f64,
     /// max_i |Σ_k β_k x_ik − z_i|.
     pub max_component_balance_residual: f64,
-    /// TP evidence at the solution temperature (the lower side of an invariant step).
+    /// TP evidence at the solution temperature, or at the lower temperature
+    /// bracket endpoint for an invariant solution.
     pub tp: MultiphaseTpFlash<S>,
     pub diagnostics: Vec<Diagnostic>,
 }

@@ -522,6 +522,9 @@ pub struct RateBasedSegmentsProfile {
     pub interfacial_area_m2_m3: Vec<f64>,
     pub flooding_fractions: Vec<f64>,
     pub pressure_drops_pa_m: Vec<f64>,
+    /// Estimated absolute pressure at segment boundaries, top to bottom.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub estimated_boundary_pressures_pa: Vec<f64>,
     pub pressure_drop_pa: f64,
     pub max_flooding_fraction: f64,
     pub max_neglected_transport_fraction: f64,
@@ -544,6 +547,7 @@ impl From<&flowsheet_core::units::columns::RateBasedProfile> for RateBasedSegmen
             interfacial_area_m2_m3: r.interfacial_area_m2_m3.clone(),
             flooding_fractions: r.flooding_fractions.clone(),
             pressure_drops_pa_m: r.pressure_drops_pa_m.clone(),
+            estimated_boundary_pressures_pa: r.estimated_boundary_pressures_pa.clone(),
             pressure_drop_pa: r.pressure_drop_pa,
             max_flooding_fraction: r.max_flooding_fraction,
             max_neglected_transport_fraction: r.max_neglected_transport_fraction,

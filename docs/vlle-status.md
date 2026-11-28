@@ -39,7 +39,12 @@ third phase call the VLLE operations explicitly.
   shrinks to a few ulp across an enthalpy step (a pure component, or the
   three-phase temperature of a binary at fixed pressure), the phases from both
   sides are combined and their amounts follow from the component and energy
-  balances (lever rule).
+  balances (lever rule). If a binary TP flash fails numerically inside a bracket
+  with two liquids on the cool side and a vapor on the warm side, those phases
+  seed a fixed-pressure invariant solve. The result must lie inside the bracket
+  and pass the stability, fugacity and balance checks. The propane-rich
+  PR regression (#240) uses an independent reference from
+  `validation/julia/check_vlle_propane_rich.jl`.
 - **Gamma–phi.** Liquids are NRTL with pure-liquid vapor-pressure standard
   states, the vapor is an ideal gas, as in A7. Each phase keeps the kind it was
   created with; the reference kind of a composition is the one with the lower

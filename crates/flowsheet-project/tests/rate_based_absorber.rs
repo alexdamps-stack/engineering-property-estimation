@@ -294,6 +294,21 @@ fn segment_profiles_match_independent_references() {
             rate.pressure_drop_pa,
             number(&case["pressure_drop_Pa"]),
         );
+        let drops = profiles["pressure_drops_Pa_m"].as_array().unwrap();
+        let pressures = &rate.estimated_boundary_pressures_pa;
+        let top = number(&case["pressure_Pa"]);
+        let segment_height = number(&case["packed_height_m"]) / drops.len() as f64;
+        assert_eq!(pressures.len(), drops.len() + 1);
+        assert_eq!(pressures[0], top);
+        for (boundaries, drop) in pressures.windows(2).zip(drops) {
+            compare(
+                "hydraulics",
+                "segment boundary pressure difference",
+                (boundaries[1] - boundaries[0]) / segment_height,
+                number(drop),
+            );
+        }
+        assert!((pressures.last().unwrap() - top - rate.pressure_drop_pa).abs() < 1e-8);
         compare(
             "hydraulics",
             "max flooding",
@@ -344,6 +359,26 @@ fn segment_profiles_match_independent_references() {
         let saved = rig.project.to_json().unwrap();
         let reopened = Project::from_json(&saved).unwrap();
         assert_eq!(reopened.to_json().unwrap(), saved);
+        let mut legacy: Value = serde_json::from_str(&saved).unwrap();
+        let profile =
+            &mut legacy["results"]["units"][rig.column.0.to_string()]["absorber"]["rate_based"];
+        assert!(
+            profile
+                .as_object_mut()
+                .unwrap()
+                .remove("estimated_boundary_pressures_pa")
+                .is_some()
+        );
+        let legacy_saved = serde_json::to_string(&legacy).unwrap();
+        let reopened_legacy = Project::from_json(&legacy_saved).unwrap();
+        let rate = reopened_legacy.results.as_ref().unwrap().units[&rig.column]
+            .absorber
+            .as_ref()
+            .unwrap()
+            .rate_based
+            .as_ref()
+            .unwrap();
+        assert!(rate.estimated_boundary_pressures_pa.is_empty());
         assert_eq!(
             reopened.flowsheet.unit(rig.column).unwrap().spec,
             rig.project.flowsheet.unit(rig.column).unwrap().spec

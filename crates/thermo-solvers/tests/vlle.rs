@@ -255,6 +255,40 @@ fn ph_reproduces_tp_states() {
 }
 
 #[test]
+fn propane_rich_ph_inside_the_three_phase_enthalpy_step() {
+    let model = cubic(
+        &["propane", "water"],
+        &[0.9957, 0.0043],
+        CubicVariant::PengRobinson,
+    );
+    let pressure = Pressure::new(20e5).unwrap();
+    // Clapeyron.jl reference: validation/julia/check_vlle_propane_rich.jl.
+    let options = MultiphaseOptions::default();
+    let result = vlle_ph_flash(&model, pressure, -6795.525837714403, options).unwrap();
+    assert!(result.invariant_temperature);
+    assert_eq!(
+        roles_ph(&result),
+        [
+            PhaseRole::Vapor,
+            PhaseRole::LightLiquid,
+            PhaseRole::HeavyLiquid
+        ]
+    );
+    assert!((result.temperature_k - 329.8018791069918).abs() < 2e-6);
+    assert!(result.scaled_energy_residual.abs() <= options.energy_tolerance);
+    assert!(result.max_component_balance_residual <= 1e-9);
+    assert!(result.max_ln_fugacity_residual <= 1e-7);
+    for (phase, (fraction, propane)) in result.phases.iter().zip([
+        (0.43, 0.9928975992411447),
+        (0.5697877700651349, 0.998185749513824),
+        (0.00021222993486513878, 1.4484158740005578e-10),
+    ]) {
+        assert!((phase.phase_fraction - fraction).abs() < 2e-8);
+        assert!((phase.composition[0] - propane).abs() < 1e-8 + 1e-7 * propane);
+    }
+}
+
+#[test]
 fn pure_component_ph_inside_the_enthalpy_step_uses_the_lever_rule() {
     let m = cubic(&["propane"], &[1.0], CubicVariant::PengRobinson);
     let p = Pressure::new(10e5).unwrap();

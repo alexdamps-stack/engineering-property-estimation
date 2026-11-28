@@ -73,6 +73,9 @@ pub struct RateBasedProfile {
     pub interfacial_area_m2_m3: Vec<f64>,
     pub flooding_fractions: Vec<f64>,
     pub pressure_drops_pa_m: Vec<f64>,
+    /// Estimated absolute pressure at each segment boundary, from the top to
+    /// the bottom. The top is anchored at the specified column pressure.
+    pub estimated_boundary_pressures_pa: Vec<f64>,
     /// Total bed pressure drop, Pa (reported; the column is solved at one
     /// pressure).
     pub pressure_drop_pa: f64,
@@ -858,6 +861,13 @@ impl RateColumn<'_, '_> {
             ));
         }
         let pressure_drop_pa = drops.iter().sum::<f64>() * dz;
+        let mut estimated_boundary_pressures_pa = Vec::with_capacity(n + 1);
+        estimated_boundary_pressures_pa.push(self.pressure);
+        let mut cumulative_drop = 0.0;
+        for drop_per_m in &drops {
+            cumulative_drop += drop_per_m * dz;
+            estimated_boundary_pressures_pa.push(self.pressure + cumulative_drop);
+        }
         let max_flooding_fraction = flooding.iter().copied().fold(0.0, f64::max);
         let profile = RateBasedProfile {
             packing: self.spec.packing,
@@ -874,6 +884,7 @@ impl RateColumn<'_, '_> {
             interfacial_area_m2_m3: props.iter().map(|p| p.area_m2_m3).collect(),
             flooding_fractions: flooding,
             pressure_drops_pa_m: drops,
+            estimated_boundary_pressures_pa,
             pressure_drop_pa,
             max_flooding_fraction,
             max_neglected_transport_fraction: neglected,

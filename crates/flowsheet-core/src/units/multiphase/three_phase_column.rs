@@ -913,21 +913,10 @@ impl Column<'_, '_> {
                     .collect();
                 let h = (la * p.first.enthalpy + lb * third.enthalpy + lv * p.second.enthalpy) / f;
                 let x2 = normalized(&b.l2);
-                let flash = match self.ctx.vlle_ph(&z, self.pressure, h) {
-                    Ok(flash) => flash,
-                    Err(e) => {
-                        // The PH flash can fail for strongly immiscible
-                        // binaries at their three-phase temperature; the
-                        // solved liquids (iso-fugacity holds) then must pass
-                        // the liquid tangent-plane test.
-                        if self.incipient_liquid(&xs, b.t).is_none()
-                            && self.incipient_liquid(&x2, b.t).is_none()
-                        {
-                            continue;
-                        }
-                        return Err(format!("three-phase column stage {stage} phase check: {e}"));
-                    }
-                };
+                let flash = self
+                    .ctx
+                    .vlle_ph(&z, self.pressure, h)
+                    .map_err(|e| format!("three-phase column stage {stage} phase check: {e}"))?;
                 let phases = (
                     flash.phase_with_role(PhaseRole::Vapor),
                     flash.phase_with_role(PhaseRole::LightLiquid),
